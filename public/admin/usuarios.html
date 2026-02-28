@@ -7,7 +7,7 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/responsive-complete.css?v=20260227">
+    <link rel="stylesheet" href="/css/responsive-complete.css?v=20260228b">
     <style>
         :root {
             --primary: #3498db;
@@ -120,20 +120,21 @@
         .actions-cell { display:flex; gap:6px; }
 
         /* === MODAL === */
-        .modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:2000; align-items:center; justify-content:center; padding:20px; }
-        .modal-overlay.active { display:flex; }
-        .modal { background:#fff; border-radius:var(--radius); width:100%; max-height:92vh; overflow:hidden; animation:modalIn .25s ease; display:flex; flex-direction:column; }
-        .modal-sm { max-width:500px; }
-        .modal-md { max-width:700px; }
-        .modal-lg { max-width:960px; }
-        .modal-xl { max-width:1200px; }
+        .modal-overlay { display:none !important; position:fixed !important; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:10001 !important; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
+        .modal-overlay.active { display:flex !important; }
+        /* CRITICAL: override modal-responsive.css display:block !important */
+        .modal-overlay .modal { display:flex !important; flex-direction:column !important; position:relative !important; background:#fff !important; border-radius:var(--radius) !important; width:100%; max-height:90vh !important; animation:modalIn .25s ease; box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden !important; }
+        .modal-sm { max-width:500px !important; }
+        .modal-md { max-width:700px !important; }
+        .modal-lg { max-width:960px !important; }
+        .modal-xl { max-width:1200px !important; }
         @keyframes modalIn { from{opacity:0;transform:translateY(-20px);}to{opacity:1;transform:translateY(0);} }
-        .modal-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+        .modal-overlay .modal-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex !important; justify-content:space-between; align-items:center; flex-shrink:0 !important; border-radius:var(--radius) var(--radius) 0 0; background:#fff; position:relative !important; }
         .modal-header h3 { font-size:1.1rem; font-weight:600; display:flex; align-items:center; gap:8px; }
         .modal-close { width:34px; height:34px; border:none; background:transparent; cursor:pointer; border-radius:8px; font-size:1.1rem; color:#666; transition:all .2s; }
         .modal-close:hover { background:#fee; color:var(--danger); }
-        .modal-body { padding:20px; overflow-y:auto; flex:1; min-height:0; }
-        .modal-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; flex-shrink:0; }
+        .modal-overlay .modal-body { padding:20px; overflow-y:auto !important; flex:1 1 auto !important; min-height:0 !important; max-height:calc(90vh - 130px) !important; }
+        .modal-overlay .modal-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex !important; justify-content:flex-end; gap:8px; flex-shrink:0 !important; border-radius:0 0 var(--radius) var(--radius); background:#fff; position:relative !important; }
 
         /* === FORMS === */
         .form-group { margin-bottom:16px; }
@@ -897,7 +898,7 @@ async function openUserModal(userId=null) {
     document.getElementById('f-user-id').value = userId||'';
     document.getElementById('f-senha-hint').textContent = userId?'(vazio = manter)':'(obrigatória)';
     const grp = document.getElementById('f-roles-group');
-    grp.innerHTML = allRoles.map(r => `<label class="perm-chip" data-rid="${r.id}" onclick="this.classList.toggle('active');this.querySelector('input').checked=this.classList.contains('active');"><input type="checkbox" name="uroles" value="${r.id}" style="display:none;"><i class="fas ${r.icone||'fa-tag'}" style="color:${r.cor||'#3498db'};"></i> ${esc(r.nome)}</label>`).join('');
+    grp.innerHTML = allRoles.map(r => `<span class="perm-chip" data-rid="${r.id}" data-value="${r.id}" onclick="this.classList.toggle('active')"><i class="fas ${r.icone||'fa-tag'}" style="color:${r.cor||'#3498db'};"></i> ${esc(r.nome)}</span>`).join('');
     if (userId) {
         const u = users.find(x=>x.id===userId);
         if (u) {
@@ -907,7 +908,7 @@ async function openUserModal(userId=null) {
             document.getElementById('f-is-admin').checked = !!u.is_admin;
             (u.roles||[]).forEach(rn => {
                 const role = allRoles.find(r=>r.nome===rn);
-                if (role) { const ch = grp.querySelector(`[data-rid="${role.id}"]`); if(ch){ch.classList.add('active');ch.querySelector('input').checked=true;} }
+                if (role) { const ch = grp.querySelector(`[data-rid="${role.id}"]`); if(ch){ch.classList.add('active');} }
             });
             // Carregar status 2FA
             try {
@@ -936,7 +937,7 @@ async function saveUser() {
     const senha = document.getElementById('f-senha').value;
     const setor = document.getElementById('f-setor').value;
     const is_admin = document.getElementById('f-is-admin').checked;
-    const roles = [...document.querySelectorAll('#f-roles-group input:checked')].map(c=>parseInt(c.value));
+    const roles = [...document.querySelectorAll('#f-roles-group .perm-chip.active')].map(c=>parseInt(c.dataset.value));
     if (!nome||!email) return showToast('Nome e email obrigatórios','warning');
     if (!id&&!senha) return showToast('Senha obrigatória para novo usuário','warning');
     showLoading(true);
@@ -1148,7 +1149,7 @@ function openRoleModal(roleId=null) {
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 ${['visualizar','criar','editar','excluir','aprovar'].map(a => {
                     const ic = {visualizar:'fa-eye',criar:'fa-plus',editar:'fa-pen',excluir:'fa-trash',aprovar:'fa-check-double'}[a];
-                    return `<label class="perm-chip" data-rmod="${mk}" data-ract="${a}" onclick="this.classList.toggle('active');this.querySelector('input').checked=this.classList.contains('active');"><input type="checkbox" style="display:none;" name="rp_${mk}_${a}"><i class="fas ${ic}"></i> ${a.charAt(0).toUpperCase()+a.slice(1)}</label>`;
+                    return `<span class="perm-chip" data-rmod="${mk}" data-ract="${a}" onclick="this.classList.toggle('active')"><i class="fas ${ic}"></i> ${a.charAt(0).toUpperCase()+a.slice(1)}</span>`;
                 }).join('')}
             </div></div>`;
     }
@@ -1176,7 +1177,7 @@ async function loadRolePerms(roleId) {
                 const mc = p.modulo_codigo||p.codigo;
                 if (!mc) continue;
                 ['visualizar','criar','editar','excluir','aprovar'].forEach(a => {
-                    if (p[`pode_${a}`]) { const ch = document.querySelector(`[data-rmod="${mc}"][data-ract="${a}"]`); if(ch){ch.classList.add('active');ch.querySelector('input').checked=true;} }
+                    if (p[`pode_${a}`]) { const ch = document.querySelector(`[data-rmod="${mc}"][data-ract="${a}"]`); if(ch){ch.classList.add('active');} }
                 });
             }
         }
@@ -1184,22 +1185,22 @@ async function loadRolePerms(roleId) {
 }
 
 async function saveRole() {
-    const id = document.getElementById('f-role-id').value;
-    const nome = document.getElementById('f-role-nome').value.trim();
-    const codigo = document.getElementById('f-role-codigo').value.trim();
-    const nivel = parseInt(document.getElementById('f-role-nivel').value)||50;
-    const cor = document.getElementById('f-role-cor').value;
-    const descricao = document.getElementById('f-role-desc').value.trim();
-    if (!nome||!codigo) return showToast('Nome e código obrigatórios','warning');
-    const modulos = {};
-    document.querySelectorAll('#f-role-perms .perm-chip[data-rmod]').forEach(c => {
-        const m=c.dataset.rmod, a=c.dataset.ract;
-        if(!modulos[m]) modulos[m]={};
-        modulos[m][a]=c.classList.contains('active');
-    });
-    console.log('[saveRole] Salvando perfil:', {id,nome,codigo,nivel,cor,descricao,modulos});
-    showLoading(true);
     try {
+        const id = document.getElementById('f-role-id').value;
+        const nome = document.getElementById('f-role-nome').value.trim();
+        const codigo = document.getElementById('f-role-codigo').value.trim();
+        const nivel = parseInt(document.getElementById('f-role-nivel').value)||50;
+        const cor = document.getElementById('f-role-cor').value;
+        const descricao = document.getElementById('f-role-desc').value.trim();
+        if (!nome||!codigo) return showToast('Nome e código são obrigatórios','warning');
+        const modulos = {};
+        document.querySelectorAll('#f-role-perms .perm-chip[data-rmod]').forEach(c => {
+            const m=c.dataset.rmod, a=c.dataset.ract;
+            if(!modulos[m]) modulos[m]={};
+            modulos[m][a]=c.classList.contains('active');
+        });
+        console.log('[saveRole] Salvando perfil:', {id,nome,codigo,nivel,cor,descricao,modulos});
+        showLoading(true);
         const url = id ? `/api/auth/admin/roles/${id}` : '/api/auth/admin/roles';
         const method = id ? 'PUT' : 'POST';
         const r = await fetch(url, {
@@ -1221,7 +1222,7 @@ async function saveRole() {
         }
     } catch(e) {
         console.error('[saveRole] Erro:', e);
-        showToast('Erro: '+e.message,'error');
+        showToast('Erro ao salvar: '+e.message,'error');
     } finally {
         showLoading(false);
     }
@@ -1307,6 +1308,7 @@ function setupEvents() {
     document.addEventListener('keydown',e=>{if(e.key==='Escape') document.querySelectorAll('.modal-overlay.active').forEach(m=>m.classList.remove('active'));});
 }
 </script>
-<script src="/_shared/confirm-dialog.js?v=20260227"></script>
+<script src="/_shared/confirm-dialog.js?v=20260228b"></script>
+<div style="position:fixed;bottom:4px;left:8px;font-size:0.65rem;color:#ccc;z-index:1;pointer-events:none;">v2.3-fix</div>
 </body>
 </html>
