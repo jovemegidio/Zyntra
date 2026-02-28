@@ -1,0 +1,399 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Fluxo de Caixa</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260216">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <style>
+        /* ===== FLUXO DE CAIXA — ESTILOS ESPECÍFICOS ===== */
+        .kpi-cards {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;
+        }
+        .kpi-card {
+            background: white; border-radius: 12px; padding: 18px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--gray-100);
+            border-left: 4px solid;
+        }
+        .kpi-card .kpi-value { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+        .kpi-card .kpi-label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
+
+        .period-selector {
+            display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
+        }
+        .period-btn {
+            padding: 8px 16px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 12px; font-weight: 600; cursor: pointer; background: white; color: var(--gray-600);
+            transition: all 0.2s;
+        }
+        .period-btn:hover { background: var(--gray-50); }
+        .period-btn.active { background: #1e40af; color: white; border-color: #1e40af; }
+        .period-custom {
+            display: flex; gap: 8px; align-items: center; margin-left: 12px;
+        }
+        .period-custom input {
+            padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 12px; font-family: 'Inter', sans-serif;
+        }
+        .period-custom input:focus { outline: none; border-color: var(--info-500); }
+        .btn-buscar {
+            padding: 8px 14px; background: #1e40af; color: white; border: none;
+            border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+
+        .chart-container {
+            background: white; border-radius: 14px; padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--gray-100); margin-bottom: 20px;
+        }
+        .chart-title {
+            font-size: 14px; font-weight: 700; color: var(--gray-800); margin-bottom: 16px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .table-container {
+            background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border: 1px solid var(--gray-100); overflow: hidden;
+        }
+        .table-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--gray-100);
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+        }
+        .table-title { font-size: 14px; font-weight: 700; color: var(--gray-800); margin: 0; }
+        .table-actions { display: flex; gap: 8px; }
+        .btn-export {
+            padding: 8px 14px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 12px; font-weight: 600; cursor: pointer; background: white; color: var(--gray-600);
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-export:hover { background: var(--gray-50); }
+        .btn-export.success { background: #059669; color: white; border: none; }
+        .btn-export.success:hover { background: #047857; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 700; color: var(--gray-500);
+            text-transform: uppercase; letter-spacing: 0.5px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200);
+        }
+        td { padding: 12px 16px; font-size: 13px; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); }
+        tr:hover td { background: var(--gray-50); }
+
+        .badge-entrada { background: #dcfce7; color: #166534; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .badge-saida { background: #fee2e2; color: #991b1b; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+
+        @media (max-width: 1024px) { .kpi-cards { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 640px) { .kpi-cards { grid-template-columns: 1fr; } .period-selector { flex-direction: column; align-items: stretch; } .period-custom { margin-left: 0; } }
+    </style>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="contas_pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="contas_receber.html" class="sidebar-btn" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
+                <a href="contas_bancarias.html" class="sidebar-btn" title="Contas Bancárias"><i class="fas fa-university"></i></a>
+                <a href="fluxo_caixa.html" class="sidebar-btn active" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            </nav>
+            <div class="sidebar-bottom"><a href="/dashboard" class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></a></div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-area" data-page-name="Fluxo de Caixa">
+            <header class="header" id="financeiro-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span class="header-separator">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span class="header-dash">—</span>
+                        <span class="page-title">Fluxo de Caixa</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i><span class="notification-badge" id="notification-count" style="display:none;">0</span>
+                        </button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto" id="user-photo" style="display:none;">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- KPIs -->
+                <div class="kpi-cards">
+                    <div class="kpi-card" style="border-left-color:#10b981;--item-color:#10b981;--item-bg:#dcfce7;">
+                        <div class="kpi-value" style="color:var(--item-color);" id="total-entradas">R$ 0,00</div>
+                        <div class="kpi-label">Total Entradas</div>
+                    </div>
+                    <div class="kpi-card" style="border-left-color:#ef4444;--item-color:#ef4444;--item-bg:#fee2e2;">
+                        <div class="kpi-value" style="color:var(--item-color);" id="total-saidas">R$ 0,00</div>
+                        <div class="kpi-label">Total Saídas</div>
+                    </div>
+                    <div class="kpi-card" style="border-left-color:#3b82f6;--item-color:#3b82f6;--item-bg:#dbeafe;">
+                        <div class="kpi-value" style="color:var(--item-color);" id="saldo-periodo">R$ 0,00</div>
+                        <div class="kpi-label">Saldo do Período</div>
+                    </div>
+                    <div class="kpi-card" style="border-left-color:#8b5cf6;--item-color:#8b5cf6;--item-bg:#ede9fe;">
+                        <div class="kpi-value" style="color:var(--item-color);" id="saldo-projetado">R$ 0,00</div>
+                        <div class="kpi-label">Saldo Projetado</div>
+                    </div>
+                </div>
+
+                <!-- Seletor de Período -->
+                <div class="period-selector">
+                    <button class="period-btn active" data-periodo="mes" onclick="selecionarPeriodo('mes', this)">Este Mês</button>
+                    <button class="period-btn" data-periodo="trimestre" onclick="selecionarPeriodo('trimestre', this)">Trimestre</button>
+                    <button class="period-btn" data-periodo="semestre" onclick="selecionarPeriodo('semestre', this)">Semestre</button>
+                    <button class="period-btn" data-periodo="ano" onclick="selecionarPeriodo('ano', this)">Ano</button>
+                    <div class="period-custom">
+                        <input type="date" id="data-inicio">
+                        <span style="color:var(--gray-400);font-size:12px;">até</span>
+                        <input type="date" id="data-fim">
+                        <button class="btn-buscar" onclick="buscarPeriodoCustom()"><i class="fas fa-search"></i> Buscar</button>
+                    </div>
+                </div>
+
+                <!-- Gráfico -->
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <span><i class="fas fa-chart-line" style="color:var(--info-500);margin-right:6px;"></i> Evolução do Fluxo de Caixa</span>
+                    </div>
+                    <canvas id="chart-fluxo" height="80"></canvas>
+                </div>
+
+                <!-- Tabela de Movimentações -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3 class="table-title">Movimentações do Período</h3>
+                        <div class="table-actions">
+                            <button class="btn-export" onclick="exportarFluxo()"><i class="fas fa-file-csv"></i> CSV</button>
+                            <button class="btn-export success" onclick="exportarFluxoPDF()"><i class="fas fa-print"></i> Imprimir</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th><th>Saldo Acumulado</th></tr>
+                        </thead>
+                        <tbody id="tabela-movimentacoes">
+                            <tr><td colspan="6" style="text-align:center;padding:60px;color:var(--gray-400);"><i class="fas fa-spinner fa-spin" style="font-size:48px;margin-bottom:16px;display:block;"></i>Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function toggleMobileSidebar() { document.getElementById('mobile-sidebar')?.classList.toggle('mobile-open'); document.getElementById('sidebar-overlay')?.classList.toggle('active'); }
+        function toggleNotificacoes() { if (typeof window.NotificationsManager !== 'undefined') window.NotificationsManager.togglePanel(); }
+
+        let fluxoData = [];
+        let chartInstance = null;
+
+        // ===== CARREGAR USUÁRIO =====
+        async function carregarUsuario() {
+            try {
+                const r = await fetch('/api/me', { credentials: 'include' });
+                if (r.ok) {
+                    const user = await r.json();
+                    const nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    const h = new Date().getHours();
+                    const greetEl = document.getElementById('greeting-text');
+                    if (greetEl) greetEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia';
+                    document.getElementById('user-name').textContent = nome;
+
+                    const avatarMap = {'clemerson':'/avatars/Clemerson.webp','isabela':'/avatars/Isabela.webp','thaina':'/avatars/Thaina.webp','thiago':'/avatars/Thiago.webp','nicolas':'/avatars/NicolasDaniel.webp','nicolasdaniel':'/avatars/NicolasDaniel.webp','rh':'/avatars/Rh.webp','admin':'/avatars/admin.webp','ti':'/avatars/TI.webp','tialuforce':'/avatars/TI.webp','antonio':'/avatars/Antonio.webp','antônio':'/avatars/Antonio.webp','andreia':'/avatars/Andreia.webp','guilherme':'/avatars/Guilherme.webp','marcelo':'/avatars/Marcelo.webp','financeiro':'/avatars/Financeiro.webp','douglas':'/avatars/Douglas.webp','hellen':'/avatars/Hellen.webp','helen':'/avatars/Hellen.webp'};
+                    let avatarUrl = null;
+                    if (user.avatar && user.avatar !== '/avatars/default.webp') avatarUrl = user.avatar;
+                    else if (user.foto && user.foto !== '/avatars/default.webp') avatarUrl = user.foto;
+                    else if (user.email) avatarUrl = avatarMap[user.email.split('@')[0].split('.')[0].toLowerCase()];
+                    if (!avatarUrl && user.nome) avatarUrl = avatarMap[user.nome.split(' ')[0].toLowerCase()];
+                    const photoEl = document.getElementById('user-photo'), initEl = document.getElementById('user-initials');
+                    if (avatarUrl && photoEl) { photoEl.src=avatarUrl;photoEl.style.display='block';photoEl.onerror=function(){this.style.display='none';if(initEl){initEl.textContent=nome.charAt(0).toUpperCase();initEl.style.display='flex';}};if(initEl)initEl.style.display='none'; }
+                    else if (initEl) { initEl.textContent=nome.charAt(0).toUpperCase();initEl.style.display='flex';if(photoEl)photoEl.style.display='none'; }
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function setDatasPadrao() {
+            const hoje = new Date();
+            const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+            document.getElementById('data-inicio').value = inicio.toISOString().split('T')[0];
+            document.getElementById('data-fim').value = fim.toISOString().split('T')[0];
+        }
+
+        function selecionarPeriodo(periodo, btn) {
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            const hoje = new Date();
+            let inicio, fim;
+            switch (periodo) {
+                case 'mes': inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1); fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0); break;
+                case 'trimestre': inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 2, 1); fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0); break;
+                case 'semestre': inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 5, 1); fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0); break;
+                case 'ano': inicio = new Date(hoje.getFullYear(), 0, 1); fim = new Date(hoje.getFullYear(), 11, 31); break;
+            }
+            document.getElementById('data-inicio').value = inicio.toISOString().split('T')[0];
+            document.getElementById('data-fim').value = fim.toISOString().split('T')[0];
+            carregarFluxo();
+        }
+
+        function buscarPeriodoCustom() {
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            carregarFluxo();
+        }
+
+        async function init() { await carregarUsuario(); setDatasPadrao(); await carregarFluxo(); }
+
+        async function carregarFluxo() {
+            const inicio = document.getElementById('data-inicio').value;
+            const fim = document.getElementById('data-fim').value;
+            if (!inicio || !fim) return;
+            try {
+                const r = await fetch(`/api/financeiro/fluxo-caixa?inicio=${inicio}&fim=${fim}`, { credentials: 'include' });
+                if (r.ok) { fluxoData = await r.json(); fluxoData = fluxoData.data || fluxoData.movimentacoes || fluxoData; if (!Array.isArray(fluxoData)) fluxoData = []; atualizarResumo(); renderizarGrafico(); renderizarTabela(); }
+            } catch(e) { console.error('Erro fluxo:', e); }
+        }
+
+        function atualizarResumo() {
+            const entradas = fluxoData.filter(m => m.tipo === 'entrada' || m.tipo === 'receita').reduce((s, m) => s + (parseFloat(m.valor) || 0), 0);
+            const saidas = fluxoData.filter(m => m.tipo === 'saida' || m.tipo === 'despesa').reduce((s, m) => s + (parseFloat(m.valor) || 0), 0);
+            const saldo = entradas - saidas;
+            document.getElementById('total-entradas').textContent = `R$ ${entradas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('total-saidas').textContent = `R$ ${saidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('saldo-periodo').textContent = `R$ ${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('saldo-projetado').textContent = `R$ ${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+        }
+
+        function renderizarGrafico() {
+            const ctx = document.getElementById('chart-fluxo').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            // Agrupar por data
+            const porData = {};
+            fluxoData.forEach(m => {
+                const data = m.data ? m.data.split('T')[0] : 'Sem data';
+                if (!porData[data]) porData[data] = { entradas: 0, saidas: 0 };
+                if (m.tipo === 'entrada' || m.tipo === 'receita') porData[data].entradas += parseFloat(m.valor) || 0;
+                else porData[data].saidas += parseFloat(m.valor) || 0;
+            });
+            const labels = Object.keys(porData).sort();
+            const entradas = labels.map(d => porData[d].entradas);
+            const saidas = labels.map(d => porData[d].saidas);
+            let saldoAcumulado = 0;
+            const saldos = labels.map((d, i) => { saldoAcumulado += (entradas[i] - saidas[i]); return saldoAcumulado; });
+            const labelsFormatted = labels.map(d => { try { return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }); } catch(e) { return d; } });
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labelsFormatted,
+                    datasets: [
+                        { label: 'Entradas', data: entradas, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#10b981' },
+                        { label: 'Saídas', data: saidas, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#ef4444' },
+                        { label: 'Saldo', data: saldos, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.05)', fill: false, tension: 0.4, pointRadius: 3, borderWidth: 2, borderDash: [5, 5], pointBackgroundColor: '#3b82f6' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'top', labels: { usePointStyle: true, padding: 16, font: { family: 'Inter', size: 12 } } },
+                        tooltip: { mode: 'index', intersect: false, callbacks: { label: function(c) { return `${c.dataset.label}: R$ ${c.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`; } } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => `R$ ${v.toLocaleString('pt-BR')}`, font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+                        x: { ticks: { font: { size: 11 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderizarTabela() {
+            const tbody = document.getElementById('tabela-movimentacoes');
+            if (fluxoData.length === 0) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:60px;color:#9ca3af;"><i class="fas fa-inbox" style="font-size:48px;margin-bottom:16px;display:block;"></i>Nenhuma movimentação no período</td></tr>'; return; }
+            let saldoAcum = 0;
+            const sorted = [...fluxoData].sort((a, b) => new Date(a.data) - new Date(b.data));
+            tbody.innerHTML = sorted.map(m => {
+                const valor = parseFloat(m.valor) || 0;
+                const isEntrada = m.tipo === 'entrada' || m.tipo === 'receita';
+                saldoAcum += isEntrada ? valor : -valor;
+                return `<tr>
+                    <td>${m.data ? new Date(m.data).toLocaleDateString('pt-BR') : '-'}</td>
+                    <td><strong>${m.descricao || m.descrição || '-'}</strong></td>
+                    <td>${m.categoria || m.categoria_nome || '-'}</td>
+                    <td><span class="${isEntrada ? 'badge-entrada' : 'badge-saida'}">${isEntrada ? 'Entrada' : 'Saída'}</span></td>
+                    <td style="color:${isEntrada ? '#059669' : '#ef4444'};font-weight:700;">${isEntrada ? '+' : '-'} R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td style="font-weight:700;color:${saldoAcum >= 0 ? '#059669' : '#ef4444'};">R$ ${saldoAcum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ===== EXPORTAR =====
+        function exportarFluxo() {
+            if (fluxoData.length === 0) { alert('Nada para exportar'); return; }
+            const headers = ['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor'];
+            const linhas = fluxoData.map(m => [
+                m.data ? new Date(m.data).toLocaleDateString('pt-BR') : '-',
+                `"${(m.descricao || m.descrição || '').replace(/"/g, '""')}"`,
+                m.categoria || '-',
+                m.tipo || '-',
+                (parseFloat(m.valor) || 0).toFixed(2).replace('.', ',')
+            ]);
+            const csv = [headers.join(';'), ...linhas.map(l => l.join(';'))].join('\n');
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+            link.download = `fluxo_caixa_${new Date().toISOString().split('T')[0]}.csv`; link.click();
+        }
+
+        function exportarFluxoPDF() {
+            const w = window.open('', '_blank');
+            const inicio = document.getElementById('data-inicio').value;
+            const fim = document.getElementById('data-fim').value;
+            let saldoAcum = 0;
+            const sorted = [...fluxoData].sort((a, b) => new Date(a.data) - new Date(b.data));
+            w.document.write(`<html><head><title>Fluxo de Caixa</title><style>body{font-family:Arial;padding:20px;}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{padding:8px 12px;border:1px solid #ddd;text-align:left;font-size:12px;}th{background:#f3f4f6;}.entrada{color:#059669;}.saida{color:#ef4444;}</style></head><body><h2>Fluxo de Caixa</h2><p>Período: ${inicio} a ${fim}</p><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th><th>Saldo Acumulado</th></tr></thead><tbody>${sorted.map(m => { const v = parseFloat(m.valor)||0; const isE = m.tipo==='entrada'||m.tipo==='receita'; saldoAcum += isE?v:-v; return `<tr><td>${m.data?new Date(m.data).toLocaleDateString('pt-BR'):'-'}</td><td>${m.descricao||m.descrição||'-'}</td><td>${m.categoria||'-'}</td><td class="${isE?'entrada':'saida'}">${isE?'Entrada':'Saída'}</td><td class="${isE?'entrada':'saida'}">${isE?'+':'-'} R$ ${v.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td><td style="color:${saldoAcum>=0?'#059669':'#ef4444'}">R$ ${saldoAcum.toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`; }).join('')}</tbody></table>    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+</body></html>`);
+            w.document.close(); w.print();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { init().catch(e => console.error(e)); });
+    </script>
+
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

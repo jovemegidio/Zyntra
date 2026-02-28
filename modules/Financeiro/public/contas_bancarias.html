@@ -1,0 +1,728 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Contas Bancárias</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260216">
+
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <script src="/js/modal-title.js?v=20260210"></script>
+
+    <style>
+        /* ===== CONTAS BANCÁRIAS — ESTILOS ESPECÍFICOS ===== */
+        .summary-cards {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;
+        }
+        .summary-card {
+            background: white; border-radius: 12px; padding: 18px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); border: 1px solid var(--gray-100);
+        }
+        .summary-value { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+        .summary-label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
+
+        .page-actions {
+            display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+        }
+        .btn-action {
+            padding: 10px 18px; border: none; border-radius: 10px; font-size: 13px;
+            font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-action.primary { background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; }
+        .btn-action.primary:hover { opacity: 0.9; }
+        .btn-action.secondary { background: white; border: 1px solid var(--gray-200); color: var(--gray-600); }
+        .btn-action.secondary:hover { background: var(--gray-50); }
+        .btn-action.success { background: #059669; color: white; }
+        .btn-action.success:hover { background: #047857; }
+
+        /* Bank Cards */
+        .bank-cards-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;
+        }
+        .bank-card {
+            background: white; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border: 1px solid var(--gray-100); overflow: hidden; transition: all 0.2s;
+        }
+        .bank-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-2px); }
+        .bank-card-header {
+            display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .bank-logo {
+            width: 42px; height: 42px; border-radius: 10px; object-fit: contain;
+            background: var(--gray-50); padding: 4px;
+        }
+        .bank-logo-placeholder {
+            width: 42px; height: 42px; border-radius: 10px; background: var(--gray-100);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: var(--gray-400);
+        }
+        .bank-info { flex: 1; }
+        .bank-name { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+        .bank-type { font-size: 11px; color: var(--gray-500); font-weight: 500; }
+        .bank-card-status {
+            padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+        }
+        .bank-card-status.ativa { background: #dcfce7; color: #166534; }
+        .bank-card-status.inativa { background: #fee2e2; color: #991b1b; }
+
+        .bank-card-body { padding: 16px 20px; }
+        .bank-saldo-label { font-size: 11px; color: var(--gray-500); font-weight: 600; margin-bottom: 4px; }
+        .bank-saldo-value { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+        .bank-saldo-value.positivo { color: #059669; }
+        .bank-saldo-value.negativo { color: #ef4444; }
+
+        .bank-details {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;
+        }
+        .bank-detail-item { }
+        .bank-detail-label { font-size: 10px; color: var(--gray-400); font-weight: 600; text-transform: uppercase; }
+        .bank-detail-value { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+
+        .bank-card-actions {
+            display: flex; gap: 6px; padding: 12px 20px;
+            border-top: 1px solid var(--gray-100); flex-wrap: wrap;
+        }
+        .bank-btn {
+            padding: 7px 12px; border: none; border-radius: 6px; font-size: 11px;
+            font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+        }
+        .bank-btn.view { background: #dbeafe; color: #1e40af; }
+        .bank-btn.view:hover { background: #bfdbfe; }
+        .bank-btn.mov { background: #dcfce7; color: #166534; }
+        .bank-btn.mov:hover { background: #bbf7d0; }
+        .bank-btn.extrato { background: #fef3c7; color: #92400e; }
+        .bank-btn.extrato:hover { background: #fde68a; }
+        .bank-btn.edit { background: var(--gray-100); color: var(--gray-600); }
+        .bank-btn.edit:hover { background: var(--gray-200); }
+        .bank-btn.delete { background: #fee2e2; color: #991b1b; }
+        .bank-btn.delete:hover { background: #fecaca; }
+
+        .empty-state {
+            text-align: center; padding: 80px 20px; color: var(--gray-400);
+        }
+        .empty-state i { font-size: 64px; margin-bottom: 16px; display: block; }
+        .empty-state p { font-size: 14px; margin-bottom: 16px; }
+
+        /* ===== MODAIS ===== */
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 16px; width: 95%; max-height: 90vh; overflow-y: auto; }
+
+        .modal-institucional { max-width: 600px; }
+        .modal-header-institucional {
+            display: flex; align-items: center; gap: 14px; padding: 20px 24px;
+            background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px 16px 0 0; color: white;
+        }
+        .modal-header-icon { width: 42px; height: 42px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .modal-header-info { flex: 1; }
+        .modal-title { font-size: 17px; font-weight: 700; margin: 0; color: white; }
+        .modal-subtitle { font-size: 12px; opacity: 0.85; margin: 2px 0 0; }
+        .close-modal-inst { background: none; border: none; color: white; font-size: 24px; cursor: pointer; opacity: 0.8; }
+
+        .form-body { padding: 20px 24px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+        .form-group label i { color: var(--gray-400); font-size: 12px; }
+        .form-input, .form-select { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; color: var(--gray-800); }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--info-500); box-shadow: 0 0 0 3px rgba(6,182,212,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .input-with-prefix { display: flex; align-items: center; }
+        .input-prefix { padding: 10px 12px; background: var(--gray-100); border: 1px solid var(--gray-200); border-right: none; border-radius: 8px 0 0 8px; font-size: 13px; font-weight: 600; color: var(--gray-500); }
+        .form-input.with-prefix { border-radius: 0 8px 8px 0; }
+
+        .modal-footer {
+            display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px;
+            border-top: 1px solid var(--gray-100); background: var(--gray-50); border-radius: 0 0 16px 16px;
+        }
+        .btn-cancel { padding: 10px 20px; background: white; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--gray-600); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .btn-save { padding: 10px 20px; background: linear-gradient(135deg, #1e40af, #3b82f6); border: none; border-radius: 8px; font-size: 13px; font-weight: 600; color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+        /* Modal Extrato */
+        .modal-extrato { max-width: 900px; }
+        .extrato-header { padding: 20px 24px; border-bottom: 1px solid var(--gray-100); }
+        .extrato-filtros { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-top: 12px; }
+        .extrato-body { padding: 20px 24px; max-height: 400px; overflow-y: auto; }
+        .extrato-item {
+            display: flex; justify-content: space-between; align-items: center; padding: 12px 0;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .extrato-item:last-child { border-bottom: none; }
+        .extrato-item-left { flex: 1; }
+        .extrato-item-desc { font-size: 13px; font-weight: 600; color: var(--gray-800); }
+        .extrato-item-data { font-size: 11px; color: var(--gray-500); }
+        .extrato-item-valor { font-size: 14px; font-weight: 700; }
+        .extrato-item-valor.entrada { color: #059669; }
+        .extrato-item-valor.saida { color: #ef4444; }
+        .extrato-resumo {
+            padding: 16px 24px; border-top: 1px solid var(--gray-100); background: var(--gray-50);
+            display: flex; gap: 30px;
+        }
+        .extrato-resumo-item { }
+        .extrato-resumo-label { font-size: 11px; font-weight: 600; color: var(--gray-500); }
+        .extrato-resumo-value { font-size: 16px; font-weight: 800; }
+
+        /* Modal Visualizar */
+        .modal-visualizar { max-width: 500px; }
+        .view-header {
+            padding: 24px; display: flex; flex-direction: column; align-items: center;
+            background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px 16px 0 0; color: white;
+        }
+        .view-bank-logo { width: 56px; height: 56px; border-radius: 14px; background: rgba(255,255,255,0.2); padding: 6px; object-fit: contain; margin-bottom: 8px; }
+        .view-bank-logo-placeholder { width: 56px; height: 56px; border-radius: 14px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 8px; }
+        .view-title { font-size: 18px; font-weight: 700; margin: 0; color: white; }
+        .view-saldo { font-size: 28px; font-weight: 800; margin: 8px 0; color: white; }
+        .view-body { padding: 20px 24px; }
+        .view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .view-label { font-size: 11px; font-weight: 600; color: var(--gray-500); margin-bottom: 4px; }
+        .view-value { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+        .view-footer { padding: 16px 24px; border-top: 1px solid var(--gray-100); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+        /* Modal Transferência */
+        .modal-transferencia { max-width: 520px; }
+        .saldo-info { font-size: 12px; color: var(--gray-500); margin-top: 4px; font-weight: 500; }
+
+        @media (max-width: 768px) { .summary-cards { grid-template-columns: 1fr; } .bank-cards-grid { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } }
+    </style>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="contas_pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="contas_receber.html" class="sidebar-btn" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
+                <a href="contas_bancarias.html" class="sidebar-btn active" title="Contas Bancárias"><i class="fas fa-university"></i></a>
+                <a href="fluxo_caixa.html" class="sidebar-btn" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            </nav>
+            <div class="sidebar-bottom"><a href="/dashboard" class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></a></div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-area" data-page-name="Contas Bancárias">
+            <header class="header" id="financeiro-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span class="header-separator">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span class="header-dash">—</span>
+                        <span class="page-title">Contas Bancárias</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Nova Conta" onclick="abrirModalConta()"><i class="fas fa-plus"></i></button>
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i><span class="notification-badge" id="notification-count" style="display:none;">0</span>
+                        </button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto" id="user-photo" style="display:none;">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Resumo -->
+                <div class="summary-cards">
+                    <div class="summary-card"><div class="summary-value" style="color:#2563eb;" id="total-contas">0</div><div class="summary-label">Total de Contas</div></div>
+                    <div class="summary-card"><div class="summary-value" style="color:#059669;" id="saldo-total">R$ 0,00</div><div class="summary-label">Saldo Total</div></div>
+                    <div class="summary-card"><div class="summary-value" style="color:#16a34a;" id="contas-ativas">0</div><div class="summary-label">Contas Ativas</div></div>
+                </div>
+
+                <!-- Ações -->
+                <div class="page-actions">
+                    <button class="btn-action primary" onclick="abrirModalConta()"><i class="fas fa-plus"></i> Nova Conta Bancária</button>
+                    <button class="btn-action success" onclick="abrirModalTransferencia()"><i class="fas fa-exchange-alt"></i> Transferência</button>
+                </div>
+
+                <!-- Grid de Cards -->
+                <div class="bank-cards-grid" id="bank-cards-grid">
+                    <div class="empty-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Carregando contas bancárias...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Conta Bancária -->
+    <div id="modal-conta" class="modal">
+        <div class="modal-content modal-institucional">
+            <div class="modal-header-institucional">
+                <div class="modal-header-icon"><i class="fas fa-university"></i></div>
+                <div class="modal-header-info"><h3 class="modal-title" id="modal-conta-titulo">Nova Conta Bancária</h3><p class="modal-subtitle">Cadastre uma nova conta bancária</p></div>
+                <button class="close-modal-inst" onclick="fecharModalConta()">×</button>
+            </div>
+            <form id="form-conta" onsubmit="salvarConta(event)">
+                <input type="hidden" id="conta-id">
+                <div class="form-body">
+                    <div class="form-group"><label><i class="fas fa-tag"></i> Nome da Conta *</label><input type="text" class="form-input" id="nome-conta" required placeholder="Ex: Conta Corrente Bradesco"></div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-university"></i> Banco *</label>
+                            <select class="form-input" id="banco" required>
+                                <option value="">Selecione...</option>
+                                <option value="001">Banco do Brasil</option>
+                                <option value="237">Bradesco</option>
+                                <option value="104">Caixa Econômica</option>
+                                <option value="341">Itaú</option>
+                                <option value="033">Santander</option>
+                                <option value="260">Nubank</option>
+                                <option value="077">Inter</option>
+                                <option value="999">Outro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-credit-card"></i> Tipo *</label>
+                            <select class="form-input" id="tipo-conta" required>
+                                <option value="corrente">Conta Corrente</option>
+                                <option value="poupanca">Poupança</option>
+                                <option value="investimento">Investimento</option>
+                                <option value="pagamento">Conta Pagamento</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label><i class="fas fa-building"></i> Agência</label><input type="text" class="form-input" id="agencia" placeholder="0000"></div>
+                        <div class="form-group"><label><i class="fas fa-hashtag"></i> Número da Conta</label><input type="text" class="form-input" id="numero-conta" placeholder="00000-0"></div>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-dollar-sign"></i> Saldo Inicial</label>
+                        <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" class="form-input with-prefix" id="saldo-inicial" value="0" placeholder="0,00"></div>
+                    </div>
+                    <div class="form-group"><label><i class="fas fa-comment"></i> Observações</label><textarea class="form-input" id="observacoes" rows="2" placeholder="Informações adicionais..."></textarea></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="fecharModalConta()"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="submit" class="btn-save"><i class="fas fa-save"></i> Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Movimentação -->
+    <div id="modal-movimentacao" class="modal">
+        <div class="modal-content modal-institucional">
+            <div class="modal-header-institucional" style="background:linear-gradient(135deg,#059669,#10b981);">
+                <div class="modal-header-icon"><i class="fas fa-exchange-alt"></i></div>
+                <div class="modal-header-info"><h3 class="modal-title">Nova Movimentação</h3><p class="modal-subtitle">Registre uma entrada ou saída</p></div>
+                <button class="close-modal-inst" onclick="fecharModalMovimentacao()">×</button>
+            </div>
+            <form id="form-movimentacao" onsubmit="salvarMovimentacao(event)">
+                <input type="hidden" id="mov-conta-id">
+                <div class="form-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i class="fas fa-arrow-right"></i> Tipo *</label>
+                            <select class="form-input" id="mov-tipo" required>
+                                <option value="entrada">Entrada</option>
+                                <option value="saida">Saída</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-dollar-sign"></i> Valor *</label>
+                            <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0.01" class="form-input with-prefix" id="mov-valor" required></div>
+                        </div>
+                    </div>
+                    <div class="form-group"><label><i class="fas fa-align-left"></i> Descrição *</label><input type="text" class="form-input" id="mov-descricao" required placeholder="Descrição da movimentação"></div>
+                    <div class="form-group"><label><i class="fas fa-calendar"></i> Data *</label><input type="date" class="form-input" id="mov-data" required></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="fecharModalMovimentacao()"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="submit" class="btn-save" style="background:linear-gradient(135deg,#059669,#10b981);"><i class="fas fa-check"></i> Registrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Extrato -->
+    <div id="modal-extrato" class="modal">
+        <div class="modal-content modal-extrato">
+            <div class="extrato-header">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div><h3 style="margin:0;font-size:17px;font-weight:700;color:var(--gray-800);" id="extrato-titulo">Extrato Bancário</h3><p style="font-size:12px;color:var(--gray-500);margin:4px 0 0;">Movimentações da conta</p></div>
+                    <button onclick="fecharModalExtrato()" style="background:none;border:none;font-size:22px;color:var(--gray-400);cursor:pointer;">×</button>
+                </div>
+                <div class="extrato-filtros">
+                    <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:11px;font-weight:600;color:var(--gray-500);">De</label><input type="date" class="form-input" id="extrato-data-inicio" onchange="filtrarExtrato()" style="min-width:140px;"></div>
+                    <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;"><label style="font-size:11px;font-weight:600;color:var(--gray-500);">Até</label><input type="date" class="form-input" id="extrato-data-fim" onchange="filtrarExtrato()" style="min-width:140px;"></div>
+                    <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;">
+                        <label style="font-size:11px;font-weight:600;color:var(--gray-500);">Tipo</label>
+                        <select class="form-input" id="extrato-tipo" onchange="filtrarExtrato()" style="min-width:120px;">
+                            <option value="">Todos</option><option value="entrada">Entradas</option><option value="saida">Saídas</option>
+                        </select>
+                    </div>
+                    <button class="btn-action secondary" onclick="exportarExtratoPDF()" style="padding:8px 14px;font-size:12px;"><i class="fas fa-file-pdf"></i> PDF</button>
+                </div>
+            </div>
+            <div class="extrato-body" id="extrato-lista"><p style="text-align:center;color:var(--gray-400);padding:40px;">Carregando...</p></div>
+            <div class="extrato-resumo">
+                <div class="extrato-resumo-item"><div class="extrato-resumo-label">Entradas</div><div class="extrato-resumo-value" id="extrato-entradas" style="color:#059669;">R$ 0,00</div></div>
+                <div class="extrato-resumo-item"><div class="extrato-resumo-label">Saídas</div><div class="extrato-resumo-value" id="extrato-saidas" style="color:#ef4444;">R$ 0,00</div></div>
+                <div class="extrato-resumo-item"><div class="extrato-resumo-label">Saldo Período</div><div class="extrato-resumo-value" id="extrato-saldo" style="color:#1e40af;">R$ 0,00</div></div>
+            </div>
+            <div class="modal-footer"><button class="btn-cancel" onclick="fecharModalExtrato()">Fechar</button></div>
+        </div>
+    </div>
+
+    <!-- Modal Transferência -->
+    <div id="modal-transferencia" class="modal">
+        <div class="modal-content modal-transferencia">
+            <div class="modal-header-institucional" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6);">
+                <div class="modal-header-icon"><i class="fas fa-exchange-alt"></i></div>
+                <div class="modal-header-info"><h3 class="modal-title">Transferência entre Contas</h3><p class="modal-subtitle">Transfira valores entre suas contas</p></div>
+                <button class="close-modal-inst" onclick="fecharModalTransferencia()">×</button>
+            </div>
+            <form id="form-transferencia" onsubmit="realizarTransferencia(event)">
+                <div class="form-body">
+                    <div class="form-group">
+                        <label><i class="fas fa-arrow-up"></i> Conta Origem *</label>
+                        <select class="form-input" id="transf-conta-origem" required onchange="atualizarSaldoOrigem()"><option value="">Selecione...</option></select>
+                        <div class="saldo-info" id="saldo-origem-info">Saldo: -</div>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-arrow-down"></i> Conta Destino *</label>
+                        <select class="form-input" id="transf-conta-destino" required><option value="">Selecione...</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-dollar-sign"></i> Valor *</label>
+                        <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0.01" class="form-input with-prefix" id="transf-valor" required></div>
+                    </div>
+                    <div class="form-group"><label><i class="fas fa-calendar"></i> Data *</label><input type="date" class="form-input" id="transf-data" required></div>
+                    <div class="form-group"><label><i class="fas fa-comment"></i> Descrição</label><input type="text" class="form-input" id="transf-descricao" placeholder="Transferência entre contas"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="fecharModalTransferencia()"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="submit" class="btn-save" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6);"><i class="fas fa-exchange-alt"></i> Transferir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Visualizar -->
+    <div id="modal-visualizar" class="modal">
+        <div class="modal-content modal-visualizar">
+            <div class="view-header">
+                <div id="view-bank-logo-container"></div>
+                <h3 class="view-title" id="view-nome">Conta</h3>
+                <div class="view-saldo" id="view-saldo">R$ 0,00</div>
+                <button onclick="fecharModalVisualizar()" style="position:absolute;top:16px;right:16px;background:none;border:none;color:rgba(255,255,255,0.8);font-size:22px;cursor:pointer;">×</button>
+            </div>
+            <div class="view-body">
+                <div class="view-grid">
+                    <div><div class="view-label">Banco</div><div class="view-value" id="view-banco">-</div></div>
+                    <div><div class="view-label">Tipo</div><div class="view-value" id="view-tipo">-</div></div>
+                    <div><div class="view-label">Agência</div><div class="view-value" id="view-agencia">-</div></div>
+                    <div><div class="view-label">Nº Conta</div><div class="view-value" id="view-numero">-</div></div>
+                    <div><div class="view-label">Status</div><div class="view-value" id="view-status">-</div></div>
+                    <div><div class="view-label">Observações</div><div class="view-value" id="view-obs" style="font-weight:normal;">-</div></div>
+                </div>
+            </div>
+            <div class="view-footer">
+                <button class="bank-btn mov" onclick="abrirMovimentacaoFromView()"><i class="fas fa-plus-circle"></i> Movimentação</button>
+                <button class="bank-btn extrato" onclick="abrirExtratoFromView()"><i class="fas fa-list"></i> Extrato</button>
+                <button class="bank-btn edit" onclick="editarContaFromView()"><i class="fas fa-edit"></i> Editar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleMobileSidebar() { document.getElementById('mobile-sidebar')?.classList.toggle('mobile-open'); document.getElementById('sidebar-overlay')?.classList.toggle('active'); }
+        function toggleNotificacoes() { if (typeof window.NotificationsManager !== 'undefined') window.NotificationsManager.togglePanel(); }
+
+        let contasBancarias = [];
+        let extratoMovimentacoes = [];
+        let contaVisualizando = null;
+
+        const bankLogos = { '001': 'bancodobrasil.png', '237': 'bradesco.png', '104': 'caixa-economica.png', '341': 'itaú.png', '033': 'santander.png', '260': 'nubank.png', '077': 'inter.png' };
+        const bankNames = { '001': 'Banco do Brasil', '237': 'Bradesco', '104': 'Caixa Econômica', '341': 'Itaú', '033': 'Santander', '260': 'Nubank', '077': 'Inter' };
+        const tipoNames = { 'corrente': 'Conta Corrente', 'poupanca': 'Poupança', 'investimento': 'Investimento', 'pagamento': 'Conta Pagamento' };
+
+        function getBankLogoHtml(codigo, size = 42) {
+            const logo = bankLogos[codigo];
+            if (logo) return `<img src="../bancos-vetores/${logo}" class="bank-logo" style="width:${size}px;height:${size}px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="bank-logo-placeholder" style="width:${size}px;height:${size}px;display:none;"><i class="fas fa-university"></i></div>`;
+            return `<div class="bank-logo-placeholder" style="width:${size}px;height:${size}px;"><i class="fas fa-university"></i></div>`;
+        }
+
+        async function carregarDadosUsuario() {
+            try {
+                const r = await fetch('/api/me', { credentials: 'include' });
+                if (r.ok) {
+                    const user = await r.json();
+                    const nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    const h = new Date().getHours();
+                    const greetEl = document.getElementById('greeting-text');
+                    if (greetEl) greetEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia';
+                    document.getElementById('user-name').textContent = nome;
+
+                    const avatarMap = {'clemerson':'/avatars/Clemerson.webp','isabela':'/avatars/Isabela.webp','thaina':'/avatars/Thaina.webp','thiago':'/avatars/Thiago.webp','nicolas':'/avatars/NicolasDaniel.webp','nicolasdaniel':'/avatars/NicolasDaniel.webp','rh':'/avatars/Rh.webp','admin':'/avatars/admin.webp','ti':'/avatars/TI.webp','tialuforce':'/avatars/TI.webp','antonio':'/avatars/Antonio.webp','antônio':'/avatars/Antonio.webp','andreia':'/avatars/Andreia.webp','guilherme':'/avatars/Guilherme.webp','marcelo':'/avatars/Marcelo.webp','financeiro':'/avatars/Financeiro.webp','douglas':'/avatars/Douglas.webp','hellen':'/avatars/Hellen.webp','helen':'/avatars/Hellen.webp'};
+                    let avatarUrl = null;
+                    if (user.avatar && user.avatar !== '/avatars/default.webp') avatarUrl = user.avatar;
+                    else if (user.foto && user.foto !== '/avatars/default.webp') avatarUrl = user.foto;
+                    else if (user.email) avatarUrl = avatarMap[user.email.split('@')[0].split('.')[0].toLowerCase()];
+                    if (!avatarUrl && user.nome) avatarUrl = avatarMap[user.nome.split(' ')[0].toLowerCase()];
+                    const photoEl = document.getElementById('user-photo'), initEl = document.getElementById('user-initials');
+                    if (avatarUrl && photoEl) { photoEl.src=avatarUrl;photoEl.style.display='block';photoEl.onerror=function(){this.style.display='none';if(initEl){initEl.textContent=nome.charAt(0).toUpperCase();initEl.style.display='flex';}};if(initEl)initEl.style.display='none'; }
+                    else if (initEl) { initEl.textContent=nome.charAt(0).toUpperCase();initEl.style.display='flex';if(photoEl)photoEl.style.display='none'; }
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        async function init() { await Promise.all([carregarDadosUsuario(), carregarContas()]); }
+
+        async function carregarContas() {
+            try {
+                const r = await fetch('/api/financeiro/contas-bancarias', { credentials: 'include' });
+                if (r.ok) { const rawBancos = await r.json(); const arrBancos = rawBancos?.data || rawBancos; contasBancarias = Array.isArray(arrBancos) ? arrBancos : []; renderizarContas(); atualizarResumo(); }
+            } catch(e) { console.error(e); document.getElementById('bank-cards-grid').innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:#ef4444;"></i><p>Erro ao carregar contas</p></div>'; }
+        }
+
+        function atualizarResumo() {
+            const ativas = contasBancarias.filter(c => c.status !== 'inativa');
+            const saldoTotal = contasBancarias.reduce((s, c) => s + (parseFloat(c.saldo) || 0), 0);
+            document.getElementById('total-contas').textContent = contasBancarias.length;
+            document.getElementById('saldo-total').textContent = `R$ ${saldoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('contas-ativas').textContent = ativas.length;
+        }
+
+        function renderizarContas() {
+            const grid = document.getElementById('bank-cards-grid');
+            if (contasBancarias.length === 0) { grid.innerHTML = '<div class="empty-state"><i class="fas fa-university"></i><p>Nenhuma conta bancária cadastrada</p><button class="btn-action primary" onclick="abrirModalConta()"><i class="fas fa-plus"></i> Cadastrar Conta</button></div>'; return; }
+            grid.innerHTML = contasBancarias.map(c => {
+                const saldo = parseFloat(c.saldo) || 0;
+                const saldoClass = saldo >= 0 ? 'positivo' : 'negativo';
+                const statusClass = c.status === 'inativa' ? 'inativa' : 'ativa';
+                return `<div class="bank-card">
+                    <div class="bank-card-header">
+                        ${getBankLogoHtml(c.banco_codigo || c.codigo_banco)}
+                        <div class="bank-info"><div class="bank-name">${c.nome || 'Conta'}</div><div class="bank-type">${bankNames[c.banco_codigo || c.codigo_banco] || c.banco_nome || 'Banco'} • ${tipoNames[c.tipo] || c.tipo || 'Corrente'}</div></div>
+                        <span class="bank-card-status ${statusClass}">${statusClass === 'ativa' ? 'Ativa' : 'Inativa'}</span>
+                    </div>
+                    <div class="bank-card-body">
+                        <div class="bank-saldo-label">SALDO ATUAL</div>
+                        <div class="bank-saldo-value ${saldoClass}">R$ ${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                        <div class="bank-details">
+                            <div class="bank-detail-item"><div class="bank-detail-label">Agência</div><div class="bank-detail-value">${c.agencia || '-'}</div></div>
+                            <div class="bank-detail-item"><div class="bank-detail-label">Conta</div><div class="bank-detail-value">${c.numero_conta || '-'}</div></div>
+                        </div>
+                    </div>
+                    <div class="bank-card-actions">
+                        <button class="bank-btn view" onclick="abrirModalVisualizar(${c.id})"><i class="fas fa-eye"></i> Ver</button>
+                        <button class="bank-btn mov" onclick="abrirModalMovimentacao(${c.id})"><i class="fas fa-plus-circle"></i> Mov.</button>
+                        <button class="bank-btn extrato" onclick="abrirModalExtrato(${c.id})"><i class="fas fa-list"></i> Extrato</button>
+                        <button class="bank-btn edit" onclick="editarConta(${c.id})"><i class="fas fa-edit"></i></button>
+                        <button class="bank-btn delete" onclick="excluirConta(${c.id})"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ===== MODAL CONTA =====
+        function abrirModalConta(id = null) {
+            document.getElementById('modal-conta').classList.add('active');
+            document.getElementById('form-conta').reset();
+            document.getElementById('conta-id').value = '';
+            document.getElementById('modal-conta-titulo').textContent = 'Nova Conta Bancária';
+            if (id) {
+                const c = contasBancarias.find(x => x.id === id); if (!c) return;
+                document.getElementById('modal-conta-titulo').textContent = 'Editar Conta Bancária';
+                document.getElementById('conta-id').value = c.id;
+                document.getElementById('nome-conta').value = c.nome;
+                document.getElementById('banco').value = c.banco_codigo || c.codigo_banco || '';
+                document.getElementById('tipo-conta').value = c.tipo || 'corrente';
+                document.getElementById('agencia').value = c.agencia || '';
+                document.getElementById('numero-conta').value = c.numero_conta || '';
+                document.getElementById('saldo-inicial').value = c.saldo || 0;
+                document.getElementById('observacoes').value = c.observacoes || '';
+            }
+        }
+        function fecharModalConta() { document.getElementById('modal-conta').classList.remove('active'); }
+        function editarConta(id) { abrirModalConta(id); }
+
+        async function salvarConta(event) {
+            event.preventDefault();
+            const id = document.getElementById('conta-id').value;
+            const dados = { nome: document.getElementById('nome-conta').value, banco_codigo: document.getElementById('banco').value, tipo: document.getElementById('tipo-conta').value, agencia: document.getElementById('agencia').value, numero_conta: document.getElementById('numero-conta').value, saldo: parseFloat(document.getElementById('saldo-inicial').value) || 0, observacoes: document.getElementById('observacoes').value };
+            try {
+                const url = id ? `/api/financeiro/contas-bancarias/${id}` : '/api/financeiro/contas-bancarias';
+                const r = await fetch(url, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(dados) });
+                if (r.ok) { alert('Conta salva com sucesso!'); fecharModalConta(); await init(); } else { alert('Erro ao salvar conta'); }
+            } catch(e) { console.error(e); alert('Erro ao salvar conta'); }
+        }
+
+        async function excluirConta(id) {
+            if (!confirm('Excluir esta conta bancária?')) return;
+            try {
+                const r = await fetch(`/api/financeiro/contas-bancarias/${id}`, { method: 'DELETE', credentials: 'include' });
+                if (r.ok) { alert('Conta excluída!'); await init(); } else { alert('Erro ao excluir'); }
+            } catch(e) { alert('Erro ao excluir'); }
+        }
+
+        // ===== MODAL MOVIMENTAÇÃO =====
+        function abrirModalMovimentacao(contaId) {
+            document.getElementById('modal-movimentacao').classList.add('active');
+            document.getElementById('form-movimentacao').reset();
+            document.getElementById('mov-conta-id').value = contaId;
+            document.getElementById('mov-data').value = new Date().toISOString().split('T')[0];
+        }
+        function fecharModalMovimentacao() { document.getElementById('modal-movimentacao').classList.remove('active'); }
+
+        async function salvarMovimentacao(event) {
+            event.preventDefault();
+            const dados = { conta_id: document.getElementById('mov-conta-id').value, tipo: document.getElementById('mov-tipo').value, valor: parseFloat(document.getElementById('mov-valor').value), descricao: document.getElementById('mov-descricao').value, data: document.getElementById('mov-data').value };
+            try {
+                const r = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(dados) });
+                if (r.ok) { alert('Movimentação registrada!'); fecharModalMovimentacao(); await init(); } else { alert('Erro ao registrar'); }
+            } catch(e) { alert('Erro ao registrar'); }
+        }
+
+        // ===== MODAL EXTRATO =====
+        function abrirModalExtrato(contaId) {
+            const c = contasBancarias.find(x => x.id === contaId); if (!c) return;
+            contaVisualizando = c;
+            document.getElementById('extrato-titulo').textContent = `Extrato — ${c.nome}`;
+            const hoje = new Date();
+            const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            document.getElementById('extrato-data-inicio').value = inicio.toISOString().split('T')[0];
+            document.getElementById('extrato-data-fim').value = hoje.toISOString().split('T')[0];
+            document.getElementById('extrato-tipo').value = '';
+            document.getElementById('modal-extrato').classList.add('active');
+            carregarExtrato(contaId);
+        }
+        function fecharModalExtrato() { document.getElementById('modal-extrato').classList.remove('active'); }
+
+        async function carregarExtrato(contaId) {
+            const inicio = document.getElementById('extrato-data-inicio').value;
+            const fim = document.getElementById('extrato-data-fim').value;
+            try {
+                const r = await fetch(`/api/financeiro/movimentacoes-bancarias?conta_id=${contaId}&inicio=${inicio}&fim=${fim}`, { credentials: 'include' });
+                if (r.ok) { const rawExtrato = await r.json(); const arrExtrato = rawExtrato?.data || rawExtrato; extratoMovimentacoes = Array.isArray(arrExtrato) ? arrExtrato : []; renderizarExtrato(); }
+            } catch(e) { console.error(e); }
+        }
+
+        function filtrarExtrato() {
+            if (contaVisualizando) carregarExtrato(contaVisualizando.id);
+        }
+
+        function renderizarExtrato() {
+            const tipo = document.getElementById('extrato-tipo').value;
+            let dados = [...extratoMovimentacoes];
+            if (tipo) dados = dados.filter(m => m.tipo === tipo);
+            const lista = document.getElementById('extrato-lista');
+            if (dados.length === 0) { lista.innerHTML = '<p style="text-align:center;color:var(--gray-400);padding:40px;">Nenhuma movimentação encontrada</p>'; } else {
+                lista.innerHTML = dados.map(m => `<div class="extrato-item"><div class="extrato-item-left"><div class="extrato-item-desc">${m.descricao || '-'}</div><div class="extrato-item-data">${new Date(m.data).toLocaleDateString('pt-BR')}</div></div><div class="extrato-item-valor ${m.tipo === 'entrada' ? 'entrada' : 'saida'}">${m.tipo === 'entrada' ? '+' : '-'} R$ ${(parseFloat(m.valor)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div></div>`).join('');
+            }
+            const entradas = dados.filter(m => m.tipo === 'entrada').reduce((s, m) => s + (parseFloat(m.valor)||0), 0);
+            const saidas = dados.filter(m => m.tipo === 'saida').reduce((s, m) => s + (parseFloat(m.valor)||0), 0);
+            document.getElementById('extrato-entradas').textContent = `R$ ${entradas.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('extrato-saidas').textContent = `R$ ${saidas.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('extrato-saldo').textContent = `R$ ${(entradas-saidas).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+        }
+
+        function exportarExtratoPDF() {
+            const w = window.open('', '_blank');
+            const nome = contaVisualizando?.nome || 'Conta';
+            const inicio = document.getElementById('extrato-data-inicio').value;
+            const fim = document.getElementById('extrato-data-fim').value;
+            w.document.write(`<html><head><title>Extrato - ${nome}</title><style>body{font-family:Arial;padding:20px;}table{width:100%;border-collapse:collapse;}th,td{padding:8px 12px;border:1px solid #ddd;text-align:left;}th{background:#f3f4f6;}.entrada{color:#059669;}.saida{color:#ef4444;}</style></head><body><h2>Extrato Bancário — ${nome}</h2><p>Período: ${inicio} a ${fim}</p><table><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>${extratoMovimentacoes.map(m=>`<tr><td>${new Date(m.data).toLocaleDateString('pt-BR')}</td><td>${m.descricao||'-'}</td><td>${m.tipo}</td><td class="${m.tipo}">${m.tipo==='entrada'?'+':'-'} R$ ${(parseFloat(m.valor)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</td></tr>`).join('')}</tbody></table>
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+</body></html>`);
+            w.document.close(); w.print();
+        }
+
+        // ===== MODAL TRANSFERÊNCIA =====
+        function abrirModalTransferencia() {
+            document.getElementById('modal-transferencia').classList.add('active');
+            document.getElementById('form-transferencia').reset();
+            document.getElementById('transf-data').value = new Date().toISOString().split('T')[0];
+            const opts = contasBancarias.filter(c => c.status !== 'inativa').map(c => `<option value="${c.id}">${c.nome} (R$ ${(parseFloat(c.saldo)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})})</option>`).join('');
+            document.getElementById('transf-conta-origem').innerHTML = '<option value="">Selecione...</option>' + opts;
+            document.getElementById('transf-conta-destino').innerHTML = '<option value="">Selecione...</option>' + opts;
+            document.getElementById('saldo-origem-info').textContent = 'Saldo: -';
+        }
+        function fecharModalTransferencia() { document.getElementById('modal-transferencia').classList.remove('active'); }
+
+        function atualizarSaldoOrigem() {
+            const id = document.getElementById('transf-conta-origem').value;
+            const c = contasBancarias.find(x => x.id == id);
+            document.getElementById('saldo-origem-info').textContent = c ? `Saldo: R$ ${(parseFloat(c.saldo)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : 'Saldo: -';
+        }
+
+        async function realizarTransferencia(event) {
+            event.preventDefault();
+            const origemId = document.getElementById('transf-conta-origem').value;
+            const destinoId = document.getElementById('transf-conta-destino').value;
+            const valor = parseFloat(document.getElementById('transf-valor').value);
+            const data = document.getElementById('transf-data').value;
+            const desc = document.getElementById('transf-descricao').value || 'Transferência entre contas';
+            if (origemId === destinoId) { alert('Selecione contas diferentes'); return; }
+            try {
+                const r1 = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ conta_id: origemId, tipo: 'saida', valor, descricao: `${desc} (Saída)`, data }) });
+                const r2 = await fetch('/api/financeiro/movimentacoes-bancarias', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ conta_id: destinoId, tipo: 'entrada', valor, descricao: `${desc} (Entrada)`, data }) });
+                if (r1.ok && r2.ok) { alert('Transferência realizada!'); fecharModalTransferencia(); await init(); } else { alert('Erro na transferência'); }
+            } catch(e) { alert('Erro na transferência'); }
+        }
+
+        // ===== MODAL VISUALIZAR =====
+        function abrirModalVisualizar(id) {
+            const c = contasBancarias.find(x => x.id === id); if (!c) return;
+            contaVisualizando = c;
+            const saldo = parseFloat(c.saldo) || 0;
+            document.getElementById('view-bank-logo-container').innerHTML = getBankLogoHtml(c.banco_codigo || c.codigo_banco, 56).replace('class="bank-logo"', 'class="view-bank-logo"').replace('class="bank-logo-placeholder"', 'class="view-bank-logo-placeholder"');
+            document.getElementById('view-nome').textContent = c.nome || 'Conta';
+            document.getElementById('view-saldo').textContent = `R$ ${saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('view-banco').textContent = bankNames[c.banco_codigo || c.codigo_banco] || c.banco_nome || '-';
+            document.getElementById('view-tipo').textContent = tipoNames[c.tipo] || c.tipo || '-';
+            document.getElementById('view-agencia').textContent = c.agencia || '-';
+            document.getElementById('view-numero').textContent = c.numero_conta || '-';
+            document.getElementById('view-status').textContent = c.status === 'inativa' ? 'Inativa' : 'Ativa';
+            document.getElementById('view-obs').textContent = c.observacoes || 'Nenhuma observação';
+            document.getElementById('modal-visualizar').classList.add('active');
+        }
+        function fecharModalVisualizar() { document.getElementById('modal-visualizar').classList.remove('active'); }
+        function abrirMovimentacaoFromView() { if(contaVisualizando){fecharModalVisualizar();abrirModalMovimentacao(contaVisualizando.id);}}
+        function abrirExtratoFromView() { if(contaVisualizando){fecharModalVisualizar();abrirModalExtrato(contaVisualizando.id);}}
+        function editarContaFromView() { if(contaVisualizando){fecharModalVisualizar();editarConta(contaVisualizando.id);}}
+
+        document.addEventListener('DOMContentLoaded', () => { init().catch(e => console.error(e)); });
+    </script>
+
+    <script src="/js/chat-suporte-widgets.js?v=20260103"></script>
+    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="js/importar-xlsx.js"></script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

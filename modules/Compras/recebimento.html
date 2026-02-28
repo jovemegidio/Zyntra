@@ -1,0 +1,882 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Recebimento</title>
+    <link rel="icon" type="image/png" href="/images/favicon-aluforce.png">
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260215">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260215">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260201">
+    <style>
+        .fa-duotone { font-family: "Font Awesome 6 Free" !important; font-weight: 900 !important; }
+        /* SEFAZ card */
+        .sefaz-card { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: var(--space-3); margin-top: var(--space-3); }
+        .sefaz-card h5 { font-size: 0.8rem; font-weight: 600; color: var(--gray-700); margin-bottom: var(--space-2); }
+        .sefaz-card.success { border-color: var(--success-500); background: #f0fdf4; }
+        .sefaz-card.error { border-color: var(--danger-500); background: #fef2f2; }
+        .sefaz-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-2); font-size: 0.8rem; }
+        .sefaz-info-grid label { font-size: 0.65rem; color: var(--gray-500); text-transform: uppercase; font-weight: 500; }
+        .sefaz-info-grid p { margin: 0; color: var(--gray-800); }
+        .btn-sefaz { display: inline-flex; align-items: center; gap: 6px; padding: var(--space-2) var(--space-3); background: linear-gradient(135deg, #059669, #10b981); color: #fff; border: none; border-radius: var(--radius-md); cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+        .btn-sefaz:hover { opacity: 0.9; }
+        .btn-fill-nfe { display: inline-flex; align-items: center; gap: 6px; padding: var(--space-1) var(--space-2); background: var(--primary-500); color: #fff; border: none; border-radius: var(--radius-md); cursor: pointer; font-size: 0.7rem; margin-top: var(--space-2); }
+        /* Receiving info bar */
+        .info-pedido { display: flex; gap: var(--space-4); padding: var(--space-3); background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-radius: var(--radius-lg); margin-bottom: var(--space-4); }
+        .info-pedido-item { text-align: center; }
+        .info-pedido-item label { font-size: 0.65rem; color: var(--gray-500); text-transform: uppercase; display: block; }
+        .info-pedido-item strong { font-size: 0.95rem; color: var(--gray-800); }
+        /* Items receiving table */
+        .items-rec-table { width: 100%; font-size: 0.8rem; border-collapse: collapse; }
+        .items-rec-table th { background: var(--gray-100); padding: var(--space-2); text-align: left; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; color: var(--gray-600); }
+        .items-rec-table td { padding: var(--space-2); border-bottom: 1px solid var(--gray-100); }
+        .items-rec-table input { width: 70px; padding: 4px 8px; border: 1px solid var(--gray-300); border-radius: var(--radius-md); font-size: 0.8rem; text-align: center; }
+        /* Anexos */
+        .anexos-nfe { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+        .anexo-chip { display: flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--gray-100); border-radius: var(--radius-md); font-size: 0.75rem; }
+        .anexo-chip .btn-rm { background: none; border: none; color: var(--danger-500); cursor: pointer; font-size: 0.7rem; }
+        /* View modal */
+        .view-section { margin-bottom: var(--space-4); }
+        .view-section h4 { font-size: 0.85rem; font-weight: 600; color: var(--gray-800); margin-bottom: var(--space-2); padding-bottom: var(--space-1); border-bottom: 1px solid var(--gray-200); }
+        /* XML Import section */
+        .xml-import-section { background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 2px dashed var(--success-300); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-4); }
+        .xml-import-section h3 { font-size: 0.9rem; font-weight: 700; color: var(--success-700); margin-bottom: var(--space-3); display: flex; align-items: center; gap: 8px; }
+        .xml-tabs { display: flex; gap: var(--space-1); margin-bottom: var(--space-3); }
+        .xml-tab { padding: var(--space-2) var(--space-3); border: 1px solid var(--gray-300); background: #fff; border-radius: var(--radius-md); cursor: pointer; font-size: 0.75rem; font-weight: 600; color: var(--gray-600); transition: all 0.2s; }
+        .xml-tab.active { background: var(--success-500); color: #fff; border-color: var(--success-500); }
+        .xml-tab:hover:not(.active) { background: var(--gray-100); }
+        .xml-textarea { width: 100%; height: 120px; font-family: 'Courier New', monospace; font-size: 0.7rem; padding: var(--space-2); border: 1px solid var(--gray-300); border-radius: var(--radius-md); resize: vertical; background: #fafafa; }
+        .xml-textarea:focus { outline: none; border-color: var(--success-500); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1); }
+        .xml-result-card { background: #fff; border: 1px solid var(--success-300); border-radius: var(--radius-lg); padding: var(--space-3); margin-top: var(--space-3); }
+        .xml-result-card.error { border-color: var(--danger-300); }
+        .xml-result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-2); font-size: 0.8rem; }
+        .xml-result-grid .field { }
+        .xml-result-grid .field label { font-size: 0.6rem; color: var(--gray-500); text-transform: uppercase; font-weight: 600; display: block; }
+        .xml-result-grid .field p { margin: 2px 0 0; color: var(--gray-800); font-weight: 500; }
+        .xml-items-table { width: 100%; font-size: 0.75rem; border-collapse: collapse; margin-top: var(--space-2); }
+        .xml-items-table th { background: var(--success-50); padding: 6px 8px; text-align: left; font-weight: 600; font-size: 0.65rem; text-transform: uppercase; color: var(--success-700); }
+        .xml-items-table td { padding: 6px 8px; border-bottom: 1px solid var(--gray-100); }
+        .btn-import-xml { display: inline-flex; align-items: center; gap: 6px; padding: var(--space-2) var(--space-3); background: linear-gradient(135deg, #059669, #10b981); color: #fff; border: none; border-radius: var(--radius-md); cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+        .btn-import-xml:hover { opacity: 0.9; }
+        .btn-import-xml:disabled { opacity: 0.5; cursor: not-allowed; }
+        .nf-entrada-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 0.65rem; font-weight: 600; }
+        .nf-entrada-badge.importada { background: #dbeafe; color: #1d4ed8; }
+        .nf-entrada-badge.escriturada { background: #d1fae5; color: #065f46; }
+        .page-tabs { display: flex; gap: var(--space-1); margin-bottom: var(--space-4); background: var(--gray-100); padding: 4px; border-radius: var(--radius-lg); }
+        .page-tab { flex: 1; text-align: center; padding: var(--space-2) var(--space-3); background: transparent; border: none; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--gray-500); border-radius: var(--radius-md); transition: all 0.2s; }
+        .page-tab.active { background: #fff; color: var(--gray-800); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .page-tab:hover:not(.active) { color: var(--gray-700); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+    <script>
+        function toggleNotificacoes() { const p = document.getElementById('notification-panel'); if (p) p.classList.toggle('active'); }
+        function marcarTodasLidas() {}
+        function limparNotificacoes() {}
+    </script>
+    <script src="/js/anti-copy-protection.js" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn active" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Recebimento</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="atualizarLista()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge hidden" id="notification-count">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header"><h3><i class="fas fa-bell"></i> Notificações</h3><div class="notification-actions"><button onclick="marcarTodasLidas()" title="Marcar todas como lidas"><i class="fas fa-check-double"></i></button><button onclick="limparNotificacoes()" title="Limpar todas"><i class="fas fa-trash-alt"></i></button></div></div>
+                            <div class="notification-tabs"><button class="notif-tab active" onclick="filtrarNotificacoes('todas', this)">Todas</button><button class="notif-tab" onclick="filtrarNotificacoes('nao-lidas', this)">Não lidas</button><button class="notif-tab" onclick="filtrarNotificacoes('importantes', this)">Importantes</button></div>
+                            <div class="notification-list" id="notification-list"></div>
+                            <div class="notification-footer"><a href="#" onclick="verTodasNotificacoes(); return false;">Ver histórico completo</a></div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar"><img src="" alt="" id="user-photo" style="display:none;"><span id="user-initial">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- PAGE CONTENT -->
+            <div class="page-content">
+
+                <!-- Page Tabs -->
+                <div class="page-tabs">
+                    <button class="page-tab active" onclick="switchTab('recebimento', this)"><i class="fas fa-truck-loading"></i> Recebimento</button>
+                    <button class="page-tab" onclick="switchTab('xml-import', this)"><i class="fas fa-file-code"></i> Importar NF-e (XML)</button>
+                    <button class="page-tab" onclick="switchTab('nf-entrada', this)"><i class="fas fa-file-invoice"></i> NFs de Entrada</button>
+                </div>
+
+                <!-- ==================== TAB: XML IMPORT ==================== -->
+                <div class="tab-content" id="tab-xml-import">
+                    <div class="xml-import-section">
+                        <h3><i class="fas fa-file-code"></i> Entrada Automática — Importar NF-e de Fornecedor</h3>
+                        <p style="font-size:0.8rem; color:var(--gray-600); margin-bottom:var(--space-3);">
+                            Cole o XML da NF-e abaixo ou faça upload do arquivo. O sistema extrai automaticamente todos os dados: emitente, itens, impostos e valores.
+                        </p>
+
+                        <div class="xml-tabs">
+                            <button class="xml-tab active" onclick="switchXmlTab('colar', this)"><i class="fas fa-paste"></i> Colar XML</button>
+                            <button class="xml-tab" onclick="switchXmlTab('upload', this)"><i class="fas fa-upload"></i> Upload Arquivo</button>
+                        </div>
+
+                        <!-- Colar XML -->
+                        <div id="xmlTabColar">
+                            <textarea class="xml-textarea" id="xmlTextoInput" placeholder="Cole aqui o conteúdo completo do XML da NF-e...&#10;&#10;Exemplo: &lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;nfeProc ...&gt;"></textarea>
+                            <div style="display:flex; gap:var(--space-2); margin-top:var(--space-2);">
+                                <button class="btn-import-xml" id="btnImportarXml" onclick="importarXmlTexto()">
+                                    <i class="fas fa-magic"></i> Processar e Importar
+                                </button>
+                                <button class="btn btn-secondary" style="font-size:0.75rem;" onclick="document.getElementById('xmlTextoInput').value=''; document.getElementById('xmlResultado').innerHTML='';">
+                                    <i class="fas fa-eraser"></i> Limpar
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Upload XML -->
+                        <div id="xmlTabUpload" style="display:none;">
+                            <div style="border:2px dashed var(--gray-300); border-radius:var(--radius-lg); padding:var(--space-6); text-align:center; background:#fff; cursor:pointer;"
+                                 onclick="document.getElementById('xmlFileInput').click()"
+                                 ondragover="event.preventDefault(); this.style.borderColor='var(--success-500)'; this.style.background='#f0fdf4';"
+                                 ondragleave="this.style.borderColor='var(--gray-300)'; this.style.background='#fff';"
+                                 ondrop="event.preventDefault(); this.style.borderColor='var(--gray-300)'; this.style.background='#fff'; handleXmlUpload(event.dataTransfer.files);">
+                                <i class="fas fa-cloud-upload-alt" style="font-size:2rem; color:var(--success-400); margin-bottom:var(--space-2);"></i>
+                                <p style="font-size:0.85rem; font-weight:600; color:var(--gray-700);">Arraste o XML aqui ou clique para selecionar</p>
+                                <p style="font-size:0.7rem; color:var(--gray-500);">Aceita apenas arquivos .xml (máx. 5MB)</p>
+                            </div>
+                            <input type="file" id="xmlFileInput" accept=".xml" style="display:none;" onchange="handleXmlUpload(this.files)">
+                        </div>
+
+                        <!-- Resultado -->
+                        <div id="xmlResultado"></div>
+                    </div>
+                </div>
+
+                <!-- ==================== TAB: NFs DE ENTRADA ==================== -->
+                <div class="tab-content" id="tab-nf-entrada">
+                    <div class="card">
+                        <div class="card-body">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-3);">
+                                <h3 style="font-size:0.9rem; font-weight:700; color:var(--gray-800);"><i class="fas fa-file-invoice"></i> Notas Fiscais de Entrada</h3>
+                                <button class="btn-import-xml" onclick="switchTab('xml-import', document.querySelectorAll('.page-tab')[1])">
+                                    <i class="fas fa-plus"></i> Importar Nova
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nº NF-e</th>
+                                            <th>Fornecedor</th>
+                                            <th>CNPJ</th>
+                                            <th>Valor Total</th>
+                                            <th>Data Emissão</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="nfEntradaTableBody">
+                                        <tr><td colspan="6" style="text-align:center; padding:var(--space-6); color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==================== TAB: RECEBIMENTO (original) ==================== -->
+                <div class="tab-content active" id="tab-recebimento">
+
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card amber">
+                        <div class="stat-header"><div class="stat-icon amber"><i class="fas fa-clock"></i></div></div>
+                        <div class="stat-value" id="totalPendentes">0</div>
+                        <div class="stat-label">Pendentes</div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="stat-header"><div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div></div>
+                        <div class="stat-value" id="totalAtrasados">0</div>
+                        <div class="stat-label">Atrasados</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-header"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div></div>
+                        <div class="stat-value" id="recebidosHoje">0</div>
+                        <div class="stat-label">Recebidos Hoje</div>
+                    </div>
+                    <div class="stat-card cyan">
+                        <div class="stat-header"><div class="stat-icon cyan"><i class="fas fa-dollar-sign"></i></div></div>
+                        <div class="stat-value" id="valorPendente">R$ 0</div>
+                        <div class="stat-label">Valor Pendente</div>
+                    </div>
+                </div>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Buscar pedido ou fornecedor...">
+            </div>
+            <div class="filter-buttons">
+                <button class="filter-btn active" onclick="filtrarPorStatus('pendente', this)">Pendentes</button>
+                <button class="filter-btn" onclick="filtrarPorStatus('atrasado', this)">Atrasados</button>
+                <button class="filter-btn" onclick="filtrarPorStatus('parcial', this)">Parciais</button>
+                <button class="filter-btn" onclick="filtrarPorStatus('recebido', this)">Recebidos</button>
+                <button class="filter-btn" onclick="filtrarPorStatus('todos', this)">Todos</button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="card">
+            <div class="card-body" style="padding:0;">
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nº Pedido</th>
+                                <th>Fornecedor</th>
+                                <th>Data Pedido</th>
+                                <th>Previsão Entrega</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th style="width:120px">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pedidosTableBody">
+                            <tr><td colspan="7" style="text-align:center; padding:var(--space-8); color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:var(--space-3); border-top:1px solid var(--gray-100);">
+                    <span id="paginationInfo" style="font-size:0.8rem; color:var(--gray-500);"></span>
+                    <div id="paginationControls" style="display:flex; gap:var(--space-1);"></div>
+                </div>
+            </div>
+        </div>
+            </div><!-- /page-content -->
+            </div><!-- /tab-recebimento -->
+        </main><!-- /main-area -->
+    </div><!-- /app-container -->
+
+    <!-- Modal: Recebimento -->
+    <div class="modal-overlay" id="modalRecebimento">
+        <div class="modal" style="max-width:780px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-truck-loading"></i> Registrar Recebimento</h3>
+                <button class="modal-close" onclick="fecharModal()">&times;</button>
+            </div>
+            <form id="formRecebimento" onsubmit="event.preventDefault(); salvarRecebimento();">
+                <input type="hidden" id="pedidoId">
+                <input type="hidden" id="chaveNfeSalvar">
+                <div class="modal-body" style="max-height:60vh; overflow-y:auto;">
+                    <!-- Order info -->
+                    <div class="info-pedido">
+                        <div class="info-pedido-item"><label>Pedido</label><strong id="infoPedidoNumero">-</strong></div>
+                        <div class="info-pedido-item"><label>Fornecedor</label><strong id="infoPedidoFornecedor">-</strong></div>
+                        <div class="info-pedido-item"><label>Valor Total</label><strong id="infoPedidoValor">-</strong></div>
+                    </div>
+
+                    <div class="form-grid cols-3">
+                        <div class="form-group"><label>Data Recebimento *</label><input type="date" id="dataRecebimento" required></div>
+                        <div class="form-group"><label>Nº NF-e *</label><input type="text" id="numeroNfe" required placeholder="Número da nota fiscal"></div>
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select id="tipoRecebimento">
+                                <option value="total">Total</option>
+                                <option value="parcial">Parcial</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- NF-e SEFAZ lookup -->
+                    <div style="margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--gray-200);">
+                        <h4 style="font-size:0.8rem; font-weight:600; color:var(--gray-700); margin-bottom:var(--space-2);"><i class="fas fa-barcode"></i> Consulta NF-e (SEFAZ)</h4>
+                        <div class="form-grid cols-1">
+                            <div class="form-group">
+                                <label>Chave de Acesso (44 dígitos)</label>
+                                <div style="display:flex; gap:var(--space-2);">
+                                    <input type="text" id="chaveAcessoNfe" maxlength="44" placeholder="Informe a chave de acesso da NF-e..." style="flex:1;">
+                                    <button type="button" class="btn-sefaz" id="btnBuscarSefaz" onclick="buscarNfeSefaz()"><i class="fas fa-search"></i> Consultar</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="resultadoBuscaSefaz"></div>
+                    </div>
+
+                    <!-- Items -->
+                    <div style="margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--gray-200);">
+                        <h4 style="font-size:0.8rem; font-weight:600; color:var(--gray-700); margin-bottom:var(--space-2);"><i class="fas fa-boxes"></i> Itens do Pedido</h4>
+                        <table class="items-rec-table">
+                            <thead>
+                                <tr><th>Material</th><th>Qtd Pedida</th><th>Qtd Recebida</th><th>Conforme?</th></tr>
+                            </thead>
+                            <tbody id="itensRecebimentoBody">
+                                <tr><td colspan="4" style="text-align:center; color:var(--gray-400); padding:var(--space-4);">Selecione um pedido</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Responsible + Options -->
+                    <div class="form-grid cols-2" style="margin-top:var(--space-3);">
+                        <div class="form-group"><label>Responsável *</label><input type="text" id="responsavelRecebimento" required></div>
+                        <div class="form-group"><label>Local Armazenamento</label><input type="text" id="localArmazenamento" placeholder="Almoxarifado, Galpão, etc."></div>
+                        <div class="form-group">
+                            <label>Atualizar Estoque?</label>
+                            <select id="atualizarEstoque"><option value="sim">Sim</option><option value="nao">Não</option></select>
+                        </div>
+                        <div class="form-group"><label>Observações</label><textarea id="observacoesRecebimento" rows="2"></textarea></div>
+                    </div>
+
+                    <!-- Attachments -->
+                    <div class="form-group" style="margin-top:var(--space-3);">
+                        <label>Anexos (XML/PDF da NF-e)</label>
+                        <input type="file" id="arquivoNfe" accept=".xml,.pdf" multiple onchange="handleFiles(this.files)" style="font-size:0.8rem;">
+                        <div class="anexos-nfe" id="listaAnexosNfe"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Confirmar Recebimento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Detalhes -->
+    <div class="modal-overlay" id="modalDetalhes">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye"></i> Detalhes do Pedido</h3>
+                <button class="modal-close" onclick="fecharModalDetalhes()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalDetalhesBody" style="max-height:60vh; overflow-y:auto;">
+                <p style="text-align:center; color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalDetalhes()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /* ========== State ========== */
+    const API_BASE = '/api/compras';
+    let pedidosData = [];
+    let currentFilter = 'pendente';
+    let currentPage = 1;
+    const pageSize = 20;
+    let dadosNfeSefaz = null;
+    let anexosNfe = [];
+    let xmlImportadoData = null;
+
+    function toggleMobileSidebar() {
+        const sidebar = document.getElementById('mobile-sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (overlay) overlay.classList.toggle('active');
+    }
+
+    /* ========== Tab Switching ========== */
+    function switchTab(tabName, btn) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('active'));
+        const tab = document.getElementById('tab-' + tabName);
+        if (tab) tab.classList.add('active');
+        if (btn) btn.classList.add('active');
+        if (tabName === 'nf-entrada') carregarNFsEntrada();
+    }
+
+    function switchXmlTab(tabName, btn) {
+        document.querySelectorAll('.xml-tab').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        document.getElementById('xmlTabColar').style.display = tabName === 'colar' ? '' : 'none';
+        document.getElementById('xmlTabUpload').style.display = tabName === 'upload' ? '' : 'none';
+    }
+
+    /* ========== XML Import ========== */
+    async function importarXmlTexto() {
+        const xml = document.getElementById('xmlTextoInput').value.trim();
+        if (!xml) { alert('Cole o conteúdo XML primeiro'); return; }
+        if (!xml.includes('<nfeProc') && !xml.includes('<NFe') && !xml.includes('<infNFe')) {
+            alert('O conteúdo não parece ser um XML de NF-e válido'); return;
+        }
+        const btn = document.getElementById('btnImportarXml');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+        btn.disabled = true;
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/nf-entrada/importar-xml-texto`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ xml })
+            });
+            const d = await r.json();
+            if (d.duplicada) {
+                document.getElementById('xmlResultado').innerHTML = `
+                    <div class="xml-result-card error">
+                        <h4 style="font-size:0.85rem; color:var(--danger-600);"><i class="fas fa-exclamation-triangle"></i> NF-e já importada</h4>
+                        <p style="font-size:0.8rem; color:var(--gray-600);">Esta nota fiscal já existe no sistema (ID: ${d.id}).</p>
+                    </div>`;
+                return;
+            }
+            if (!d.success) throw new Error(d.error || 'Erro ao importar');
+            xmlImportadoData = d;
+            document.getElementById('xmlResultado').innerHTML = `
+                <div class="xml-result-card">
+                    <h4 style="font-size:0.85rem; color:var(--success-700); margin-bottom:var(--space-2);"><i class="fas fa-check-circle"></i> NF-e Importada com Sucesso!</h4>
+                    <div class="xml-result-grid">
+                        <div class="field"><label>Nº NF-e</label><p><strong>${d.numero_nfe}</strong></p></div>
+                        <div class="field"><label>Chave de Acesso</label><p style="font-size:0.7rem; word-break:break-all;">${d.chave_acesso}</p></div>
+                        <div class="field"><label>Fornecedor</label><p>${d.fornecedor?.razao_social || d.fornecedor || '-'}</p></div>
+                        <div class="field"><label>CNPJ</label><p>${formatarCNPJ(d.fornecedor?.cnpj)}</p></div>
+                        <div class="field"><label>Valor Total</label><p style="font-weight:700; color:var(--success-700);">${formatarMoeda(d.valor_total)}</p></div>
+                        <div class="field"><label>Itens</label><p>${d.itens} produto(s)</p></div>
+                        ${d.impostos ? `
+                        <div class="field"><label>ICMS</label><p>${formatarMoeda(d.impostos.icms)}</p></div>
+                        <div class="field"><label>IPI</label><p>${formatarMoeda(d.impostos.ipi)}</p></div>
+                        <div class="field"><label>PIS</label><p>${formatarMoeda(d.impostos.pis)}</p></div>
+                        <div class="field"><label>COFINS</label><p>${formatarMoeda(d.impostos.cofins)}</p></div>` : ''}
+                    </div>
+                    <div style="margin-top:var(--space-3); display:flex; gap:var(--space-2);">
+                        <button class="btn-import-xml" onclick="switchTab('nf-entrada', document.querySelectorAll('.page-tab')[2])">
+                            <i class="fas fa-list"></i> Ver NFs de Entrada
+                        </button>
+                        <button class="btn btn-secondary" style="font-size:0.75rem;" onclick="document.getElementById('xmlTextoInput').value=''; document.getElementById('xmlResultado').innerHTML=''; xmlImportadoData=null;">
+                            <i class="fas fa-plus"></i> Importar Outra
+                        </button>
+                    </div>
+                </div>`;
+        } catch (e) {
+            document.getElementById('xmlResultado').innerHTML = `
+                <div class="xml-result-card error">
+                    <h4 style="font-size:0.85rem; color:var(--danger-600);"><i class="fas fa-times-circle"></i> Erro ao Importar</h4>
+                    <p style="font-size:0.8rem; color:var(--gray-600);">${e.message}</p>
+                </div>`;
+        } finally {
+            btn.innerHTML = '<i class="fas fa-magic"></i> Processar e Importar';
+            btn.disabled = false;
+        }
+    }
+
+    function handleXmlUpload(files) {
+        if (!files || !files.length) return;
+        const file = files[0];
+        if (!file.name.endsWith('.xml')) { alert('Apenas arquivos XML são aceitos'); return; }
+        if (file.size > 5 * 1024 * 1024) { alert('Arquivo excede 5MB'); return; }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('xmlTextoInput').value = e.target.result;
+            switchXmlTab('colar', document.querySelector('.xml-tab'));
+            importarXmlTexto();
+        };
+        reader.readAsText(file);
+    }
+
+    /* ========== NF Entrada List ========== */
+    async function carregarNFsEntrada() {
+        const tbody = document.getElementById('nfEntradaTableBody');
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/nf-entrada?limite=100`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!r.ok) throw new Error('Erro ao carregar');
+            const d = await r.json();
+            const notas = d.notas || d || [];
+            if (!notas.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:var(--space-6); color:var(--gray-400);"><i class="fas fa-inbox"></i> Nenhuma NF de entrada importada</td></tr>';
+                return;
+            }
+            tbody.innerHTML = notas.map(nf => `<tr>
+                <td><strong>${nf.numero_nfe || '-'}</strong></td>
+                <td>${nf.fornecedor_razao_social || '-'}</td>
+                <td>${formatarCNPJ(nf.fornecedor_cnpj)}</td>
+                <td>${formatarMoeda(nf.valor_total)}</td>
+                <td>${formatarData(nf.data_emissao)}</td>
+                <td><span class="nf-entrada-badge ${nf.status || 'importada'}">${(nf.status || 'importada').charAt(0).toUpperCase() + (nf.status || 'importada').slice(1)}</span></td>
+            </tr>`).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:var(--space-6); color:var(--danger-500);"><i class="fas fa-exclamation-triangle"></i> ${e.message}</td></tr>`;
+        }
+    }
+
+    /* ========== Init ========== */
+    document.addEventListener('DOMContentLoaded', () => {
+        carregarEstatisticas();
+        carregarPedidos();
+        const search = document.getElementById('searchInput');
+        let debounceTimer;
+        search.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => buscarPedidos(), 300);
+        });
+    });
+
+    /* ========== Data Loading ========== */
+    async function carregarEstatisticas() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/recebimento/stats`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) {
+                const d = await r.json();
+                document.getElementById('totalPendentes').textContent = d.pendentes || 0;
+                document.getElementById('totalAtrasados').textContent = d.atrasados || 0;
+                document.getElementById('recebidosHoje').textContent = d.recebidos_hoje || 0;
+                document.getElementById('valorPendente').textContent = formatarMoeda(d.valor_pendente || 0);
+                return;
+            }
+        } catch (e) { /* fallback */ }
+        // Fallback: calculate from pedidos
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/pedidos`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) {
+                const d = await r.json();
+                const all = d.pedidos || d || [];
+                const pend = all.filter(p => p.status === 'aprovado' || p.status === 'pendente');
+                document.getElementById('totalPendentes').textContent = pend.length;
+                document.getElementById('totalAtrasados').textContent = all.filter(p => p.atrasado).length;
+                document.getElementById('valorPendente').textContent = formatarMoeda(pend.reduce((s, p) => s + (p.valor_total || 0), 0));
+            }
+        } catch (e) { console.log('Erro stats fallback:', e); }
+    }
+
+    async function carregarPedidos() {
+        try {
+            const token = localStorage.getItem('token');
+            let url = `${API_BASE}/recebimento/pedidos?status=${currentFilter}&page=${currentPage}&limit=${pageSize}`;
+            const r = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) {
+                const d = await r.json();
+                pedidosData = d.pedidos || d || [];
+                renderizarPedidos();
+                atualizarPaginacao(d.total || pedidosData.length);
+                return;
+            }
+        } catch (e) { /* fallback */ }
+        // Fallback
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/pedidos`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) {
+                const d = await r.json();
+                const all = d.pedidos || d || [];
+                if (currentFilter === 'todos') pedidosData = all;
+                else pedidosData = all.filter(p => p.status === currentFilter || (currentFilter === 'pendente' && (p.status === 'aprovado' || p.status === 'pendente')));
+                renderizarPedidos();
+                atualizarPaginacao(pedidosData.length);
+            }
+        } catch (e) { console.log('Erro pedidos:', e); pedidosData = []; renderizarPedidos(); }
+    }
+
+    function renderizarPedidos() {
+        const tbody = document.getElementById('pedidosTableBody');
+        if (!pedidosData.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:var(--space-8); color:var(--gray-400);"><i class="fas fa-inbox"></i> Nenhum pedido encontrado</td></tr>';
+            return;
+        }
+        tbody.innerHTML = pedidosData.map(p => {
+            const atrasado = p.atrasado || (p.data_entrega && new Date(p.data_entrega) < new Date() && p.status !== 'recebido');
+            return `<tr>
+                <td><strong>${p.numero || p.id}</strong></td>
+                <td>${p.fornecedor || p.fornecedor_nome || '-'}</td>
+                <td>${formatarData(p.data_pedido || p.created_at)}</td>
+                <td>${formatarData(p.data_entrega)}${atrasado ? ' <span class="badge badge-urgent">Atrasado</span>' : ''}</td>
+                <td>${formatarMoeda(p.valor_total)}</td>
+                <td><span class="badge badge-${traduzirStatus(p.status, atrasado).class}">${traduzirStatus(p.status, atrasado).label}</span></td>
+                <td>
+                    <div class="action-btns">
+                        <button class="action-btn" onclick="verDetalhes(${p.id})" title="Detalhes"><i class="fas fa-eye"></i></button>
+                        ${p.status !== 'recebido' ? '<button class="action-btn" style="color:var(--success-500);" onclick="abrirRecebimento(' + p.id + ')" title="Receber"><i class="fas fa-check-circle"></i></button>' : ''}
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function filtrarPorStatus(status, btn) {
+        currentFilter = status;
+        currentPage = 1;
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        if (btn) btn.classList.add('active');
+        carregarPedidos();
+    }
+
+    function buscarPedidos() {
+        const termo = document.getElementById('searchInput').value.toLowerCase();
+        if (!termo) { carregarPedidos(); return; }
+        const filtrados = pedidosData.filter(p =>
+            (p.numero || '').toLowerCase().includes(termo) ||
+            (p.fornecedor || p.fornecedor_nome || '').toLowerCase().includes(termo)
+        );
+        const tbody = document.getElementById('pedidosTableBody');
+        if (!filtrados.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:var(--space-8); color:var(--gray-400);">Nenhum resultado</td></tr>';
+            return;
+        }
+        // Re-render filtered subset
+        pedidosData = filtrados;
+        renderizarPedidos();
+    }
+
+    /* ========== View Details ========== */
+    async function verDetalhes(pedidoId) {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/pedidos/${pedidoId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const d = await r.json();
+            const p = d.pedido || d;
+            let itensHtml = '';
+            if (p.itens && p.itens.length) {
+                itensHtml = '<table class="data-table" style="font-size:0.8rem;"><thead><tr><th>Material</th><th>Qtd</th><th>Valor Unit</th><th>Total</th></tr></thead><tbody>' +
+                    p.itens.map(it => `<tr><td>${it.material || it.descricao}</td><td>${it.quantidade}</td><td>${formatarMoeda(it.valor_unitario || it.preco_unitario)}</td><td>${formatarMoeda((it.quantidade || 0) * (it.valor_unitario || it.preco_unitario || 0))}</td></tr>`).join('') + '</tbody></table>';
+            }
+            document.getElementById('modalDetalhesBody').innerHTML =
+                '<div class="view-section"><h4>Informações do Pedido</h4><div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:var(--space-3);">' +
+                '<div><label style="font-size:0.65rem; color:var(--gray-500); text-transform:uppercase;">Número</label><p style="font-size:0.85rem; color:var(--gray-800);">' + (p.numero || p.id) + '</p></div>' +
+                '<div><label style="font-size:0.65rem; color:var(--gray-500); text-transform:uppercase;">Fornecedor</label><p style="font-size:0.85rem; color:var(--gray-800);">' + (p.fornecedor || p.fornecedor_nome || '-') + '</p></div>' +
+                '<div><label style="font-size:0.65rem; color:var(--gray-500); text-transform:uppercase;">Data Pedido</label><p style="font-size:0.85rem;">' + formatarData(p.data_pedido || p.created_at) + '</p></div>' +
+                '<div><label style="font-size:0.65rem; color:var(--gray-500); text-transform:uppercase;">Previsão</label><p style="font-size:0.85rem;">' + formatarData(p.data_entrega) + '</p></div>' +
+                '<div><label style="font-size:0.65rem; color:var(--gray-500); text-transform:uppercase;">Valor Total</label><p style="font-size:0.85rem; font-weight:600;">' + formatarMoeda(p.valor_total) + '</p></div>' +
+                '<div><label style="font-size:0.65rem; color:var(--gray-500); text-transform:uppercase;">Status</label><p><span class="badge badge-' + traduzirStatus(p.status).class + '">' + traduzirStatus(p.status).label + '</span></p></div>' +
+                '</div></div>' +
+                (itensHtml ? '<div class="view-section"><h4>Itens</h4>' + itensHtml + '</div>' : '') +
+                (p.observacoes ? '<div class="view-section"><h4>Observações</h4><p style="font-size:0.85rem; color:var(--gray-700);">' + p.observacoes + '</p></div>' : '');
+            document.getElementById('modalDetalhes').classList.add('active');
+        } catch (e) { alert('Erro ao carregar detalhes'); }
+    }
+
+    function fecharModalDetalhes() { document.getElementById('modalDetalhes').classList.remove('active'); }
+
+    /* ========== Receiving ========== */
+    async function abrirRecebimento(pedidoId) {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/pedidos/${pedidoId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const d = await r.json();
+            const p = d.pedido || d;
+            document.getElementById('pedidoId').value = p.id;
+            document.getElementById('infoPedidoNumero').textContent = p.numero || p.id;
+            document.getElementById('infoPedidoFornecedor').textContent = p.fornecedor || p.fornecedor_nome || '-';
+            document.getElementById('infoPedidoValor').textContent = formatarMoeda(p.valor_total);
+            document.getElementById('dataRecebimento').value = new Date().toISOString().split('T')[0];
+            document.getElementById('numeroNfe').value = '';
+            document.getElementById('chaveAcessoNfe').value = '';
+            document.getElementById('resultadoBuscaSefaz').innerHTML = '';
+            document.getElementById('observacoesRecebimento').value = '';
+            dadosNfeSefaz = null;
+            anexosNfe = [];
+            document.getElementById('listaAnexosNfe').innerHTML = '';
+            // Render items
+            const itensBody = document.getElementById('itensRecebimentoBody');
+            if (p.itens && p.itens.length) {
+                itensBody.innerHTML = p.itens.map((it, i) =>
+                    `<tr>
+                        <td>${it.material || it.descricao}</td>
+                        <td style="text-align:center;">${it.quantidade}</td>
+                        <td><input type="number" id="qtdRec-${i}" value="${it.quantidade}" min="0" max="${it.quantidade}"></td>
+                        <td style="text-align:center;"><input type="checkbox" id="conforme-${i}" checked></td>
+                    </tr>`
+                ).join('');
+            } else {
+                itensBody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--gray-400);">Sem itens detalhados</td></tr>';
+            }
+            document.getElementById('modalRecebimento').classList.add('active');
+        } catch (e) { alert('Erro ao abrir recebimento'); }
+    }
+
+    async function salvarRecebimento() {
+        const pedidoId = document.getElementById('pedidoId').value;
+        if (!pedidoId) return;
+        const body = {
+            data_recebimento: document.getElementById('dataRecebimento').value,
+            numero_nfe: document.getElementById('numeroNfe').value,
+            tipo: document.getElementById('tipoRecebimento').value,
+            chave_acesso: document.getElementById('chaveAcessoNfe').value || document.getElementById('chaveNfeSalvar').value,
+            responsavel: document.getElementById('responsavelRecebimento').value,
+            local_armazenamento: document.getElementById('localArmazenamento').value,
+            atualizar_estoque: document.getElementById('atualizarEstoque').value === 'sim',
+            observacoes: document.getElementById('observacoesRecebimento').value,
+            dados_sefaz: dadosNfeSefaz
+        };
+        if (!body.numero_nfe || !body.responsavel) { alert('Preencha NF-e e Responsável'); return; }
+        // Collect items received
+        const itensRows = document.getElementById('itensRecebimentoBody').querySelectorAll('tr');
+        body.itens = [];
+        itensRows.forEach((tr, i) => {
+            const qtdInput = document.getElementById('qtdRec-' + i);
+            const conformeInput = document.getElementById('conforme-' + i);
+            if (qtdInput) {
+                body.itens.push({ quantidade_recebida: parseFloat(qtdInput.value) || 0, conforme: conformeInput?.checked ?? true });
+            }
+        });
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/pedidos/${pedidoId}/receber`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(body)
+            });
+            if (!r.ok) throw new Error('Erro ao registrar');
+            fecharModal();
+            atualizarLista();
+            alert('Recebimento registrado com sucesso!');
+        } catch (e) { alert('Erro: ' + e.message); }
+    }
+
+    function fecharModal() {
+        document.getElementById('modalRecebimento').classList.remove('active');
+        dadosNfeSefaz = null;
+        anexosNfe = [];
+    }
+
+    /* ========== SEFAZ NF-e Lookup ========== */
+    async function buscarNfeSefaz() {
+        const chave = document.getElementById('chaveAcessoNfe').value.replace(/\D/g, '');
+        if (chave.length !== 44) { alert('Chave de acesso deve ter 44 dígitos'); return; }
+        const btn = document.getElementById('btnBuscarSefaz');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Consultando...';
+        btn.disabled = true;
+        const resultado = document.getElementById('resultadoBuscaSefaz');
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`${API_BASE}/nfe/consultar/${chave}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!r.ok) throw new Error('NF-e não encontrada');
+            const d = await r.json();
+            dadosNfeSefaz = d;
+            document.getElementById('chaveNfeSalvar').value = chave;
+            resultado.innerHTML = `
+                <div class="sefaz-card success">
+                    <h5><i class="fas fa-check-circle" style="color:var(--success-500);"></i> NF-e Encontrada</h5>
+                    <div class="sefaz-info-grid">
+                        <div><label>Número</label><p>${d.numero || d.nNF || '-'}</p></div>
+                        <div><label>Série</label><p>${d.serie || '-'}</p></div>
+                        <div><label>Emissão</label><p>${formatarDataHora(d.data_emissao || d.dhEmi)}</p></div>
+                        <div><label>Emitente</label><p>${d.emitente?.razao_social || d.emit?.xNome || '-'}</p></div>
+                        <div><label>CNPJ Emit.</label><p>${formatarCNPJ(d.emitente?.cnpj || d.emit?.CNPJ)}</p></div>
+                        <div><label>Valor Total</label><p style="font-weight:600;">${formatarMoeda(d.valor_total || d.vNF)}</p></div>
+                    </div>
+                    <button type="button" class="btn-fill-nfe" onclick="preencherDadosNfe()"><i class="fas fa-magic"></i> Preencher dados da NF-e</button>
+                </div>`;
+        } catch (e) {
+            resultado.innerHTML = '<div class="sefaz-card error"><h5><i class="fas fa-times-circle" style="color:var(--danger-500);"></i> NF-e não encontrada</h5><p style="font-size:0.8rem; color:var(--gray-600);">Verifique a chave de acesso e tente novamente.</p></div>';
+        }
+        btn.innerHTML = '<i class="fas fa-search"></i> Consultar';
+        btn.disabled = false;
+    }
+
+    function preencherDadosNfe() {
+        if (!dadosNfeSefaz) return;
+        document.getElementById('numeroNfe').value = dadosNfeSefaz.numero || dadosNfeSefaz.nNF || '';
+    }
+
+    /* ========== Files ========== */
+    function handleFiles(files) {
+        Array.from(files).forEach(f => {
+            if (f.size > 10 * 1024 * 1024) { alert(`${f.name} excede 10MB`); return; }
+            if (!f.name.match(/\.(xml|pdf)$/i)) { alert(`${f.name}: apenas XML e PDF`); return; }
+            anexosNfe.push(f);
+        });
+        renderizarAnexos();
+        document.getElementById('arquivoNfe').value = '';
+    }
+
+    function renderizarAnexos() {
+        document.getElementById('listaAnexosNfe').innerHTML = anexosNfe.map((f, i) =>
+            '<div class="anexo-chip"><i class="fas fa-file"></i> ' + f.name + ' <button type="button" class="btn-rm" onclick="removerAnexo(' + i + ')"><i class="fas fa-times"></i></button></div>'
+        ).join('');
+    }
+
+    function removerAnexo(i) { anexosNfe.splice(i, 1); renderizarAnexos(); }
+
+    /* ========== Pagination ========== */
+    function atualizarPaginacao(total) {
+        const totalPages = Math.ceil(total / pageSize);
+        const info = document.getElementById('paginationInfo');
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, total);
+        info.textContent = total > 0 ? `Mostrando ${start}-${end} de ${total}` : '';
+        const controls = document.getElementById('paginationControls');
+        if (totalPages <= 1) { controls.innerHTML = ''; return; }
+        let html = '';
+        if (currentPage > 1) html += '<button class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="irParaPagina(' + (currentPage - 1) + ')"><i class="fas fa-chevron-left"></i></button>';
+        for (let p = 1; p <= totalPages; p++) {
+            html += '<button class="btn ' + (p === currentPage ? 'btn-primary' : 'btn-secondary') + '" style="padding:4px 10px; font-size:0.75rem;" onclick="irParaPagina(' + p + ')">' + p + '</button>';
+        }
+        if (currentPage < totalPages) html += '<button class="btn btn-secondary" style="padding:4px 10px; font-size:0.75rem;" onclick="irParaPagina(' + (currentPage + 1) + ')"><i class="fas fa-chevron-right"></i></button>';
+        controls.innerHTML = html;
+    }
+
+    function irParaPagina(page) { currentPage = page; carregarPedidos(); }
+    function atualizarLista() { carregarEstatisticas(); carregarPedidos(); }
+
+    /* ========== Helpers ========== */
+    function formatarData(d) { if (!d) return '-'; try { return new Date(d).toLocaleDateString('pt-BR'); } catch (e) { return d; } }
+    function formatarDataHora(d) { if (!d) return '-'; try { return new Date(d).toLocaleString('pt-BR'); } catch (e) { return d; } }
+    function formatarMoeda(v) { return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+    function formatarCNPJ(c) { if (!c) return '-'; const n = c.replace(/\D/g, ''); if (n.length !== 14) return c; return n.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5'); }
+    function traduzirStatus(s, atrasado) {
+        const map = {
+            pendente: { label: 'Pendente', class: 'pending' },
+            aprovado: { label: 'Aprovado', class: 'approved' },
+            parcial: { label: 'Parcial', class: 'in-progress' },
+            recebido: { label: 'Recebido', class: 'approved' },
+            cancelado: { label: 'Cancelado', class: 'cancelled' },
+            atrasado: { label: 'Atrasado', class: 'urgent' }
+        };
+        if (atrasado) return { label: 'Atrasado', class: 'urgent' };
+        return map[s] || { label: s || '-', class: 'pending' };
+    }
+    function debounce(func, wait) { let t; return function(...args) { clearTimeout(t); t = setTimeout(() => func.apply(this, args), wait); }; }
+    function exportarRelatorio() { alert('Funcionalidade em desenvolvimento'); }
+    </script>
+
+    <script src="/modules/Compras/compras-user-loader.js?v=20260214"></script>
+    <script src="/js/mobile-enterprise.js?v=20260202" defer></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

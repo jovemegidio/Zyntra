@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Fluxo de Caixa</title>
+
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- XLSX Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #0ea5e9;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-gray);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-orange);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav {
+            display: flex; flex-direction: column; gap: 4px; flex: 1;
+        }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s;
+            position: relative;
+        }
+
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn:focus, .sidebar-btn:focus-visible { outline: none; border: none; box-shadow: none; }
+        .sidebar-btn.active { background: var(--primary-orange); color: white; }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+
+        .main-area {
+            flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */
+        }
+
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .header-btn:focus, .header-btn:focus-visible { outline: none; border: none; box-shadow: none; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        .notification-container { position: relative; }
+        .notification-btn { position: relative; }
+
+        .notification-badge {
+            position: absolute; top: 2px; right: 2px;
+            min-width: 18px; height: 18px;
+            background: #ef4444; color: white;
+            font-size: 10px; font-weight: 600;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 5px;
+        }
+
+        .notification-badge.hidden { display: none; }
+
+        /* Layout corrigido */
+        .nav-tooltip {
+            z-index: 1100 !important;
+            overflow: visible !important;
+        }
+
+        /* Botão Importar */
+        .btn-importar {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        .btn-importar:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+        }
+        .btn-importar i {
+            font-size: 16px;
+        }
+
+        .periodo-selector {
+            background: white;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .periodo-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .periodo-btn {
+            padding: 12px 24px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            color: #374151;
+            transition: all 0.2s;
+        }
+
+        .periodo-btn:hover {
+            background: #f3f4f6;
+            transform: translateY(-2px);
+        }
+
+        .periodo-btn.active {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: white;
+            border-color: #0ea5e9;
+            box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+        }
+
+        .custom-date {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .custom-date input {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 28px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+
+        .chart-header {
+            margin-bottom: 24px;
+        }
+
+        .chart-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+
+        .chart-subtitle {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .resumo-fluxo {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .resumo-item {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .resumo-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--item-color);
+        }
+
+        .resumo-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 16px;
+            background: var(--item-bg);
+            color: var(--item-color);
+        }
+
+        .resumo-value {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--item-color);
+            margin-bottom: 6px;
+        }
+
+        .resumo-label {
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 600;
+        }
+
+        .tabela-fluxo {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .tabela-header {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            padding: 20px 24px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .tabela-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f9fafb;
+        }
+
+        th {
+            padding: 14px 16px;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        th.text-right, td.text-right {
+            text-align: right;
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        tr:hover {
+            background: #f9fafb;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-entrada {
+            background: #dbeafe;
+            color: #065f46;
+        }
+
+        .badge-saida {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .valor-positivo {
+            color: #1e40af;
+            font-weight: 700;
+        }
+
+        .valor-negativo {
+            color: #ef4444;
+            font-weight: 700;
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Design System Institucional Financeiro -->
+    <link rel="stylesheet" href="css/financeiro-common.css?v=20260215">
+
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/tooltips-professional.js?v=20260216"></script>
+
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <!-- Sidebar Lateral -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'">
+                    <i class="fas fa-chart-pie"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas a Pagar" onclick="window.location.href='contas_pagar.html'">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas a Receber" onclick="window.location.href='contas_receber.html'">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas Bancárias" onclick="window.location.href='contas_bancarias.html'">
+                    <i class="fas fa-university"></i>
+                </button>
+                <button class="sidebar-btn active" title="Fluxo de Caixa" onclick="window.location.href='fluxo_caixa.html'">
+                    <i class="fas fa-money-bill-wave"></i>
+                </button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area" data-page-name="Fluxo de Caixa">
+            <!-- Header -->
+            <header class="header" id="financeiro-header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Fluxo de Caixa</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count">0</span>
+                        </button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div class="page-title-area">
+                        <div class="page-icon">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <div class="page-title-text">
+                            <h1>Fluxo de Caixa</h1>
+                            <p>Acompanhe as movimentações financeiras da empresa</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" onclick="exportarFluxo()">
+                            <i class="fas fa-download"></i> Exportar
+                        </button>
+                        <button class="btn btn-importar" onclick="importarFluxo()">
+                            <i class="fas fa-file-excel"></i> Importar XLSX
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Seletor de Período -->
+                <div class="periodo-selector">
+                    <div class="periodo-buttons">
+                        <button class="periodo-btn active" data-periodo="mes" onclick="selecionarPeriodo('mes', this)">
+                            Este Mês
+                        </button>
+                        <button class="periodo-btn" data-periodo="trimestre" onclick="selecionarPeriodo('trimestre', this)">
+                            Trimestre
+                        </button>
+                        <button class="periodo-btn" data-periodo="semestre" onclick="selecionarPeriodo('semestre', this)">
+                            Semestre
+                        </button>
+                        <button class="periodo-btn" data-periodo="ano" onclick="selecionarPeriodo('ano', this)">
+                            Ano
+                        </button>
+                    </div>
+                    <div class="custom-date">
+                        <input type="date" id="data-inicio" class="date-input">
+                        <span style="color: #6b7280;">até</span>
+                        <input type="date" id="data-fim" class="date-input">
+                        <button class="periodo-btn" onclick="buscarPeriodoCustom()">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Resumo -->
+                <div class="resumo-fluxo">
+                    <div class="resumo-item" style="--item-color: #0ea5e9; --item-bg: rgba(14, 165, 233, 0.1);">
+                        <div class="resumo-icon">
+                            <i class="fas fa-arrow-up"></i>
+                        </div>
+                        <div class="resumo-value" id="total-entradas">R$ 0,00</div>
+                        <div class="resumo-label">Total de Entradas</div>
+                    </div>
+                    <div class="resumo-item" style="--item-color: #ef4444; --item-bg: rgba(239, 68, 68, 0.1);">
+                        <div class="resumo-icon">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                        <div class="resumo-value" id="total-saidas">R$ 0,00</div>
+                        <div class="resumo-label">Total de Saídas</div>
+                    </div>
+                    <div class="resumo-item" style="--item-color: #3b82f6; --item-bg: rgba(59, 130, 246, 0.1);">
+                        <div class="resumo-icon">
+                            <i class="fas fa-balance-scale"></i>
+                        </div>
+                        <div class="resumo-value" id="saldo-periodo">R$ 0,00</div>
+                        <div class="resumo-label">Saldo do Período</div>
+                    </div>
+                    <div class="resumo-item" style="--item-color: #0ea5e9; --item-bg: rgba(14, 165, 233, 0.1);">
+                        <div class="resumo-icon">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <div class="resumo-value" id="saldo-projetado">R$ 0,00</div>
+                        <div class="resumo-label">Saldo Projetado</div>
+                    </div>
+                </div>
+
+                <!-- Gráfico -->
+                <div class="chart-container">
+                    <div class="chart-header">
+                        <h3 class="chart-title">Evolução do Fluxo de Caixa</h3>
+                        <p class="chart-subtitle">Comparativo entre entradas e saídas ao longo do tempo</p>
+                    </div>
+                    <canvas id="chart-fluxo" height="80"></canvas>
+                </div>
+
+                <!-- Tabela de Movimentações -->
+                <div class="tabela-fluxo">
+                    <div class="tabela-header">
+                        <h3 class="tabela-title">Movimentações Detalhadas</h3>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th>Tipo</th>
+                                <th class="text-right">Valor</th>
+                                <th class="text-right">Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-movimentacoes">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 60px; color: #9ca3af;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                                    Carregando movimentações...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Toggle sidebar
+        document.getElementById('toggle-sidebar')?.addEventListener('click', () => {
+            document.querySelector('.sidebar')?.classList.toggle('active');
+            document.getElementById('sidebar-overlay')?.classList.toggle('active');
+        });
+
+        document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+            document.querySelector('.sidebar')?.classList.remove('active');
+            document.getElementById('sidebar-overlay')?.classList.remove('active');
+        });
+
+        let chartFluxo = null;
+        let periodoAtual = 'mes';
+
+        async function init() {
+            setDatasPadrao();
+            await carregarFluxo();
+        }
+
+        function setDatasPadrao() {
+            const hoje = new Date();
+            const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+
+            document.getElementById('data-inicio').value = primeiroDia.toISOString().split('T')[0];
+            document.getElementById('data-fim').value = hoje.toISOString().split('T')[0];
+        }
+
+        function selecionarPeriodo(periodo, btn) {
+            document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            periodoAtual = periodo;
+
+            const hoje = new Date();
+            let dataInicio;
+
+            switch(periodo) {
+                case 'mes':
+                    dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+                    break;
+                case 'trimestre':
+                    dataInicio = new Date(hoje.setMonth(hoje.getMonth() - 3));
+                    break;
+                case 'semestre':
+                    dataInicio = new Date(hoje.setMonth(hoje.getMonth() - 6));
+                    break;
+                case 'ano':
+                    dataInicio = new Date(hoje.getFullYear(), 0, 1);
+                    break;
+            }
+
+            document.getElementById('data-inicio').value = dataInicio.toISOString().split('T')[0];
+            document.getElementById('data-fim').value = new Date().toISOString().split('T')[0];
+
+            carregarFluxo();
+        }
+
+        function buscarPeriodoCustom() {
+            document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('active'));
+            carregarFluxo();
+        }
+
+        async function carregarFluxo() {
+            const dataInicio = document.getElementById('data-inicio').value;
+            const dataFim = document.getElementById('data-fim').value;
+
+            try {
+                const response = await fetch(`/api/financeiro/fluxo-caixa?inicio=${dataInicio}&fim=${dataFim}`, {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const dados = await response.json();
+                    atualizarResumo(dados);
+                    renderizarGrafico(dados);
+                    renderizarTabela(dados.movimentacoes || []);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar fluxo:', error);
+            }
+        }
+
+        function atualizarResumo(dados) {
+            document.getElementById('total-entradas').textContent =
+                `R$ ${(dados.total_entradas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('total-saidas').textContent =
+                `R$ ${(dados.total_saidas || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+            const saldo = (dados.total_entradas || 0) - (dados.total_saidas || 0);
+            document.getElementById('saldo-periodo').textContent =
+                `R$ ${saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('saldo-periodo').style.color = saldo >= 0 ? '#1e40af' : '#ef4444';
+
+            document.getElementById('saldo-projetado').textContent =
+                `R$ ${(dados.saldo_projetado || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+        }
+
+        function renderizarGrafico(dados) {
+            const ctx = document.getElementById('chart-fluxo');
+
+            if (chartFluxo) {
+                chartFluxo.destroy();
+            }
+
+            chartFluxo = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dados.labels || [],
+                    datasets: [
+                        {
+                            label: 'Entradas',
+                            data: dados.entradas || [],
+                            borderColor: '#1e40af',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Saídas',
+                            data: dados.saidas || [],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Saldo',
+                            data: dados.saldo || [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: false,
+                            borderWidth: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: { size: 13, weight: '600' }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: { size: 14, weight: 'bold' },
+                            bodyFont: { size: 13 },
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': R$ ' +
+                                        context.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: value => 'R$ ' + value.toLocaleString('pt-BR')
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderizarTabela(movimentacoes) {
+            const tbody = document.getElementById('tabela-movimentacoes');
+
+            if (movimentacoes.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="6" style="text-align: center; padding: 60px; color: #9ca3af;">
+                        <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                        Nenhuma Movimentação no período
+                    </td></tr>
+                `;
+                return;
+            }
+
+            let saldoAcumulado = 0;
+            tbody.innerHTML = movimentacoes.map(mov => {
+                const valor = parseFloat(mov.valor) || 0;
+                const tipo = mov.tipo || 'saida';
+                const valorLiquido = tipo === 'entrada' ? valor : -valor;
+                saldoAcumulado += valorLiquido;
+
+                return `
+                    <tr>
+                        <td>${new Date(mov.data).toLocaleDateString('pt-BR')}</td>
+                        <td><strong>${mov.descrição}</strong></td>
+                        <td>${mov.categoria || '-'}</td>
+                        <td><span class="badge badge-${tipo}">${tipo.toUpperCase()}</span></td>
+                        <td class="text-right ${valorLiquido >= 0 ? 'valor-positivo' : 'valor-negativo'}">
+                            ${valorLiquido >= 0 ? '+' : ''}R$ ${Math.abs(valorLiquido).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        </td>
+                        <td class="text-right ${saldoAcumulado >= 0 ? 'valor-positivo' : 'valor-negativo'}">
+                            R$ ${saldoAcumulado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function exportarFluxo() {
+            // Coletar dados da tabela
+            const dataInicio = document.getElementById('data-inicio').value;
+            const dataFim = document.getElementById('data-fim').value;
+            const tbody = document.getElementById('tbody-movimentacoes');
+            const rows = tbody.querySelectorAll('tr');
+
+            if (rows.length === 0 || (rows.length === 1 && rows[0].querySelector('td[colspan]'))) {
+                alert('Não há dados para exportar');
+                return;
+            }
+
+            // Criar CSV
+            let csv = 'Data;Descrição;Categoria;Tipo;Valor;Saldo Acumulado\n';
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 6) {
+                    const data = cells[0].textContent.trim();
+                    const descrição = cells[1].textContent.trim().replace(/;/g, ',');
+                    const categoria = cells[2].textContent.trim();
+                    const tipo = cells[3].textContent.trim();
+                    const valor = cells[4].textContent.trim().replace('R$', '').trim();
+                    const saldo = cells[5].textContent.trim().replace('R$', '').trim();
+                    csv += `${data};${descrição};${categoria};${tipo};${valor};${saldo}\n`;
+                }
+            });
+
+            // Criar blob e download
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `fluxo_caixa_${dataInicio}_${dataFim}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Mostrar opção de exportar PDF também
+            if (confirm('CSV exportado com sucesso!\n\nDeseja também exportar como PDF?')) {
+                exportarFluxoPDF();
+            }
+        }
+
+        function exportarFluxoPDF() {
+            const dataInicio = document.getElementById('data-inicio').value;
+            const dataFim = document.getElementById('data-fim').value;
+
+            // Coletar resumo
+            const entradas = document.getElementById('total-entradas')?.textContent || 'R$ 0,00';
+            const saidas = document.getElementById('total-saidas')?.textContent || 'R$ 0,00';
+            const saldo = document.getElementById('saldo-periodo')?.textContent || 'R$ 0,00';
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Fluxo de Caixa - ${dataInicio} a ${dataFim}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; }
+                        .header { text-align: center; border-bottom: 2px solid #1a1a2e; padding-bottom: 20px; margin-bottom: 20px; }
+                        .header h1 { margin: 0; color: #1a1a2e; font-size: 24px; }
+                        .header p { margin: 5px 0; color: #666; }
+                        .resumo { display: flex; justify-content: space-around; margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 8px; }
+                        .resumo-item { text-align: center; }
+                        .resumo-item .label { font-size: 12px; color: #666; }
+                        .resumo-item .valor { font-size: 20px; font-weight: bold; }
+                        .valor.positivo { color: #22c55e; }
+                        .valor.negativo { color: #ef4444; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 12px; }
+                        th { background: #1a1a2e; color: white; padding: 10px; text-align: left; }
+                        td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+                        tr:nth-child(even) { background: #f8f9fa; }
+                        .text-right { text-align: right; }
+                        .footer { margin-top: 30px; text-align: center; color: #999; font-size: 10px; }
+                        @media print { body { padding: 0; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>ALUFORCE - Fluxo de Caixa</h1>
+                        <p>Período: ${new Date(dataInicio).toLocaleDateString('pt-BR')} a ${new Date(dataFim).toLocaleDateString('pt-BR')}</p>
+                        <p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+                    </div>
+                    <div class="resumo">
+                        <div class="resumo-item">
+                            <div class="label">Total Entradas</div>
+                            <div class="valor positivo">${entradas}</div>
+                        </div>
+                        <div class="resumo-item">
+                            <div class="label">Total Saídas</div>
+                            <div class="valor negativo">${saidas}</div>
+                        </div>
+                        <div class="resumo-item">
+                            <div class="label">Saldo do Período</div>
+                            <div class="valor">${saldo}</div>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th>Tipo</th>
+                                <th class="text-right">Valor</th>
+                                <th class="text-right">Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${document.getElementById('tbody-movimentacoes').innerHTML}
+                        </tbody>
+                    </table>
+                    <div class="footer">
+                        <p>ALUFORCE Sistemas - Relatório gerado automaticamente</p>
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            setTimeout(() => printWindow.print(), 500);
+        }
+    </script>
+
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <!-- Sidebar + Header RBAC Component -->
+    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
+</body>
+</html>

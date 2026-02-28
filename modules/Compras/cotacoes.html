@@ -1,0 +1,414 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Cotações</title>
+
+    <script src="/js/auth-unified.js?v=20260216" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="css/compras-layout.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <style>
+        .fas, .far, .fab, .fa { font-family: 'Font Awesome 6 Free', 'Font Awesome 6 Brands', FontAwesome !important; font-style: normal; display: inline-block !important; visibility: visible !important; }
+        .fas { font-weight: 900; } .far { font-weight: 400; }
+
+        .badge.aberta { background: #dbeafe; color: #1e40af; }
+        .badge.aberta::before { background: #3b82f6; }
+        .badge.analise { background: #fef3c7; color: #92400e; }
+        .badge.analise::before { background: #f59e0b; }
+        .badge.finalizada { background: #dcfce7; color: #166534; }
+        .badge.finalizada::before { background: #22c55e; }
+        .badge.cancelada { background: #f3f4f6; color: #4b5563; }
+        .badge.cancelada::before { background: #9ca3af; }
+
+        .fornecedor-checkbox { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .fornecedor-checkbox:hover { border-color: var(--primary-400); background: var(--primary-50); }
+
+        /* ===== Toast Notifications ===== */
+        .toast-container {
+            position: fixed; top: 24px; right: 24px; z-index: 100000;
+            display: flex; flex-direction: column; gap: 10px;
+            pointer-events: none;
+        }
+        .toast {
+            pointer-events: auto;
+            display: flex; align-items: center; gap: 12px;
+            min-width: 320px; max-width: 440px;
+            padding: 14px 18px; border-radius: var(--radius-lg, 12px);
+            background: #fff; color: #1f2937;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid #9ca3af;
+            font-size: 0.85rem; font-weight: 500; line-height: 1.4;
+            animation: toastSlideIn 0.35s cubic-bezier(.21,1.02,.73,1) forwards;
+            transform: translateX(120%); position: relative; overflow: hidden;
+        }
+        .toast.hiding { animation: toastSlideOut 0.3s ease forwards; }
+        .toast .toast-icon {
+            flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
+        }
+        .toast .toast-body { flex: 1; }
+        .toast .toast-close {
+            flex-shrink: 0; background: none; border: none; color: #9ca3af;
+            cursor: pointer; padding: 4px; font-size: 0.75rem; border-radius: 4px; transition: all 0.15s;
+        }
+        .toast .toast-close:hover { color: #374151; background: #f3f4f6; }
+        .toast.success { border-left-color: #10b981; }
+        .toast.success .toast-icon { background: #ecfdf5; color: #059669; }
+        .toast.error { border-left-color: #ef4444; }
+        .toast.error .toast-icon { background: #fef2f2; color: #dc2626; }
+        .toast.warning { border-left-color: #f59e0b; }
+        .toast.warning .toast-icon { background: #fffbeb; color: #d97706; }
+        .toast.info { border-left-color: #3b82f6; }
+        .toast.info .toast-icon { background: #eff6ff; color: #2563eb; }
+        .toast .toast-progress {
+            position: absolute; bottom: 0; left: 4px; right: 0; height: 3px;
+            border-radius: 0 0 8px 0;
+            animation: toastProgress var(--toast-duration, 4s) linear forwards;
+        }
+        .toast.success .toast-progress { background: #10b981; }
+        .toast.error .toast-progress { background: #ef4444; }
+        .toast.warning .toast-progress { background: #f59e0b; }
+        .toast.info .toast-progress { background: #3b82f6; }
+        @keyframes toastSlideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+        @keyframes toastProgress { from { width: 100%; } to { width: 0%; } }
+    </style>
+
+    <script>
+        function toggleNotificacoes() { const p = document.getElementById('notification-panel'); if (p) p.classList.toggle('active'); }
+        function marcarTodasLidas() {}
+        function limparNotificacoes() {}
+    </script>
+    <script src="/js/anti-copy-protection.js"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn active" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Cotações</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i><span class="notification-badge hidden" id="notification-count">0</span></button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header"><h3><i class="fas fa-bell"></i> Notificações</h3><div class="notification-actions"><button onclick="marcarTodasLidas()"><i class="fas fa-check-double"></i></button><button onclick="limparNotificacoes()"><i class="fas fa-trash-alt"></i></button></div></div>
+                            <div class="notification-tabs"><button class="notif-tab active" onclick="filtrarNotificacoes('todas', this)">Todas</button><button class="notif-tab" onclick="filtrarNotificacoes('nao-lidas', this)">Não lidas</button><button class="notif-tab" onclick="filtrarNotificacoes('importantes', this)">Importantes</button></div>
+                            <div class="notification-list" id="notification-list"></div>
+                            <div class="notification-footer"><a href="#" onclick="verTodasNotificacoes(); return false;">Ver histórico completo</a></div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar"><img src="" alt="" id="user-photo" style="display:none;"><span id="user-initial">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-actions">
+                            <button class="btn btn-secondary"><i class="fas fa-download"></i> Exportar</button>
+                            <button class="btn btn-primary" onclick="abrirModalNovaCotacao()"><i class="fas fa-plus"></i> Nova Cotação</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card purple">
+                        <div class="stat-header"><div class="stat-icon purple"><i class="fas fa-file-invoice-dollar"></i></div></div>
+                        <div class="stat-value" id="totalCotacoes">0</div>
+                        <div class="stat-label">Total Cotações</div>
+                    </div>
+                    <div class="stat-card amber">
+                        <div class="stat-header"><div class="stat-icon amber"><i class="fas fa-search-dollar"></i></div></div>
+                        <div class="stat-value" id="cotacoesAnalise">0</div>
+                        <div class="stat-label">Em Análise</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-header"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div></div>
+                        <div class="stat-value" id="cotacoesAprovadas">0</div>
+                        <div class="stat-label">Aprovadas</div>
+                    </div>
+                    <div class="stat-card cyan">
+                        <div class="stat-header"><div class="stat-icon cyan"><i class="fas fa-percentage"></i></div></div>
+                        <div class="stat-value" id="economiaMedia">0%</div>
+                        <div class="stat-label">Economia Média</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="searchCotacao" placeholder="Buscar por código, fornecedor, material..." oninput="cotacoesManager.filtrar()"></div>
+                    <button class="filter-btn active" onclick="cotacoesManager.filtrarPorStatus('todos')"><i class="fas fa-list"></i> Todas</button>
+                    <button class="filter-btn" onclick="cotacoesManager.filtrarPorStatus('Rascunho')"><i class="fas fa-edit"></i> Rascunho</button>
+                    <button class="filter-btn" onclick="cotacoesManager.filtrarPorStatus('Enviada')"><i class="fas fa-paper-plane"></i> Enviadas</button>
+                    <button class="filter-btn" onclick="cotacoesManager.filtrarPorStatus('Em Análise')"><i class="fas fa-search-dollar"></i> Em Análise</button>
+                    <button class="filter-btn" onclick="cotacoesManager.filtrarPorStatus('Aprovada')"><i class="fas fa-check-circle"></i> Aprovadas</button>
+                </div>
+
+                <!-- Table -->
+                <div class="card">
+                    <div class="card-header"><h3 class="card-title"><i class="fas fa-table"></i> Lista de Cotações</h3></div>
+                    <div class="card-body no-padding">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;"><input type="checkbox" title="Selecionar todos"></th>
+                                    <th>Código</th>
+                                    <th>Data</th>
+                                    <th>Solicitante</th>
+                                    <th>Materiais</th>
+                                    <th>Fornecedores</th>
+                                    <th>Melhor Oferta</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cotacoesTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination">
+                        <span class="pagination-info">Mostrando <strong id="paginacaoInicio">1</strong>-<strong id="paginacaoFim">15</strong> de <strong id="paginacaoTotal">0</strong></span>
+                        <div id="paginationControls" style="display:flex;gap:4px;"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Nova Cotação -->
+    <div class="modal-overlay" id="modalNovaCotacao">
+        <div class="modal" style="max-width:800px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-plus-circle"></i> <span id="modalCotacaoTitulo">Nova Cotação de Compra</span></h3>
+                <button class="modal-close" onclick="fecharModalCotacao()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formCotacao">
+                    <input type="hidden" id="cotacaoId" value="">
+                    <input type="hidden" id="cotacaoNumero" value="">
+
+                    <div class="form-row">
+                        <div class="form-group" style="grid-column:span 2;">
+                            <label>Descrição/Título da Cotação <span class="required">*</span></label>
+                            <input type="text" id="cotDescricao" class="form-control" placeholder="Ex: Cotação de Chapas de Alumínio" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Material/Produto <span class="required">*</span></label>
+                            <select id="cotMaterial" class="form-control" required>
+                                <option value="">Selecione o material</option>
+                                <option value="1">Chapa de Alumínio 3mm</option>
+                                <option value="2">Perfil de Alumínio</option>
+                                <option value="3">Vidro Temperado 8mm</option>
+                                <option value="4">Parafusos Inox M8</option>
+                                <option value="5">Silicone Estrutural</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Validade <span class="required">*</span></label>
+                            <input type="date" id="cotValidade" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Quantidade <span class="required">*</span></label>
+                            <input type="number" id="cotQuantidade" class="form-control" placeholder="0" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Unidade</label>
+                            <select id="cotUnidade" class="form-control">
+                                <option value="UN">UN - Unidade</option>
+                                <option value="M2">M² - Metro Quadrado</option>
+                                <option value="M">M - Metro Linear</option>
+                                <option value="KG">KG - Quilograma</option>
+                                <option value="PC">PC - Peça</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Fornecedores para Cotação</label>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="1"> Alumínio Brasil LTDA</label>
+                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="2"> Metais Premium SA</label>
+                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="3"> Vidros & Cia</label>
+                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="4"> Fixadores Industriais</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea id="cotObservacoes" class="form-control" rows="3" placeholder="Observações adicionais para os fornecedores..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalCotacao()">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarCotacao()"><i class="fas fa-save"></i> Salvar Cotação</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar) sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('active');
+        }
+
+        async function abrirModalNovaCotacao() {
+            document.getElementById('modalNovaCotacao').classList.add('active');
+            document.getElementById('modalCotacaoTitulo').textContent = 'Nova Cotação de Compra';
+            document.getElementById('formCotacao').reset();
+            document.getElementById('cotacaoId').value = '';
+            document.getElementById('cotacaoNumero').value = '';
+            // Buscar próximo número
+            try {
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const r = await fetch('/api/compras/cotacoes/proximo-numero', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (r.ok) { const d = await r.json(); document.getElementById('cotacaoNumero').value = d.numero || d.proximo_numero || ''; }
+            } catch (e) { document.getElementById('cotacaoNumero').value = 'COT-' + String(Date.now()).slice(-4); }
+        }
+
+        function fecharModalCotacao() {
+            document.getElementById('modalNovaCotacao').classList.remove('active');
+        }
+
+        async function salvarCotacao() {
+            const descricao = document.getElementById('cotDescricao').value;
+            const validade = document.getElementById('cotValidade').value;
+            const material = document.getElementById('cotMaterial').value;
+            const quantidade = document.getElementById('cotQuantidade').value;
+            if (!descricao || !validade || !material || !quantidade) {
+                showToast('Por favor, preencha todos os campos obrigatórios.', 'warning');
+                return;
+            }
+
+            const fornecedoresChecked = document.querySelectorAll('input[name="fornecedores"]:checked');
+            const fornecedores_ids = Array.from(fornecedoresChecked).map(cb => parseInt(cb.value));
+
+            const body = {
+                numero: document.getElementById('cotacaoNumero').value,
+                descricao: descricao,
+                data_abertura: new Date().toISOString().split('T')[0],
+                data_validade: validade,
+                quantidade: parseFloat(quantidade),
+                unidade: document.getElementById('cotUnidade').value,
+                observacoes: document.getElementById('cotObservacoes').value,
+                fornecedores_ids: fornecedores_ids
+            };
+
+            try {
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const cotacaoId = document.getElementById('cotacaoId').value;
+                const url = cotacaoId ? `/api/compras/cotacoes/${cotacaoId}` : '/api/compras/cotacoes';
+                const method = cotacaoId ? 'PUT' : 'POST';
+
+                const r = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(body)
+                });
+
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.message || 'Erro ao salvar cotação');
+                }
+
+                showToast(cotacaoId ? 'Cotação atualizada com sucesso!' : 'Cotação salva com sucesso!', 'success');
+                fecharModalCotacao();
+
+                // Recarregar dados na tabela
+                if (typeof cotacoesManager !== 'undefined') {
+                    await cotacoesManager.carregarDados();
+                    cotacoesManager.atualizarCards();
+                    cotacoesManager.renderizarTabela();
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            }
+        }
+
+        document.getElementById('modalNovaCotacao').addEventListener('click', function(e) {
+            if (e.target === this) fecharModalCotacao();
+        });
+    </script>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+    function showToast(message, type = 'success', duration = 4000) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const icons = { success: 'fa-check', error: 'fa-xmark', warning: 'fa-exclamation', info: 'fa-info' };
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.style.setProperty('--toast-duration', duration + 'ms');
+        toast.innerHTML = `
+            <div class="toast-icon"><i class="fas ${icons[type] || icons.info}"></i></div>
+            <div class="toast-body">${message}</div>
+            <button class="toast-close" onclick="this.parentElement.classList.add('hiding'); setTimeout(() => this.parentElement.remove(), 300);"><i class="fas fa-times"></i></button>
+            <div class="toast-progress"></div>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => { if (toast.parentElement) { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 300); } }, duration);
+    }
+    </script>
+
+    <script src="/modules/Compras/js/compras-utils.js?v=20260216"></script>
+    <script src="/modules/Compras/notifications.js"></script>
+    <script src="/modules/Compras/cotacoes.js"></script>
+    <script src="/modules/Compras/compras-user-loader.js?v=20260216"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

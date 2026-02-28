@@ -1,0 +1,783 @@
+﻿/* ============================================================
+   ALUFORCE - ANIMAÇÕES FLUIDAS E OTIMIZAÇÕES VISUAIS
+   Melhora a percepção de velocidade e fluidez do sistema
+   ============================================================ */
+
+/* ===========================================
+   1. VARIÁVEIS DE ANIMAÇÍO
+   =========================================== */
+:root {
+    /* Timing functions otimizadas para fluidez */
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+    --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Durações otimizadas (mais rápidas = mais fluido) */
+    --duration-instant: 0.1s;
+    --duration-fast: 0.15s;
+    --duration-normal: 0.2s;
+    --duration-slow: 0.3s;
+    --duration-modal: 0.25s;
+    
+    /* Cores para feedback visual */
+    --color-success-glow: rgba(16, 185, 129, 0.4);
+    --color-error-glow: rgba(239, 68, 68, 0.4);
+    --color-info-glow: rgba(59, 130, 246, 0.4);
+    --color-warning-glow: rgba(245, 158, 11, 0.4);
+}
+
+/* ===========================================
+   2. TRANSIÇÕES GLOBAIS OTIMIZADAS
+   =========================================== */
+
+/* Remove lag em elementos interativos */
+button,
+a,
+input,
+select,
+textarea,
+.btn,
+.card,
+.module-card,
+[role="button"],
+[tabindex] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* Transições suaves para botões */
+button,
+.btn,
+[role="button"] {
+    transition: 
+        transform var(--duration-fast) var(--ease-out-expo),
+        box-shadow var(--duration-fast) var(--ease-out-expo),
+        background-color var(--duration-fast) var(--ease-smooth),
+        border-color var(--duration-fast) var(--ease-smooth),
+        opacity var(--duration-fast) var(--ease-smooth);
+    will-change: transform;
+}
+
+button:hover,
+.btn:hover,
+[role="button"]:hover {
+    transform: translateY(-1px);
+}
+
+button:active,
+.btn:active,
+[role="button"]:active {
+    transform: translateY(0) scale(0.98);
+    transition-duration: var(--duration-instant);
+}
+
+/* ===========================================
+   3. CARDS COM ANIMAÇÕES FLUIDAS
+   =========================================== */
+.module-card,
+.card,
+.dashboard-card,
+[class*="-card"] {
+    transition: 
+        transform var(--duration-normal) var(--ease-out-expo),
+        box-shadow var(--duration-normal) var(--ease-out-expo),
+        opacity var(--duration-fast) var(--ease-smooth);
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+.module-card:hover,
+.card:hover,
+.dashboard-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 
+        0 12px 24px -8px rgba(0, 0, 0, 0.15),
+        0 4px 8px -2px rgba(0, 0, 0, 0.1);
+}
+
+.module-card:active,
+.card:active {
+    transform: translateY(-2px) scale(0.99);
+    transition-duration: var(--duration-instant);
+}
+
+/* Animação de entrada dos cards */
+@keyframes cardFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.module-card,
+.dashboard-card {
+    animation: cardFadeIn var(--duration-slow) var(--ease-out-expo) backwards;
+}
+
+/* Delay escalonado para múltiplos cards */
+.module-card:nth-child(1) { animation-delay: 0.05s; }
+.module-card:nth-child(2) { animation-delay: 0.1s; }
+.module-card:nth-child(3) { animation-delay: 0.15s; }
+.module-card:nth-child(4) { animation-delay: 0.2s; }
+.module-card:nth-child(5) { animation-delay: 0.25s; }
+.module-card:nth-child(6) { animation-delay: 0.3s; }
+.module-card:nth-child(7) { animation-delay: 0.35s; }
+.module-card:nth-child(8) { animation-delay: 0.4s; }
+
+/* ===========================================
+   4. MODAIS FLUIDOS
+   =========================================== */
+.modal-overlay,
+.modal-backdrop,
+[class*="modal-overlay"],
+[class*="overlay"] {
+    transition: 
+        opacity var(--duration-modal) var(--ease-smooth),
+        backdrop-filter var(--duration-modal) var(--ease-smooth);
+}
+
+.modal,
+.modal-content,
+.dialog,
+[class*="modal-content"] {
+    transition: 
+        transform var(--duration-modal) var(--ease-out-expo),
+        opacity var(--duration-modal) var(--ease-out-expo);
+}
+
+/* Estado inicial (fechado) */
+.modal.closed,
+.modal[hidden],
+.modal:not(.show):not(.active):not(.open) {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+    pointer-events: none;
+}
+
+/* Estado aberto */
+.modal.show,
+.modal.active,
+.modal.open {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+
+/* Animações de entrada/saída */
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes modalFadeOut {
+    from {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+}
+
+.modal-entering {
+    animation: modalFadeIn var(--duration-modal) var(--ease-out-expo) forwards;
+}
+
+.modal-leaving {
+    animation: modalFadeOut var(--duration-fast) var(--ease-smooth) forwards;
+}
+
+/* ===========================================
+   5. DROPDOWN E MENUS FLUIDOS
+   =========================================== */
+.dropdown-menu,
+.context-menu,
+.popup-menu,
+.user-dropdown-menu,
+[class*="dropdown"] {
+    transition: 
+        opacity var(--duration-fast) var(--ease-out-expo),
+        transform var(--duration-fast) var(--ease-out-expo),
+        visibility var(--duration-fast);
+    transform-origin: top center;
+}
+
+.dropdown-menu:not(.show):not(.active):not(.open),
+.user-dropdown-menu:not(.show):not(.active):not(.open) {
+    opacity: 0;
+    transform: scale(0.95) translateY(-5px);
+    pointer-events: none;
+}
+
+.dropdown-menu.show,
+.dropdown-menu.active,
+.dropdown-menu.open,
+.user-dropdown-menu.show {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    visibility: visible;
+}
+
+/* Itens do menu com hover suave */
+.dropdown-menu li,
+.dropdown-menu a,
+.dropdown-item,
+.menu-item {
+    transition: 
+        background-color var(--duration-instant) var(--ease-smooth),
+        color var(--duration-instant) var(--ease-smooth),
+        transform var(--duration-instant) var(--ease-smooth);
+}
+
+.dropdown-menu li:hover,
+.dropdown-item:hover,
+.menu-item:hover {
+    transform: translateX(3px);
+}
+
+/* ===========================================
+   6. INPUTS COM FEEDBACK VISUAL
+   =========================================== */
+input,
+select,
+textarea {
+    transition: 
+        border-color var(--duration-fast) var(--ease-smooth),
+        box-shadow var(--duration-fast) var(--ease-smooth),
+        background-color var(--duration-fast) var(--ease-smooth);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    box-shadow: 0 0 0 3px var(--color-info-glow);
+}
+
+input.success,
+input.valid,
+input:valid:not(:placeholder-shown):not([type="submit"]):not([type="button"]) {
+    border-color: #10b981;
+}
+
+input.error,
+input.invalid,
+input:invalid:not(:placeholder-shown) {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px var(--color-error-glow);
+}
+
+/* ===========================================
+   7. LOADING STATES & SKELETONS
+   =========================================== */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton,
+.loading-placeholder,
+[data-loading="true"] {
+    background: linear-gradient(
+        90deg,
+        #f0f0f0 25%,
+        #e0e0e0 50%,
+        #f0f0f0 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+    border-radius: 4px;
+}
+
+/* Skeleton para texto */
+.skeleton-text {
+    height: 1em;
+    width: 100%;
+    margin: 0.5em 0;
+}
+
+.skeleton-text.short {
+    width: 40%;
+}
+
+.skeleton-text.medium {
+    width: 70%;
+}
+
+/* Skeleton para cards */
+.skeleton-card {
+    padding: 20px;
+    border-radius: 12px;
+    min-height: 150px;
+}
+
+/* Skeleton para avatar */
+.skeleton-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+}
+
+/* Skeleton para imagens */
+.skeleton-image {
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 */
+    border-radius: 8px;
+}
+
+/* ===========================================
+   8. SPINNERS & LOADERS
+   =========================================== */
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.spinner,
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.spinner.small {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+.spinner.large {
+    width: 40px;
+    height: 40px;
+    border-width: 4px;
+}
+
+/* Loading dots */
+.loading-dots {
+    display: inline-flex;
+    gap: 4px;
+}
+
+.loading-dots span {
+    width: 8px;
+    height: 8px;
+    background: #3b82f6;
+    border-radius: 50%;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* ===========================================
+   9. FEEDBACK DE AÇÕES (SUCCESS/ERROR)
+   =========================================== */
+@keyframes successPulse {
+    0% {
+        box-shadow: 0 0 0 0 var(--color-success-glow);
+    }
+    70% {
+        box-shadow: 0 0 0 10px transparent;
+    }
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.success-feedback {
+    animation: successPulse 0.6s var(--ease-out-expo);
+}
+
+.error-feedback {
+    animation: errorShake 0.5s var(--ease-out-expo);
+}
+
+/* Check mark animation */
+@keyframes checkmark {
+    0% {
+        stroke-dashoffset: 50;
+    }
+    100% {
+        stroke-dashoffset: 0;
+    }
+}
+
+.checkmark-icon {
+    stroke-dasharray: 50;
+    stroke-dashoffset: 50;
+    animation: checkmark 0.3s var(--ease-out-expo) forwards;
+    animation-delay: 0.1s;
+}
+
+/* ===========================================
+   10. RIPPLE EFFECT (Material Design)
+   =========================================== */
+.ripple-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0);
+    animation: ripple-effect 0.6s linear;
+    pointer-events: none;
+}
+
+@keyframes ripple-effect {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* ===========================================
+   11. NOTIFICAÇÕES TOAST FLUIDAS
+   =========================================== */
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes toastSlideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%) scale(0.9);
+    }
+}
+
+.toast,
+.notification-toast {
+    animation: toastSlideIn var(--duration-normal) var(--ease-out-expo) forwards;
+}
+
+.toast.closing,
+.notification-toast.closing {
+    animation: toastSlideOut var(--duration-fast) var(--ease-smooth) forwards;
+}
+
+/* Progress bar do toast */
+.toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 0 0 8px 8px;
+    animation: toastProgress linear forwards;
+}
+
+@keyframes toastProgress {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+/* ===========================================
+   12. SCROLL SUAVE
+   =========================================== */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Para elementos com scroll interno */
+.smooth-scroll {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* ===========================================
+   13. PAGE TRANSITIONS
+   =========================================== */
+@keyframes pageEnter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.page-content,
+.main-content,
+.dashboard-content,
+#dashboard-area {
+    animation: pageEnter var(--duration-slow) var(--ease-out-expo);
+}
+
+/* ===========================================
+   14. TABELAS FLUIDAS
+   =========================================== */
+table tbody tr {
+    transition: 
+        background-color var(--duration-instant) var(--ease-smooth),
+        transform var(--duration-instant) var(--ease-smooth);
+}
+
+table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Row highlight animation */
+@keyframes rowHighlight {
+    0% {
+        background-color: rgba(59, 130, 246, 0.2);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.row-highlight {
+    animation: rowHighlight 1s var(--ease-smooth);
+}
+
+/* ===========================================
+   15. TOOLTIP FLUIDO
+   =========================================== */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.8);
+    padding: 6px 12px;
+    background: #1f2937;
+    color: white;
+    font-size: 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: 
+        opacity var(--duration-fast) var(--ease-smooth),
+        transform var(--duration-fast) var(--ease-out-expo),
+        visibility var(--duration-fast);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) scale(1);
+}
+
+/* ===========================================
+   16. PERFORMANCE OTIMIZATIONS
+   =========================================== */
+
+/* Força GPU para elementos animados */
+.gpu-accelerated,
+.modal,
+.dropdown-menu,
+.card:hover,
+.module-card:hover {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* Reduz animações para usuários com preferência */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Desativa transições durante resize */
+.resize-animation-stopper * {
+    animation: none !important;
+    transition: none !important;
+}
+
+/* ===========================================
+   17. FOCUS VISIBLE (Acessibilidade)
+   =========================================== */
+:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* ===========================================
+   18. TABS FLUIDAS
+   =========================================== */
+.tab-content,
+.tab-pane {
+    animation: tabFadeIn var(--duration-normal) var(--ease-out-expo);
+}
+
+@keyframes tabFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tab-indicator {
+    transition: 
+        left var(--duration-normal) var(--ease-out-expo),
+        width var(--duration-normal) var(--ease-out-expo);
+}
+
+/* ===========================================
+   19. ACCORDIONS FLUIDOS
+   =========================================== */
+.accordion-content {
+    overflow: hidden;
+    transition: 
+        max-height var(--duration-normal) var(--ease-out-expo),
+        opacity var(--duration-fast) var(--ease-smooth),
+        padding var(--duration-normal) var(--ease-smooth);
+}
+
+.accordion-header {
+    transition: background-color var(--duration-fast) var(--ease-smooth);
+}
+
+.accordion-icon {
+    transition: transform var(--duration-normal) var(--ease-out-expo);
+}
+
+.accordion.open .accordion-icon {
+    transform: rotate(180deg);
+}
+
+/* ===========================================
+   20. SIDEBAR/NAV ANIMATIONS
+   =========================================== */
+.sidebar,
+.side-nav {
+    transition: 
+        transform var(--duration-normal) var(--ease-out-expo),
+        width var(--duration-normal) var(--ease-out-expo);
+}
+
+.sidebar.collapsed {
+    transform: translateX(-100%);
+}
+
+.nav-item {
+    transition: 
+        background-color var(--duration-fast) var(--ease-smooth),
+        padding-left var(--duration-fast) var(--ease-smooth);
+}
+
+.nav-item:hover {
+    padding-left: calc(var(--nav-padding, 16px) + 4px);
+}
+
+.nav-item.active {
+    position: relative;
+}
+
+.nav-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: #3b82f6;
+    border-radius: 0 2px 2px 0;
+    animation: navIndicator var(--duration-normal) var(--ease-out-expo);
+}
+
+@keyframes navIndicator {
+    from {
+        height: 0;
+        opacity: 0;
+    }
+    to {
+        height: 60%;
+        opacity: 1;
+    }
+}

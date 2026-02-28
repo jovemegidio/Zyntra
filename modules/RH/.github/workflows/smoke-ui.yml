@@ -1,0 +1,50 @@
+name: Smoke UI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/**'
+      - 'public/**'
+      - 'server.js'
+      - '.github/workflows/**'
+
+jobs:
+  smoke_ui:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: aluforce_vendas
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install deps
+        run: npm ci
+      - name: Start server (background)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_USER: root
+          DB_PASS: password
+          DB_NAME: aluforce_vendas
+        run: |
+          npm run start &
+          # wait for server port
+          n=0
+          until nc -z 127.0.0.1 3000 || [ $n -ge 30 ]; do n=$((n+1)); sleep 1; done
+      - name: Run Puppeteer smoke
+        run: npm run smoke:ui
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-screenshots
+          path: screenshots/

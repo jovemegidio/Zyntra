@@ -1,0 +1,306 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — Inutilização</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn active" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon red"><i class="fas fa-ban"></i></div>
+                        <div>
+                            <h1 class="page-title">Inutilização de Numeração</h1>
+                            <p class="page-subtitle">Inutilize faixas de numeração NF-e não utilizadas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="alertContainer"></div>
+
+            <div class="alert danger mb-6" style="border-left:4px solid var(--danger);">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Atenção: Operação Irreversível</strong>
+                    <p style="margin:4px 0 0;font-size:12px;">A inutilização de números de NF-e junto à SEFAZ é permanente. Verifique cuidadosamente antes de confirmar.</p>
+                </div>
+            </div>
+
+            <div class="config-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-keyboard"></i> Dados da Inutilização</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="formInutilizacao" onsubmit="event.preventDefault();">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Série</label>
+                                    <input type="number" class="form-control" id="serie" value="1" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Ano</label>
+                                    <input type="number" class="form-control" id="ano" value="2026" min="2000" max="2099">
+                                </div>
+                            </div>
+
+                            <div class="alert info hidden" id="sugestaoBox" style="margin-bottom:16px;">
+                                <i class="fas fa-lightbulb"></i> <span id="sugestaoTexto"></span>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Número Inicial</label>
+                                    <input type="number" class="form-control" id="numeroInicial" placeholder="Ex: 1" min="1" onchange="atualizarInfoFaixa()">
+                                </div>
+                                <div class="form-group">
+                                    <label>Número Final</label>
+                                    <input type="number" class="form-control" id="numeroFinal" placeholder="Ex: 10" min="1" onchange="atualizarInfoFaixa()">
+                                </div>
+                            </div>
+
+                            <div class="alert info hidden" id="infoFaixa" style="margin-bottom:16px;">
+                                <i class="fas fa-info-circle"></i> <span id="faixaInfo"></span>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>CNPJ do Emitente</label>
+                                    <input type="text" class="form-control" id="cnpj" placeholder="00.000.000/0000-00">
+                                </div>
+                                <div class="form-group">
+                                    <label>UF</label>
+                                    <select class="form-control" id="uf">
+                                        <option value="">Selecione</option>
+                                        <option value="SP">SP</option><option value="RJ">RJ</option><option value="MG">MG</option><option value="RS">RS</option><option value="PR">PR</option><option value="SC">SC</option><option value="BA">BA</option><option value="PE">PE</option><option value="CE">CE</option><option value="GO">GO</option><option value="PA">PA</option><option value="MA">MA</option><option value="AM">AM</option><option value="ES">ES</option><option value="MT">MT</option><option value="MS">MS</option><option value="DF">DF</option><option value="RN">RN</option><option value="PB">PB</option><option value="AL">AL</option><option value="SE">SE</option><option value="PI">PI</option><option value="TO">TO</option><option value="RO">RO</option><option value="AC">AC</option><option value="AP">AP</option><option value="RR">RR</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Justificativa (mín. 15 caracteres)</label>
+                                <textarea class="form-control" id="justificativa" rows="3" maxlength="255" placeholder="Descreva o motivo da inutilização..."></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Ambiente</label>
+                                <select class="form-control" id="ambiente">
+                                    <option value="homologacao">Homologação (Teste)</option>
+                                    <option value="producao">Produção</option>
+                                </select>
+                            </div>
+
+                            <button type="button" class="btn btn-danger w-full" id="btnInutilizar" onclick="inutilizar()">
+                                <i class="fas fa-ban"></i> Inutilizar Numeração
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-history"></i> Histórico de Inutilizações</h3>
+                        <button class="btn btn-outline btn-sm" onclick="carregarHistorico()"><i class="fas fa-sync-alt"></i></button>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline" id="listaInutilizacoes">
+                            <div class="empty-state">
+                                <i class="fas fa-ban"></i>
+                                <h3>Nenhuma inutilização</h3>
+                                <p>O histórico aparecerá aqui</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
+
+function showAlert(message, type) {
+    const c = document.getElementById('alertContainer');
+    const a = document.createElement('div');
+    a.className = 'alert ' + type;
+    a.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':'exclamation-circle'}"></i> ${message}`;
+    c.appendChild(a);
+    setTimeout(() => a.remove(), 5000);
+}
+
+function atualizarInfoFaixa() {
+    const ini = parseInt(document.getElementById('numeroInicial').value) || 0;
+    const fin = parseInt(document.getElementById('numeroFinal').value) || 0;
+    if (ini && fin && fin >= ini) {
+        const qtd = fin - ini + 1;
+        document.getElementById('faixaInfo').textContent = `Serão inutilizados ${qtd} número(s): de ${ini} a ${fin}`;
+        document.getElementById('infoFaixa').classList.remove('hidden');
+    } else {
+        document.getElementById('infoFaixa').classList.add('hidden');
+    }
+}
+
+async function buscarSugestao() {
+    const serie = document.getElementById('serie').value;
+    const ano = document.getElementById('ano').value;
+    try {
+        const r = await fetch(`/api/nfe/sugerir-faixa/${serie}?ano=${ano}`, { credentials: 'include' });
+        if (r.ok) {
+            const d = await r.json();
+            if (d.sugestao) {
+                document.getElementById('sugestaoTexto').textContent = d.sugestao;
+                document.getElementById('sugestaoBox').classList.remove('hidden');
+            }
+        }
+    } catch(e) {}
+}
+
+async function carregarHistorico() {
+    try {
+        const r = await fetch('/api/nfe/inutilizacoes', { credentials: 'include' });
+        if (r.ok) {
+            const hist = await r.json();
+            const lista = Array.isArray(hist) ? hist : hist.data || [];
+            const el = document.getElementById('listaInutilizacoes');
+            if (!lista.length) { el.innerHTML = '<div class="empty-state"><i class="fas fa-ban"></i><p>Nenhuma inutilização registrada</p></div>'; return; }
+            el.innerHTML = lista.map(h => `
+                <div class="timeline-item">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                        <strong>Série ${h.serie} — Nº ${h.numero_inicial} a ${h.numero_final}</strong>
+                        <span class="badge ${h.status === 'aprovada' ? 'approved' : 'cancelled'}">${h.status || 'Processada'}</span>
+                    </div>
+                    <p style="margin:0;font-size:12px;color:var(--text-secondary);">${h.justificativa || '-'}</p>
+                    <span class="text-muted" style="font-size:11px;">${h.data ? new Date(h.data).toLocaleString('pt-BR') : '-'}</span>
+                </div>
+            `).join('');
+        }
+    } catch(e) { console.error('Erro:', e); }
+}
+
+async function inutilizar() {
+    const just = document.getElementById('justificativa').value;
+    if (just.length < 15) { showAlert('Justificativa deve ter no mínimo 15 caracteres', 'warning'); return; }
+    if (!confirm('ATENÇÃO: Esta operação é IRREVERSÍVEL. Confirma a inutilização?')) return;
+    try {
+        const r = await fetch('/api/nfe/inutilizar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+                serie: document.getElementById('serie').value,
+                ano: document.getElementById('ano').value,
+                numero_inicial: document.getElementById('numeroInicial').value,
+                numero_final: document.getElementById('numeroFinal').value,
+                cnpj: document.getElementById('cnpj').value,
+                uf: document.getElementById('uf').value,
+                justificativa: just,
+                ambiente: document.getElementById('ambiente').value
+            })
+        });
+        if (r.ok) { showAlert('Inutilização realizada com sucesso!', 'success'); carregarHistorico(); }
+        else { const e = await r.json(); showAlert(e.message || 'Erro na inutilização', 'danger'); }
+    } catch(e) { showAlert('Erro de conexão', 'danger'); }
+}
+
+function carregarDadosUsuario() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' })
+        .then(r => r.json())
+        .then(u => {
+            const nome = u.nome || u.name || 'Usuário';
+            document.getElementById('user-name').textContent = nome.split(' ')[0];
+            document.getElementById('user-initials').textContent = nome.substring(0,2).toUpperCase();
+            if (u.foto || u.avatar) { document.getElementById('user-photo').src = u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+        }).catch(() => {});
+}
+
+document.getElementById('cnpj').addEventListener('input', function() {
+    let v = this.value.replace(/\D/g, '');
+    if (v.length > 14) v = v.substring(0, 14);
+    if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    else if (v.length > 8) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d+)/, '$1.$2.$3/$4');
+    else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d+)/, '$1.$2.$3');
+    else if (v.length > 2) v = v.replace(/^(\d{2})(\d+)/, '$1.$2');
+    this.value = v;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarDadosUsuario();
+    buscarSugestao();
+    carregarHistorico();
+});
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

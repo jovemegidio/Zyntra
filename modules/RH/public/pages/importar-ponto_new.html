@@ -1,0 +1,917 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Importar Ponto</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-pink: #ec4899;
+            --primary-pink-dark: #db2777;
+            --primary-dark: #1a1a2e;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+
+        /* Layout com sidebar */
+        .app-container { display: flex; min-height: 100vh; }
+        .sidebar { width: 56px; background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; position: fixed; height: 100vh; z-index: 100; }
+        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-pink); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; text-decoration: none; }
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; text-decoration: none; position: relative; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-btn::after { content: attr(title); position: absolute; left: 54px; background: #1a1a2e; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s; z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .sidebar-btn::before { content: ''; position: absolute; left: 46px; border: 6px solid transparent; border-right-color: #1a1a2e; opacity: 0; pointer-events: none; transition: all 0.2s; z-index: 1001; }
+        .sidebar-btn:hover::after, .sidebar-btn:hover::before { opacity: 1; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        .main-area { flex: 1; margin-left: 56px; display: flex; flex-direction: column; }
+        .header { height: 48px; background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; /* position: global-header-sidebar.css */ top: 0; z-index: 50; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; font-size: 14px; }
+        .header-brand img { height: 24px; }
+        .header-brand span { color: #8b8b9a; }
+
+        .content-area { flex: 1; padding: 24px; overflow-y: auto; max-width: 1200px; margin: 0 auto; width: 100%; }
+
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .page-title { font-size: 1.75rem; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; font-size: 0.875rem; }
+
+        .btn { padding: 10px 20px; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; text-decoration: none; }
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: var(--primary-pink-dark); transform: translateY(-1px); }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; color: #1e293b; }
+        .btn-success { background: var(--success-green); color: white; }
+        .btn-success:hover { background: #16a34a; }
+        .btn-danger { background: var(--danger-red); color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; }
+        .card-header { padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+        .card-title { font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: var(--primary-pink); }
+        .card-body { padding: 24px; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
+        .form-input, .form-select { padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.875rem; color: #1e293b; background: white; transition: all 0.2s; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--primary-pink); box-shadow: 0 0 0 3px rgba(236, 72, 153,0.1); }
+        .help-text { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+
+        .tabs { display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 24px; }
+        .tab-btn { flex: 1; padding: 10px 16px; border: none; background: transparent; color: #64748b; font-size: 0.875rem; font-weight: 500; border-radius: 8px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .tab-btn.active { background: white; color: var(--primary-pink); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .connection-status { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 10px; font-size: 0.875rem; font-weight: 500; }
+        .connection-status.offline { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .connection-status.online { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .connection-status.testing { background: rgba(234,179,8,0.1); color: #eab308; }
+
+        .alert { padding: 16px; border-radius: 10px; margin-bottom: 16px; display: flex; align-items: flex-start; gap: 12px; }
+        .alert-info { background: rgba(59,130,246,0.1); color: #3b82f6; }
+        .alert-success { background: rgba(34,197,94,0.1); color: #16a34a; }
+        .alert-warning { background: rgba(234,179,8,0.1); color: #b45309; }
+        .alert i { font-size: 1.25rem; margin-top: 2px; }
+
+        .device-info { background: #f8fafc; border-radius: 12px; padding: 20px; margin-top: 16px; }
+        .device-info h4 { font-size: 0.875rem; color: #64748b; margin-bottom: 12px; }
+        .device-info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+        .device-info-item { display: flex; flex-direction: column; gap: 4px; }
+        .device-info-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
+        .device-info-value { font-size: 0.875rem; font-weight: 600; color: #1e293b; }
+
+        .table-container { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; }
+        .data-table th { background: #f8fafc; font-weight: 600; color: #64748b; }
+        .data-table tr:hover { background: #f8fafc; }
+
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+        .status-badge.success { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .status-badge.warning { background: rgba(234,179,8,0.1); color: #eab308; }
+        .status-badge.error { background: rgba(239,68,68,0.1); color: #ef4444; }
+
+        .progress-bar { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin: 16px 0; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary-pink), var(--info-blue)); border-radius: 4px; transition: width 0.5s ease; }
+
+        .import-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 16px; }
+        .summary-item { text-align: center; padding: 16px; background: #f8fafc; border-radius: 10px; }
+        .summary-item .value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+        .summary-item .label { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+        .summary-item.success .value { color: var(--success-green); }
+        .summary-item.warning .value { color: var(--warning-yellow); }
+        .summary-item.error .value { color: var(--danger-red); }
+
+        .log-container { background: #1e293b; border-radius: 10px; padding: 16px; max-height: 300px; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 0.8rem; }
+        .log-entry { padding: 4px 0; color: #94a3b8; }
+        .log-entry.success { color: #22c55e; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.warning { color: #eab308; }
+        .log-entry .timestamp { color: #64748b; margin-right: 8px; }
+
+        /* Marcações em tempo real */
+        .live-card { border-left: 3px solid var(--success-green); }
+        .live-indicator { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--success-green); font-weight: 600; }
+        .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success-green); animation: livePulse 2s infinite; }
+        @keyframes livePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.8); } }
+
+        .live-entry { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-radius: 10px; background: #f8fafc; margin-bottom: 8px; transition: all 0.3s; }
+        .live-entry:hover { background: #f1f5f9; }
+        .live-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 16px; flex-shrink: 0; overflow: hidden; }
+        .live-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .live-name { font-weight: 600; color: #1e293b; }
+        .live-time { font-size: 1.25rem; font-weight: 700; color: var(--primary-pink); margin-left: auto; }
+
+        .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: white; padding: 16px 24px; border-radius: 12px; display: none; align-items: center; gap: 12px; z-index: 2000; animation: slideIn 0.3s ease; }
+        .toast.success { background: var(--success-green); }
+        .toast.error { background: var(--danger-red); }
+        .toast.show { display: flex; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        @media (max-width: 768px) {
+            .import-summary { grid-template-columns: repeat(2, 1fr); }
+            .tabs { flex-wrap: wrap; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn active" title="Importar Ponto"><i class="fas fa-cloud-download-alt"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Importar Ponto</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title"><i class="fas fa-cloud-download-alt"></i> Importar Ponto</h1>
+                        <p class="page-subtitle">Sincronize marcações automaticamente via RHiD Cloud ou importe de arquivo AFD/CSV</p>
+                    </div>
+                    <a href="gestao-ponto.html" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Gestão do Ponto</a>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showTab('rhid')">
+                        <i class="fas fa-cloud"></i> RHiD Cloud
+                    </button>
+                    <button class="tab-btn" onclick="showTab('sync')">
+                        <i class="fas fa-sync-alt"></i> Sincronizar
+                    </button>
+                    <button class="tab-btn" onclick="showTab('arquivo')">
+                        <i class="fas fa-file-upload"></i> Arquivo
+                    </button>
+                    <button class="tab-btn" onclick="showTab('live')">
+                        <i class="fas fa-broadcast-tower"></i> Tempo Real
+                    </button>
+                    <button class="tab-btn" onclick="showTab('history')">
+                        <i class="fas fa-history"></i> Histórico
+                    </button>
+                </div>
+
+                <!-- Tab: RHiD Cloud Config -->
+                <div id="tab-rhid" class="tab-content active">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-cloud"></i> Configuração RHiD Cloud</h3>
+                            <div class="connection-status offline" id="rhid-connection-status">
+                                <i class="fas fa-circle" style="font-size:8px"></i>
+                                <span>Não conectado</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <div>
+                                    <strong>Integração RHiD Cloud</strong><br>
+                                    Conecte ao portal RHiD (rhid.com.br) para sincronizar automaticamente as marcações de ponto dos funcionários cadastrados no Control iD.
+                                </div>
+                            </div>
+
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Email de Acesso *</label>
+                                    <input type="email" class="form-input" id="rhid-email" placeholder="adm@empresa.com.br">
+                                    <span class="help-text">Email cadastrado no portal RHiD</span>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Senha *</label>
+                                    <input type="password" class="form-input" id="rhid-password" placeholder="****">
+                                    <span class="help-text">Senha de acesso ao RHiD</span>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap;">
+                                <button class="btn btn-primary" onclick="testRhidConnection()">
+                                    <i class="fas fa-plug"></i> Testar Conexão
+                                </button>
+                                <button class="btn btn-success" onclick="saveRhidConfig()" id="btn-save-rhid" disabled>
+                                    <i class="fas fa-save"></i> Salvar Configuração
+                                </button>
+                            </div>
+
+                            <div class="device-info" id="rhid-info" style="display: none; margin-top: 20px;">
+                                <h4><i class="fas fa-check-circle" style="color:#22c55e"></i> Conexão Estabelecida</h4>
+                                <div class="device-info-grid">
+                                    <div class="device-info-item">
+                                        <span class="device-info-label">Domínio</span>
+                                        <span class="device-info-value" id="rhid-domain">-</span>
+                                    </div>
+                                    <div class="device-info-item">
+                                        <span class="device-info-label">Dispositivos</span>
+                                        <span class="device-info-value" id="rhid-devices">-</span>
+                                    </div>
+                                    <div class="device-info-item">
+                                        <span class="device-info-label">Funcionários Ativos</span>
+                                        <span class="device-info-value" id="rhid-employees">-</span>
+                                    </div>
+                                    <div class="device-info-item">
+                                        <span class="device-info-label">Máx Usuários</span>
+                                        <span class="device-info-value" id="rhid-max-users">-</span>
+                                    </div>
+                                </div>
+
+                                <!-- Dispositivos -->
+                                <div id="rhid-devices-list" style="margin-top: 16px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Sincronizar -->
+                <div id="tab-sync" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-sync-alt"></i> Sincronizar Marcações</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-cloud-download-alt"></i>
+                                <div>
+                                    Busca marcações de ponto registradas no RHiD Cloud e importa automaticamente para o banco local.
+                                    Registros duplicados são ignorados automaticamente.
+                                </div>
+                            </div>
+
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Data Início *</label>
+                                    <input type="date" class="form-input" id="sync-date-start">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Data Fim *</label>
+                                    <input type="date" class="form-input" id="sync-date-end">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Funcionário</label>
+                                    <select class="form-select" id="sync-employee">
+                                        <option value="">Todos os funcionários</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px;">
+                                <button class="btn btn-primary" onclick="startRhidSync()" id="btn-sync">
+                                    <i class="fas fa-cloud-download-alt"></i> Sincronizar Agora
+                                </button>
+                            </div>
+
+                            <!-- Progress -->
+                            <div id="sync-progress" style="display: none; margin-top: 24px;">
+                                <h4 style="font-size: 0.875rem; color: #64748b; margin-bottom: 8px;">Progresso da Sincronização</h4>
+                                <div class="progress-bar">
+                                    <div class="progress-bar-fill" id="sync-progress-fill" style="width: 0%"></div>
+                                </div>
+                                <p id="sync-progress-text" style="font-size: 0.875rem; color: #64748b;">Conectando ao RHiD Cloud...</p>
+
+                                <div class="import-summary" id="sync-summary" style="display: none;">
+                                    <div class="summary-item"><div class="value" id="sync-total">0</div><div class="label">Total</div></div>
+                                    <div class="summary-item success"><div class="value" id="sync-success">0</div><div class="label">Importados</div></div>
+                                    <div class="summary-item warning"><div class="value" id="sync-duplicates">0</div><div class="label">Duplicados</div></div>
+                                    <div class="summary-item error"><div class="value" id="sync-errors">0</div><div class="label">Erros</div></div>
+                                </div>
+                            </div>
+
+                            <div id="sync-log-section" style="display: none; margin-top: 24px;">
+                                <h4 style="font-size: 0.875rem; color: #64748b; margin-bottom: 8px;">Log de Sincronização</h4>
+                                <div class="log-container" id="sync-log"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview -->
+                    <div class="card" id="sync-preview-card" style="display: none;">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-eye"></i> Registros Sincronizados</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead><tr><th>Data</th><th>Hora</th><th>Funcionário</th><th>PIS</th><th>Tipo</th><th>Status</th></tr></thead>
+                                    <tbody id="sync-preview-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Arquivo -->
+                <div id="tab-arquivo" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-file-upload"></i> Importar de Arquivo AFD/CSV</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <div>
+                                    Use esta opção apenas se preferir importar manualmente de um arquivo AFD (Portaria 1.510/2009) ou CSV exportado do Control iD.
+                                </div>
+                            </div>
+
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Data Início *</label>
+                                    <input type="date" class="form-input" id="file-date-start">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Data Fim *</label>
+                                    <input type="date" class="form-input" id="file-date-end">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Tipo de Arquivo</label>
+                                    <select class="form-select" id="file-type">
+                                        <option value="afd">Arquivo AFD (.txt)</option>
+                                        <option value="csv">Arquivo CSV (.csv)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Arquivo *</label>
+                                    <input type="file" class="form-input" id="import-file" accept=".txt,.afd,.csv">
+                                    <span class="help-text">Selecione o arquivo exportado do Control iD</span>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px;">
+                                <button class="btn btn-primary" onclick="startFileImport()">
+                                    <i class="fas fa-file-import"></i> Importar Arquivo
+                                </button>
+                            </div>
+
+                            <div id="file-progress" style="display: none; margin-top: 24px;">
+                                <div class="progress-bar"><div class="progress-bar-fill" id="file-progress-fill" style="width: 0%"></div></div>
+                                <p id="file-progress-text" style="font-size: 0.875rem; color: #64748b;">Processando...</p>
+                                <div class="import-summary" id="file-summary" style="display: none;">
+                                    <div class="summary-item"><div class="value" id="file-total">0</div><div class="label">Total</div></div>
+                                    <div class="summary-item success"><div class="value" id="file-success">0</div><div class="label">Importados</div></div>
+                                    <div class="summary-item warning"><div class="value" id="file-duplicates">0</div><div class="label">Duplicados</div></div>
+                                    <div class="summary-item error"><div class="value" id="file-errors">0</div><div class="label">Erros</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Tempo Real -->
+                <div id="tab-live" class="tab-content">
+                    <div class="card live-card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-broadcast-tower"></i> Últimas Marcações</h3>
+                            <div style="display:flex;align-items:center;gap:12px">
+                                <span class="live-indicator"><span class="live-dot"></span> AO VIVO</span>
+                                <button class="btn btn-outline btn-sm" onclick="loadLiveData()"><i class="fas fa-sync-alt"></i></button>
+                            </div>
+                        </div>
+                        <div class="card-body" id="live-container">
+                            <div style="text-align:center;padding:40px;color:#94a3b8;">
+                                <i class="fas fa-satellite-dish" style="font-size:3rem;margin-bottom:16px;display:block;opacity:0.5"></i>
+                                <p>Carregando dados em tempo real do RHiD...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Histórico -->
+                <div id="tab-history" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-history"></i> Histórico de Importações</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead><tr><th>Data/Hora</th><th>Período</th><th>Origem</th><th>Total</th><th>Importados</th><th>Duplicados</th><th>Erros</th><th>Status</th></tr></thead>
+                                    <tbody id="history-tbody">
+                                        <tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px;">Carregando...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"><i class="fas fa-check-circle"></i><span id="toast-msg"></span></div>
+
+    <script>
+        // ============= STATE =============
+        var isRhidConnected = false;
+        var rhidTestResult = null;
+
+        // ============= AUTH =============
+        function getToken() {
+            return sessionStorage.getItem('authToken') || localStorage.getItem('authToken') || localStorage.getItem('token');
+        }
+        function authHeaders() {
+            return { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' };
+        }
+
+        // ============= INIT =============
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRhidConfig();
+            loadEmployees();
+            setDefaultDates();
+            loadImportHistory();
+        });
+
+        // ============= TABS =============
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+            event.target.closest('.tab-btn').classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+            if (tabId === 'history') loadImportHistory();
+            if (tabId === 'live') loadLiveData();
+        }
+
+        // ============= TOAST =============
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            toast.className = 'toast show ' + (type || '');
+            setTimeout(function() { toast.classList.remove('show'); }, 3000);
+        }
+
+        // ============= RHID CONFIG =============
+        async function loadRhidConfig() {
+            try {
+                var resp = await fetch('/api/rh/controlid/rhid/config', { headers: authHeaders() });
+                var data = await resp.json();
+                if (data.success && data.config) {
+                    var c = data.config;
+                    if (c.rhid_email) document.getElementById('rhid-email').value = c.rhid_email;
+                    if (c.rhid_enabled) {
+                        updateCloudStatus('online', 'Configurado');
+                    }
+                    if (c.rhid_last_sync) {
+                        var syncDate = new Date(c.rhid_last_sync);
+                        updateCloudStatus('online', 'Última sync: ' + syncDate.toLocaleString('pt-BR'));
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao carregar config RHiD:', e);
+            }
+        }
+
+        async function saveRhidConfig() {
+            var email = document.getElementById('rhid-email').value;
+            var password = document.getElementById('rhid-password').value;
+            if (!email) { showToast('Informe o email', 'error'); return; }
+
+            try {
+                var body = { email: email, enabled: true };
+                if (password) body.password = password;
+                var resp = await fetch('/api/rh/controlid/rhid/config', {
+                    method: 'POST', headers: authHeaders(), body: JSON.stringify(body)
+                });
+                var result = await resp.json();
+                if (result.success) {
+                    showToast('Configuração RHiD salva com sucesso!', 'success');
+                } else {
+                    showToast('Erro: ' + (result.message || 'Tente novamente'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao salvar config:', e);
+                showToast('Erro ao salvar configuração', 'error');
+            }
+        }
+
+        // ============= TEST RHID CONNECTION =============
+        async function testRhidConnection() {
+            var email = document.getElementById('rhid-email').value;
+            var password = document.getElementById('rhid-password').value;
+            if (!email || !password) { showToast('Informe email e senha', 'error'); return; }
+
+            updateRhidStatus('testing', 'Testando conexão...');
+
+            try {
+                var resp = await fetch('/api/rh/controlid/rhid/test', {
+                    method: 'POST', headers: authHeaders(),
+                    body: JSON.stringify({ email: email, password: password })
+                });
+                var result = await resp.json();
+
+                if (result.success) {
+                    isRhidConnected = true;
+                    rhidTestResult = result;
+                    updateRhidStatus('online', 'Conectado — ' + (result.connection.customerDomain || 'RHiD'));
+                    updateCloudStatus('online', 'RHiD Cloud Conectado');
+                    document.getElementById('btn-save-rhid').disabled = false;
+
+                    // Mostrar informações
+                    document.getElementById('rhid-info').style.display = 'block';
+                    document.getElementById('rhid-domain').textContent = result.connection.customerDomain || '-';
+                    document.getElementById('rhid-devices').textContent = result.devices ? result.devices.length : '0';
+                    document.getElementById('rhid-employees').textContent = result.employees ? result.employees.active : '0';
+                    document.getElementById('rhid-max-users').textContent = result.connection.maxUsers || '-';
+
+                    // Dispositivos
+                    if (result.devices && result.devices.length > 0) {
+                        var html = '<h4 style="margin-top:12px"><i class="fas fa-fingerprint" style="color:#8b5cf6"></i> Dispositivos Registrados</h4>';
+                        result.devices.forEach(function(d) {
+                            html += '<div style="display:flex;align-items:center;gap:12px;padding:12px;background:#fff;border-radius:10px;border:1px solid #e2e8f0;margin-top:8px">';
+                            html += '<div style="width:40px;height:40px;border-radius:10px;background:rgba(236, 72, 153,0.1);display:flex;align-items:center;justify-content:center"><i class="fas fa-fingerprint" style="color:#8b5cf6"></i></div>';
+                            html += '<div><strong>' + d.name + '</strong><br><span style="font-size:0.75rem;color:#64748b">' + d.model + ' | ' + d.host + ':' + d.port + ' | S/N: ' + (d.serial || '-') + '</span></div>';
+                            html += '</div>';
+                        });
+                        document.getElementById('rhid-devices-list').innerHTML = html;
+                    }
+
+                    showToast('Conexão com RHiD estabelecida! ' + result.employees.active + ' funcionários ativos', 'success');
+                } else {
+                    updateRhidStatus('offline', 'Falha: ' + result.message);
+                    showToast(result.message, 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao testar RHiD:', e);
+                updateRhidStatus('offline', 'Erro de conexão');
+                showToast('Erro ao conectar com RHiD', 'error');
+            }
+        }
+
+        function updateRhidStatus(status, text) {
+            var el = document.getElementById('rhid-connection-status');
+            el.className = 'connection-status ' + status;
+            el.querySelector('span').textContent = text;
+        }
+
+        function updateCloudStatus(status, text) {
+            var el = document.getElementById('cloud-status');
+            el.className = 'connection-status ' + status;
+            document.getElementById('cloud-status-text').textContent = text;
+        }
+
+        // ============= LOAD EMPLOYEES =============
+        async function loadEmployees() {
+            try {
+                var resp = await fetch('/api/rh/funcionarios', { headers: authHeaders() });
+                var data = await resp.json();
+                var funcionarios = Array.isArray(data) ? data : (data.funcionarios || []);
+                var select = document.getElementById('sync-employee');
+                funcionarios.filter(function(f) { return f.status === 'Ativo' || f.ativo == 1; }).forEach(function(f) {
+                    var opt = document.createElement('option');
+                    opt.value = f.id;
+                    opt.textContent = f.nome_completo || f.nome;
+                    select.appendChild(opt);
+                });
+            } catch (e) { console.error('Erro ao carregar funcionários:', e); }
+        }
+
+        // ============= DEFAULT DATES =============
+        function setDefaultDates() {
+            var today = new Date();
+            var firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            var todayStr = today.toISOString().split('T')[0];
+            var firstStr = firstDay.toISOString().split('T')[0];
+
+            document.getElementById('sync-date-start').value = firstStr;
+            document.getElementById('sync-date-end').value = todayStr;
+            document.getElementById('file-date-start').value = firstStr;
+            document.getElementById('file-date-end').value = todayStr;
+        }
+
+        // ============= RHID SYNC =============
+        async function startRhidSync() {
+            var dateStart = document.getElementById('sync-date-start').value;
+            var dateEnd = document.getElementById('sync-date-end').value;
+            var employeeId = document.getElementById('sync-employee').value;
+
+            if (!dateStart || !dateEnd) { showToast('Selecione o período', 'error'); return; }
+
+            // Mostrar progress
+            document.getElementById('sync-progress').style.display = 'block';
+            document.getElementById('sync-log-section').style.display = 'block';
+            document.getElementById('sync-summary').style.display = 'none';
+            document.getElementById('sync-preview-card').style.display = 'none';
+            document.getElementById('sync-progress-fill').style.width = '30%';
+            document.getElementById('sync-progress-text').textContent = 'Conectando ao RHiD Cloud e buscando marcações...';
+            document.getElementById('btn-sync').disabled = true;
+
+            var logEl = document.getElementById('sync-log');
+            logEl.innerHTML = '';
+            addLog(logEl, 'Iniciando sincronização com RHiD Cloud...', 'info');
+            addLog(logEl, 'Período: ' + dateStart + ' a ' + dateEnd, 'info');
+
+            try {
+                document.getElementById('sync-progress-fill').style.width = '50%';
+
+                var resp = await fetch('/api/rh/controlid/rhid/sync', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ dateStart: dateStart, dateEnd: dateEnd, employeeId: employeeId || undefined })
+                });
+
+                var result = await resp.json();
+                document.getElementById('sync-progress-fill').style.width = '100%';
+
+                if (result.success) {
+                    document.getElementById('sync-progress-text').textContent = 'Sincronização concluída!';
+                    document.getElementById('sync-summary').style.display = 'grid';
+                    document.getElementById('sync-total').textContent = result.summary.total;
+                    document.getElementById('sync-success').textContent = result.summary.success;
+                    document.getElementById('sync-duplicates').textContent = result.summary.duplicates;
+                    document.getElementById('sync-errors').textContent = result.summary.errors;
+
+                    addLog(logEl, 'Total de marcações encontradas: ' + result.summary.total, 'info');
+                    addLog(logEl, 'Importados com sucesso: ' + result.summary.success, 'success');
+                    if (result.summary.duplicates > 0) addLog(logEl, 'Duplicados ignorados: ' + result.summary.duplicates, 'warning');
+                    if (result.summary.errors > 0) addLog(logEl, 'Erros: ' + result.summary.errors, 'error');
+                    addLog(logEl, 'Sincronização concluída!', 'success');
+
+                    if (result.message) addLog(logEl, result.message, 'info');
+
+                    // Preview
+                    if (result.records && result.records.length > 0) {
+                        document.getElementById('sync-preview-card').style.display = 'block';
+                        var tbody = document.getElementById('sync-preview-tbody');
+                        tbody.innerHTML = result.records.slice(0, 100).map(function(r) {
+                            var tipoMap = { entrada: 'Entrada', saida: 'Saída', saida_almoco: 'Saída Almoço', retorno_almoco: 'Retorno Almoço', marcacao: 'Marcação' };
+                            return '<tr><td>' + r.data + '</td><td><strong>' + r.hora + '</strong></td><td>' + (r.nome || '-') + '</td><td>' + (r.pis || '-') + '</td><td>' + (tipoMap[r.tipo] || r.tipo) + '</td><td><span class="status-badge ' + (r.status || 'success') + '">' + (r.statusText || 'OK') + '</span></td></tr>';
+                        }).join('');
+                    }
+
+                    showToast('Sincronização concluída! ' + result.summary.success + ' registros importados', 'success');
+                } else {
+                    document.getElementById('sync-progress-text').textContent = 'Erro na sincronização';
+                    addLog(logEl, 'Erro: ' + result.message, 'error');
+                    showToast(result.message, 'error');
+                }
+            } catch (e) {
+                console.error('Erro na sincronização:', e);
+                document.getElementById('sync-progress-text').textContent = 'Erro na sincronização';
+                addLog(logEl, 'Erro: ' + e.message, 'error');
+                showToast('Erro ao sincronizar: ' + e.message, 'error');
+            }
+
+            document.getElementById('btn-sync').disabled = false;
+        }
+
+        // ============= FILE IMPORT =============
+        async function startFileImport() {
+            var file = document.getElementById('import-file').files[0];
+            if (!file) { showToast('Selecione um arquivo', 'error'); return; }
+
+            var dateStart = document.getElementById('file-date-start').value;
+            var dateEnd = document.getElementById('file-date-end').value;
+            var fileType = document.getElementById('file-type').value;
+
+            document.getElementById('file-progress').style.display = 'block';
+            document.getElementById('file-progress-fill').style.width = '30%';
+            document.getElementById('file-progress-text').textContent = 'Lendo arquivo...';
+
+            var reader = new FileReader();
+            reader.onload = async function(e) {
+                var content = e.target.result;
+                var records = [];
+
+                if (fileType === 'afd') {
+                    records = parseAFD(content);
+                } else {
+                    records = parseCSV(content);
+                }
+
+                document.getElementById('file-progress-fill').style.width = '60%';
+                document.getElementById('file-progress-text').textContent = records.length + ' registros encontrados. Enviando...';
+
+                try {
+                    var resp = await fetch('/api/rh/controlid/ponto/import', {
+                        method: 'POST', headers: authHeaders(),
+                        body: JSON.stringify({ records: records, dateStart: dateStart, dateEnd: dateEnd })
+                    });
+                    var result = await resp.json();
+
+                    document.getElementById('file-progress-fill').style.width = '100%';
+                    if (result.success) {
+                        document.getElementById('file-progress-text').textContent = 'Importação concluída!';
+                        document.getElementById('file-summary').style.display = 'grid';
+                        document.getElementById('file-total').textContent = result.summary.total;
+                        document.getElementById('file-success').textContent = result.summary.success;
+                        document.getElementById('file-duplicates').textContent = result.summary.duplicates;
+                        document.getElementById('file-errors').textContent = result.summary.errors;
+                        showToast(result.summary.success + ' registros importados!', 'success');
+                    } else {
+                        document.getElementById('file-progress-text').textContent = 'Erro: ' + result.message;
+                        showToast(result.message, 'error');
+                    }
+                } catch (err) {
+                    document.getElementById('file-progress-text').textContent = 'Erro: ' + err.message;
+                    showToast('Erro ao importar: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ============= PARSERS =============
+        function parseAFD(content) {
+            var lines = content.split('\n');
+            var records = [];
+            lines.forEach(function(line) {
+                if (line.length >= 34 && line.charAt(9) === '3') {
+                    var data = line.substring(10, 18);
+                    var hora = line.substring(18, 22);
+                    var pis = line.substring(22, 34);
+                    records.push({
+                        data: data.substring(4, 8) + '-' + data.substring(2, 4) + '-' + data.substring(0, 2),
+                        hora: hora.substring(0, 2) + ':' + hora.substring(2, 4),
+                        pis: pis.trim()
+                    });
+                }
+            });
+            return records;
+        }
+
+        function parseCSV(content) {
+            var lines = content.split('\n');
+            var records = [];
+            for (var i = 1; i < lines.length; i++) {
+                var cols = lines[i].split(';');
+                if (cols.length >= 4) {
+                    records.push({ data: cols[0], hora: cols[1], pis: cols[2], nome: cols[3] });
+                }
+            }
+            return records;
+        }
+
+        // ============= LIVE DATA =============
+        async function loadLiveData() {
+            var container = document.getElementById('live-container');
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8"><i class="fas fa-spinner fa-spin"></i> Carregando...</div>';
+
+            try {
+                var resp = await fetch('/api/rh/controlid/rhid/ultimasmarcacoes', { headers: authHeaders() });
+                var data = await resp.json();
+
+                if (data.success && data.marcacoes && data.marcacoes.length > 0) {
+                    var html = '';
+                    data.marcacoes.forEach(function(m) {
+                        var initial = m.name ? m.name.charAt(0) : '?';
+                        var photoHtml = m.photo
+                            ? '<img src="' + m.photo + '" alt="" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+                              '<span style="display:none;width:100%;height:100%;align-items:center;justify-content:center">' + initial + '</span>'
+                            : initial;
+
+                        // Parse dateTime (formato .NET: /Date(timestamp)/)
+                        var time = '-';
+                        if (m.dateTime) {
+                            var match = m.dateTime.match(/Date\((\d+)\)/);
+                            if (match) {
+                                var dt = new Date(parseInt(match[1]));
+                                time = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                            }
+                        }
+
+                        html += '<div class="live-entry">';
+                        html += '<div class="live-avatar">' + photoHtml + '</div>';
+                        html += '<div><div class="live-name">' + (m.name || 'Desconhecido') + '</div></div>';
+                        html += '<div class="live-time">' + time + '</div>';
+                        html += '</div>';
+                    });
+                    container.innerHTML = html;
+                    updateCloudStatus('online', data.marcacoes.length + ' marcações recentes');
+                } else {
+                    container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8"><i class="fas fa-clock" style="font-size:2rem;display:block;margin-bottom:12px;opacity:0.5"></i><p>Nenhuma marcação recente encontrada</p></div>';
+                }
+            } catch (e) {
+                console.error('Erro ao carregar dados em tempo real:', e);
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444"><i class="fas fa-exclamation-triangle" style="font-size:2rem;display:block;margin-bottom:12px"></i><p>Erro ao conectar com RHiD Cloud.<br>Configure as credenciais na aba "RHiD Cloud".</p></div>';
+            }
+        }
+
+        // ============= IMPORT HISTORY =============
+        async function loadImportHistory() {
+            try {
+                var resp = await fetch('/api/rh/controlid/importacoes?limite=50', { headers: authHeaders() });
+                var data = await resp.json();
+                var tbody = document.getElementById('history-tbody');
+
+                if (!data.success || !data.importacoes || data.importacoes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:40px;">Nenhuma importação realizada</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.importacoes.map(function(imp) {
+                    var dataHora = imp.criado_em ? new Date(imp.criado_em).toLocaleString('pt-BR') : '-';
+                    var periodo = (imp.periodo_inicio && imp.periodo_fim)
+                        ? new Date(imp.periodo_inicio).toLocaleDateString('pt-BR') + ' a ' + new Date(imp.periodo_fim).toLocaleDateString('pt-BR')
+                        : '-';
+                    var origemMap = { rhid_cloud: '<i class="fas fa-cloud" style="color:#8b5cf6"></i> RHiD Cloud', control_id: '<i class="fas fa-fingerprint" style="color:#3b82f6"></i> Control iD', arquivo_afd: '<i class="fas fa-file" style="color:#64748b"></i> Arquivo' };
+                    var origemLabel = origemMap[imp.tipo] || imp.tipo;
+                    var statusClass = imp.status === 'concluido' ? 'success' : (imp.status === 'erro' ? 'error' : 'warning');
+                    var statusText = imp.status === 'concluido' ? 'OK' : (imp.status === 'erro' ? 'Erro' : 'Pendente');
+
+                    return '<tr>' +
+                        '<td>' + dataHora + '</td>' +
+                        '<td>' + periodo + '</td>' +
+                        '<td>' + origemLabel + '</td>' +
+                        '<td><strong>' + (imp.total_registros || 0) + '</strong></td>' +
+                        '<td style="color:#22c55e;font-weight:600">' + (imp.importados || 0) + '</td>' +
+                        '<td style="color:#eab308">' + (imp.duplicados || 0) + '</td>' +
+                        '<td style="color:' + ((imp.erros || 0) > 0 ? '#ef4444' : '#64748b') + '">' + (imp.erros || 0) + '</td>' +
+                        '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
+                    '</tr>';
+                }).join('');
+            } catch (e) {
+                console.error('Erro ao carregar histórico:', e);
+            }
+        }
+
+        // ============= LOG HELPER =============
+        function addLog(container, message, type) {
+            var timestamp = new Date().toLocaleTimeString();
+            var entry = document.createElement('div');
+            entry.className = 'log-entry ' + (type || '');
+            entry.innerHTML = '<span class="timestamp">[' + timestamp + ']</span> ' + message;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+    </script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0d1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ALUFORCE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="ALUFORCE">
+    <meta name="msapplication-TileColor" content="#0d1117">
+    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
+    <meta name="format-detection" content="telephone=no">
+    
+    <title>Aluforce: Login</title>
+    
+    <!-- Favicon e ícones -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- CSS Principal do Login v2 -->
+    <link rel="stylesheet" href="/css/login.css?v=20260222b">
+
+    <!-- Preload dashboard resources for faster post-login transition -->
+    <link rel="prefetch" href="/css/skeleton-loader.css">
+    <link rel="prefetch" href="/js/performance-utils.js">
+</head>
+
+<body>
+    <div class="login-page">
+        <!-- ===== BACKGROUND LAYERS ===== -->
+        <div class="bg-layer">
+            <!-- Background Image -->
+            <div class="bg-image"></div>
+            
+            <!-- Dark overlay for contrast -->
+            <div class="bg-dark-overlay"></div>
+            
+            <!-- Animated gradient overlay -->
+            <div class="bg-gradient-overlay theme-0" id="bg-gradient"></div>
+            
+            <!-- Animated Gradient Orbs -->
+            <div class="bg-orb bg-orb-1" id="bg-orb-1"></div>
+            <div class="bg-orb bg-orb-2" id="bg-orb-2"></div>
+            
+            <!-- Floating particles -->
+            <div class="particles-container" id="particles"></div>
+
+            <!-- Theme indicator dots -->
+            <div class="theme-dots" id="theme-dots">
+                <button class="theme-dot active" data-theme="0" aria-label="Tema 1"></button>
+                <button class="theme-dot" data-theme="1" aria-label="Tema 2"></button>
+                <button class="theme-dot" data-theme="2" aria-label="Tema 3"></button>
+                <button class="theme-dot" data-theme="3" aria-label="Tema 4"></button>
+            </div>
+        </div>
+
+        <!-- ===== MAIN CONTENT ===== -->
+        <div class="login-content" id="login-content">
+            <!-- Login Card -->
+            <div class="glass-card">
+                <!-- Header with Avatar -->
+                <div class="login-header">
+                    <!-- Logo Aluforce -->
+                    <div class="logo-crossfade" id="logo-crossfade">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce copy.webp" alt="Logo Aluforce" class="login-logo logo-aluforce active" onerror="this.style.display='none'">
+                    </div>
+                    
+                    <!-- Dynamic Avatar -->
+                    <div class="avatar-container" id="avatar-container">
+                        <div class="avatar-box" id="avatar-box">
+                            <!-- Default icon (lightning bolt) -->
+                            <div class="avatar-icon" id="avatar-icon">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <!-- Typing indicator ring -->
+                        <div class="avatar-ring"></div>
+                    </div>
+
+                    <!-- Dynamic Greeting -->
+                    <h1 class="login-greeting" id="login-greeting">Bem-vindo de volta</h1>
+                    <p class="login-subtitle" id="login-subtitle">Entre na sua conta para continuar</p>
+                </div>
+
+                <!-- Login Form -->
+                <form id="login-form" class="login-form-content" autocomplete="on">
+                    <!-- Email Field -->
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <div class="input-wrapper">
+                            <!-- Mail icon (SVG) -->
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <path d="M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                            </svg>
+                            <input 
+                                type="email" 
+                                id="email" 
+                                name="email" 
+                                class="form-input" 
+                                placeholder="seu@email.com" 
+                                autocomplete="email" 
+                                required
+                            >
+                        </div>
+                        <div class="field-error" id="email-error" style="display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            <span></span>
+                        </div>
+                    </div>
+
+                    <!-- Password Field -->
+                    <div class="form-group">
+                        <div class="label-row">
+                            <label for="password">Senha</label>
+                            <button type="button" class="forgot-link" id="forgot-password">Esqueceu a senha?</button>
+                        </div>
+                        <div class="input-wrapper">
+                            <!-- Lock icon (SVG) -->
+                            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            <input 
+                                type="password" 
+                                id="password" 
+                                name="password" 
+                                class="form-input password-input" 
+                                placeholder="••••••••" 
+                                autocomplete="current-password" 
+                                required
+                            >
+                            <!-- Eye toggle -->
+                            <button type="button" class="password-toggle-btn" id="password-toggle" tabindex="-1" title="Mostrar/Ocultar senha">
+                                <!-- Eye open (default) -->
+                                <svg id="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <!-- Eye off (hidden by default) -->
+                                <svg id="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="field-error" id="password-error" style="display:none;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            <span></span>
+                        </div>
+                    </div>
+
+                    <!-- Remember Me -->
+                    <div class="remember-row">
+                        <div class="custom-checkbox">
+                            <input type="checkbox" id="remember-me" name="remember">
+                            <div class="checkbox-visual">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <label for="remember-me" class="remember-label">Lembrar de mim por 30 dias</label>
+                    </div>
+
+                    <!-- Error/Success Message -->
+                    <div id="error-message" class="login-message" role="alert"></div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="login-submit-btn" class="login-submit-btn">
+                        <span class="btn-content">
+                            <!-- Default state -->
+                            <span class="btn-text-default">
+                                Entrar
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                                </svg>
+                            </span>
+                            <!-- Loading state -->
+                            <span class="btn-text-loading">
+                                <svg class="spinner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                                </svg>
+                                Entrando...
+                            </span>
+                            <!-- Success state -->
+                            <span class="btn-text-success">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Login realizado!
+                            </span>
+                        </span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Footer -->
+            <p class="login-footer">
+                © 2026 Aluforce — Sistema de Gestão Empresarial.
+            </p>
+        </div>
+    </div>
+
+    <!-- ===== MODAL DE RECUPERAÇÃO DE SENHA ===== -->
+    <div id="forgot-password-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">&times;</button>
+            
+            <div class="modal-header">
+                <h3>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                    </svg>
+                    Recuperar Senha
+                </h3>
+                <p>Siga os passos para redefinir sua senha</p>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step-dot active" id="step-dot-1"></div>
+                <div class="step-dot" id="step-dot-2"></div>
+                <div class="step-dot" id="step-dot-3"></div>
+            </div>
+
+            <!-- Passo 1: Verificar Email -->
+            <div class="modal-step active" id="step-1">
+                <div class="modal-form-group">
+                    <label for="verify-email">Email</label>
+                    <input type="email" id="verify-email" class="modal-input" placeholder="seuemail@aluforce.ind.br" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn modal-btn-secondary" id="cancel-step-1">Cancelar</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="next-step-1">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                        Enviar Link
+                    </button>
+                </div>
+            </div>
+
+            <!-- Passo 2: Verificar Dados -->
+            <div class="modal-step" id="step-2">
+                <div class="modal-form-group">
+                    <label for="verify-name">Nome Completo</label>
+                    <input type="text" id="verify-name" class="modal-input" placeholder="Seu nome completo" required>
+                </div>
+                <div class="modal-form-group">
+                    <label for="verify-department">Departamento</label>
+                    <select id="verify-department" class="modal-input" required>
+                        <option value="">Selecione seu departamento</option>
+                        <option value="PCP">PCP - Planejamento e Controle</option>
+                        <option value="Produção">Produção</option>
+                        <option value="Vendas">Vendas</option>
+                        <option value="Administrativo">Administrativo</option>
+                        <option value="TI">Tecnologia da Informação</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn modal-btn-secondary" id="back-step-2">← Voltar</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="next-step-2">Verificar →</button>
+                </div>
+            </div>
+
+            <!-- Passo 3: Nova Senha -->
+            <div class="modal-step" id="step-3">
+                <div class="modal-form-group">
+                    <label for="new-password">Nova Senha</label>
+                    <input type="password" id="new-password" class="modal-input" placeholder="Digite sua nova senha" required>
+                    <div class="password-strength">
+                        <div class="strength-bar">
+                            <div class="strength-fill"></div>
+                        </div>
+                        <span class="strength-text">Digite uma senha forte</span>
+                    </div>
+                </div>
+                <div class="modal-form-group">
+                    <label for="confirm-password">Confirmar Senha</label>
+                    <input type="password" id="confirm-password" class="modal-input" placeholder="Digite novamente sua nova senha" required>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="modal-btn modal-btn-secondary" id="back-step-3">← Voltar</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="change-password">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Alterar Senha
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- � MODAL - TROCA OBRIGATÓRIA DE SENHA TEMPORÁRIA -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="modal-force-password" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+        <div class="twofa-card" style="max-width:440px;">
+            <!-- Header -->
+            <div class="twofa-header">
+                <div class="twofa-icon-box" style="background:linear-gradient(135deg, hsl(38,92%,50%), hsl(25,95%,53%));">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                    </svg>
+                </div>
+                <h2 class="twofa-title">Alterar Senha Temporária</h2>
+                <p class="twofa-subtitle">Defina uma senha definitiva para continuar</p>
+            </div>
+
+            <!-- Body -->
+            <div class="twofa-body">
+                <p class="twofa-desc" style="margin-bottom:20px;">
+                    Você está usando uma senha temporária. Por segurança, defina uma nova senha antes de acessar o sistema.
+                </p>
+
+                <!-- Mensagens de erro/sucesso -->
+                <div id="force-pw-error" class="twofa-msg twofa-msg-error" style="display:none;"></div>
+                <div id="force-pw-success" class="twofa-msg twofa-msg-success" style="display:none;"></div>
+
+                <!-- Nova Senha -->
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:hsl(210,40%,98%);margin-bottom:6px;">Nova Senha</label>
+                    <div style="position:relative;">
+                        <input type="password" id="force-new-password" placeholder="Digite sua nova senha" style="width:100%;height:48px;padding:0 44px 0 16px;background:hsl(222,47%,8%,0.6);backdrop-filter:blur(12px);border:2px solid hsl(210,40%,98%,0.12);border-radius:0.75rem;color:hsl(210,40%,98%);font-family:'Inter',sans-serif;font-size:15px;outline:none;transition:all 0.2s;box-sizing:border-box;">
+                        <button type="button" id="force-toggle-pw1" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:hsl(215,20%,50%);padding:0;display:flex;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                    <!-- Medidor de força -->
+                    <div id="force-pw-strength" style="margin-top:8px;">
+                        <div style="height:4px;background:hsl(222,30%,20%);border-radius:2px;overflow:hidden;">
+                            <div id="force-pw-strength-bar" style="height:100%;width:0%;border-radius:2px;transition:all 300ms ease;"></div>
+                        </div>
+                        <span id="force-pw-strength-text" style="font-family:'Inter',sans-serif;font-size:12px;color:hsl(215,20%,65%);margin-top:4px;display:block;">Digite uma senha forte</span>
+                    </div>
+                </div>
+
+                <!-- Confirmar Senha -->
+                <div style="margin-bottom:20px;">
+                    <label style="display:block;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:hsl(210,40%,98%);margin-bottom:6px;">Confirmar Nova Senha</label>
+                    <div style="position:relative;">
+                        <input type="password" id="force-confirm-password" placeholder="Digite novamente" style="width:100%;height:48px;padding:0 44px 0 16px;background:hsl(222,47%,8%,0.6);backdrop-filter:blur(12px);border:2px solid hsl(210,40%,98%,0.12);border-radius:0.75rem;color:hsl(210,40%,98%);font-family:'Inter',sans-serif;font-size:15px;outline:none;transition:all 0.2s;box-sizing:border-box;">
+                        <button type="button" id="force-toggle-pw2" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:hsl(215,20%,50%);padding:0;display:flex;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Botão Alterar -->
+                <button type="button" id="force-change-btn" class="twofa-verify-btn" style="background:linear-gradient(135deg, hsl(38,92%,50%), hsl(25,95%,53%));box-shadow:0 4px 16px hsla(38,92%,50%,0.3);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Definir Nova Senha
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- �🔐 MODAL 2FA - VERIFICAÇÃO DE CÓDIGO POR EMAIL -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div id="modal-2fa" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);">
+        <div class="twofa-card">
+            <!-- Header -->
+            <div class="twofa-header">
+                <div class="twofa-icon-box">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                </div>
+                <h2 class="twofa-title">Verificação de Segurança</h2>
+                <p class="twofa-subtitle">Autenticação de dois fatores</p>
+            </div>
+
+            <!-- Body -->
+            <div class="twofa-body">
+                <p class="twofa-desc">
+                    Enviamos um código de 6 dígitos para
+                </p>
+                <p id="twofa-email-display" class="twofa-email">
+                    ***@aluforce.ind.br
+                </p>
+
+                <!-- Code Input -->
+                <div class="twofa-code-container" id="twofa-code-container">
+                    <input type="text" maxlength="1" class="twofa-digit" data-index="0" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
+                    <input type="text" maxlength="1" class="twofa-digit" data-index="1" inputmode="numeric" pattern="[0-9]">
+                    <input type="text" maxlength="1" class="twofa-digit" data-index="2" inputmode="numeric" pattern="[0-9]">
+                    <span class="twofa-separator">—</span>
+                    <input type="text" maxlength="1" class="twofa-digit" data-index="3" inputmode="numeric" pattern="[0-9]">
+                    <input type="text" maxlength="1" class="twofa-digit" data-index="4" inputmode="numeric" pattern="[0-9]">
+                    <input type="text" maxlength="1" class="twofa-digit" data-index="5" inputmode="numeric" pattern="[0-9]">
+                </div>
+
+                <!-- Error message -->
+                <div id="twofa-error" class="twofa-msg twofa-msg-error" style="display:none;"></div>
+
+                <!-- Success message -->
+                <div id="twofa-success" class="twofa-msg twofa-msg-success" style="display:none;"></div>
+
+                <!-- Timer -->
+                <p id="twofa-timer" class="twofa-timer">
+                    ⏱️ Código expira em <strong id="twofa-countdown">5:00</strong>
+                </p>
+
+                <!-- Remember Device -->
+                <label class="twofa-remember-label" for="twofa-remember-device">
+                    <input type="checkbox" id="twofa-remember-device" class="twofa-remember-checkbox" checked>
+                    <span class="twofa-remember-check"></span>
+                    <span class="twofa-remember-text">Lembrar este dispositivo por 30 dias</span>
+                </label>
+
+                <!-- Verify Button -->
+                <button type="button" id="twofa-verify-btn" class="twofa-verify-btn" disabled>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M9 12l2 2 4-4"/>
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    Verificar Código
+                </button>
+
+                <!-- Resend / Cancel -->
+                <div class="twofa-actions">
+                    <button type="button" id="twofa-resend-btn" class="twofa-link-btn twofa-resend">
+                        Reenviar código
+                    </button>
+                    <button type="button" id="twofa-cancel-btn" class="twofa-link-btn twofa-cancel">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* ═══════ 2FA MODAL - DARK GLASSMORPHISM THEME ═══════ */
+        @keyframes modal2faIn {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes shake2fa {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes twofa-glow {
+            0%, 100% { box-shadow: 0 0 20px hsla(234, 89%, 64%, 0.15); }
+            50% { box-shadow: 0 0 40px hsla(234, 89%, 64%, 0.25); }
+        }
+
+        .twofa-card {
+            background: hsl(222, 47%, 10%, 0.85);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid hsl(210, 40%, 98%, 0.08);
+            border-radius: 1rem;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 hsla(210, 40%, 98%, 0.05);
+            overflow: hidden;
+            animation: modal2faIn 0.3s ease, twofa-glow 3s ease-in-out infinite;
+        }
+
+        .twofa-header {
+            padding: 32px 24px 24px;
+            text-align: center;
+            position: relative;
+        }
+        .twofa-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 24px;
+            right: 24px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, hsl(210, 40%, 98%, 0.1), transparent);
+        }
+
+        .twofa-icon-box {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, hsl(234, 89%, 64%), hsl(199, 89%, 48%));
+            border-radius: 1rem;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 0 30px -5px hsla(234, 89%, 64%, 0.4);
+        }
+
+        .twofa-title {
+            color: hsl(210, 40%, 98%);
+            font-family: 'Inter', sans-serif;
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .twofa-subtitle {
+            color: hsl(215, 20%, 65%);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            margin: 6px 0 0;
+        }
+
+        .twofa-body {
+            padding: 28px 24px;
+        }
+
+        .twofa-desc {
+            color: hsl(215, 20%, 65%);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            text-align: center;
+            margin: 0 0 6px;
+            line-height: 1.5;
+        }
+
+        .twofa-email {
+            color: hsl(234, 89%, 64%);
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            text-align: center;
+            margin: 0 0 24px;
+        }
+
+        .twofa-code-container {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin: 0 0 20px;
+        }
+
+        .twofa-separator {
+            display: flex;
+            align-items: center;
+            color: hsl(215, 20%, 40%);
+            font-size: 20px;
+        }
+
+        .twofa-digit {
+            width: 48px;
+            height: 56px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 700;
+            border: 2px solid hsl(210, 40%, 98%, 0.12);
+            border-radius: 0.75rem;
+            outline: none;
+            transition: all 0.2s;
+            color: hsl(210, 40%, 98%);
+            background: hsl(222, 47%, 8%, 0.6);
+            backdrop-filter: blur(12px);
+            font-family: 'Courier New', monospace;
+        }
+        .twofa-digit::placeholder { color: hsl(215, 20%, 35%); }
+        .twofa-digit:focus {
+            border-color: hsl(234, 89%, 64%) !important;
+            box-shadow: 0 0 0 3px hsla(234, 89%, 64%, 0.2) !important;
+        }
+        .twofa-digit.has-value {
+            border-color: hsl(234, 89%, 64%) !important;
+            background: hsla(234, 89%, 64%, 0.1) !important;
+        }
+        .twofa-digit.error {
+            border-color: hsl(0, 84%, 60%) !important;
+            animation: shake2fa 0.4s ease;
+        }
+
+        .twofa-msg {
+            padding: 10px 14px;
+            border-radius: 0.75rem;
+            font-size: 13px;
+            text-align: center;
+            margin: 0 0 16px;
+            font-family: 'Inter', sans-serif;
+        }
+        .twofa-msg-error {
+            background: hsla(0, 84%, 60%, 0.15);
+            border: 1px solid hsla(0, 84%, 60%, 0.3);
+            color: #fca5a5;
+        }
+        .twofa-msg-success {
+            background: hsla(142, 76%, 45%, 0.15);
+            border: 1px solid hsla(142, 76%, 45%, 0.3);
+            color: #86efac;
+        }
+
+        .twofa-timer {
+            color: hsl(215, 20%, 50%);
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            text-align: center;
+            margin: 0 0 20px;
+        }
+        .twofa-timer strong {
+            color: hsl(210, 40%, 98%);
+        }
+
+        .twofa-verify-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, hsl(234, 89%, 64%), hsl(234, 89%, 56%));
+            color: hsl(210, 40%, 98%);
+            border: none;
+            border-radius: 0.75rem;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 16px hsla(234, 89%, 64%, 0.3);
+        }
+        .twofa-verify-btn:not(:disabled):hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px hsla(234, 89%, 64%, 0.45);
+        }
+        .twofa-verify-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Remember Device Checkbox */
+        .twofa-remember-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            margin: 0 0 18px;
+            padding: 10px 14px;
+            border-radius: 0.75rem;
+            background: hsla(234, 89%, 64%, 0.06);
+            border: 1px solid hsla(234, 89%, 64%, 0.12);
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .twofa-remember-label:hover {
+            background: hsla(234, 89%, 64%, 0.1);
+            border-color: hsla(234, 89%, 64%, 0.25);
+        }
+        .twofa-remember-checkbox {
+            display: none;
+        }
+        .twofa-remember-check {
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            border-radius: 6px;
+            border: 2px solid hsl(215, 20%, 35%);
+            background: hsl(222, 47%, 8%, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .twofa-remember-checkbox:checked + .twofa-remember-check {
+            background: linear-gradient(135deg, hsl(234, 89%, 64%), hsl(234, 89%, 56%));
+            border-color: hsl(234, 89%, 64%);
+            box-shadow: 0 0 12px hsla(234, 89%, 64%, 0.3);
+        }
+        .twofa-remember-checkbox:checked + .twofa-remember-check::after {
+            content: '';
+            width: 6px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2.5px 2.5px 0;
+            transform: rotate(45deg) translateY(-1px);
+            display: block;
+        }
+        .twofa-remember-text {
+            color: hsl(215, 20%, 65%);
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            line-height: 1.3;
+        }
+
+        .twofa-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+        }
+
+        .twofa-link-btn {
+            background: none;
+            border: none;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 0;
+            transition: color 0.2s;
+        }
+        .twofa-resend {
+            color: hsl(234, 89%, 64%);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .twofa-resend:hover { color: hsl(234, 89%, 74%); }
+        .twofa-cancel { color: hsl(215, 20%, 50%); }
+        .twofa-cancel:hover { color: hsl(215, 20%, 65%); }
+    </style>
+
+    <!-- Scripts -->
+    <script src="/js/auth-unified.js?v=20260222b"></script>
+    <script src="/js/login.js?v=20260226_force_pw"></script>
+    <!-- Logo (single Aluforce, no crossfade needed) -->
+    <script>
+    // Logo crossfade removed - single Aluforce logo
+    </script>
+</body>
+
+</html>

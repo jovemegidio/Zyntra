@@ -1,0 +1,1168 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Meus Holerites</title>
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-pink);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i {
+            color: white;
+            font-size: 18px;
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .sidebar-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            position: relative;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .sidebar-btn.active {
+            background: var(--primary-pink);
+            color: white;
+        }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* MAIN AREA */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            /* overflow: global-header-sidebar.css */
+        }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+        }
+
+        .header-brand img {
+            height: 24px;
+        }
+
+        .header-brand span {
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b8b9a;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 8px;
+            overflow: hidden;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        .user-avatar img.visible {
+            display: block;
+        }
+
+        .user-greeting {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: 16px;
+            color: #8b8b9a;
+            font-size: 13px;
+        }
+
+        .user-greeting strong {
+            color: white;
+        }
+
+        /* CONTENT AREA */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #ffffff;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-title i {
+            color: var(--primary-pink);
+        }
+
+        .page-subtitle {
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title i {
+            color: var(--primary-pink);
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* Controls */
+        .controls-bar {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #64748b;
+        }
+
+        .form-select {
+            padding: 10px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            color: #1e293b;
+            background: white;
+            min-width: 200px;
+            cursor: pointer;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-pink);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #db2777;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-outline:hover {
+            background: #f8fafc;
+            color: #1e293b;
+        }
+
+        /* Holerites Grid */
+        .holerites-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .holerite-card {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #f1f5f9;
+            padding: 24px;
+            transition: all 0.3s;
+        }
+
+        .holerite-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .holerite-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .holerite-month {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .holerite-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .holerite-status.disponivel {
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+        }
+
+        .holerite-status.pendente {
+            background: rgba(234, 179, 8, 0.1);
+            color: #eab308;
+        }
+
+        .holerite-details {
+            margin-bottom: 16px;
+        }
+
+        .holerite-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-pink);
+        }
+
+        .holerite-label {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .holerite-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #64748b;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .btn-download {
+            width: 100%;
+            padding: 12px;
+            background: var(--primary-pink);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-download:hover {
+            background: #db2777;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: #64748b;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: #e2e8f0;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 1.125rem;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        /* Coming Soon Notice */
+        .coming-soon-notice {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border: 2px dashed #94a3b8;
+            border-radius: 20px;
+            padding: 48px;
+            text-align: center;
+            margin: 24px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .notice-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            animation: pulse-icon 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-icon {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(236, 72, 153, 0); }
+        }
+
+        .notice-content h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 12px;
+        }
+
+        .notice-content p {
+            font-size: 1rem;
+            color: #64748b;
+            max-width: 500px;
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .notice-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: rgba(236, 72, 153, 0.1);
+            border-radius: 10px;
+            color: #7c3aed;
+            font-size: 0.875rem;
+        }
+
+        .notice-info i {
+            font-size: 1rem;
+        }
+
+        /* Modal */
+        .holerite-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .holerite-modal.active {
+            display: flex;
+        }
+
+        .holerite-viewer {
+            background: white;
+            border-radius: 16px;
+            max-width: 800px;
+            width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 32px;
+        }
+
+        .viewer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .viewer-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .close-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: #f1f5f9;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .empresa-info {
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .empresa-info h2 {
+            font-size: 1.25rem;
+            margin-bottom: 8px;
+        }
+
+        .empresa-info p {
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+
+        .demonstrativo-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+        }
+
+        .demonstrativo-table th,
+        .demonstrativo-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.875rem;
+        }
+
+        .demonstrativo-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .demonstrativo-table .provento {
+            color: var(--success-green);
+        }
+
+        .demonstrativo-table .desconto {
+            color: var(--danger-red);
+        }
+
+        .totais-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .total-item {
+            text-align: center;
+        }
+
+        .total-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+
+        .total-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .total-value.provento {
+            color: var(--success-green);
+        }
+
+        .total-value.desconto {
+            color: var(--danger-red);
+        }
+
+        .total-value.liquido {
+            color: var(--primary-pink);
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar - Portal do Funcionário -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-home"></i></a>
+                <a href="meus-holerites.html" class="sidebar-btn active" title="Meus Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="dados-cadastrais.html" class="sidebar-btn" title="Dados Cadastrais"><i class="fas fa-id-card"></i></a>
+                <a href="manual-colaborador.html" class="sidebar-btn" title="Manual do Colaborador"><i class="fas fa-book"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="/ajuda/index.html" class="sidebar-btn" title="Ajuda"><i class="fas fa-question-circle"></i></a>
+                <a href="../areaadm.html" class="sidebar-btn" id="btn-voltar-admin" title="Voltar à Área Admin" style="display:none;"><i class="fas fa-shield-alt"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Meus Holerites</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        Meus Holerites
+                    </h1>
+                    <p class="page-subtitle">Consulte e baixe seus contracheques</p>
+                </div>
+
+                <div class="controls-bar">
+                    <div class="form-group">
+                        <label class="form-label">Ano</label>
+                        <select class="form-select" id="select-ano">
+                            <option value="2026">2026</option>
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mês</label>
+                        <select class="form-select" id="select-mes">
+                            <option value="">Todos os meses</option>
+                            <option value="12">Dezembro</option>
+                            <option value="11">Novembro</option>
+                            <option value="10">Outubro</option>
+                            <option value="09">Setembro</option>
+                            <option value="08">Agosto</option>
+                            <option value="07">Julho</option>
+                            <option value="06">Junho</option>
+                            <option value="05">Maio</option>
+                            <option value="04">Abril</option>
+                            <option value="03">Março</option>
+                            <option value="02">Fevereiro</option>
+                            <option value="01">Janeiro</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="filtrarHolerites()" id="btn-buscar">
+                        <i class="fas fa-search"></i>
+                        Buscar
+                    </button>
+                    <a href="../funcionario.html" class="btn btn-outline">
+                        <i class="fas fa-arrow-left"></i>
+                        Voltar
+                    </a>
+                </div>
+
+                <!-- Aviso de Holerites Indisponíveis (mostrado quando não há holerites) -->
+                <div class="coming-soon-notice" id="coming-soon-notice" style="display: none;">
+                    <div class="notice-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="notice-content">
+                        <h3>Em breve seus holerites estarão disponíveis!</h3>
+                        <p>Estamos trabalhando para disponibilizar seus contracheques nesta plataforma. 
+                           Em breve você poderá consultar e baixar todos os seus holerites diretamente aqui.</p>
+                        <div class="notice-info">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Por enquanto, consulte o departamento de RH para informações sobre seu pagamento.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="holerites-grid" id="holerites-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div class="holerite-modal" id="holerite-modal">
+        <div class="holerite-viewer">
+            <div class="viewer-header">
+                <h2 class="viewer-title">Demonstrativo de Pagamento</h2>
+                <button class="close-btn" onclick="fecharModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="empresa-info">
+                <h2>ALUFORCE INDÚSTRIA E COMÉRCIO LTDA</h2>
+                <p>CNPJ: 00.000.000/0001-00</p>
+                <p>Endereço: Rua da Empresa, 123 - Cidade/Estado</p>
+            </div>
+            <div id="viewer-content"></div>
+        </div>
+    </div>
+
+    <script>
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                'Content-Type': 'application/json',
+                ...additionalHeaders
+            };
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+        }
+
+        const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        let holeritesData = [];
+        let currentUser = null;
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { 
+                    headers: getAuthHeaders(),
+                    credentials: 'include' 
+                });
+                if (response.ok) {
+                    currentUser = await response.json();
+                    
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = currentUser.apelido || currentUser.nome || 'Usuário';
+                    const primeiroNome = currentUser.apelido || (currentUser.nome ? currentUser.nome.split(' ')[0] : 'Usuário');
+                    let userAvatar = currentUser.avatar && currentUser.avatar !== '/avatars/default.webp' ? currentUser.avatar : null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(currentUser.email, userName);
+                    
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                    
+                    // Mostrar botão admin apenas para usuários específicos
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    const btnAdmin = document.getElementById('btn-admin');
+                    if (btnAdmin && currentUser.email && adminEmails.includes(currentUser.email.toLowerCase())) {
+                        btnAdmin.style.display = 'flex';
+                    }
+                    // Mostrar botão voltar à área admin na sidebar
+                    const btnVoltarAdmin = document.getElementById('btn-voltar-admin');
+                    if (btnVoltarAdmin && currentUser.email && adminEmails.includes(currentUser.email.toLowerCase())) {
+                        btnVoltarAdmin.style.display = 'flex';
+                    }
+                    
+                    // Carregar holerites do funcionário
+                    await carregarHolerites();
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        async function carregarHolerites() {
+            try {
+                const ano = document.getElementById('select-ano').value;
+                const mes = document.getElementById('select-mes').value;
+                
+                let url = `/api/rh/holerites?status=publicado&ano=${ano}`;
+                if (mes) url += `&mes=${parseInt(mes)}`;
+                
+                // Se não for admin, a API filtra automaticamente pelo funcionário logado
+                const response = await fetch(url, { headers: getAuthHeaders() });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    holeritesData = data.holerites || [];
+                    
+                    if (holeritesData.length === 0) {
+                        // Mostrar aviso "em breve"
+                        document.getElementById('coming-soon-notice').style.display = 'flex';
+                        document.getElementById('holerites-grid').style.display = 'none';
+                    } else {
+                        document.getElementById('coming-soon-notice').style.display = 'none';
+                        document.getElementById('holerites-grid').style.display = 'grid';
+                        renderHolerites(holeritesData);
+                    }
+                } else {
+                    // Se não encontrou holerites, mostrar aviso
+                    document.getElementById('coming-soon-notice').style.display = 'flex';
+                    document.getElementById('holerites-grid').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Erro ao carregar holerites:', error);
+                document.getElementById('coming-soon-notice').style.display = 'flex';
+                document.getElementById('holerites-grid').style.display = 'none';
+            }
+        }
+
+        function renderHolerites(data) {
+            const grid = document.getElementById('holerites-grid');
+            
+            if (!data || data.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1 / -1;">
+                        <i class="fas fa-file-invoice"></i>
+                        <h3>Nenhum holerite encontrado</h3>
+                        <p>Não há holerites disponíveis para o período selecionado</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = data.map((h, i) => `
+                <div class="holerite-card">
+                    <div class="holerite-header">
+                        <span class="holerite-month">${meses[h.mes]}/${h.ano}</span>
+                        <span class="holerite-status disponivel">
+                            ${h.visualizado ? '<i class="fas fa-check"></i> Visualizado' : 'Novo'}
+                        </span>
+                    </div>
+                    <div class="holerite-details">
+                        <div class="holerite-value">${formatCurrency(h.salario_liquido)}</div>
+                        <div class="holerite-label">Valor líquido</div>
+                    </div>
+                    <div class="holerite-info">
+                        <span>Proventos: ${formatCurrency(h.total_proventos)}</span>
+                        <span>Descontos: ${formatCurrency(h.total_descontos)}</span>
+                    </div>
+                    <button class="btn-download" onclick="visualizarHolerite(${h.id})">
+                        <i class="fas fa-eye"></i> Ver Detalhes
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function filtrarHolerites() {
+            carregarHolerites();
+        }
+
+        async function visualizarHolerite(id) {
+            try {
+                // Registrar visualização
+                await fetch(`/api/rh/holerites/${id}/visualizar`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                
+                // Buscar detalhes do holerite
+                const response = await fetch(`/api/rh/holerites/${id}`, { headers: getAuthHeaders() });
+                
+                if (response.ok) {
+                    const h = await response.json();
+                    const modal = document.getElementById('holerite-modal');
+                    const content = document.getElementById('viewer-content');
+                    
+                    content.innerHTML = `
+                        <div style="margin-bottom:20px;padding:16px;background:#f8fafc;border-radius:12px;">
+                            <h3 style="margin-bottom:12px;color:#1e293b;">Período: ${meses[h.mes]}/${h.ano}</h3>
+                            <p style="font-size:0.875rem;color:#64748b;">
+                                <strong>Funcionário:</strong> ${h.funcionario_nome || currentUser?.nome || ''}<br>
+                                <strong>Cargo:</strong> ${h.cargo || 'N/A'}<br>
+                                <strong>Departamento:</strong> ${h.departamento || 'N/A'}
+                            </p>
+                        </div>
+                        
+                        <table class="demonstrativo-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:60px;">Código</th>
+                                    <th>Descrição</th>
+                                    <th style="width:80px;">Ref.</th>
+                                    <th style="width:100px;">Proventos</th>
+                                    <th style="width:100px;">Descontos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${(h.proventos || []).map(p => `
+                                    <tr>
+                                        <td>${p.codigo || '-'}</td>
+                                        <td>${p.descricao}</td>
+                                        <td>${p.referencia || '-'}</td>
+                                        <td class="provento">${formatCurrency(p.valor)}</td>
+                                        <td>-</td>
+                                    </tr>
+                                `).join('')}
+                                ${(h.descontos || []).map(d => `
+                                    <tr>
+                                        <td>${d.codigo || '-'}</td>
+                                        <td>${d.descricao}</td>
+                                        <td>${d.referencia || '-'}</td>
+                                        <td>-</td>
+                                        <td class="desconto">${formatCurrency(d.valor)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        
+                        <div class="totais-row">
+                            <div class="total-item">
+                                <div class="total-label">Total Proventos</div>
+                                <div class="total-value provento">${formatCurrency(h.total_proventos)}</div>
+                            </div>
+                            <div class="total-item">
+                                <div class="total-label">Total Descontos</div>
+                                <div class="total-value desconto">${formatCurrency(h.total_descontos)}</div>
+                            </div>
+                            <div class="total-item">
+                                <div class="total-label">Líquido a Receber</div>
+                                <div class="total-value liquido">${formatCurrency(h.salario_liquido)}</div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+                            ${!h.confirmado_recebimento ? `
+                                <button class="btn btn-primary" style="flex:1;background:#10b981;" onclick="confirmarRecebimento(${h.id})">
+                                    <i class="fas fa-check-double"></i> Confirmar Recebimento
+                                </button>
+                            ` : `
+                                <div style="flex:1;padding:12px;background:rgba(16,185,129,0.1);border-radius:10px;text-align:center;color:#10b981;">
+                                    <i class="fas fa-check-double"></i> Recebimento confirmado em ${new Date(h.data_confirmacao).toLocaleDateString('pt-BR')}
+                                </div>
+                            `}
+                            <button class="btn btn-outline" onclick="fecharModal()">
+                                <i class="fas fa-times"></i> Fechar
+                            </button>
+                        </div>
+                    `;
+                    
+                    modal.classList.add('active');
+                }
+            } catch (error) {
+                console.error('Erro ao visualizar holerite:', error);
+                alert('Erro ao carregar detalhes do holerite');
+            }
+        }
+
+        async function confirmarRecebimento(id) {
+            if (!confirm('Deseja confirmar o recebimento deste holerite?\n\nEsta ação registrará que você visualizou e está ciente das informações do seu pagamento.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/rh/holerites/${id}/confirmar`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    alert('Recebimento confirmado com sucesso!');
+                    fecharModal();
+                    carregarHolerites();
+                } else {
+                    const result = await response.json();
+                    alert(result.message || 'Erro ao confirmar recebimento');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao confirmar recebimento');
+            }
+        }
+
+        function fecharModal() { 
+            document.getElementById('holerite-modal').classList.remove('active'); 
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+        });
+
+        document.getElementById('holerite-modal').addEventListener('click', (e) => { 
+            if (e.target.id === 'holerite-modal') fecharModal(); 
+        });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+

@@ -1,0 +1,2694 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ALUFORCE">
+    <title>Aluforce: Painel de Controle</title>
+
+    <!-- Limpar Service Worker e caches antigos -->
+    <script>
+    (function(){
+        if('serviceWorker' in navigator){
+            navigator.serviceWorker.getRegistrations().then(function(r){
+                r.forEach(function(reg){reg.unregister();console.log('[SW] Desregistrado:',reg.scope);});
+            });
+        }
+        if('caches' in window){
+            caches.keys().then(function(n){
+                n.forEach(function(name){caches.delete(name);console.log('[Cache] Removido:',name);});
+            });
+        }
+    })();
+    </script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Performance: Skeleton Loaders -->
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
+
+    <!-- Critical CSS - Modal Fix -->
+    <link rel="stylesheet" href="/css/modal-fix-critical.css?v=20260219">
+    <link rel="stylesheet" href="/css/notifications-fix.css?v=20260129">
+
+    <!-- Modal Configurações CSS - Enterprise v4 -->
+    <link rel="stylesheet" href="/css/modal-configuracoes-v4.css?v=20260219">
+
+    <!-- Background Manager CSS -->
+    <link rel="stylesheet" href="/css/backgrounds.css?v=20260214">
+
+    <!-- Preload: primeiro fundo aleatório (carrega imediatamente, antes do JS) -->
+    <link rel="preload" as="image" type="image/webp" href="/Fundos/Fundos (1).webp?v=20260214">
+    <link rel="prefetch" as="image" type="image/webp" href="/Fundos/Fundos (2).webp?v=20260214">
+    <link rel="prefetch" as="image" type="image/webp" href="/Fundos/Fundos (9).webp?v=20260214">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-500: #64748b;
+            --slate-600: #475569;
+            --slate-700: #334155;
+            --slate-900: #0f172a;
+            --blue-50: #eff6ff;
+            --blue-600: #2563eb;
+            --emerald-50: #ecfdf5;
+            --emerald-500: #10b981;
+            --emerald-600: #059669;
+            --orange-50: #fff7ed;
+            --orange-600: #ea580c;
+            --indigo-50: #eef2ff;
+            --indigo-600: #4f46e5;
+            --rose-50: #fff1f2;
+            --rose-600: #e11d48;
+            --pink-50: #fdf2f8;
+            --pink-500: #ec4899;
+            --pink-600: #db2777;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: transparent;
+            color: var(--slate-900);
+            overflow-x: hidden;
+        }
+
+        /* Background Manager - fundos dinâmicos */
+        .dashboard-background {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            z-index: -2 !important;
+            background-size: cover !important;
+            background-position: center !important;
+            background-repeat: no-repeat !important;
+            transition: opacity 1.5s ease-in-out !important;
+        }
+
+        /* Fallback gradient animado */
+        .animated-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -3;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 25%, #dbeafe 50%, #fce7f3 75%, #f8fafc 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            pointer-events: none;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Header - forçando estilo branco (sobrescreve backgrounds.css) */
+        .main-header,
+        #dashboard-area .main-header,
+        #dashboard-area.bg-contrast-light .main-header,
+        #dashboard-area.bg-contrast-dark .main-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border-bottom: 1px solid var(--slate-200) !important;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+        }
+
+        .header-content {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+        }
+
+        .header-logo img {
+            height: 32px;
+            width: auto;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-icon-btn,
+        #dashboard-area .header-icon-btn,
+        #dashboard-area.bg-contrast-light .header-icon-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent !important;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--slate-600) !important;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .header-icon-btn:hover {
+            background: var(--slate-100) !important;
+            color: var(--slate-900) !important;
+            transform: scale(1.05);
+        }
+
+        .notification-dot {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            min-width: 18px;
+            height: 18px;
+            background: #ef4444;
+            border-radius: 9px;
+            font-size: 10px;
+            font-weight: 600;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            border: 2px solid white;
+        }
+
+        .notification-dot:empty {
+            display: none;
+        }
+
+        .header-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--slate-200);
+            margin: 0 8px;
+        }
+
+        .user-profile-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 12px 6px 6px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .user-profile-header:hover {
+            background: var(--slate-100);
+        }
+
+        .user-avatar-header {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            overflow: hidden;
+        }
+
+        .user-avatar-header img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-name,
+        #dashboard-area .user-name,
+        #dashboard-area.bg-contrast-light .user-name {
+            font-weight: 500;
+            font-size: 14px;
+            color: var(--slate-900) !important;
+        }
+
+        /* User Dropdown */
+        .user-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 280px;
+            background: white;
+            border: 1px solid var(--slate-200);
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            z-index: 1000;
+        }
+
+        .user-dropdown-menu.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .dropdown-avatar {
+            width: 48px;
+            height: 48px;
+            min-width: 48px;
+            min-height: 48px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            overflow: hidden;
+            flex-shrink: 0;
+            aspect-ratio: 1 / 1;
+        }
+
+        .dropdown-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            aspect-ratio: 1 / 1;
+        }
+
+        .dropdown-info { flex: 1; min-width: 0; overflow: hidden; }
+        .dropdown-user-name { display: block; font-weight: 600; font-size: 14px; color: var(--slate-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dropdown-user-email { display: block; font-size: 12px; color: var(--slate-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .dropdown-divider {
+            border: none;
+            height: 1px;
+            background: var(--slate-200);
+            margin: 0;
+        }
+
+        .dropdown-options { padding: 8px; }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            color: var(--slate-600);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .dropdown-item:hover {
+            background: var(--slate-100);
+            color: var(--slate-900);
+        }
+
+        .dropdown-item i { width: 18px; text-align: center; }
+
+        .logout-item { color: var(--rose-600); }
+        .logout-item:hover { background: var(--rose-50); color: var(--rose-600); }
+
+        /* Main Content */
+        .main-content {
+            min-height: 100vh;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 80px 24px 40px;
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Greeting Section */
+        .greeting-section {
+            margin-bottom: 32px;
+            animation: fadeInDown 0.5s ease;
+        }
+
+        .greeting-date {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .greeting-date-text {
+            font-size: 14px;
+            color: #ffffff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .greeting-time {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #1e3a5f;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 16px;
+            border-radius: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            font-weight: 500;
+        }
+
+        .greeting-title {
+            font-family: 'Manrope', sans-serif;
+            font-size: clamp(28px, 4vw, 42px);
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 6px;
+            letter-spacing: -1px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .greeting-quote {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.9);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Modules Grid - 3x2 layout (v2026-02-18) */
+        .modules-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            grid-template-rows: repeat(2, 140px) !important;
+            gap: 16px;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.5s ease 0.2s both;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(100px); }
+        }
+
+        .module-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(230,230,230,0.5);
+            border-radius: 16px;
+            padding: 20px 20px 16px;
+            cursor: pointer;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+            height: 140px !important;
+            min-height: 140px !important;
+            max-height: 140px !important;
+            box-sizing: border-box !important;
+            color: inherit;
+        }
+
+        /* Impedir que elementos injetados por JS quebrem o layout */
+        .module-card .module-status,
+        .module-card .module-counter {
+            display: none !important;
+        }
+
+        /* Gradient accent bar - hidden by default */
+        .module-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--card-gradient);
+            border-radius: 16px 16px 0 0;
+            opacity: 0;
+            transition: opacity 0.35s ease;
+        }
+
+        .module-card:hover::before {
+            opacity: 1;
+        }
+
+        /* Subtle ambient glow on hover */
+        .module-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            background: radial-gradient(ellipse at 30% 20%, var(--glow-color, rgba(59,130,246,0.08)), transparent 70%);
+            opacity: 0;
+            transition: opacity 0.35s ease;
+            pointer-events: none;
+        }
+
+        .module-card:hover::after { opacity: 1; }
+
+        .module-card:hover {
+            transform: translateY(-4px) scale(1.01);
+            background: rgba(255, 255, 255, 0.98);
+            border-color: rgba(200,200,200,0.5);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.1), 0 4px 12px rgba(0,0,0,0.05), 0 0 24px var(--glow-shadow, rgba(59,130,246,0.08));
+        }
+
+        .module-icon {
+            width: 48px;
+            height: 48px;
+            min-width: 48px;
+            min-height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-bottom: 12px;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+        }
+
+        .module-icon i {
+            width: 1em;
+            height: 1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .module-card:hover .module-icon {
+            transform: scale(1.1) translateY(-2px);
+            box-shadow: 0 6px 16px var(--icon-shadow, rgba(0,0,0,0.1));
+        }
+
+        .module-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .module-title {
+            font-family: 'Manrope', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--slate-900);
+            margin-bottom: 2px;
+            line-height: 1.25;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .module-desc {
+            font-size: 12px;
+            color: var(--slate-500);
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Arrow indicator */
+        .module-arrow {
+            position: absolute;
+            top: 20px;
+            right: 18px;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: var(--arrow-bg, rgba(0,0,0,0.04));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: var(--slate-400);
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
+            opacity: 0;
+        }
+
+        .module-card:hover .module-arrow {
+            opacity: 1;
+            background: var(--card-gradient);
+            color: white;
+            transform: translateX(3px);
+            box-shadow: 0 4px 12px var(--icon-shadow, rgba(0,0,0,0.15));
+        }
+
+        /* Staggered entrance animation */
+        .module-card:nth-child(1) { animation-delay: 0.1s; }
+        .module-card:nth-child(2) { animation-delay: 0.15s; }
+        .module-card:nth-child(3) { animation-delay: 0.2s; }
+        .module-card:nth-child(4) { animation-delay: 0.25s; }
+        .module-card:nth-child(5) { animation-delay: 0.3s; }
+        .module-card:nth-child(6) { animation-delay: 0.35s; }
+
+        .module-card {
+            animation: cardEntrance 0.5s ease both;
+        }
+
+        @keyframes cardEntrance {
+            from {
+                opacity: 0;
+                transform: translateY(24px) scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Module Colors - Premium Gradients */
+        .module-card.compras {
+            --glow-color: rgba(99, 102, 241, 0.08);
+            --glow-shadow: rgba(99, 102, 241, 0.15);
+            --card-gradient: linear-gradient(135deg, #6366f1, #818cf8);
+            --icon-shadow: rgba(99, 102, 241, 0.25);
+            --arrow-bg: rgba(99, 102, 241, 0.08);
+        }
+        .module-card.compras .module-icon { background: linear-gradient(135deg, #eef2ff, #e0e7ff); color: #4f46e5; }
+        .module-card.compras .module-arrow { color: #6366f1; }
+
+        .module-card.vendas {
+            --glow-color: rgba(16, 185, 129, 0.08);
+            --glow-shadow: rgba(16, 185, 129, 0.15);
+            --card-gradient: linear-gradient(135deg, #10b981, #34d399);
+            --icon-shadow: rgba(16, 185, 129, 0.25);
+            --arrow-bg: rgba(16, 185, 129, 0.08);
+        }
+        .module-card.vendas .module-icon { background: linear-gradient(135deg, #ecfdf5, #d1fae5); color: #059669; }
+        .module-card.vendas .module-arrow { color: #10b981; }
+
+        .module-card.nfe {
+            --glow-color: rgba(234, 88, 12, 0.08);
+            --glow-shadow: rgba(234, 88, 12, 0.15);
+            --card-gradient: linear-gradient(135deg, #f97316, #fb923c);
+            --icon-shadow: rgba(234, 88, 12, 0.25);
+            --arrow-bg: rgba(234, 88, 12, 0.08);
+        }
+        .module-card.nfe .module-icon { background: linear-gradient(135deg, #fff7ed, #ffedd5); color: #ea580c; }
+        .module-card.nfe .module-arrow { color: #f97316; }
+
+        .module-card.pcp {
+            --glow-color: rgba(71, 85, 105, 0.08);
+            --glow-shadow: rgba(71, 85, 105, 0.15);
+            --card-gradient: linear-gradient(135deg, #475569, #64748b);
+            --icon-shadow: rgba(71, 85, 105, 0.25);
+            --arrow-bg: rgba(71, 85, 105, 0.08);
+        }
+        .module-card.pcp .module-icon { background: linear-gradient(135deg, #f1f5f9, #e2e8f0); color: #334155; }
+        .module-card.pcp .module-arrow { color: #475569; }
+
+        .module-card.financeiro {
+            --glow-color: rgba(168, 85, 247, 0.08);
+            --glow-shadow: rgba(168, 85, 247, 0.15);
+            --card-gradient: linear-gradient(135deg, #a855f7, #c084fc);
+            --icon-shadow: rgba(168, 85, 247, 0.25);
+            --arrow-bg: rgba(168, 85, 247, 0.08);
+        }
+        .module-card.financeiro .module-icon { background: linear-gradient(135deg, #faf5ff, #f3e8ff); color: #7c3aed; }
+        .module-card.financeiro .module-arrow { color: #a855f7; }
+
+        .module-card.rh {
+            --glow-color: rgba(236, 72, 153, 0.08);
+            --glow-shadow: rgba(236, 72, 153, 0.15);
+            --card-gradient: linear-gradient(135deg, #ec4899, #f472b6);
+            --icon-shadow: rgba(236, 72, 153, 0.25);
+            --arrow-bg: rgba(236, 72, 153, 0.08);
+        }
+        .module-card.rh .module-icon { background: linear-gradient(135deg, #fdf2f8, #fce7f3); color: #db2777; }
+        .module-card.rh .module-arrow { color: #ec4899; }
+
+
+
+        /* Search Container - tema claro */
+        .header-search-wrapper { position: relative; }
+
+        .header-search-container,
+        #header-search-container {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 320px;
+            background: white !important;
+            border: 1px solid var(--slate-200) !important;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            z-index: 1000;
+        }
+
+        .header-search-container.active,
+        #header-search-container.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .header-search-container input,
+        #header-search-container input,
+        #header-search-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--slate-200) !important;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+            background: var(--slate-50) !important;
+            color: var(--slate-900) !important;
+        }
+
+        .header-search-container input::placeholder,
+        #header-search-input::placeholder {
+            color: var(--slate-500) !important;
+        }
+
+        .header-search-container input:focus,
+        #header-search-input:focus {
+            border-color: var(--blue-600) !important;
+            background: white !important;
+        }
+
+        /* Navegação Rápida */
+        .search-quick-nav {
+            margin-top: 12px;
+            border-top: 1px solid var(--slate-200);
+            padding-top: 12px;
+        }
+
+        .search-quick-nav-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--slate-500);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .search-quick-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--slate-700);
+            font-size: 14px;
+            transition: all 0.15s ease;
+        }
+
+        .search-quick-nav-item:hover {
+            background: var(--slate-100);
+            color: var(--slate-900);
+        }
+
+        .search-quick-nav-item i {
+            width: 18px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .search-quick-nav-item.vendas i { color: var(--emerald-600); }
+        .search-quick-nav-item.compras i { color: var(--blue-600); }
+        .search-quick-nav-item.financeiro i { color: var(--indigo-600); }
+        .search-quick-nav-item.nfe i { color: var(--orange-600); }
+        .search-quick-nav-item.pcp i { color: var(--slate-600); }
+        .search-quick-nav-item.rh i { color: var(--pink-500); }
+
+        .search-hint {
+            margin-top: 12px;
+            padding: 10px;
+            background: var(--blue-50);
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--blue-600);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .search-hint i {
+            margin-top: 2px;
+        }
+
+        .header-search-results {
+            margin-top: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .header-search-results .search-result-item,
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--slate-700) !important;
+            background: white !important;
+            transition: background 0.2s;
+        }
+
+        .header-search-results .search-result-item:hover,
+        .search-result-item:hover {
+            background: var(--slate-100) !important;
+            color: var(--slate-900) !important;
+        }
+
+        /* Sobrescrever estilos escuros da navegação rápida */
+        .search-modules-hint {
+            padding: 8px;
+            background: white !important;
+        }
+
+        .search-hint-title {
+            color: var(--slate-500) !important;
+        }
+
+        .search-modules-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            padding: 8px 4px;
+        }
+
+        .search-module-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 8px;
+            border-radius: 12px;
+            background: var(--slate-50) !important;
+            border: 1px solid var(--slate-200) !important;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .search-module-item:hover {
+            background: var(--blue-50) !important;
+            border-color: var(--blue-600) !important;
+            transform: translateY(-2px);
+        }
+
+        .search-module-item span {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--slate-700) !important;
+        }
+
+        .search-hint-tips {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--slate-500) !important;
+            background: var(--slate-50) !important;
+            border-radius: 8px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content { padding: 0 16px; }
+            .main-content { padding: 80px 16px 40px; }
+            .user-name { display: none; }
+            .greeting-title { font-size: 28px; }
+            .modules-grid { grid-template-columns: 1fr 1fr !important; grid-template-rows: repeat(3, 130px) !important; gap: 12px; }
+            .module-card { padding: 18px 16px 14px; height: 130px !important; min-height: 130px !important; max-height: 130px !important; border-radius: 14px; }
+            .module-icon { width: 38px; height: 38px; font-size: 16px; border-radius: 10px; margin-bottom: 8px; }
+            .module-title { font-size: 14px; }
+            .module-desc { font-size: 11px; }
+            .module-arrow { width: 22px; height: 22px; font-size: 10px; top: 16px; right: 14px; }
+        }
+
+        @media (max-width: 480px) {
+            .modules-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Modal Perfil e Preferências */
+        .modal-perfil-overlay,
+        .modal-preferencias-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .modal-perfil-overlay.active,
+        .modal-preferencias-overlay.active {
+            display: flex;
+        }
+
+        .modal-perfil-content,
+        .modal-preferencias-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 460px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.1);
+            animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Scrollbar moderna no modal */
+        .modal-perfil-content::-webkit-scrollbar,
+        .modal-preferencias-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        .modal-perfil-content::-webkit-scrollbar-track,
+        .modal-preferencias-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .modal-perfil-content::-webkit-scrollbar-thumb,
+        .modal-preferencias-content::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px) scale(0.97);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .modal-perfil-header,
+        .modal-preferencias-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-perfil-header h2,
+        .modal-preferencias-header h2 {
+            font-size: 17px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-perfil-header h2 i,
+        .modal-preferencias-header h2 i {
+            color: #3b82f6;
+            font-size: 18px;
+        }
+
+        .modal-close-btn {
+            background: none;
+            border: none;
+            font-size: 22px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+
+        .modal-close-btn:hover {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .modal-perfil-body,
+        .modal-preferencias-body {
+            padding: 24px;
+        }
+
+        .perfil-avatar-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .perfil-avatar-large {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 12px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+        }
+
+        .perfil-avatar-large img {
+            aspect-ratio: 1 / 1;
+            border-radius: 50%;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .perfil-avatar-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .perfil-avatar-edit {
+            position: absolute;
+            bottom: 8px;
+            right: -2px;
+            width: 30px;
+            height: 30px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: 3px solid white;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        .perfil-avatar-edit:hover {
+            background: #2563eb;
+            transform: scale(1.1);
+        }
+
+        .perfil-avatar-edit i {
+            color: white;
+            font-size: 11px;
+        }
+
+        .perfil-nome-usuario {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        .perfil-email-usuario {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .perfil-input-group {
+            margin-bottom: 20px;
+        }
+
+        .perfil-input-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .perfil-input-group input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #f8fafc;
+            transition: all 0.2s;
+        }
+
+        .perfil-input-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .perfil-input-group input::placeholder {
+            color: #cbd5e1;
+        }
+
+        .perfil-input-hint {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 6px;
+        }
+
+        .perfil-info-group {
+            margin-bottom: 12px;
+        }
+
+        .perfil-info-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 6px;
+        }
+
+        .perfil-info-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #1e293b;
+            padding: 11px 14px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1.5px solid #f1f5f9;
+        }
+
+        .perfil-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .preferencia-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 16px;
+            background: #f8fafc;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #f1f5f9;
+            transition: all 0.15s;
+        }
+
+        .preferencia-item:hover {
+            border-color: #e2e8f0;
+        }
+
+        .preferencia-info h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 2px 0;
+        }
+
+        .preferencia-info p {
+            font-size: 12px;
+            color: #94a3b8;
+            margin: 0;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e1;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #3b82f6;
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .modal-perfil-footer,
+        .modal-preferencias-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-modal {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-modal-secondary {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .btn-modal-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        .btn-modal-primary {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+        }
+
+        .btn-modal-primary:hover {
+            background: #2563eb;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+        }
+
+        /* ========== DARK MODE ========== */
+        body.dark-mode {
+            background: #0f172a;
+        }
+
+        body.dark-mode .main-header {
+            background: rgba(15, 23, 42, 0.95) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .header-logo img.logo-azul {
+            display: none;
+        }
+
+        body.dark-mode .header-logo img.logo-branca {
+            display: block;
+        }
+
+        body.dark-mode .header-icon-btn {
+            color: #94a3b8 !important;
+        }
+
+        body.dark-mode .header-icon-btn:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+        }
+
+        body.dark-mode .user-name {
+            color: #e2e8f0 !important;
+        }
+
+        body.dark-mode .user-profile-header:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .user-dropdown-menu {
+            background: #1e293b;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .dropdown-header {
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .dropdown-user-name {
+            color: #f1f5f9;
+        }
+
+        body.dark-mode .dropdown-user-email {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .dropdown-item {
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .dropdown-divider {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .greeting-title,
+        body.dark-mode .greeting-title span {
+            color: white !important;
+        }
+
+        body.dark-mode .greeting-quote {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        body.dark-mode .greeting-date-text {
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+
+        body.dark-mode .greeting-time {
+            background: rgba(30, 41, 59, 0.95) !important;
+            color: white !important;
+        }
+
+        body.dark-mode .module-card {
+            background: rgba(30, 41, 59, 0.88) !important;
+            border-color: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2), 0 1px 3px rgba(0,0,0,0.15) !important;
+        }
+
+        body.dark-mode .module-card:hover {
+            background: rgba(30, 41, 59, 0.95) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.2), 0 0 40px var(--glow-shadow, rgba(59,130,246,0.08)) !important;
+        }
+
+        body.dark-mode .module-card::after {
+            background: radial-gradient(ellipse at 30% 20%, var(--glow-color, rgba(59,130,246,0.06)), transparent 70%) !important;
+        }
+
+        body.dark-mode .module-title {
+            color: #f1f5f9 !important;
+        }
+
+        body.dark-mode .module-desc {
+            color: #94a3b8 !important;
+        }
+
+        body.dark-mode .module-arrow {
+            background: rgba(255, 255, 255, 0.06) !important;
+            color: rgba(255, 255, 255, 0.4) !important;
+        }
+
+        body.dark-mode .module-card:hover .module-arrow {
+            color: white !important;
+        }
+
+        body.dark-mode .module-card.compras .module-icon { background: rgba(99, 102, 241, 0.15) !important; color: #818cf8 !important; }
+        body.dark-mode .module-card.vendas .module-icon { background: rgba(16, 185, 129, 0.15) !important; color: #34d399 !important; }
+        body.dark-mode .module-card.nfe .module-icon { background: rgba(249, 115, 22, 0.15) !important; color: #fb923c !important; }
+        body.dark-mode .module-card.pcp .module-icon { background: rgba(100, 116, 139, 0.2) !important; color: #94a3b8 !important; }
+        body.dark-mode .module-card.financeiro .module-icon { background: rgba(168, 85, 247, 0.15) !important; color: #c084fc !important; }
+        body.dark-mode .module-card.rh .module-icon { background: rgba(236, 72, 153, 0.15) !important; color: #f472b6 !important; }
+
+        body.dark-mode .header-search-container,
+        body.dark-mode #header-search-container {
+            background: #1e293b !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        body.dark-mode #header-search-input {
+            background: #0f172a !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+            color: white !important;
+        }
+
+        body.dark-mode #header-search-input::placeholder {
+            color: #64748b !important;
+        }
+
+        body.dark-mode .search-modules-hint {
+            background: transparent !important;
+        }
+
+        body.dark-mode .search-hint-title {
+            color: #94a3b8 !important;
+        }
+
+        body.dark-mode .search-module-item {
+            background: #0f172a !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+
+        body.dark-mode .search-module-item:hover {
+            background: rgba(59, 130, 246, 0.2) !important;
+            border-color: var(--blue-600) !important;
+        }
+
+        body.dark-mode .search-module-item span {
+            color: #e2e8f0 !important;
+        }
+
+        body.dark-mode .search-hint-tips {
+            background: rgba(255, 255, 255, 0.05) !important;
+            color: #94a3b8 !important;
+        }
+
+        /* Modais Dark Mode */
+        body.dark-mode .modal-perfil-content,
+        body.dark-mode .modal-preferencias-content {
+            background: #1e293b;
+        }
+
+        body.dark-mode .modal-perfil-header,
+        body.dark-mode .modal-preferencias-header {
+            border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .modal-perfil-header h2,
+        body.dark-mode .modal-preferencias-header h2 {
+            color: #f1f5f9;
+        }
+
+        body.dark-mode .modal-close-btn {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .modal-close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        body.dark-mode .perfil-nome-usuario {
+            color: #f1f5f9;
+        }
+
+        body.dark-mode .perfil-email-usuario {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .perfil-info-label {
+            color: #64748b;
+        }
+
+        body.dark-mode .perfil-info-value {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .perfil-input-group label {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .perfil-input-group input {
+            background: #0f172a;
+            border-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        body.dark-mode .perfil-input-group input:focus {
+            border-color: var(--blue-600);
+        }
+
+        body.dark-mode .perfil-input-hint {
+            color: #64748b;
+        }
+
+        body.dark-mode .preferencia-item {
+            background: #0f172a;
+        }
+
+        body.dark-mode .preferencia-info h4 {
+            color: #f1f5f9;
+        }
+
+        body.dark-mode .preferencia-info p {
+            color: #94a3b8;
+        }
+
+        body.dark-mode .modal-perfil-footer,
+        body.dark-mode .modal-preferencias-footer {
+            border-top-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .btn-modal-secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        body.dark-mode .btn-modal-secondary:hover {
+            background: #475569;
+        }
+    </style>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <!-- Background Manager vai inserir o fundo aqui -->
+    <div class="animated-gradient"></div>
+
+    <header class="main-header">
+        <div class="header-content">
+            <div class="header-logo">
+                <img src="/images/Logo Monocromatico - Azul - Aluforce.png" alt="ALUFORCE" class="logo-azul" id="logo-azul">
+                <img src="/images/Logo Monocromatico - Branco - Aluforce copy.webp" alt="ALUFORCE" class="logo-branca" id="logo-branca" style="display:none;">
+            </div>
+
+            <div class="header-right">
+                <div class="header-search-wrapper">
+                    <button class="header-icon-btn" id="search-btn" title="Buscar">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <div id="header-search-container" class="header-search-container">
+                        <input type="search" id="header-search-input" placeholder="O que você deseja pesquisar?" autocomplete="off">
+                        <div id="header-search-results" class="header-search-results"></div>
+                    </div>
+                </div>
+
+                <button class="header-icon-btn" id="settings-btn" title="Configurações" data-admin-only="true" style="display:none;">
+                    <i class="fas fa-cog"></i>
+                </button>
+
+                <button class="header-icon-btn" id="notifications-btn" title="Notificações">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-dot" id="notification-count"></span>
+                </button>
+
+                <button class="header-icon-btn" id="help-btn" title="Ajuda">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+
+                <div class="header-divider"></div>
+
+                <div class="user-profile-header" id="user-profile">
+                    <div class="user-avatar-header" id="user-avatar">U</div>
+                    <span class="user-name" id="user-name-display">Usuário</span>
+
+                    <div class="user-dropdown-menu" id="user-dropdown">
+                        <div class="dropdown-header">
+                            <div class="dropdown-avatar" id="dropdown-avatar">U</div>
+                            <div class="dropdown-info">
+                                <span class="dropdown-user-name" id="dropdown-user-name">Usuário</span>
+                                <span class="dropdown-user-email" id="dropdown-user-email">usuario@aluforce.ind.br</span>
+                            </div>
+                        </div>
+                        <hr class="dropdown-divider">
+                        <div class="dropdown-options">
+                            <div class="dropdown-item" id="profile-option">
+                                <i class="fas fa-user"></i>
+                                <span>Meu Perfil</span>
+                            </div>
+                            <div class="dropdown-item" id="preferences-option">
+                                <i class="fas fa-sliders-h"></i>
+                                <span>Preferências</span>
+                            </div>
+                            <div class="dropdown-item" id="admin-users-option" data-admin-only style="display: none;">
+                                <i class="fas fa-users-cog"></i>
+                                <span>Gerenciar Usuários</span>
+                            </div>
+                            <div class="dropdown-item" id="settings-option" data-admin-only="true" style="display: none;">
+                                <i class="fas fa-cog"></i>
+                                <span>Configurações</span>
+                            </div>
+                            <hr class="dropdown-divider">
+                            <div class="dropdown-item logout-item" id="logout-option">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Sair</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <section class="greeting-section">
+            <div class="greeting-date">
+                <span class="greeting-date-text" id="current-date"></span>
+                <div class="greeting-time">
+                    <i class="fas fa-clock"></i>
+                    <span id="current-time"></span>
+                </div>
+            </div>
+            <h1 class="greeting-title">Olá, <span id="greeting-name">Usuário</span></h1>
+            <p class="greeting-quote">Grandes conquistas exigem grandes esforços.</p>
+        </section>
+
+        <section class="modules-grid">
+            <a href="/modules/Compras/index.html" class="module-card compras" data-area="compras">
+                <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+                <div class="module-icon"><i class="fas fa-cart-shopping"></i></div>
+                <div class="module-info">
+                    <div class="module-title">Compras</div>
+                    <div class="module-desc">Gestão de pedidos e fornecedores</div>
+                </div>
+            </a>
+
+            <a href="/modules/Vendas/public/index.html" class="module-card vendas" data-area="vendas">
+                <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+                <div class="module-icon"><i class="fas fa-chart-line"></i></div>
+                <div class="module-info">
+                    <div class="module-title">Vendas</div>
+                    <div class="module-desc">Pedidos de venda e faturamento</div>
+                </div>
+            </a>
+
+            <a href="/modules/NFe/index.html" class="module-card nfe" data-area="nfe">
+                <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+                <div class="module-icon"><i class="fas fa-file-invoice"></i></div>
+                <div class="module-info">
+                    <div class="module-title">Faturamento & Logística</div>
+                    <div class="module-desc">Emissão de notas e rastreio</div>
+                </div>
+            </a>
+
+            <a href="/modules/PCP/index.html" class="module-card pcp" data-area="pcp">
+                <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+                <div class="module-icon"><i class="fas fa-gears"></i></div>
+                <div class="module-info">
+                    <div class="module-title">PCP</div>
+                    <div class="module-desc">Planejamento e controle de produção</div>
+                </div>
+            </a>
+
+            <a href="/modules/Financeiro/index.html" class="module-card financeiro" data-area="financeiro">
+                <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+                <div class="module-icon"><i class="fas fa-wallet"></i></div>
+                <div class="module-info">
+                    <div class="module-title">Financeiro</div>
+                    <div class="module-desc">Contas a pagar e receber</div>
+                </div>
+            </a>
+
+            <a href="#" class="module-card rh" data-area="rh" id="rh-module-card" onclick="navegarRH(event)">
+                <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+                <div class="module-icon"><i class="fas fa-people-group"></i></div>
+                <div class="module-info">
+                    <div class="module-title">Recursos Humanos</div>
+                    <div class="module-desc">Gestão de colaboradores</div>
+                </div>
+            </a>
+        </section>
+
+    </main>
+
+    <!-- Scripts do sistema original -->
+    <script src="/js/header-controls.js?v=20260219"></script>
+    <script src="/js/admin-permissions.js?v=20260219"></script>
+    <script src="/js/notification-manager.js?v=20260219"></script>
+
+    <!-- Carregar modais de configuração -->
+    <script>
+        // Carrega config-modals.html e config-modals-extended.html
+        Promise.all([
+            fetch('/config-modals.html').then(r => r.ok ? r.text() : ''),
+            fetch('/config-modals-extended.html').then(r => r.ok ? r.text() : '')
+        ]).then(([html1, html2]) => {
+            const container = document.createElement('div');
+            container.id = 'config-modals-container';
+            container.innerHTML = html1 + html2;
+            document.body.appendChild(container);
+            console.log('✅ Modais de configuração carregados (base + extended)');
+        }).catch(err => console.warn('Modais não carregados:', err));
+    </script>
+
+    <script>
+        // Atualizar data e hora
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit' };
+
+            document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR', dateOptions);
+            document.getElementById('current-time').textContent = now.toLocaleTimeString('pt-BR', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 60000);
+
+        // Função para obter usuário logado (usa 'userData' - chave do sistema)
+        function getUsuarioLogado() {
+            try {
+                const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+                return userData;
+            } catch (e) {
+                return {};
+            }
+        }
+
+        // Função para configurar avatar
+        function setupAvatar(firstName, email, element, avatarUrl) {
+            if (!element) return;
+            const initial = (firstName || 'U').charAt(0).toUpperCase();
+
+            if (avatarUrl) {
+                element.innerHTML = `<img src="${avatarUrl}" alt="${firstName}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent='${initial}'">`;
+            } else {
+                element.textContent = initial;
+            }
+        }
+
+        // Função principal para atualizar UI com dados do usuário
+        function updateUserUI(user) {
+            try {
+                if (!user || Object.keys(user).length === 0) {
+                    console.log('Nenhum usuário logado');
+                    return;
+                }
+
+                // Extrair nome - tentar múltiplos campos
+                const fullName = user.nome || user.nome_completo || user.email || 'Usuário';
+                const firstName = fullName.split(' ')[0] || 'Usuário';
+                const displayName = user.apelido || firstName;
+                const userEmail = user.email || 'usuario@aluforce.ind.br';
+                const userAvatarUrl = user.avatar || user.foto;
+
+                // Nome + Sobrenome para dropdown (nome completo só em RH)
+                function nomeESobrenome(nome) {
+                    if (!nome) return 'Usuário';
+                    const parts = nome.trim().split(/\s+/);
+                    if (parts.length <= 2) return nome;
+                    return parts[0] + ' ' + parts[parts.length - 1];
+                }
+
+                // Atualizar saudação
+                const greetingName = document.getElementById('greeting-name');
+                if (greetingName) greetingName.textContent = displayName;
+
+                // Atualizar nome no header
+                const userName = document.getElementById('user-name-display');
+                if (userName) userName.textContent = displayName;
+
+                // Atualizar avatares
+                const userAvatar = document.getElementById('user-avatar');
+                const dropdownAvatar = document.getElementById('dropdown-avatar');
+
+                setupAvatar(firstName, userEmail, userAvatar, userAvatarUrl);
+                setupAvatar(firstName, userEmail, dropdownAvatar, userAvatarUrl);
+
+                // Atualizar dropdown
+                const dropdownName = document.getElementById('dropdown-user-name');
+                const dropdownEmail = document.getElementById('dropdown-user-email');
+                if (dropdownName) dropdownName.textContent = nomeESobrenome(fullName);
+                if (dropdownEmail) dropdownEmail.textContent = userEmail;
+
+                // Verificar se é admin
+                const isAdmin = user.is_admin === 1 || user.is_admin === true ||
+                               user.role === 'admin' || user.role === 'administrador';
+
+                // Mostrar opções de admin
+                if (isAdmin) {
+                    document.querySelectorAll('[data-admin-only]').forEach(el => {
+                        el.style.display = '';
+                    });
+                }
+
+                // Aplicar permissões de módulos
+                applyModulePermissions(user);
+
+                console.log('✓ UI atualizada para:', displayName);
+            } catch (err) {
+                console.error('Erro ao atualizar UI:', err);
+            }
+        }
+
+        // Permissões por email
+        const emailPermissions = {
+            // Administração / TI - Acesso total
+            'ti@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'douglas@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'andreia@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'antonio@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'egidio@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'rh@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'fernando@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'fernando.kofugi@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            // Financeiro - Apenas Financeiro + RH (funcionário)
+            'financeiro2@aluforce.ind.br': ['financeiro', 'rh'],
+            'financeiro3@aluforce.ind.br': ['financeiro', 'rh'],
+            // Compras - Guilherme Bastos
+            'compras@aluforce.ind.br': ['vendas', 'compras', 'pcp', 'financeiro'],
+            // ADM (Junior) - Acesso total
+            'adm@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            // Douglas (email atualizado)
+            'aluforce@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            // Jamesson - Apenas PCP (somente visualização + relatórios)
+            'jamesson@aluforce.ind.br': ['pcp'],
+            // Teste
+            'teste@aluforce.ind.br': ['vendas', 'rh', 'pcp', 'financeiro', 'nfe', 'compras'],
+            // Contas QA (Gerentes - Full Admin por Módulo)
+            'qafinanceiro@aluforce.ind.br': ['financeiro', 'vendas', 'compras', 'nfe', 'rh'],
+            'qavendas@aluforce.ind.br': ['vendas', 'rh'],
+            'qapcp@aluforce.ind.br': ['pcp', 'rh'],
+            'qarh@aluforce.ind.br': ['rh'],
+            'qacompras@aluforce.ind.br': ['vendas', 'compras', 'pcp', 'financeiro'],
+            'qanfe@aluforce.ind.br': ['nfe', 'faturamento', 'rh'],
+            'qapainel@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh', 'faturamento']
+        };
+
+        // Aplicar permissões aos módulos
+        function applyModulePermissions(user) {
+            if (!user) return;
+
+            const isAdmin = user.is_admin === 1 || user.is_admin === true ||
+                           user.role === 'admin' || user.role === 'administrador';
+
+            // Admin tem acesso total
+            if (isAdmin) {
+                document.querySelectorAll('.module-card').forEach(card => {
+                    card.style.display = '';
+                    card.style.opacity = '1';
+                });
+                return;
+            }
+
+            // Obter áreas permitidas do banco ou por email
+            let allowedAreas = [];
+
+            if (user.areas && Array.isArray(user.areas) && user.areas.length > 0) {
+                allowedAreas = user.areas.map(a => a.toLowerCase());
+            } else if (user.email && emailPermissions[user.email.toLowerCase()]) {
+                allowedAreas = emailPermissions[user.email.toLowerCase()];
+            } else {
+                // Se não há permissões definidas, mostrar apenas RH (padrão seguro)
+                allowedAreas = ['rh'];
+            }
+
+            // Aplicar permissões (usa setProperty com !important para vencer CSS)
+            document.querySelectorAll('.module-card').forEach(card => {
+                const area = card.dataset.area;
+                if (area && !allowedAreas.includes(area.toLowerCase())) {
+                    card.style.setProperty('display', 'none', 'important');
+                    card.style.setProperty('opacity', '0', 'important');
+                    card.style.setProperty('height', '0', 'important');
+                    card.style.setProperty('padding', '0', 'important');
+                    card.style.setProperty('margin', '0', 'important');
+                    card.style.setProperty('overflow', 'hidden', 'important');
+                    card.style.setProperty('border', 'none', 'important');
+                    card.style.setProperty('visibility', 'hidden', 'important');
+                } else {
+                    card.style.setProperty('display', 'flex', 'important');
+                    card.style.opacity = '1';
+                    card.style.height = '';
+                    card.style.padding = '';
+                    card.style.margin = '';
+                    card.style.overflow = '';
+                    card.style.border = '';
+                    card.style.visibility = '';
+                }
+            });
+        }
+
+        // Carregar dados do usuário ao iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            const user = getUsuarioLogado();
+            updateUserUI(user);
+
+            // Buscar dados atualizados do servidor (garante áreas/permissões corretas)
+            fetch('/api/me', {
+                headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || localStorage.getItem('token') || '') },
+                credentials: 'include'
+            })
+            .then(r => r.ok ? r.json() : null)
+            .then(serverUser => {
+                if (serverUser) {
+                    // Atualizar localStorage com dados frescos do servidor
+                    const currentData = JSON.parse(localStorage.getItem('userData') || '{}');
+                    const merged = Object.assign({}, currentData, serverUser);
+                    localStorage.setItem('userData', JSON.stringify(merged));
+                    // Re-aplicar permissões com dados atualizados
+                    updateUserUI(merged);
+                    console.log('[Dashboard] ✅ Permissões atualizadas do servidor, áreas:', merged.areas || []);
+                }
+            })
+            .catch(err => console.warn('[Dashboard] Não foi possível verificar /api/me:', err));
+        });
+
+
+
+        // Escutar evento de autenticação
+        window.addEventListener('authSuccess', function(e) {
+            if (e.detail && e.detail.user) {
+                updateUserUI(e.detail.user);
+            }
+        });
+
+        // Toggle dropdown do usuário
+        document.getElementById('user-profile').addEventListener('click', function(e) {
+            e.stopPropagation();
+            document.getElementById('user-dropdown').classList.toggle('active');
+        });
+
+        document.addEventListener('click', function() {
+            document.getElementById('user-dropdown').classList.remove('active');
+        });
+
+        // Toggle pesquisa
+        document.getElementById('search-btn').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const container = document.getElementById('header-search-container');
+            container.classList.toggle('active');
+            if (container.classList.contains('active')) {
+                document.getElementById('header-search-input').focus();
+            }
+        });
+
+        // Logout
+        document.getElementById('logout-option').addEventListener('click', function() {
+            // Limpar todos os dados de autenticação
+            ['authToken', 'token', 'userData', 'user', 'user_data', 'userName'].forEach(k => {
+                try {
+                    localStorage.removeItem(k);
+                    sessionStorage.removeItem(k);
+                } catch {}
+            });
+            window.location.href = '/login.html';
+        });
+
+        // Navegação RH
+        function navegarRH(event) {
+            event.preventDefault();
+            const user = getUsuarioLogado();
+            const isAdmin = user.is_admin === 1 || user.is_admin === true ||
+                           user.role === 'admin' || user.role === 'administrador';
+
+            if (isAdmin) {
+                window.location.href = '/modules/RH/public/areaadm.html';
+            } else {
+                window.location.href = '/modules/RH/public/funcionario.html';
+            }
+        }
+
+        // Admin users option
+        document.getElementById('admin-users-option')?.addEventListener('click', function() {
+            window.location.href = '/admin/usuarios.html';
+        });
+
+        // Profile option
+        document.getElementById('profile-option')?.addEventListener('click', function() {
+            if (typeof abrirModalPerfil === 'function') {
+                abrirModalPerfil();
+            }
+        });
+
+        // Preferences option
+        document.getElementById('preferences-option')?.addEventListener('click', function() {
+            if (typeof abrirModalPreferencias === 'function') {
+                abrirModalPreferencias();
+            }
+        });
+
+        // Settings option
+        document.getElementById('settings-option')?.addEventListener('click', function() {
+            if (typeof abrirModalConfig === 'function') {
+                abrirModalConfig();
+            }
+        });
+
+        // Botão de configurações no header (engrenagem)
+        document.getElementById('settings-btn')?.addEventListener('click', function() {
+            if (typeof abrirModalConfig === 'function') {
+                abrirModalConfig();
+            } else {
+                // Fallback se a função não existir
+                console.log('Modal de configurações não disponível');
+            }
+        });
+
+        // Botão de notificações no header (sino)
+        document.getElementById('notifications-btn')?.addEventListener('click', function() {
+            if (typeof abrirCentralNotificacoes === 'function') {
+                abrirCentralNotificacoes();
+            } else if (typeof toggleNotificationPanel === 'function') {
+                toggleNotificationPanel();
+            } else {
+                // Fallback - verificar se existe o painel de notificações
+                const notifPanel = document.getElementById('notification-panel') ||
+                                   document.getElementById('notifications-panel') ||
+                                   document.querySelector('.notification-panel');
+                if (notifPanel) {
+                    notifPanel.classList.toggle('active');
+                    notifPanel.classList.toggle('show');
+                } else {
+                    console.log('Central de notificações não disponível');
+                }
+            }
+        });
+
+        // Botão de ajuda no header (interrogação)
+        document.getElementById('help-btn')?.addEventListener('click', function() {
+            window.open('/ajuda/index.html', '_blank');
+        });
+
+        // Função abrirModalConfig para abrir modal de configurações
+        // Salvar título original da página para restaurar ao fechar
+        window._originalPageTitle = document.title;
+
+        window.abrirModalConfig = function() {
+            console.log('🔧 Abrindo modal de configurações...');
+            // Salvar título original antes de alterar
+            if (!window._originalPageTitle) {
+                window._originalPageTitle = document.title;
+            }
+            // Tenta abrir o modal inline se existir
+            const modal = document.getElementById('modal-configuracoes');
+            if (modal) {
+                modal.removeAttribute('style');
+                modal.classList.add('active');
+                modal.style.setProperty('display', 'flex', 'important');
+                modal.style.setProperty('z-index', '10002', 'important');
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+                // Título dinâmico ao abrir
+                document.title = 'Aluforce: Configurações do Sistema';
+                console.log('✅ Modal de configurações ativado com título dinâmico');
+            } else {
+                // Fallback: abre a página de configurações em modal
+                window.location.href = '/config-modals.html';
+            }
+        };
+
+        // Função abrirCentralNotificacoes
+        window.abrirCentralNotificacoes = function() {
+            console.log('🔔 Abrindo central de notificações...');
+            if (typeof NotificationManager !== 'undefined' && NotificationManager.toggle) {
+                NotificationManager.toggle();
+            } else {
+                const panel = document.getElementById('global-notification-panel');
+                if (panel) {
+                    panel.classList.toggle('active');
+                }
+            }
+        };
+    </script>
+
+    <!-- Performance Utilities -->
+    <script src="/js/performance-utils.js?v=20260213"></script>
+
+    <!-- Scripts adicionais do sistema -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260219"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/modal-fix-global.js?v=20260219"></script>
+    <script src="/js/notification-manager.js?v=20260219"></script>
+    <script src="/js/background-manager.js?v=20260214"></script>
+    <script src="/js/config-modals.js?v=20260219"></script>
+
+    <!-- Modal Meu Perfil -->
+    <div class="modal-perfil-overlay" id="modal-perfil">
+        <div class="modal-perfil-content">
+            <div class="modal-perfil-header">
+                <h2><i class="fas fa-user-circle"></i> Meu Perfil</h2>
+                <button class="modal-close-btn" onclick="fecharModalPerfil()">&times;</button>
+            </div>
+            <div class="modal-perfil-body">
+                <div class="perfil-avatar-section">
+                    <div class="perfil-avatar-wrapper">
+                        <div class="perfil-avatar-large" id="perfil-avatar-letra">U</div>
+                        <div class="perfil-avatar-edit" onclick="document.getElementById('perfil-foto-input').click()" title="Alterar foto">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <input type="file" id="perfil-foto-input" accept="image/*" style="display:none" onchange="handleFotoUpload(this)">
+                    </div>
+                    <div class="perfil-nome-usuario" id="perfil-nome">Usuário</div>
+                    <div class="perfil-email-usuario" id="perfil-email">usuario@aluforce.ind.br</div>
+                </div>
+
+                <div class="perfil-input-group">
+                    <label for="perfil-apelido">Apelido (usado nas saudações)</label>
+                    <input type="text" id="perfil-apelido" placeholder="Como você quer ser chamado?">
+                    <div class="perfil-input-hint">Este nome aparecerá nas saudações do sistema</div>
+                </div>
+
+                <div class="perfil-info-grid">
+                    <div class="perfil-info-group">
+                        <div class="perfil-info-label">Cargo / Função</div>
+                        <div class="perfil-info-value" id="perfil-cargo">-</div>
+                    </div>
+
+                    <div class="perfil-info-group">
+                        <div class="perfil-info-label">Departamento</div>
+                        <div class="perfil-info-value" id="perfil-departamento">-</div>
+                    </div>
+                </div>
+
+                <div class="perfil-info-group">
+                    <div class="perfil-info-label">Nível de Acesso</div>
+                    <div class="perfil-info-value" id="perfil-nivel">Usuário</div>
+                </div>
+            </div>
+            <div class="modal-perfil-footer">
+                <button class="btn-modal btn-modal-secondary" onclick="fecharModalPerfil()">Cancelar</button>
+                <button class="btn-modal btn-modal-primary" onclick="salvarPerfil()">
+                    <i class="fas fa-check" style="margin-right:6px;"></i>Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Preferências -->
+    <div class="modal-preferencias-overlay" id="modal-preferencias">
+        <div class="modal-preferencias-content">
+            <div class="modal-preferencias-header">
+                <h2><i class="fas fa-sliders-h"></i> Preferências</h2>
+                <button class="modal-close-btn" onclick="fecharModalPreferencias()">&times;</button>
+            </div>
+            <div class="modal-preferencias-body">
+                <div class="preferencia-item">
+                    <div class="preferencia-info">
+                        <h4>Notificações</h4>
+                        <p>Receber alertas do sistema</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-notificacoes" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="preferencia-item">
+                    <div class="preferencia-info">
+                        <h4>Som de Notificações</h4>
+                        <p>Tocar som ao receber notificação</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-som">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="preferencia-item">
+                    <div class="preferencia-info">
+                        <h4>Tema Escuro</h4>
+                        <p>Ativar modo dark</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-dark-mode">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="preferencia-item">
+                    <div class="preferencia-info">
+                        <h4>Fundos Animados</h4>
+                        <p>Rotação automática de fundos</p>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="pref-fundos" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-preferencias-footer">
+                <button class="btn-modal btn-modal-secondary" onclick="fecharModalPreferencias()">Cancelar</button>
+                <button class="btn-modal btn-modal-primary" onclick="salvarPreferencias()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Funções dos Modais de Perfil e Preferências
+    window.abrirModalPerfil = function() {
+        const modal = document.getElementById('modal-perfil');
+        if (!modal) return;
+
+        // Carregar dados do usuário
+        try {
+            const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+            const userId = userData.id || 'default';
+            const userProfile = JSON.parse(localStorage.getItem(`userProfile_${userId}`) || '{}');
+
+            const nome = userData.nome || userData.name || 'Usuário';
+            const email = userData.email || 'usuario@aluforce.ind.br';
+            const cargo = userData.cargo || userData.role || '-';
+            const departamento = userData.departamento || userData.setor || '-';
+            const isAdmin = userData.is_admin === 1 || userData.role === 'admin';
+            const apelido = userProfile.apelido || userData.apelido || '';
+            const fotoUrl = userProfile.foto || userData.foto || userData.avatar || '';
+
+            // Avatar
+            const avatarEl = document.getElementById('perfil-avatar-letra');
+            if (fotoUrl) {
+                avatarEl.innerHTML = `<img src="${fotoUrl}" alt="Avatar">`;
+            } else {
+                avatarEl.innerHTML = nome.charAt(0).toUpperCase();
+            }
+
+            document.getElementById('perfil-nome').textContent = nome;
+            document.getElementById('perfil-email').textContent = email;
+            document.getElementById('perfil-apelido').value = apelido;
+            document.getElementById('perfil-cargo').textContent = cargo;
+            document.getElementById('perfil-departamento').textContent = departamento;
+            document.getElementById('perfil-nivel').textContent = isAdmin ? 'Administrador' : 'Usuário';
+        } catch(e) {
+            console.error('Erro ao carregar dados do perfil:', e);
+        }
+
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        // Fechar dropdown do usuário
+        document.getElementById('user-dropdown')?.classList.remove('active');
+    };
+
+    window.fecharModalPerfil = function() {
+        const modal = document.getElementById('modal-perfil');
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    };
+
+    // Função para tratar upload de foto
+    window.handleFotoUpload = function(input) {
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+
+            // Validar tamanho (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                alert('A imagem deve ter no máximo 2MB');
+                return;
+            }
+
+            // Guardar arquivo para upload ao salvar
+            window._tempFotoFile = file;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                // Atualizar preview no modal
+                const avatarEl = document.getElementById('perfil-avatar-letra');
+                avatarEl.innerHTML = `<img src="${e.target.result}" alt="Avatar">`;
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    // Função para salvar perfil (com upload de foto ao servidor)
+    window.salvarPerfil = async function() {
+        try {
+            const apelido = document.getElementById('perfil-apelido').value.trim();
+            const fotoFile = window._tempFotoFile || null;
+
+            let userData = JSON.parse(localStorage.getItem('userData') || '{}');
+            const userId = userData.id || 'default';
+            let userProfile = JSON.parse(localStorage.getItem(`userProfile_${userId}`) || '{}');
+            let novaFotoUrl = null;
+
+            // Upload foto ao servidor se foi alterada
+            if (fotoFile) {
+                try {
+                    const formData = new FormData();
+                    formData.append('avatar', fotoFile);
+                    const token = sessionStorage.getItem('tabAuthToken') || localStorage.getItem('authToken');
+                    const upHeaders = {};
+                    if (token) upHeaders['Authorization'] = `Bearer ${token}`;
+
+                    const uploadResp = await fetch('/api/upload-avatar', {
+                        method: 'POST',
+                        headers: upHeaders,
+                        credentials: 'include',
+                        body: formData
+                    });
+                    if (uploadResp.ok) {
+                        const result = await uploadResp.json();
+                        novaFotoUrl = result.avatarUrl;
+                        console.log('[Perfil] ✅ Foto salva no servidor:', novaFotoUrl);
+                    } else {
+                        console.error('[Perfil] Erro upload foto:', uploadResp.status);
+                    }
+                } catch(uploadErr) {
+                    console.error('[Perfil] Erro upload:', uploadErr);
+                }
+            }
+
+            // Salvar apelido no servidor
+            try {
+                const token = sessionStorage.getItem('tabAuthToken') || localStorage.getItem('authToken');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                await fetch('/api/me', {
+                    method: 'PUT',
+                    headers: headers,
+                    credentials: 'include',
+                    body: JSON.stringify({ apelido: apelido || null })
+                });
+            } catch(e) { console.error('[Perfil] Erro ao salvar apelido:', e); }
+
+            // Atualizar localStorage
+            if (apelido) {
+                userProfile.apelido = apelido;
+                userData.apelido = apelido;
+            } else {
+                delete userProfile.apelido;
+                delete userData.apelido;
+            }
+
+            if (novaFotoUrl) {
+                userProfile.foto = novaFotoUrl;
+                userData.foto = novaFotoUrl;
+                userData.avatar = novaFotoUrl;
+                userData.foto_perfil_url = novaFotoUrl;
+            }
+
+            localStorage.setItem(`userProfile_${userId}`, JSON.stringify(userProfile));
+            localStorage.setItem('userData', JSON.stringify(userData));
+
+            // Atualizar UI imediatamente
+            atualizarUIComPerfil();
+
+            // Disparar evento para outras páginas/módulos
+            const fotoFinal = novaFotoUrl || userProfile.foto || userData.foto || '';
+            if (fotoFinal) {
+                window.dispatchEvent(new CustomEvent('avatar-updated', { detail: { avatarUrl: fotoFinal } }));
+            }
+
+            // Limpar temporários
+            window._tempFotoFile = null;
+
+            fecharModalPerfil();
+
+            // Feedback
+            if (typeof showToast === 'function') {
+                showToast('Perfil atualizado com sucesso!', 'success');
+            } else {
+                alert('Perfil salvo!');
+            }
+        } catch(e) {
+            console.error('Erro ao salvar perfil:', e);
+            alert('Erro ao salvar perfil');
+        }
+    };
+
+    // Função para atualizar toda a UI com os dados do perfil
+    window.atualizarUIComPerfil = function() {
+        try {
+            const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+            const userId = userData.id || 'default';
+            const userProfile = JSON.parse(localStorage.getItem(`userProfile_${userId}`) || '{}');
+
+            const nome = userData.nome || userData.name || 'Usuário';
+            const firstName = nome.split(' ')[0];
+            const apelido = userProfile.apelido || userData.apelido || firstName;
+            const fotoUrl = userProfile.foto || userData.foto || userData.avatar || '';
+
+            // Atualizar saudação
+            const greetingName = document.getElementById('greeting-name');
+            if (greetingName) greetingName.textContent = apelido;
+
+            // Atualizar nome no header
+            const userNameDisplay = document.getElementById('user-name-display');
+            if (userNameDisplay) userNameDisplay.textContent = apelido;
+
+            // Atualizar todos os avatares
+            const avatares = [
+                document.getElementById('user-avatar'),
+                document.getElementById('dropdown-avatar')
+            ];
+
+            avatares.forEach(avatar => {
+                if (!avatar) return;
+                if (fotoUrl) {
+                    avatar.innerHTML = `<img src="${fotoUrl}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+                } else {
+                    avatar.innerHTML = firstName.charAt(0).toUpperCase();
+                }
+            });
+
+            console.log('✓ UI atualizada com perfil:', apelido);
+        } catch(e) {
+            console.error('Erro ao atualizar UI:', e);
+        }
+    };
+
+    // Carregar perfil ao iniciar
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(atualizarUIComPerfil, 100);
+    });
+
+    window.abrirModalPreferencias = function() {
+        const modal = document.getElementById('modal-preferencias');
+        if (!modal) return;
+
+        // Carregar preferências salvas
+        try {
+            const prefs = JSON.parse(localStorage.getItem('userPreferences') || '{}');
+            document.getElementById('pref-notificacoes').checked = prefs.notificacoes !== false;
+            document.getElementById('pref-som').checked = prefs.som === true;
+            document.getElementById('pref-dark-mode').checked = localStorage.getItem('darkMode') === '1';
+            document.getElementById('pref-fundos').checked = prefs.fundos !== false;
+        } catch(e) {
+            console.error('Erro ao carregar preferências:', e);
+        }
+
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        // Fechar dropdown do usuário
+        document.getElementById('user-dropdown')?.classList.remove('active');
+    };
+
+    window.fecharModalPreferencias = function() {
+        const modal = document.getElementById('modal-preferencias');
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    };
+
+    window.salvarPreferencias = function() {
+        try {
+            const prefs = {
+                notificacoes: document.getElementById('pref-notificacoes').checked,
+                som: document.getElementById('pref-som').checked,
+                fundos: document.getElementById('pref-fundos').checked
+            };
+
+            localStorage.setItem('userPreferences', JSON.stringify(prefs));
+
+            // Aplicar dark mode
+            const darkMode = document.getElementById('pref-dark-mode').checked;
+            localStorage.setItem('darkMode', darkMode ? '1' : '0');
+            aplicarDarkMode(darkMode);
+
+            // Aplicar fundos animados
+            if (typeof BackgroundManager !== 'undefined') {
+                if (prefs.fundos) {
+                    BackgroundManager.startAutoChange();
+                    console.log('✅ Fundos animados: ATIVADO');
+                } else {
+                    BackgroundManager.stopAutoChange();
+                    console.log('⏸️ Fundos animados: PAUSADO');
+                }
+            }
+
+            // Aplicar configuração de notificações
+            if (typeof NotificationManager !== 'undefined') {
+                NotificationManager.setEnabled(prefs.notificacoes);
+                NotificationManager.setSoundEnabled(prefs.som);
+                console.log('🔔 Notificações:', prefs.notificacoes ? 'ATIVADAS' : 'DESATIVADAS');
+                console.log('🔊 Som:', prefs.som ? 'ATIVADO' : 'DESATIVADO');
+            }
+
+            // Salvar no objeto global de preferências
+            window.ALUFORCE_PREFS = prefs;
+
+            fecharModalPreferencias();
+
+            // Feedback visual
+            mostrarToast('Preferências salvas com sucesso!', 'success');
+        } catch(e) {
+            console.error('Erro ao salvar preferências:', e);
+            mostrarToast('Erro ao salvar preferências', 'error');
+        }
+    };
+
+    // Função para mostrar toast de feedback
+    window.mostrarToast = function(mensagem, tipo = 'info') {
+        // Remover toast existente
+        const existente = document.querySelector('.toast-notification');
+        if (existente) existente.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification toast-' + tipo;
+
+        const icones = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle'
+        };
+
+        toast.innerHTML = `
+            <i class="fas ${icones[tipo] || icones.info}"></i>
+            <span>${mensagem}</span>
+        `;
+
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 24px;
+            background: ${tipo === 'success' ? '#22c55e' : tipo === 'error' ? '#ef4444' : tipo === 'warning' ? '#f59e0b' : '#3b82f6'};
+            color: white;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 100000;
+            animation: toastIn 0.3s ease;
+        `;
+
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'toastOut 0.3s ease forwards';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    };
+
+    // Função para aplicar/remover dark mode
+    window.aplicarDarkMode = function(ativar) {
+        const logoAzul = document.getElementById('logo-azul');
+        const logoBranca = document.getElementById('logo-branca');
+
+        if (ativar) {
+            document.body.classList.add('dark-mode');
+            if (logoAzul) logoAzul.style.display = 'none';
+            if (logoBranca) logoBranca.style.display = 'block';
+        } else {
+            document.body.classList.remove('dark-mode');
+            if (logoAzul) logoAzul.style.display = 'block';
+            if (logoBranca) logoBranca.style.display = 'none';
+        }
+    };
+
+    // Aplicar preferências ao carregar a página
+    document.addEventListener('DOMContentLoaded', function() {
+        // Dark mode
+        const darkMode = localStorage.getItem('darkMode') === '1';
+        if (darkMode) {
+            aplicarDarkMode(true);
+        }
+
+        // Outras preferências
+        try {
+            const prefs = JSON.parse(localStorage.getItem('userPreferences') || '{}');
+            window.ALUFORCE_PREFS = prefs;
+
+            // Aplicar fundos animados
+            if (prefs.fundos === false && typeof BackgroundManager !== 'undefined') {
+                setTimeout(() => {
+                    BackgroundManager.stopAutoChange();
+                    console.log('⏸️ Fundos animados desativados por preferência');
+                }, 1000);
+            }
+
+            // Configurar notificações
+            if (typeof NotificationManager !== 'undefined') {
+                NotificationManager.setEnabled(prefs.notificacoes !== false);
+                NotificationManager.setSoundEnabled(prefs.som === true);
+            }
+        } catch(e) {
+            console.log('Preferências padrão aplicadas');
+        }
+    });
+
+    // Fechar modais com ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            fecharModalPerfil();
+            fecharModalPreferencias();
+        }
+    });
+
+    // Fechar modais ao clicar fora
+    document.getElementById('modal-perfil')?.addEventListener('click', function(e) {
+        if (e.target === this) fecharModalPerfil();
+    });
+
+    document.getElementById('modal-preferencias')?.addEventListener('click', function(e) {
+        if (e.target === this) fecharModalPreferencias();
+    });
+    </script>
+
+    <!-- Carrega modal de configurações dinamicamente -->
+    <script>
+    (function() {
+        // Criar container para modal de configurações se não existir
+        if (!document.getElementById('modal-configuracoes')) {
+            fetch('/modal-configuracoes-content.html')
+                .then(response => {
+                    if (!response.ok) throw new Error('Modal file not found');
+                    return response.text();
+                })
+                .then(html => {
+                    // Inserir o HTML do modal
+                    const container = document.createElement('div');
+                    container.innerHTML = html;
+                    const modal = container.querySelector('#modal-configuracoes');
+                    if (modal) {
+                        document.body.appendChild(modal);
+                        console.log('✅ Modal de configurações carregado');
+
+                        // Configurar eventos do modal
+                        setupModalConfig();
+                    }
+                })
+                .catch(err => console.log('Modal de configurações será carregado sob demanda:', err));
+        }
+
+        // Função para configurar eventos do modal
+        function setupModalConfig() {
+            const modal = document.getElementById('modal-configuracoes');
+            if (!modal) return;
+
+            // Botão fechar
+            const closeBtn = modal.querySelector('.modal-config-close');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', fecharModalConfig);
+            }
+
+            // Tabs
+            modal.querySelectorAll('.modal-config-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.dataset.tab;
+
+                    // Remove active de todas as tabs
+                    modal.querySelectorAll('.modal-config-tab').forEach(t => t.classList.remove('active'));
+                    modal.querySelectorAll('.modal-config-tab-content').forEach(c => c.classList.remove('active'));
+
+                    // Adiciona active na tab clicada
+                    this.classList.add('active');
+                    const content = modal.querySelector('#tab-' + tabId);
+                    if (content) content.classList.add('active');
+                });
+            });
+
+            // Fechar com ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('active')) {
+                    fecharModalConfig();
+                }
+            });
+
+            // Fechar ao clicar fora
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    fecharModalConfig();
+                }
+            });
+        }
+    })();
+
+    // Função global para fechar modal
+    function fecharModalConfig() {
+        const modal = document.getElementById('modal-configuracoes');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.setProperty('display', 'none', 'important');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+            // Restaurar título original da página
+            if (window._originalPageTitle) {
+                document.title = window._originalPageTitle;
+            } else {
+                document.title = 'Aluforce: Painel de Controle';
+            }
+            console.log('✅ Modal de configurações fechado, título restaurado');
+        }
+    }
+    </script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+</body>
+</html>

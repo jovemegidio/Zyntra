@@ -1,0 +1,66 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Notify
+        run: echo "Deploy job started for $GITHUB_SHA"
+
+      # Build/prepare (optional)
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run smoke tests (optional gating)
+        run: |
+          npm run smoke:full -- ${{ secrets.DEPLOY_TEST_USER || 'augusto.ladeira@aluforce.ind.br' }} ${{ secrets.DEPLOY_TEST_PASS || 'admin123' }} 7
+        continue-on-error: true
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          script: |
+            set -e
+            echo "Deploy: pulling changes into ${{ secrets.DEPLOY_PATH }}"
+            if [ -d "${{ secrets.DEPLOY_PATH }}" ]; then
+              cd "${{ secrets.DEPLOY_PATH }}"
+              # ensure we have the repo and reset to this commit
+              git fetch --all --prune
+              git reset --hard $GITHUB_SHA || git checkout -f main && git pull --rebase
+            else
+              git clone https://github.com/${{ github.repository }} "${{ secrets.DEPLOY_PATH }}"
+              cd "${{ secrets.DEPLOY_PATH }}"
+            fi
+            npm ci --production
+            # Restart via PM2
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 startOrRestart ecosystem.config.js --env production || pm2 restart rh-app || pm2 start ecosystem.config.js --env production
+            else
+              echo "PM2 not found on remote. Install pm2 or adjust deploy script." && exit 1
+            fi
+
+      - name: Done
+        run: echo "Deploy finished"
+
+# Notes:
+# - Set repository secrets: DEPLOY_HOST, DEPLOY_USER, SSH_PRIVATE_KEY, DEPLOY_PATH (e.g. /var/www/rh-app).
+# - Ensure the remote server has git, node, npm, and pm2 installed and that the deploy user has permissions for the deploy path.
+# - The workflow runs on pushes to main and uses the repository commit to reset the workspace on the server.

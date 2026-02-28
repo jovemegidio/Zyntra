@@ -1,0 +1,690 @@
+/* ============================================================
+   FINANCEIRO - SIDEBAR + HEADER LAYOUT SYSTEM
+   
+   Enterprise-grade layout: sidebar flex + header flow.
+   Padronizado com Vendas Design System.
+   
+   Layout: [SIDEBAR 56px] [MAIN (header + scrollable content)]
+   - Sidebar: flex child, width 56px
+   - Header:  flow in main area, 48px
+   - Content: flex overflow auto
+   
+   DEVE ser carregado DEPOIS dos CSS globais para override seletivo.
+   Sem !important exceto anti-mobile-override mínimo.
+   ============================================================ */
+
+/* === CSS CUSTOM PROPERTIES - Padronizado Vendas === */
+:root {
+    --fin-sidebar-width: 56px;
+    --fin-header-height: 48px;
+    --fin-primary-dark: #1a1a2e;
+    --fin-dark-surface: #1e293b;
+    --fin-dark-border: #334155;
+    --fin-text-muted: #94a3b8;
+    --fin-bg-gray: #f9fafb;
+    --fin-text-primary: #1e293b;
+    --fin-text-secondary: #64748b;
+    --fin-danger: #ef4444;
+    --fin-accent: #225cfa;
+    --fin-accent-hover: #1a47c4;
+}
+
+/* === RESET BASE === */
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    width: 100%;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--fin-bg-gray);
+    color: var(--fin-text-primary);
+    line-height: 1.5;
+}
+
+/* === APP CONTAINER === */
+.app-container {
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+    width: 100%;
+}
+
+/* ============================================================
+   SIDEBAR - FLEX CHILD (Padrão PCP)
+   Reset position:fixed do design-system-mobile.css
+   ============================================================ */
+.sidebar {
+    /* === RESET: Anula position:fixed do design-system-mobile.css === */
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    height: auto !important;
+    /* === Layout flex === */
+    width: var(--fin-sidebar-width);
+    min-width: var(--fin-sidebar-width);
+    max-width: var(--fin-sidebar-width);
+    z-index: 100;
+    background: var(--fin-primary-dark);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    margin: 0;
+    border: none;
+    border-right: 1px solid var(--fin-dark-border);
+    box-shadow: none;
+    transform: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Sidebar estados mobile (Padrão PCP) */
+.sidebar.open {
+    transform: translateX(0);
+}
+
+/* === SIDEBAR LOGO (Home) === */
+.sidebar .sidebar-logo {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    flex-shrink: 0;
+    background: var(--fin-accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all var(--transition-base, 200ms ease);
+}
+
+.sidebar .sidebar-logo:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(34, 92, 250, 0.4);
+}
+
+.sidebar .sidebar-logo i {
+    color: white;
+    font-size: 16px;
+}
+
+/* === SIDEBAR NAV === */
+.sidebar .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 0.5rem);
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+    padding: 0 var(--space-3, 0.75rem);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.sidebar .sidebar-nav::-webkit-scrollbar {
+    display: none;
+}
+
+/* === SIDEBAR BUTTONS (Padrão PCP) === */
+.sidebar .sidebar-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: var(--gray-400, #9ca3af);
+    border-radius: var(--radius-md, 0.5rem);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: all var(--transition-base, 200ms ease);
+    position: relative;
+    outline: none;
+    padding: 0;
+    margin: 0 auto;
+}
+
+.sidebar .sidebar-btn i {
+    font-size: 18px;
+    line-height: 1;
+}
+
+.sidebar .sidebar-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+}
+
+.sidebar .sidebar-btn:focus,
+.sidebar .sidebar-btn:focus-visible {
+    outline: none;
+}
+
+.sidebar .sidebar-btn.active {
+    background: var(--fin-accent);
+    color: white;
+    box-shadow: 0 4px 12px rgba(34, 92, 250, 0.3);
+}
+
+/* CSS-only tooltip (Padrão PCP) */
+.sidebar .sidebar-btn::after {
+    content: attr(title);
+    position: absolute;
+    left: 44px;
+    background: var(--gray-900, #111827);
+    color: white;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm, 0.375rem);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: all var(--transition-base, 200ms ease);
+    z-index: 1001;
+}
+
+.sidebar .sidebar-btn:hover::after {
+    opacity: 1;
+}
+
+/* Badge de notificação nos botões */
+.sidebar .sidebar-btn .badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: var(--fin-danger);
+    color: white;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 10px;
+    font-weight: 600;
+    min-width: 16px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+/* === SIDEBAR DIVIDER === */
+.sidebar .sidebar-divider {
+    width: 32px;
+    height: 1px;
+    background: var(--fin-dark-border);
+    margin: var(--space-4, 1rem) auto;
+}
+
+/* === SIDEBAR BOTTOM === */
+.sidebar .sidebar-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 0.5rem);
+    flex-shrink: 0;
+    padding: 0 var(--space-3, 0.75rem);
+    align-items: center;
+}
+
+/* Botões RBAC hidden */
+.sidebar .sidebar-btn[data-rbac-hidden="true"] {
+    display: none;
+}
+
+/* ============================================================
+   MOBILE MENU BUTTON (Padrão PCP)
+   ============================================================ */
+.mobile-menu-btn {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: white;
+    border-radius: var(--radius-md, 0.5rem);
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+
+/* ============================================================
+   SIDEBAR OVERLAY (Padrão PCP)
+   ============================================================ */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+.sidebar-overlay.active {
+    display: block;
+}
+
+/* ============================================================
+   MAIN AREA - FLEX CHILD (Padrão PCP)
+   Reset margin-left do design-system-mobile.css
+   ============================================================ */
+.main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    /* === RESET: Anula margin-left do design-system-mobile.css === */
+    margin-left: 0 !important;
+    margin-top: 0 !important;
+    margin-right: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+/* ============================================================
+   HEADER - FLEX CHILD (Padrão PCP)
+   Reset position:fixed do design-system-mobile.css
+   ============================================================ */
+.header {
+    /* === RESET: Anula position:fixed do design-system-mobile.css === */
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    /* === Layout flex === */
+    height: var(--fin-header-height);
+    min-height: var(--fin-header-height);
+    background: var(--fin-primary-dark);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    flex-shrink: 0;
+    z-index: 999;
+    border-bottom: 1px solid var(--fin-dark-border);
+}
+
+/* === HEADER LEFT === */
+.header .header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6, 1.5rem);
+    flex-shrink: 0;
+}
+
+.header .header-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 0.75rem);
+    white-space: nowrap;
+    color: white;
+}
+
+.header .header-brand img {
+    height: 22px;
+    object-fit: contain;
+}
+
+.header .header-brand span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gray-400, #9ca3af);
+}
+
+.header .header-brand .header-page-name {
+    color: white;
+    font-weight: 600;
+}
+
+/* === HEADER RIGHT === */
+.header .header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 0.5rem);
+}
+
+.header .header-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--fin-text-muted);
+    border-radius: var(--radius-sm, 0.375rem);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all var(--transition-base, 200ms ease);
+    position: relative;
+}
+
+.header .header-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+}
+
+.header .header-btn:focus,
+.header .header-btn:focus-visible {
+    outline: none;
+}
+
+/* === NOTIFICATION BADGE === */
+.notification-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 16px;
+    height: 16px;
+    background: var(--fin-danger);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+.notification-badge.hidden {
+    display: none;
+}
+
+/* ============================================================
+   NOTIFICATION PANEL (Padrão PCP)
+   ============================================================ */
+.notification-container {
+    position: relative;
+}
+
+.notification-panel {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: 360px;
+    max-height: 480px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    display: none;
+    overflow: hidden;
+}
+
+.notification-panel.active {
+    display: block;
+}
+
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, var(--fin-accent), var(--fin-accent-hover));
+    color: white;
+}
+
+.notification-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.notification-actions button {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.notification-actions button:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.notification-list {
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.notification-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: #888;
+}
+
+.notification-empty i {
+    font-size: 40px;
+    margin-bottom: 12px;
+    color: var(--fin-accent);
+}
+
+.notification-empty p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* === USER GREETING (Padrão PCP) === */
+.user-greeting {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+    padding-left: 12px;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--fin-text-muted);
+    font-size: 13px;
+}
+
+.user-greeting strong {
+    color: white;
+}
+
+.user-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--fin-accent), var(--fin-accent-hover));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: all var(--transition-base, 200ms ease);
+}
+
+.user-avatar:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.3);
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+}
+
+.user-avatar img.visible {
+    display: block;
+}
+
+/* ============================================================
+   MAIN CONTENT - SCROLLABLE AREA (Padrão Vendas)
+   ============================================================ */
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--fin-bg-gray);
+    min-height: calc(100vh - var(--fin-header-height));
+}
+
+/* ============================================================
+   PAGE CONTENT - ÁREA SCROLLÁVEL
+   ============================================================ */
+.page-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--space-6, 1.5rem);
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ============================================================
+   LEGACY TOOLTIP (mantido para compat JS, preferir CSS ::after)
+   ============================================================ */
+.sidebar-tooltip {
+    position: fixed;
+    left: calc(var(--fin-sidebar-width) + 8px);
+    background: var(--gray-900, #111827);
+    color: white;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm, 0.375rem);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition-fast, 150ms ease);
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
+.sidebar-tooltip.visible {
+    opacity: 1;
+}
+
+.sidebar-tooltip::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 4px solid transparent;
+    border-right-color: var(--gray-900, #111827);
+}
+
+/* ============================================================
+   RESPONSIVE - MOBILE (Padrão PCP)
+   ============================================================ */
+@media (max-width: 768px) {
+    .mobile-menu-btn {
+        display: flex;
+    }
+
+    .sidebar {
+        /* Re-enable fixed positioning for mobile drawer */
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        height: 100vh !important;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        width: 240px;
+        z-index: 1001;
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar .sidebar-btn::after {
+        display: block;
+        opacity: 1;
+        position: relative;
+        left: 0;
+        background: transparent;
+        padding: 0;
+        margin-left: 12px;
+    }
+
+    .sidebar .sidebar-btn {
+        width: 100%;
+        justify-content: flex-start;
+        padding-left: 16px;
+    }
+
+    .sidebar .sidebar-nav {
+        padding: 0 8px;
+    }
+
+    .header {
+        /* Re-enable fixed positioning for mobile */
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+    }
+
+    .main-area {
+        margin-left: 0 !important;
+        margin-top: var(--fin-header-height) !important;
+    }
+
+    .page-content {
+        padding: var(--space-4, 1rem);
+    }
+
+    .header .header-brand img {
+        height: 18px;
+    }
+
+    .header .header-brand span {
+        font-size: 12px;
+    }
+
+    .user-greeting {
+        display: none;
+    }
+
+    .header-right {
+        gap: var(--space-1, 0.25rem);
+    }
+
+    .header-btn {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .page-content {
+        padding: var(--space-6, 1.5rem);
+    }
+
+    .user-greeting span:first-child {
+        display: none;
+    }
+}

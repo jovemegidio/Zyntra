@@ -1,0 +1,465 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — Relatórios</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn active" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon"><i class="fas fa-chart-bar"></i></div>
+                        <div>
+                            <h1 class="page-title">Relatórios Gerenciais</h1>
+                            <p class="page-subtitle">Geração de relatórios de NF-e, faturamento, OS, contratos e logística</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros globais -->
+            <div class="card fade-in-delay-1">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-filter"></i> Filtros</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group"><label>Data Início</label><input type="date" class="form-control" id="filtro-data-inicio"></div>
+                        <div class="form-group"><label>Data Fim</label><input type="date" class="form-control" id="filtro-data-fim"></div>
+                        <div class="form-group"><label>Status</label>
+                            <select class="form-control" id="filtro-status">
+                                <option value="">Todos</option>
+                                <option value="autorizada">Autorizada</option>
+                                <option value="cancelada">Cancelada</option>
+                                <option value="pendente">Pendente</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categorias de Relatórios -->
+            <div class="card fade-in-delay-2">
+                <div class="card-header"><h3 class="card-title"><i class="fas fa-tools"></i> Ordens de Serviço</h3></div>
+                <div class="card-body">
+                    <div class="report-grid">
+                        <div class="option-card" onclick="gerarRelatorio('os_abertas')"><div class="option-card-icon"><i class="fas fa-folder-open"></i></div><div class="option-card-title">OS Abertas</div><div class="option-card-desc">Listagem de ordens em andamento</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('os_concluidas')"><div class="option-card-icon green"><i class="fas fa-check-circle"></i></div><div class="option-card-title">OS Concluídas</div><div class="option-card-desc">Ordens finalizadas no período</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('os_pendentes')"><div class="option-card-icon yellow"><i class="fas fa-clock"></i></div><div class="option-card-title">OS Pendentes</div><div class="option-card-desc">Aguardando aprovação ou peças</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('os_por_tecnico')"><div class="option-card-icon cyan"><i class="fas fa-user-cog"></i></div><div class="option-card-title">OS por Técnico</div><div class="option-card-desc">Distribuição por responsável</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('os_faturamento')"><div class="option-card-icon purple"><i class="fas fa-dollar-sign"></i></div><div class="option-card-title">Faturamento OS</div><div class="option-card-desc">Receita gerada pelas OS</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card fade-in-delay-3">
+                <div class="card-header"><h3 class="card-title"><i class="fas fa-file-signature"></i> Contratos</h3></div>
+                <div class="card-body">
+                    <div class="report-grid">
+                        <div class="option-card" onclick="gerarRelatorio('contratos_ativos')"><div class="option-card-icon green"><i class="fas fa-file-alt"></i></div><div class="option-card-title">Contratos Ativos</div><div class="option-card-desc">Contratos em vigência</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('contratos_vencer')"><div class="option-card-icon yellow"><i class="fas fa-calendar-exclamation"></i></div><div class="option-card-title">A Vencer</div><div class="option-card-desc">Próximos vencimentos</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('contratos_vencidos')"><div class="option-card-icon" style="background:#fef2f2;color:#ef4444;"><i class="fas fa-calendar-times"></i></div><div class="option-card-title">Vencidos</div><div class="option-card-desc">Contratos já vencidos</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('contratos_receita')"><div class="option-card-icon"><i class="fas fa-chart-line"></i></div><div class="option-card-title">Receita Contratos</div><div class="option-card-desc">Receita mensal recorrente</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('contratos_clientes')"><div class="option-card-icon cyan"><i class="fas fa-users"></i></div><div class="option-card-title">Contratos por Cliente</div><div class="option-card-desc">Agrupamento por cliente</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><h3 class="card-title"><i class="fas fa-file-invoice-dollar"></i> Faturamento & NF-e</h3></div>
+                <div class="card-body">
+                    <div class="report-grid">
+                        <div class="option-card" onclick="gerarRelatorio('nfe_emitidas')"><div class="option-card-icon"><i class="fas fa-file-invoice"></i></div><div class="option-card-title">NF-e Emitidas</div><div class="option-card-desc">Todas notas emitidas no período</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('nfe_canceladas')"><div class="option-card-icon" style="background:#fef2f2;color:#ef4444;"><i class="fas fa-ban"></i></div><div class="option-card-title">NF-e Canceladas</div><div class="option-card-desc">Notas canceladas</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('faturamento_mensal')"><div class="option-card-icon green"><i class="fas fa-chart-bar"></i></div><div class="option-card-title">Faturamento Mensal</div><div class="option-card-desc">Evolução do faturamento</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('impostos')"><div class="option-card-icon purple"><i class="fas fa-percentage"></i></div><div class="option-card-title">Impostos</div><div class="option-card-desc">Resumo de impostos retidos</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('faturamento_cliente')"><div class="option-card-icon cyan"><i class="fas fa-user-tag"></i></div><div class="option-card-title">Por Cliente</div><div class="option-card-desc">Faturamento por cliente</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('logistica')"><div class="option-card-icon yellow"><i class="fas fa-truck"></i></div><div class="option-card-title">Logística</div><div class="option-card-desc">Entregas e expedição</div></div>
+                        <div class="option-card" onclick="gerarRelatorio('inadimplencia')"><div class="option-card-icon" style="background:#fef2f2;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i></div><div class="option-card-title">Inadimplência</div><div class="option-card-desc">Títulos em atraso</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Preview Overlay -->
+<div class="report-preview" id="report-preview">
+    <div class="report-preview-toolbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <button class="btn btn-secondary btn-sm" onclick="fecharPreview()"><i class="fas fa-arrow-left"></i> Voltar</button>
+            <h3 id="preview-titulo" style="margin:0;color:#1e293b;font-size:16px;">Relatório</h3>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="exportarPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+            <button class="btn btn-outline btn-sm" onclick="exportarExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+            <button class="btn btn-primary btn-sm" onclick="imprimirRelatorioProfissional()"><i class="fas fa-print"></i> Imprimir</button>
+        </div>
+    </div>
+    <div class="report-preview-content" id="preview-content">
+        <!-- Conteúdo do relatório -->
+    </div>
+</div>
+
+<script>
+function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
+
+function formatarMoeda(v) { return (v||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }); }
+
+const relatorioNomes = {
+    os_abertas: 'Ordens de Serviço Abertas', os_concluidas: 'OS Concluídas', os_pendentes: 'OS Pendentes',
+    os_por_tecnico: 'OS por Técnico', os_faturamento: 'Faturamento OS',
+    contratos_ativos: 'Contratos Ativos', contratos_vencer: 'Contratos a Vencer', contratos_vencidos: 'Contratos Vencidos',
+    contratos_receita: 'Receita de Contratos', contratos_clientes: 'Contratos por Cliente',
+    nfe_emitidas: 'NF-e Emitidas', nfe_canceladas: 'NF-e Canceladas', faturamento_mensal: 'Faturamento Mensal',
+    impostos: 'Resumo de Impostos', faturamento_cliente: 'Faturamento por Cliente',
+    logistica: 'Relatório de Logística', inadimplencia: 'Inadimplência'
+};
+
+function gerarRelatorio(tipo) {
+    const preview = document.getElementById('report-preview');
+    const content = document.getElementById('preview-content');
+    const titulo = relatorioNomes[tipo] || tipo;
+    document.getElementById('preview-titulo').textContent = titulo;
+
+    const dataInicio = document.getElementById('filtro-data-inicio').value || '-';
+    const dataFim = document.getElementById('filtro-data-fim').value || '-';
+
+    content.innerHTML = gerarConteudoRelatorio(tipo, titulo, dataInicio, dataFim);
+    preview.classList.add('active');
+
+    // Carregar dados reais da API
+    carregarDadosRelatorio(tipo, titulo, dataInicio, dataFim);
+}
+
+function gerarConteudoRelatorio(tipo, titulo, di, df) {
+    return `<div style="text-align:center;padding:24px;">
+        <i class="fas fa-spinner fa-spin" style="font-size:32px;color:#2563eb;"></i>
+        <p style="margin-top:12px;color:#64748b;">Carregando dados...</p>
+    </div>`;
+}
+
+async function carregarDadosRelatorio(tipo, titulo, di, df) {
+    const content = document.getElementById('preview-content');
+
+    const headerInstitucional = `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:16px;border-bottom:3px solid #1e40af;margin-bottom:20px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:28px;filter:invert(1) brightness(0);" onerror="this.style.display='none'">
+                <div>
+                    <h2 style="margin:0;font-size:16px;color:#1e293b;font-weight:700;">ALUFORCE SISTEMAS</h2>
+                    <p style="margin:0;font-size:10px;color:#94a3b8;letter-spacing:1px;">GESTÃO EMPRESARIAL INTEGRADA</p>
+                </div>
+            </div>
+            <div style="text-align:right;">
+                <h3 style="margin:0;font-size:14px;color:#1e40af;font-weight:700;">${titulo}</h3>
+                <p style="margin:2px 0 0;font-size:11px;color:#64748b;">Período: ${di !== '-' ? new Date(di).toLocaleDateString('pt-BR') : '-'} a ${df !== '-' ? new Date(df).toLocaleDateString('pt-BR') : '-'}</p>
+                <p style="margin:2px 0 0;font-size:10px;color:#94a3b8;">Emitido em: ${new Date().toLocaleString('pt-BR')}</p>
+            </div>
+        </div>`;
+
+    const tabelaStyle = 'width:100%;border-collapse:collapse;font-size:12px;';
+    const thStyle = 'padding:10px 8px;text-align:left;border-bottom:2px solid #cbd5e1;background:#f8fafc;color:#334155;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;';
+    const tdStyle = 'padding:8px;border-bottom:1px solid #f1f5f9;color:#475569;';
+    const tdRightStyle = 'padding:8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#475569;';
+
+    try {
+        // NF-e related reports
+        if (['nfe_emitidas', 'nfe_canceladas', 'faturamento_mensal', 'faturamento_cliente', 'impostos'].includes(tipo)) {
+            const params = new URLSearchParams();
+            if (di && di !== '-') params.set('data_inicio', di);
+            if (df && df !== '-') params.set('data_fim', df);
+            const status = document.getElementById('filtro-status').value;
+            if (tipo === 'nfe_canceladas') params.set('status', 'cancelada');
+            else if (status) params.set('status', status);
+            params.set('limite', '500');
+
+            const r = await fetch('/api/nfe/listar?' + params.toString(), { credentials: 'include' });
+            let lista = [];
+            if (r.ok) {
+                const data = await r.json();
+                lista = Array.isArray(data) ? data : data.data || [];
+            }
+
+            if (tipo === 'nfe_emitidas' || tipo === 'nfe_canceladas') {
+                const totalValor = lista.reduce((s, n) => s + (n.valor || n.valor_total || 0), 0);
+                content.innerHTML = headerInstitucional + `
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+                        <div style="background:#f0f9ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #bae6fd;">
+                            <div style="font-size:22px;font-weight:700;color:#0369a1;">${lista.length}</div>
+                            <div style="font-size:11px;color:#64748b;">Total de Notas</div>
+                        </div>
+                        <div style="background:#f0fdf4;padding:12px;border-radius:6px;text-align:center;border:1px solid #bbf7d0;">
+                            <div style="font-size:22px;font-weight:700;color:#15803d;">${formatarMoeda(totalValor)}</div>
+                            <div style="font-size:11px;color:#64748b;">Valor Total</div>
+                        </div>
+                        <div style="background:#faf5ff;padding:12px;border-radius:6px;text-align:center;border:1px solid #e9d5ff;">
+                            <div style="font-size:22px;font-weight:700;color:#7e22ce;">${lista.length ? formatarMoeda(totalValor / lista.length) : 'R$ 0,00'}</div>
+                            <div style="font-size:11px;color:#64748b;">Ticket Médio</div>
+                        </div>
+                    </div>
+                    <table style="${tabelaStyle}">
+                        <thead><tr>
+                            <th style="${thStyle}">Número</th><th style="${thStyle}">Série</th><th style="${thStyle}">Destinatário</th>
+                            <th style="${thStyle}">Data</th><th style="${thStyle}">Status</th><th style="${thStyle}text-align:right;">Valor</th>
+                        </tr></thead>
+                        <tbody>${lista.length ? lista.map(n => `<tr>
+                            <td style="${tdStyle}"><strong>${n.numero || '-'}</strong></td>
+                            <td style="${tdStyle}">${n.serie || '1'}</td>
+                            <td style="${tdStyle}">${n.destinatario || n.cliente || '-'}</td>
+                            <td style="${tdStyle}">${n.data_emissao ? new Date(n.data_emissao).toLocaleDateString('pt-BR') : '-'}</td>
+                            <td style="${tdStyle}">${n.status || '-'}</td>
+                            <td style="${tdRightStyle}"><strong>${formatarMoeda(n.valor || n.valor_total)}</strong></td>
+                        </tr>`).join('') : '<tr><td colspan="6" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum registro encontrado no período</td></tr>'}</tbody>
+                        <tfoot><tr style="background:#f8fafc;font-weight:700;">
+                            <td colspan="5" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${lista.length} nota(s)</td>
+                            <td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoeda(totalValor)}</td>
+                        </tr></tfoot>
+                    </table>
+                    <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
+                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')} • Página 1/1
+                    </div>`;
+                return;
+            }
+
+            if (tipo === 'faturamento_mensal') {
+                // Agrupar por mês
+                const porMes = {};
+                lista.forEach(n => {
+                    const dt = n.data_emissao ? new Date(n.data_emissao) : new Date();
+                    const key = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0');
+                    if (!porMes[key]) porMes[key] = { total: 0, qtd: 0 };
+                    porMes[key].total += (n.valor || n.valor_total || 0);
+                    porMes[key].qtd++;
+                });
+                const meses = Object.keys(porMes).sort();
+                const totalGeral = lista.reduce((s, n) => s + (n.valor || n.valor_total || 0), 0);
+
+                content.innerHTML = headerInstitucional + `
+                    <div style="background:#f0f9ff;padding:16px;border-radius:8px;text-align:center;margin-bottom:20px;border:1px solid #bae6fd;">
+                        <div style="font-size:28px;font-weight:700;color:#0369a1;">${formatarMoeda(totalGeral)}</div>
+                        <div style="font-size:12px;color:#64748b;">Faturamento Total no Período</div>
+                    </div>
+                    <table style="${tabelaStyle}">
+                        <thead><tr><th style="${thStyle}">Mês/Ano</th><th style="${thStyle}text-align:right;">Qtd Notas</th><th style="${thStyle}text-align:right;">Valor Faturado</th></tr></thead>
+                        <tbody>${meses.map(m => {
+                            const [a, mes] = m.split('-');
+                            const nomesMes = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                            return `<tr><td style="${tdStyle}">${nomesMes[parseInt(mes)]}/${a}</td><td style="${tdRightStyle}">${porMes[m].qtd}</td><td style="${tdRightStyle}"><strong>${formatarMoeda(porMes[m].total)}</strong></td></tr>`;
+                        }).join('')}</tbody>
+                        <tfoot><tr style="background:#f8fafc;font-weight:700;"><td style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;">${lista.length}</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoeda(totalGeral)}</td></tr></tfoot>
+                    </table>
+                    <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
+                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+                    </div>`;
+                return;
+            }
+
+            if (tipo === 'faturamento_cliente') {
+                const porCliente = {};
+                lista.forEach(n => {
+                    const cli = n.destinatario || n.cliente || 'Não informado';
+                    if (!porCliente[cli]) porCliente[cli] = { total: 0, qtd: 0 };
+                    porCliente[cli].total += (n.valor || n.valor_total || 0);
+                    porCliente[cli].qtd++;
+                });
+                const clientes = Object.entries(porCliente).sort((a, b) => b[1].total - a[1].total);
+                const totalGeral = lista.reduce((s, n) => s + (n.valor || n.valor_total || 0), 0);
+
+                content.innerHTML = headerInstitucional + `
+                    <table style="${tabelaStyle}">
+                        <thead><tr><th style="${thStyle}">#</th><th style="${thStyle}">Cliente</th><th style="${thStyle}text-align:right;">Notas</th><th style="${thStyle}text-align:right;">Valor</th><th style="${thStyle}text-align:right;">% do Total</th></tr></thead>
+                        <tbody>${clientes.map(([nome, d], i) => `<tr>
+                            <td style="${tdStyle}">${i+1}</td><td style="${tdStyle}"><strong>${nome}</strong></td>
+                            <td style="${tdRightStyle}">${d.qtd}</td><td style="${tdRightStyle}"><strong>${formatarMoeda(d.total)}</strong></td>
+                            <td style="${tdRightStyle}">${totalGeral ? (d.total/totalGeral*100).toFixed(1) + '%' : '-'}</td>
+                        </tr>`).join('')}</tbody>
+                        <tfoot><tr style="background:#f8fafc;font-weight:700;"><td colspan="2" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${clientes.length} cliente(s)</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;">${lista.length}</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;color:#1e40af;">${formatarMoeda(totalGeral)}</td><td style="padding:10px 8px;text-align:right;border-top:2px solid #cbd5e1;">100%</td></tr></tfoot>
+                    </table>
+                    <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
+                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+                    </div>`;
+                return;
+            }
+
+            // impostos
+            if (tipo === 'impostos') {
+                content.innerHTML = headerInstitucional + `
+                    <div style="text-align:center;padding:32px;color:#64748b;">
+                        <i class="fas fa-percentage" style="font-size:40px;color:#cbd5e1;margin-bottom:12px;display:block;"></i>
+                        <p>Relatório de impostos requer integração com módulo fiscal.</p>
+                        <p style="font-size:12px;">Total de notas no período: <strong>${lista.length}</strong> — Valor: <strong>${formatarMoeda(lista.reduce((s,n)=>s+(n.valor||n.valor_total||0),0))}</strong></p>
+                    </div>`;
+                return;
+            }
+        }
+
+        // Logística
+        if (tipo === 'logistica') {
+            try {
+                const r = await fetch('/api/logistica/pedidos?limit=500', { credentials: 'include' });
+                let pedidos = [];
+                if (r.ok) { const d = await r.json(); pedidos = Array.isArray(d) ? d : d.data || []; }
+                content.innerHTML = headerInstitucional + `
+                    <table style="${tabelaStyle}">
+                        <thead><tr><th style="${thStyle}">Pedido</th><th style="${thStyle}">Cliente</th><th style="${thStyle}">Transportadora</th><th style="${thStyle}">Status</th><th style="${thStyle}">Previsão</th></tr></thead>
+                        <tbody>${pedidos.length ? pedidos.map(p => `<tr>
+                            <td style="${tdStyle}">#${p.pedido_id||p.id}</td><td style="${tdStyle}">${p.cliente||'-'}</td>
+                            <td style="${tdStyle}">${p.transportadora||'-'}</td><td style="${tdStyle}">${p.status||'-'}</td>
+                            <td style="${tdStyle}">${p.previsao ? new Date(p.previsao).toLocaleDateString('pt-BR') : '-'}</td>
+                        </tr>`).join('') : '<tr><td colspan="5" style="padding:24px;text-align:center;color:#94a3b8;">Nenhum registro encontrado</td></tr>'}</tbody>
+                        <tfoot><tr style="background:#f8fafc;font-weight:700;"><td colspan="5" style="padding:10px 8px;border-top:2px solid #cbd5e1;">Total: ${pedidos.length} pedido(s)</td></tr></tfoot>
+                    </table>
+                    <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
+                        Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+                    </div>`;
+            } catch(e) { content.innerHTML = headerInstitucional + '<p style="text-align:center;color:#ef4444;">Erro ao carregar dados de logística</p>'; }
+            return;
+        }
+
+        // Demais relatórios (OS, Contratos, etc) - placeholder profissional
+        content.innerHTML = headerInstitucional + `
+            <div style="text-align:center;padding:40px;color:#64748b;">
+                <i class="fas fa-chart-pie" style="font-size:48px;color:#cbd5e1;margin-bottom:16px;display:block;"></i>
+                <h3 style="margin:0 0 8px;color:#334155;">Relatório em Desenvolvimento</h3>
+                <p style="font-size:13px;">O relatório <strong>"${titulo}"</strong> será habilitado quando o módulo correspondente estiver integrado à API.</p>
+            </div>
+            <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:center;font-size:10px;color:#94a3b8;">
+                Relatório gerado pelo Sistema Aluforce • ${new Date().toLocaleString('pt-BR')}
+            </div>`;
+
+    } catch(e) {
+        console.error('[Relatorios] Erro:', e);
+        content.innerHTML = headerInstitucional + `<div style="text-align:center;padding:24px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Erro ao carregar dados: ${e.message}</div>`;
+    }
+}
+
+function fecharPreview() { document.getElementById('report-preview').classList.remove('active'); }
+
+function exportarExcel() {
+    const content = document.getElementById('preview-content');
+    const tables = content.querySelectorAll('table');
+    if (!tables.length) { alert('Nenhuma tabela para exportar'); return; }
+    let csv = '';
+    tables.forEach(table => {
+        table.querySelectorAll('tr').forEach(tr => {
+            const cols = [];
+            tr.querySelectorAll('th, td').forEach(td => cols.push('"' + td.textContent.trim().replace(/"/g, '""') + '"'));
+            csv += cols.join(';') + '\n';
+        });
+    });
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'relatorio_' + document.getElementById('preview-titulo').textContent.replace(/\s+/g, '_') + '_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportarPDF() { imprimirRelatorioProfissional(); }
+
+function imprimirRelatorioProfissional() {
+    const content = document.getElementById('preview-content').innerHTML;
+    const titulo = document.getElementById('preview-titulo').textContent;
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><title>${titulo} — Aluforce</title><style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Segoe UI',Inter,system-ui,sans-serif; padding:20mm 15mm; color:#1e293b; font-size:12px; line-height:1.5; }
+        table { width:100%; border-collapse:collapse; page-break-inside:auto; }
+        tr { page-break-inside:avoid; }
+        th, td { padding:6px 8px; text-align:left; }
+        th { background:#f1f5f9 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        strong { font-weight:600; }
+        @media print { body { padding:10mm; } .no-print { display:none !important; } }
+        @page { margin:10mm; size:A4 portrait; }
+    </style></head><body>${content}
+</body></html>`);
+    w.document.close();
+    setTimeout(() => { w.print(); w.close(); }, 500);
+}
+
+function carregarDadosUsuario() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(u => {
+        document.getElementById('user-name').textContent = (u.nome||u.name||'Usuário').split(' ')[0];
+        document.getElementById('user-initials').textContent = (u.nome||u.name||'U').substring(0,2).toUpperCase();
+        if (u.foto||u.avatar) { document.getElementById('user-photo').src=u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarDadosUsuario();
+    // Set default date range
+    const hoje = new Date();
+    const mesPassado = new Date(hoje); mesPassado.setMonth(mesPassado.getMonth()-1);
+    document.getElementById('filtro-data-fim').value = hoje.toISOString().split('T')[0];
+    document.getElementById('filtro-data-inicio').value = mesPassado.toISOString().split('T')[0];
+});
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

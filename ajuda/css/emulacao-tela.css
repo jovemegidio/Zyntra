@@ -1,0 +1,850 @@
+/* ══════════════════════════════════════════════════════
+   ALUFORCE - Sistema de Emulação de Tela para Tutoriais
+   Cria mini-mockups fiéis à interface real do ERP
+   ══════════════════════════════════════════════════════ */
+
+/* ═══ CONTAINER PRINCIPAL (simula janela do app) ═══ */
+.tela-emulada {
+    background: #f8fafc;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 16px 0 0 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    position: relative;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 11px;
+    line-height: 1.4;
+    max-width: 100%;
+}
+.tela-emulada::before {
+    content: '🖥️ Simulação da tela do sistema';
+    display: block;
+    background: #1e293b;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 6px 14px;
+    text-align: center;
+    border-bottom: 1px solid #334155;
+}
+.tela-emulada * { box-sizing: border-box; }
+
+/* ═══ LAYOUT PRINCIPAL (sidebar + area) ═══ */
+.tela-layout {
+    display: flex;
+    min-height: 220px;
+    max-height: 380px;
+}
+
+/* ═══ SIDEBAR (replica real: #1a1a2e, 44px) ═══ */
+.emu-sidebar {
+    width: 44px;
+    min-width: 44px;
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+    gap: 2px;
+    flex-shrink: 0;
+}
+.emu-sidebar-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: white;
+}
+.emu-sidebar-logo.vendas    { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.emu-sidebar-logo.compras   { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+.emu-sidebar-logo.financeiro { background: linear-gradient(135deg, #84cc16, #65a30d); }
+.emu-sidebar-logo.rh        { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.emu-sidebar-logo.nfe       { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.emu-sidebar-logo.pcp       { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+.emu-sidebar-logo.faturamento { background: linear-gradient(135deg, #f97316, #ea580c); }
+
+.emu-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex: 1;
+    width: 100%;
+    padding: 0 4px;
+}
+
+.emu-sidebar-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #8b8b9a;
+    font-size: 12px;
+    position: relative;
+    transition: all 0.2s;
+    cursor: default;
+    flex-shrink: 0;
+}
+.emu-sidebar-btn.active {
+    color: white;
+}
+.emu-sidebar-btn.active.vendas    { background: #225cfa; }
+.emu-sidebar-btn.active.compras   { background: #6366f1; }
+.emu-sidebar-btn.active.financeiro { background: #84cc16; }
+.emu-sidebar-btn.active.rh        { background: #8b5cf6; }
+.emu-sidebar-btn.active.nfe       { background: #ef4444; }
+.emu-sidebar-btn.active.pcp       { background: #06b6d4; }
+.emu-sidebar-btn.active.faturamento { background: #f97316; }
+
+/* Badge de notificação na sidebar */
+.emu-sidebar-btn .emu-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
+    background: #ef4444;
+    border-radius: 50%;
+}
+
+/* ═══ AREA PRINCIPAL (header + conteúdo) ═══ */
+.emu-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* ═══ HEADER TOP BAR ═══ */
+.emu-header {
+    height: 36px;
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    flex-shrink: 0;
+}
+.emu-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.emu-header-logo {
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+.emu-header-divider {
+    color: #8b8b9a;
+    font-size: 12px;
+}
+.emu-header-module {
+    color: #8b8b9a;
+    font-size: 10px;
+    font-weight: 600;
+}
+.emu-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.emu-header-bell {
+    color: #8b8b9a;
+    font-size: 11px;
+    position: relative;
+}
+.emu-header-bell .emu-notif {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 12px;
+    height: 12px;
+    background: #ef4444;
+    border-radius: 50%;
+    font-size: 7px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+.emu-header-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.emu-header-greeting {
+    color: #8b8b9a;
+    font-size: 9px;
+}
+.emu-header-greeting strong {
+    color: white;
+}
+.emu-header-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+/* ═══ AREA DE CONTEÚDO ═══ */
+.emu-content {
+    flex: 1;
+    padding: 12px;
+    overflow: hidden;
+    background: #f8fafc;
+}
+
+/* ═══ TITULO DA PÁGINA ═══ */
+.emu-page-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.emu-page-title i {
+    font-size: 12px;
+}
+
+/* ═══ BARRA DE AÇÕES (topo, com botões) ═══ */
+.emu-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.emu-action-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.emu-action-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ═══ TABS ═══ */
+.emu-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 10px;
+}
+.emu-tab {
+    padding: 6px 12px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748b;
+    border-radius: 6px 6px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: default;
+    border-bottom: 2px solid transparent;
+}
+.emu-tab.active {
+    color: #1d4ed8;
+    border-bottom-color: #1d4ed8;
+    background: white;
+}
+.emu-tab.active.vendas    { color: #225cfa; border-bottom-color: #225cfa; }
+.emu-tab.active.compras   { color: #6366f1; border-bottom-color: #6366f1; }
+.emu-tab.active.financeiro { color: #84cc16; border-bottom-color: #84cc16; }
+.emu-tab.active.rh        { color: #8b5cf6; border-bottom-color: #8b5cf6; }
+.emu-tab.active.nfe       { color: #ef4444; border-bottom-color: #ef4444; }
+.emu-tab.active.pcp       { color: #06b6d4; border-bottom-color: #06b6d4; }
+
+/* ═══ BOTÕES ═══ */
+.emu-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: default;
+    white-space: nowrap;
+    border: none;
+}
+.emu-btn-primary {
+    background: linear-gradient(135deg, #003366, #004d99);
+    color: white;
+    box-shadow: 0 2px 6px rgba(0,51,102,0.25);
+}
+.emu-btn-primary.vendas    { background: linear-gradient(135deg, #225cfa, #1d4ed8); box-shadow: 0 2px 6px rgba(34,92,250,0.25); }
+.emu-btn-primary.compras   { background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 2px 6px rgba(99,102,241,0.25); }
+.emu-btn-primary.financeiro { background: linear-gradient(135deg, #84cc16, #65a30d); box-shadow: 0 2px 6px rgba(132,204,22,0.25); }
+.emu-btn-primary.rh        { background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 2px 6px rgba(139,92,246,0.25); }
+.emu-btn-primary.nfe       { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 2px 6px rgba(239,68,68,0.25); }
+.emu-btn-primary.pcp       { background: linear-gradient(135deg, #06b6d4, #0891b2); box-shadow: 0 2px 6px rgba(6,182,212,0.25); }
+.emu-btn-primary.faturamento { background: linear-gradient(135deg, #f97316, #ea580c); box-shadow: 0 2px 6px rgba(249,115,22,0.25); }
+
+.emu-btn-secondary {
+    background: white;
+    color: #374151;
+    border: 1px solid #e2e8f0;
+}
+.emu-btn-success {
+    background: linear-gradient(135deg, #059669, #10B981);
+    color: white;
+}
+.emu-btn-danger {
+    background: linear-gradient(135deg, #DC2626, #EF4444);
+    color: white;
+}
+.emu-btn-warning {
+    background: linear-gradient(135deg, #D97706, #F59E0B);
+    color: white;
+}
+
+/* ═══ KPI CARDS ═══ */
+.emu-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.emu-kpi-card {
+    background: white;
+    border-radius: 10px;
+    padding: 10px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #f1f5f9;
+}
+.emu-kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+}
+.emu-kpi-card.blue::before    { background: #3b82f6; }
+.emu-kpi-card.green::before   { background: #22c55e; }
+.emu-kpi-card.orange::before  { background: #f59e0b; }
+.emu-kpi-card.purple::before  { background: #8b5cf6; }
+.emu-kpi-card.red::before     { background: #ef4444; }
+.emu-kpi-card.cyan::before    { background: #06b6d4; }
+
+.emu-kpi-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: white;
+    margin-bottom: 6px;
+}
+.emu-kpi-icon.blue    { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.emu-kpi-icon.green   { background: linear-gradient(135deg, #22c55e, #16a34a); }
+.emu-kpi-icon.orange  { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.emu-kpi-icon.purple  { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.emu-kpi-icon.red     { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.emu-kpi-icon.cyan    { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+
+.emu-kpi-value {
+    font-size: 16px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+}
+.emu-kpi-label {
+    font-size: 9px;
+    color: #64748b;
+    margin-top: 2px;
+}
+.emu-kpi-trend {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 4px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+.emu-kpi-trend.up   { background: #dcfce7; color: #166534; }
+.emu-kpi-trend.down { background: #fee2e2; color: #991b1b; }
+
+/* ═══ CARDS ═══ */
+.emu-card {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #f1f5f9;
+    margin-bottom: 8px;
+}
+.emu-card-header {
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.emu-card-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.emu-card-link {
+    font-size: 9px;
+    color: #3b82f6;
+    font-weight: 500;
+}
+.emu-card-body {
+    padding: 10px 12px;
+}
+
+/* ═══ TABELAS ═══ */
+.emu-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9px;
+}
+.emu-table thead th {
+    background: #f8fafc;
+    padding: 6px 8px;
+    font-size: 8px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+.emu-table tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+}
+.emu-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+/* ═══ STATUS BADGES ═══ */
+.emu-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 8px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.emu-status.aprovado, .emu-status.ativo, .emu-status.pago { background: #dcfce7; color: #166534; }
+.emu-status.pendente, .emu-status.aberto { background: #fef3c7; color: #92400e; }
+.emu-status.cancelado, .emu-status.atrasado { background: #fee2e2; color: #991b1b; }
+.emu-status.processando, .emu-status.producao { background: #dbeafe; color: #1e40af; }
+.emu-status.faturado { background: #f3e8ff; color: #7e22ce; }
+.emu-status.rascunho { background: #f1f5f9; color: #475569; }
+
+/* ═══ FORMULÁRIOS ═══ */
+.emu-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+.emu-form-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.emu-form-grid.cols-1 { grid-template-columns: 1fr; }
+
+.emu-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.emu-form-group.full-width { grid-column: 1 / -1; }
+
+.emu-form-label {
+    font-size: 9px;
+    color: #64748b;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+.emu-form-input {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 10px;
+    color: #374151;
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+}
+.emu-form-input.placeholder {
+    color: #9ca3af;
+    font-style: italic;
+}
+.emu-form-input.filled {
+    color: #0f172a;
+    font-weight: 500;
+}
+.emu-form-select {
+    background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M0 0l4 5 4-5' fill='%239ca3af'/%3E%3C/svg%3E") no-repeat right 8px center;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    padding: 5px 20px 5px 8px;
+    font-size: 10px;
+    color: #374151;
+    min-height: 26px;
+}
+
+/* ═══ MODAL ═══ */
+.emu-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 10px;
+}
+.emu-modal {
+    background: white;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 360px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    overflow: hidden;
+}
+.emu-modal-header {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    color: white;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.emu-modal-header.vendas    { background: linear-gradient(135deg, #225cfa, #1d4ed8); }
+.emu-modal-header.compras   { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+.emu-modal-header.financeiro { background: linear-gradient(135deg, #84cc16, #65a30d); }
+.emu-modal-header.rh        { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+.emu-modal-header.nfe       { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.emu-modal-header.pcp       { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+.emu-modal-header.faturamento { background: linear-gradient(135deg, #f97316, #ea580c); }
+
+.emu-modal-title {
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.emu-modal-close {
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+}
+.emu-modal-body {
+    padding: 12px 14px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+.emu-modal-footer {
+    padding: 8px 14px;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+/* ═══ SEARCH BAR ═══ */
+.emu-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 10px;
+    color: #9ca3af;
+    min-width: 140px;
+}
+.emu-search i { font-size: 9px; }
+
+/* ═══ QUICK ACTIONS ═══ */
+.emu-quick-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.emu-quick-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 500;
+    color: #374151;
+}
+.emu-quick-btn i {
+    font-size: 12px;
+}
+
+/* ═══ SIDEBAR PANEL (painel lateral de ações) ═══ */
+.emu-sidebar-panel {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 90px;
+}
+.emu-sidebar-panel-title {
+    font-size: 8px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+}
+
+/* ═══ GRID LAYOUTS ═══ */
+.emu-content-grid {
+    display: grid;
+    gap: 8px;
+}
+.emu-content-grid.main-sidebar {
+    grid-template-columns: 1fr 100px;
+}
+.emu-content-grid.two-cols {
+    grid-template-columns: 1fr 1fr;
+}
+
+/* ═══ KANBAN (simples) ═══ */
+.emu-kanban {
+    display: flex;
+    gap: 6px;
+    overflow: hidden;
+}
+.emu-kanban-col {
+    flex: 1;
+    min-width: 0;
+}
+.emu-kanban-header {
+    padding: 5px 8px;
+    border-radius: 6px 6px 0 0;
+    font-size: 9px;
+    font-weight: 600;
+    color: white;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+.emu-kanban-header.novo      { background: #3b82f6; }
+.emu-kanban-header.producao  { background: #f59e0b; }
+.emu-kanban-header.pronto    { background: #22c55e; }
+.emu-kanban-header.faturado  { background: #8b5cf6; }
+.emu-kanban-header.entregue  { background: #06b6d4; }
+
+.emu-kanban-body {
+    background: #f1f5f9;
+    border-radius: 0 0 6px 6px;
+    padding: 4px;
+    min-height: 60px;
+}
+.emu-kanban-card {
+    background: white;
+    border-radius: 5px;
+    padding: 5px 7px;
+    margin-bottom: 3px;
+    border-left: 3px solid;
+    font-size: 8px;
+}
+.emu-kanban-card .code { font-weight: 700; color: #0f172a; }
+.emu-kanban-card .desc { color: #64748b; }
+
+/* ═══ DESTAQUE PULSANTE (elemento alvo do clique) ═══ */
+.emu-destaque {
+    position: relative;
+    z-index: 2;
+    animation: emu-pulse 1.5s infinite;
+}
+@keyframes emu-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    50%      { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0); }
+}
+
+/* Seta indicadora */
+.emu-destaque::after {
+    content: '👆 Clique aqui';
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ef4444;
+    color: white;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 3;
+    animation: emu-bounce 1s infinite;
+}
+.emu-destaque.clique-baixo::after {
+    bottom: auto;
+    top: calc(100% + 4px);
+    content: '👇 Clique aqui';
+}
+.emu-destaque.clique-dir::after {
+    bottom: auto;
+    left: calc(100% + 4px);
+    top: 50%;
+    transform: translateY(-50%) translateX(0);
+    content: '👉 Clique aqui';
+}
+.emu-destaque.preencha::after {
+    content: '✏️ Preencha aqui';
+}
+.emu-destaque.selecione::after {
+    content: '📋 Selecione aqui';
+}
+.emu-destaque.confira::after {
+    content: '👁️ Confira aqui';
+    background: #3b82f6;
+}
+@keyframes emu-bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50%      { transform: translateX(-50%) translateY(-3px); }
+}
+.emu-destaque.clique-dir {
+    animation: emu-pulse 1.5s infinite;
+}
+
+/* Overlay de destaque escurecido */
+.emu-dim {
+    opacity: 0.4;
+}
+
+/* ═══ NOTIFICAÇÃO PANEL ═══ */
+.emu-notif-panel {
+    position: absolute;
+    top: 36px;
+    right: 10px;
+    width: 200px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    z-index: 20;
+    overflow: hidden;
+}
+.emu-notif-header {
+    padding: 8px 10px;
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+}
+.emu-notif-item {
+    padding: 6px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 8px;
+    color: #374151;
+}
+.emu-notif-item.unread {
+    background: #fff7ed;
+    border-left: 2px solid #f97316;
+}
+
+/* ═══ CHART PLACEHOLDER ═══ */
+.emu-chart {
+    background: #f8fafc;
+    border: 1px dashed #d1d5db;
+    border-radius: 8px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 10px;
+    gap: 4px;
+}
+
+/* ═══ BAR CHART SIMPLES ═══ */
+.emu-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 60px;
+    padding: 0 8px;
+}
+.emu-bar {
+    flex: 1;
+    border-radius: 3px 3px 0 0;
+    min-width: 8px;
+}
+.emu-bar.blue   { background: #3b82f6; }
+.emu-bar.green  { background: #22c55e; }
+.emu-bar.orange { background: #f59e0b; }
+.emu-bar.purple { background: #8b5cf6; }
+.emu-bar.cyan   { background: #06b6d4; }
+.emu-bar.red    { background: #ef4444; }
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 600px) {
+    .emu-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .emu-form-grid { grid-template-columns: 1fr; }
+    .emu-kanban { flex-direction: column; }
+    .emu-content-grid.main-sidebar { grid-template-columns: 1fr; }
+    .tela-layout { min-height: 180px; }
+}
+
+/* ═══ LEGENDA ═══ */
+.emu-legenda {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: #FEF3C7;
+    border: 1px solid #FDE68A;
+    border-radius: 6px;
+    font-size: 10px;
+    color: #92400E;
+    font-weight: 500;
+}
+.emu-legenda i {
+    color: #D97706;
+}

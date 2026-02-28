@@ -1,0 +1,1459 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Plano de Contas</title>
+
+    <!-- Autenticacao -->
+    <script src="/js/auth-unified.js?v=20260211" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Financeiro Design System -->
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+
+    <style>
+    :root {
+        --primary-orange: #225cfa;
+        --primary-dark: #1a1a2e;
+        --bg-gray: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+        --teal: #14b8a6;
+    }
+/* SIDEBAR */
+.sidebar-logo i { color: white; font-size: 18px; }
+.sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-blue); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN */
+/* HEADER */
+.header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+.header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-avatar .user-initial { display: block; }
+        .user-avatar img.visible + .user-initial { display: none; }
+
+        /* PAGE CONTENT */
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+        /* PAGE HEADER */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title-section h1 { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+        .page-title-section h1 i { color: var(--teal); }
+        .page-title-section p { font-size: 14px; color: var(--text-secondary); }
+        .page-actions { display: flex; gap: 12px; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--teal); color: white; }
+        .btn-primary:hover { background: #0d9488; transform: translateY(-1px); }
+        .btn-secondary { background: white; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+
+        /* TABS */
+        .tabs { display: flex; gap: 8px; margin-bottom: 24px; background: white; padding: 8px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .tab { padding: 12px 24px; border: none; background: transparent; border-radius: 8px; font-size: 14px; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .tab:hover { background: var(--bg-gray); }
+        .tab.active { background: var(--teal); color: white; }
+        .tab .count { background: rgba(0,0,0,0.1); padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+        .tab.active .count { background: rgba(255,255,255,0.2); }
+
+        /* TREE VIEW */
+        .tree-container { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+        .tree-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .tree-header h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .tree-header h3 i { color: var(--teal); }
+        .tree-body { padding: 20px; }
+        
+        .tree-item { border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+        .tree-item.nivel-1 { background: linear-gradient(135deg, #f0fdfa, #ccfbf1); border-color: #99f6e4; }
+        .tree-item.nivel-2 { margin-left: 24px; background: white; }
+        .tree-item.nivel-3 { margin-left: 48px; background: #fafafa; }
+        
+        .tree-row { display: flex; align-items: center; padding: 14px 16px; cursor: pointer; transition: all 0.2s; }
+        .tree-row:hover { background: rgba(0,0,0,0.02); }
+        
+        .tree-toggle { width: 24px; height: 24px; border: none; background: transparent; cursor: pointer; color: var(--text-secondary); margin-right: 8px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .tree-toggle:hover { background: rgba(0,0,0,0.05); }
+        .tree-toggle i { transition: transform 0.2s; }
+        .tree-toggle.expanded i { transform: rotate(90deg); }
+        
+        .tree-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-size: 14px; }
+        .tree-icon.receita { background: rgba(34,197,94,0.1); color: var(--success); }
+        .tree-icon.despesa { background: rgba(239,68,68,0.1); color: var(--danger); }
+        
+        .tree-info { flex: 1; }
+        .tree-info .codigo { font-size: 11px; color: var(--text-secondary); margin-bottom: 2px; }
+        .tree-info .nome { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+        
+        .tree-badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-right: 12px; }
+        .tree-badge.receita { background: #dcfce7; color: #166534; }
+        .tree-badge.despesa { background: #fee2e2; color: #991b1b; }
+        
+        .tree-actions { display: flex; gap: 4px; }
+        .tree-actions button { width: 30px; height: 30px; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; background: transparent; color: var(--text-secondary); }
+        .tree-actions button:hover { background: #f1f5f9; color: var(--text-primary); }
+        
+        .tree-children { display: none; padding-left: 8px; }
+        .tree-children.expanded { display: block; }
+
+        /* MODAL - Design SaaS Empresarial */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); display: none; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(8px); }
+        .modal-overlay.active { display: flex !important; }
+        
+        /* MODAL PADRÍO - Classes com encoding especial */
+        .modal-overlay-padrão { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); display: none; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(8px); }
+        .modal-overlay-padrão.active { display: flex !important; }
+        .modal-padrão { display: flex !important; flex-direction: column !important; background: white !important; border-radius: 20px !important; width: 100% !important; max-width: 650px !important; max-height: 90vh !important; overflow: hidden !important; box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15) !important; animation: modalFadeIn 0.25s ease-out !important; position: relative !important; margin: 16px !important; }
+        .modal-header-padrão { background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); padding: 0; color: white; position: relative; overflow: hidden; border-bottom: none; flex-shrink: 0; }
+        .modal-header-content-padrão { display: flex; align-items: center; gap: 16px; padding: 24px 28px; position: relative; z-index: 1; }
+        .modal-header-icon-padrão { width: 52px; height: 52px; min-width: 52px; background: rgba(255,255,255,0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+        .modal-header-icon-padrão i { color: white; font-size: 22px; }
+        .modal-header-text-padrão { flex: 1; }
+        .modal-header-text-padrão h2 { margin: 0; font-size: 20px; font-weight: 700; color: white; }
+        .modal-header-text-padrão p { margin: 4px 0 0; font-size: 14px; color: rgba(255,255,255,0.85); }
+        .modal-close-padrão { width: 40px; height: 40px; min-width: 40px; border: none; background: rgba(255,255,255,0.15); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-left: auto; }
+        .modal-close-padrão:hover { background: rgba(255,255,255,0.25); transform: rotate(90deg); }
+        .modal-close-padrão i { color: white; font-size: 16px; }
+        .modal-progress-padrão { display: flex; gap: 8px; padding: 16px 28px; background: rgba(0,0,0,0.1); }
+        .modal-step-padrão { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: rgba(255,255,255,0.1); border-radius: 10px; transition: all 0.2s; }
+        .modal-step-padrão.active { background: rgba(255,255,255,0.25); }
+        .modal-step-number-padrão { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: white; }
+        .modal-step-padrão.active .modal-step-number-padrão { background: white; color: #0d9488; }
+        .modal-step-padrão span { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); }
+        .modal-body-padrão { padding: 28px; background: #f8fafc; overflow-y: auto; flex: 1; min-height: 0; }
+        .modal-footer-padrão { padding: 20px 28px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #ffffff; flex-shrink: 0; }
+        .modal-footer-left-padrão { display: flex; align-items: center; }
+        .modal-footer-left-padrão .footer-info { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9ca3af; }
+        .modal-footer-left-padrão .footer-info i { color: #14b8a6; }
+        .modal-footer-right-padrão { display: flex; gap: 12px; margin-left: auto; }
+        .form-section-padrão { background: white; border-radius: 16px; padding: 24px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .form-section-padrão:last-child { margin-bottom: 0; }
+        .form-section-title-padrão { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9; }
+        .form-section-title-padrão i { width: 40px; height: 40px; background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .form-section-title-padrão span { font-size: 15px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .section-badge-padrão { margin-left: auto; font-size: 11px; padding: 5px 12px; border-radius: 20px; font-weight: 600; background: #fee2e2; color: #dc2626; }
+        .form-grid-padrão { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .form-group-padrão { margin-bottom: 16px; }
+        .form-group-padrão:last-child { margin-bottom: 0; }
+        .form-group-padrão label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+        .form-group-padrão label .required { color: #dc2626; }
+        .form-group-padrão input, .form-group-padrão select, .form-group-padrão textarea { width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; font-family: inherit; transition: all 0.2s; background: #ffffff; }
+        .form-group-padrão input:focus, .form-group-padrão select:focus, .form-group-padrão textarea:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.15); }
+        .btn-padrão-ghost { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid #e5e7eb; background: #ffffff; color: #6b7280; }
+        .btn-padrão-ghost:hover { background: #f3f4f6; }
+        .btn-padrão-primary { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); color: white; box-shadow: 0 4px 14px rgba(20, 184, 166, 0.4); }
+        .btn-padrão-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(20, 184, 166, 0.5); }
+        
+        .modal { display: flex !important; flex-direction: column !important; position: relative !important; background: white !important; border-radius: 24px !important; width: 100% !important; max-width: 600px !important; max-height: 90vh !important; overflow: hidden !important; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25) !important; animation: modalFadeIn 0.3s ease-out !important; inset: auto !important; height: auto !important; margin: 16px !important; }
+        @keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        
+        /* Header SaaS */
+        .modal-header-saas { padding: 28px 32px; background: #ffffff; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-shrink: 0; }
+        .modal-header-saas .header-left { display: flex; align-items: center; gap: 16px; flex: 1; }
+        .modal-header-saas .header-icon { width: 56px; height: 56px; min-width: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; }
+        .modal-header-saas .header-icon i { color: white; font-size: 24px; }
+        .modal-header-saas h2 { font-size: 22px; font-weight: 700; color: #111827; margin: 0 0 4px 0; }
+        .modal-header-saas .subtitle { font-size: 14px; color: #6b7280; margin: 0; }
+        .modal-close-saas { width: 44px; height: 44px; min-width: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; color: #6b7280; font-size: 18px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; margin-left: 20px; }
+        .modal-close-saas:hover { background: #e5e7eb; color: #374151; }
+        
+        /* Body SaaS */
+        .modal-body-saas { padding: 32px; overflow-y: auto; flex: 1; min-height: 0; background: #f9fafb; }
+        
+        /* Footer SaaS */
+        .modal-footer-saas { padding: 20px 32px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; background: #ffffff; flex-shrink: 0; }
+        
+        /* Buttons SaaS */
+        .btn-saas { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-saas-ghost { background: #ffffff; color: #6b7280; border: 1px solid #e5e7eb; }
+        .btn-saas-ghost:hover { background: #f3f4f6; color: #374151; }
+        .btn-saas-primary { background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%); color: white; box-shadow: 0 4px 12px rgba(132, 204, 22, 0.35); }
+        .btn-saas-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(132, 204, 22, 0.4); }
+        
+        /* Form SaaS */
+        .form-card-saas { background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb; margin-bottom: 16px; }
+        .form-card-saas:last-child { margin-bottom: 0; }
+        .form-group-saas { margin-bottom: 20px; }
+        .form-group-saas:last-child { margin-bottom: 0; }
+        .form-group-saas label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group-saas label i { font-size: 14px; }
+        .form-group-saas input, .form-group-saas select { width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; transition: all 0.2s; background: #ffffff; }
+        .form-group-saas input:focus, .form-group-saas select:focus { outline: none; border-color: #84cc16; box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.1); }
+        .form-grid-saas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        
+        /* Legacy modal styles */
+        .modal-header { padding: 24px; background: linear-gradient(135deg, #84cc16, #65a30d); color: white; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+        .modal-close { width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: pointer; color: white; font-size: 16px; transition: all 0.2s; }
+        .modal-close:hover { background: rgba(255,255,255,0.3); transform: rotate(90deg); }
+        .modal-body { padding: 24px; overflow-y: auto; max-height: calc(90vh - 180px); }
+        .modal-footer { padding: 20px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* FORM */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .form-group label .required { color: var(--danger); }
+        .form-group input, .form-group select { width: 100%; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(20,184,166,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        
+        /* COLOR PICKER */
+        .color-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+        .color-option { width: 32px; height: 32px; border-radius: 8px; cursor: pointer; border: 3px solid transparent; transition: all 0.2s; }
+        .color-option:hover { transform: scale(1.1); }
+        .color-option.selected { border-color: var(--text-primary); }
+
+        /* TOAST */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; }
+        .toast { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); min-width: 300px; animation: toastIn 0.3s ease-out; margin-bottom: 10px; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast i { font-size: 20px; }
+        .toast.success i { color: var(--success); }
+        .toast.error i { color: var(--danger); }
+
+        @media (max-width: 768px) {
+            .tabs { flex-wrap: wrap; }
+            .form-row { grid-template-columns: 1fr; }
+            .page-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+        }
+
+        /* -------------------------------------------------------------------------------
+           ESTILOS PROFISSIONAIS DOS MODAIS - SAAS EMPRESARIAL INSTITUCIONAL
+           ------------------------------------------------------------------------------- */
+        
+        /* MODAL PROFISSIONAL - BASE */
+        .modal-profissional {
+            max-width: 700px !important;
+            border-radius: 20px !important;
+            overflow: hidden !important;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15) !important;
+        }
+        
+        /* HEADER PROFISSIONAL - LIME (Verde Lima) */
+        .modal-header-pro-teal {
+            padding: 0 !important;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 50%, #4d7c0f 100%) !important;
+            color: white !important;
+            position: relative !important;
+            overflow: hidden !important;
+            border-bottom: none !important;
+            box-shadow: 0 8px 32px rgba(132, 204, 22, 0.35);
+        }
+        .modal-header-pro-teal::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .modal-header-pro-teal::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        }
+        
+        /* Header Content */
+        .modal-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 28px;
+            position: relative;
+            z-index: 1;
+            gap: 20px;
+        }
+        .modal-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+            min-width: 0;
+        }
+        .modal-header-icon {
+            width: 56px;
+            height: 56px;
+            min-width: 56px;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .modal-header-icon i {
+            font-size: 24px;
+            color: white;
+        }
+        .modal-header-text {
+            flex: 1;
+            min-width: 0;
+        }
+        .modal-header-text h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            color: white !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .modal-header-text p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin: 4px 0 0 0;
+            color: rgba(255,255,255,0.9);
+        }
+        
+        /* Botão Fechar Profissional */
+        .modal-close-pro {
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            color: white;
+            flex-shrink: 0;
+        }
+        .modal-close-pro:hover {
+            background: rgba(255,255,255,0.25);
+            transform: scale(1.05);
+        }
+        .modal-close-pro i {
+            font-size: 18px;
+        }
+        
+        /* PROGRESS STEPS - TABS */
+        .modal-progress {
+            display: flex;
+            padding: 0 28px 20px 28px;
+            gap: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        .modal-progress-teal .modal-step-pro.active .modal-step-number {
+            background: white !important;
+            color: #65a30d !important;
+        }
+        .modal-step-pro {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+        }
+        .modal-step-pro:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .modal-step-pro.active {
+            background: rgba(255,255,255,0.25);
+        }
+        .modal-step-number {
+            width: 28px;
+            height: 28px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        .modal-step-pro span {
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+        .modal-step-pro.active span {
+            opacity: 1;
+            font-weight: 600;
+        }
+        
+        /* MODAL BODY PROFISSIONAL */
+        .modal-body-pro {
+            padding: 28px !important;
+            background: #f8fafc !important;
+            overflow-y: auto !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+        }
+        .modal-body-pro::-webkit-scrollbar {
+            width: 8px;
+        }
+        .modal-body-pro::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        .modal-body-pro::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        
+        /* FORM SECTIONS PROFISSIONAIS */
+        .form-section-pro {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: all 0.2s ease;
+        }
+        .form-section-pro:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .form-section-pro:last-child {
+            margin-bottom: 0;
+        }
+        .form-section-pro-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+        .form-section-pro-title i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #84cc16, #65a30d);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 4px 10px rgba(132, 204, 22, 0.25);
+        }
+        .form-section-pro-title span {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .section-badge {
+            margin-left: auto;
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .section-badge-teal {
+            background: #ecfccb;
+            color: #4d7c0f;
+        }
+        .section-badge-gray {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        /* FORM GRID */
+        .form-grid-pro {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 600px) {
+            .form-grid-pro {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* FORM GROUP PROFISSIONAL */
+        .form-group-pro {
+            margin-bottom: 0;
+        }
+        .form-group-pro label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+        .form-group-pro label i {
+            color: #9ca3af;
+            font-size: 13px;
+            width: 16px;
+            text-align: center;
+        }
+        .form-group-pro label .required {
+            color: #ef4444;
+            margin-left: 2px;
+            font-weight: 700;
+        }
+        .field-hint {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .form-group-pro input,
+        .form-group-pro select,
+        .form-group-pro textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.25s;
+            background: #fafbfc;
+            color: #1e293b;
+        }
+        .form-group-pro input:focus,
+        .form-group-pro select:focus,
+        .form-group-pro textarea:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15);
+            background: white;
+        }
+        
+        /* VALOR DESTAQUE LIME */
+        .valor-destaque-pro-teal {
+            position: relative;
+            background: linear-gradient(135deg, #f7fee7 0%, #ecfccb 100%);
+            border-radius: 12px;
+            padding: 4px;
+            border: 2px solid #bef264;
+            transition: all 0.3s ease;
+        }
+        .valor-destaque-pro-teal:hover {
+            border-color: #84cc16;
+        }
+        .valor-destaque-pro-teal:focus-within {
+            border-color: #65a30d;
+            box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15);
+        }
+        .valor-destaque-pro-teal input {
+            font-size: 20px;
+            font-weight: 700;
+            color: #4d7c0f;
+            padding: 14px 14px 14px 50px;
+            background: transparent;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .valor-destaque-pro-teal .currency-symbol {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            font-weight: 700;
+            color: #4d7c0f;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        /* COLOR PICKER PROFISSIONAL */
+        .color-picker-pro {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        .color-picker-pro .color-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .color-picker-pro .color-option:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .color-picker-pro .color-option.selected {
+            border-color: #1e293b;
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+        }
+        
+        /* MODAL FOOTER PROFISSIONAL */
+        .modal-footer-pro {
+            padding: 20px 28px !important;
+            background: white !important;
+            border-top: 1px solid #e5e7eb !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            flex-shrink: 0 !important;
+        }
+        .modal-footer-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .footer-info {
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .footer-info i {
+            color: #84cc16;
+        }
+        .modal-footer-right {
+            display: flex;
+            gap: 12px;
+        }
+        
+        /* BOTÕES PROFISSIONAIS (Verde Lima) */
+        .btn-pro {
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: none;
+        }
+        .btn-pro-ghost {
+            background: white;
+            border: 2px solid #e5e7eb;
+            color: #64748b;
+        }
+        .btn-pro-ghost:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+        .btn-pro-primary-teal {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(132, 204, 22, 0.4);
+        }
+        .btn-pro-primary-teal:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(132, 204, 22, 0.5);
+        }
+    </style>
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Header & Sidebar refinado -->
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260215">
+    <!-- Global Header & Sidebar - override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <link rel="stylesheet" href="/css/modal-fix-global.css?v=20260114-fix4">
+    <link rel="stylesheet" href="css/modais-padrao.css?v=20260114-fix3">
+    <!-- CSS Unificado de Modais SaaS -->
+    <link rel="stylesheet" href="css/modais-saas-unified.css?v=20260121">
+
+
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="plano-contas.html" class="sidebar-btn active" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="orcamentos.html" class="sidebar-btn" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn" title="Centros de Custo">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <!-- Botao Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Plano de Contas</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="main-content">
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header" style="justify-content: flex-end;">
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" onclick="expandirTodos()">
+                            <i class="fas fa-expand-alt"></i> Expandir Todos
+                        </button>
+                        <button class="btn btn-primary" onclick="abrirModal()">
+                            <i class="fas fa-plus"></i> Nova Conta
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tipo="todos" onclick="filtrarTipo('todos')">
+                        <i class="fas fa-list"></i> Todos
+                        <span class="count" id="count-todos">0</span>
+                    </button>
+                    <button class="tab" data-tipo="receita" onclick="filtrarTipo('receita')">
+                        <i class="fas fa-arrow-up"></i> Receitas
+                        <span class="count" id="count-receitas">0</span>
+                    </button>
+                    <button class="tab" data-tipo="despesa" onclick="filtrarTipo('despesa')">
+                        <i class="fas fa-arrow-down"></i> Despesas
+                        <span class="count" id="count-despesas">0</span>
+                    </button>
+                </div>
+
+                <!-- Tree View -->
+                <div class="tree-container">
+                    <div class="tree-header">
+                        <h3><i class="fas fa-folder-tree"></i> Estrutura do Plano de Contas</h3>
+                        <div class="search-box" style="display: flex; align-items: center; background: var(--bg-gray); border-radius: 8px; padding: 0 12px;">
+                            <i class="fas fa-search" style="color: var(--text-secondary);"></i>
+                            <input type="text" id="search-input" placeholder="Buscar conta..." style="border: none; background: transparent; padding: 10px; font-size: 14px; width: 200px; outline: none;" oninput="filtrarContas()">
+                        </div>
+                    </div>
+                    <div class="tree-body" id="tree-contas">
+                        <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                            Carregando plano de contas...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            </div> <!-- /main-content -->
+</main>
+    </div>
+
+    <!-- Modal Nova Conta - Design SaaS Empresarial Profissional -->
+    <div class="modal-overlay-padrão" id="modal-conta" onclick="fecharModal()">
+        <div class="modal-padrão" onclick="event.stopPropagation()">
+            <!-- HEADER PROFISSIONAL COM GRADIENT TEAL -->
+            <div class="modal-header-padrão">
+                <div class="modal-header-content-padrão">
+                    <div class="modal-header-icon-padrão">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <div class="modal-header-text-padrão">
+                        <h2 id="modal-titulo">Nova Conta</h2>
+                        <p>Configure a conta para o plano de contas</p>
+                    </div>
+                    <button class="modal-close-padrão" type="button" onclick="fecharModal()" title="Fechar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <!-- STEPS/PROGRESS TABS -->
+                <div class="modal-progress-padrão">
+                    <div class="modal-step-padrão active" data-step="1">
+                        <div class="modal-step-number-padrão">1</div>
+                        <span>Classificação</span>
+                    </div>
+                    <div class="modal-step-padrão" data-step="2">
+                        <div class="modal-step-number-padrão">2</div>
+                        <span>Detalhes</span>
+                    </div>
+                    <div class="modal-step-padrão" data-step="3">
+                        <div class="modal-step-number-padrão">3</div>
+                        <span>Personalização</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- BODY -->
+            <div class="modal-body-padrão">
+                <form id="form-conta">
+                    <input type="hidden" id="conta-id">
+                    
+                    <!-- Seção 1: Classificação -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-layer-group"></i>
+                            <span>Classificação</span>
+                            <span class="section-badge-padrão">Obrigatório</span>
+                        </div>
+                        <div class="form-grid-padrão">
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-exchange-alt"></i> 
+                                    Tipo de Conta 
+                                    <span class="required">*</span>
+                                </label>
+                                <select id="conta-tipo" required>
+                                    <option value="receita">&#128200; Receita</option>
+                                    <option value="despesa">&#128201; Despesa</option>
+                                </select>
+                                <span class="field-hint"><i class="fas fa-info-circle"></i> Define se é entrada ou saída de recursos</span>
+                            </div>
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-folder-tree"></i> 
+                                    Conta Pai
+                                </label>
+                                <select id="conta-pai">
+                                    <option value="">&#128194; Nenhuma (Conta Principal)</option>
+                                </select>
+                                <span class="field-hint"><i class="fas fa-info-circle"></i> Vincule a uma conta existente</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção 2: Informações da Conta -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Informações da Conta</span>
+                            <span class="section-badge-padrão">Obrigatório</span>
+                        </div>
+                        <div class="form-group-padrão">
+                            <label>
+                                <i class="fas fa-tag"></i> 
+                                Nome da Conta 
+                                <span class="required">*</span>
+                            </label>
+                            <input type="text" id="conta-nome" placeholder="Ex: Vendas de Produtos, Despesas Administrativas..." required>
+                            <span class="field-hint"><i class="fas fa-lightbulb"></i> Um nome claro e descritivo para a conta</span>
+                        </div>
+                        <div class="form-grid-padrão">
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-align-left"></i> 
+                                    Descrição
+                                </label>
+                                <input type="text" id="conta-descrição" placeholder="Descrição detalhada (opcional)">
+                            </div>
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-dollar-sign"></i> 
+                                    Orçamento Mensal
+                                </label>
+                                <div class="valor-destaque-padrão">
+                                    <span class="currency-symbol">R$</span>
+                                    <input type="text" id="conta-orcamento" placeholder="0,00" oninput="formatarMoeda(this)">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção 3: Personalização -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-palette"></i>
+                            <span>Personalização</span>
+                            <span class="section-badge-padrão" style="background: rgba(107, 114, 128, 0.1); color: #6b7280;">Opcional</span>
+                        </div>
+                        <div class="form-grid-padrão">
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-icons"></i> 
+                                    Ícone
+                                </label>
+                                <select id="conta-icone">
+                                    <option value="fa-folder">&#128193; Pasta</option>
+                                    <option value="fa-money-bill">&#128181; Dinheiro</option>
+                                    <option value="fa-credit-card">&#128179; Cartão</option>
+                                    <option value="fa-building">&#127970; Empresa</option>
+                                    <option value="fa-users">&#128101; Pessoas</option>
+                                    <option value="fa-truck">&#128666; Transporte</option>
+                                    <option value="fa-tools">&#128295; Manutenção</option>
+                                    <option value="fa-bolt">&#9889; Energia</option>
+                                    <option value="fa-shopping-cart">&#128722; Compras</option>
+                                    <option value="fa-chart-line">&#128200; Vendas</option>
+                                    <option value="fa-handshake">&#129309; Serviços</option>
+                                    <option value="fa-file-invoice">&#128196; Documentos</option>
+                                </select>
+                            </div>
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-toggle-on"></i> 
+                                    Status
+                                </label>
+                                <select id="conta-status">
+                                    <option value="1">&#9989; Ativo</option>
+                                    <option value="0">&#10060; Inativo</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group-padrão">
+                            <label>
+                                <i class="fas fa-swatchbook"></i> 
+                                Cor de Identificação
+                            </label>
+                            <div class="color-picker-pro" id="color-picker">
+                                <div class="color-option selected" data-color="#84cc16" style="background: linear-gradient(135deg, #84cc16, #65a30d);" title="Verde Lima"></div>
+                                <div class="color-option" data-color="#22c55e" style="background: linear-gradient(135deg, #22c55e, #16a34a);" title="Verde"></div>
+                                <div class="color-option" data-color="#3b82f6" style="background: linear-gradient(135deg, #3b82f6, #2563eb);" title="Azul"></div>
+                                <div class="color-option" data-color="#f59e0b" style="background: linear-gradient(135deg, #f59e0b, #d97706);" title="Laranja"></div>
+                                <div class="color-option" data-color="#ef4444" style="background: linear-gradient(135deg, #ef4444, #dc2626);" title="Vermelho"></div>
+                                <div class="color-option" data-color="#ec4899" style="background: linear-gradient(135deg, #ec4899, #db2777);" title="Rosa"></div>
+                                <div class="color-option" data-color="#14b8a6" style="background: linear-gradient(135deg, #14b8a6, #0d9488);" title="Teal"></div>
+                                <div class="color-option" data-color="#64748b" style="background: linear-gradient(135deg, #64748b, #475569);" title="Cinza"></div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- FOOTER PROFISSIONAL -->
+            <div class="modal-footer-padrão">
+                <div class="modal-footer-left-padrão">
+                    <span class="footer-info"><i class="fas fa-info-circle"></i> Conta será salva no plano de contas</span>
+                </div>
+                <div class="modal-footer-right-padrão">
+                    <button class="btn-padrão-ghost" type="button" onclick="fecharModal()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn-padrão-primary" type="button" onclick="salvarConta()">
+                        <i class="fas fa-save"></i> Salvar Conta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // Estado
+        let planoContas = [];
+        let editandoId = null;
+        let corSelecionada = '#22c55e';
+        let filtroAtual = 'todos';
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async () => {
+            await carregarUsuario();
+            await carregarPlanoContas();
+            setupColorPicker();
+        });
+
+        // Carregar usuário
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    
+                    // Saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    document.getElementById('user-name').textContent = primeiroNome;
+                    document.getElementById('user-initials').textContent = primeiroNome.charAt(0).toUpperCase();
+                    
+                    const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    const foto = document.getElementById('user-photo');
+                    const inicialEl = document.getElementById('user-initials');
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                        foto.src = fotoUrl;
+                        foto.onload = () => { foto.style.display = 'block'; foto.classList.add('visible'); if (inicialEl) inicialEl.style.display = 'none'; };
+                        foto.onerror = () => { foto.style.display = 'none'; if (inicialEl) { inicialEl.textContent = primeiroNome.charAt(0).toUpperCase(); inicialEl.style.display = 'flex'; } };
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao carregar usuário:', e);
+            }
+        }
+
+        // Carregar plano de contas
+        async function carregarPlanoContas() {
+            try {
+                const response = await fetch('/api/financeiro/categorias', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    // Garantir que sempre seja um array
+                    planoContas = Array.isArray(data) ? data : (data.categorias || data.data || []);
+                } else {
+                    // Dados de exemplo
+                    planoContas = [
+                        { id: 1, nome: 'Receitas Operacionais', tipo: 'receita', cor: '#22c55e', icone: 'fa-chart-line', ativo: 1, pai_id: null },
+                        { id: 2, nome: 'Vendas de Produtos', tipo: 'receita', cor: '#22c55e', icone: 'fa-shopping-cart', ativo: 1, pai_id: 1 },
+                        { id: 3, nome: 'Vendas de Serviços', tipo: 'receita', cor: '#22c55e', icone: 'fa-tools', ativo: 1, pai_id: 1 },
+                        { id: 4, nome: 'Receitas Financeiras', tipo: 'receita', cor: '#3b82f6', icone: 'fa-money-bill', ativo: 1, pai_id: null },
+                        { id: 5, nome: 'Juros Recebidos', tipo: 'receita', cor: '#3b82f6', icone: 'fa-percentage', ativo: 1, pai_id: 4 },
+                        { id: 10, nome: 'Despesas Operacionais', tipo: 'despesa', cor: '#ef4444', icone: 'fa-building', ativo: 1, pai_id: null },
+                        { id: 11, nome: 'Salários e Encargos', tipo: 'despesa', cor: '#ef4444', icone: 'fa-users', ativo: 1, pai_id: 10 },
+                        { id: 12, nome: 'Aluguel', tipo: 'despesa', cor: '#ef4444', icone: 'fa-home', ativo: 1, pai_id: 10 },
+                        { id: 13, nome: 'Energia Elétrica', tipo: 'despesa', cor: '#f59e0b', icone: 'fa-bolt', ativo: 1, pai_id: 10 },
+                        { id: 14, nome: 'Água e Esgoto', tipo: 'despesa', cor: '#3b82f6', icone: 'fa-tint', ativo: 1, pai_id: 10 },
+                        { id: 20, nome: 'Despesas Administrativas', tipo: 'despesa', cor: '#8b5cf6', icone: 'fa-folder', ativo: 1, pai_id: null },
+                        { id: 21, nome: 'Material de Escritório', tipo: 'despesa', cor: '#8b5cf6', icone: 'fa-pen', ativo: 1, pai_id: 20 },
+                        { id: 22, nome: 'Internet e Telefone', tipo: 'despesa', cor: '#8b5cf6', icone: 'fa-wifi', ativo: 1, pai_id: 20 }
+                    ];
+                }
+                renderizarArvore();
+                atualizarContadores();
+                atualizarSelectPai();
+            } catch (e) {
+                console.error('Erro ao carregar plano de contas:', e);
+            }
+        }
+
+        // Renderizar árvore
+        function renderizarArvore() {
+            const container = document.getElementById('tree-contas');
+            const contasFiltradas = filtroAtual === 'todos' 
+                ? planoContas 
+                : planoContas.filter(c => c.tipo === filtroAtual);
+            
+            const contasRaiz = contasFiltradas.filter(c => !c.pai_id);
+            
+            if (contasRaiz.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 60px; color: var(--text-secondary);">
+                        <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 16px; display: block; opacity: 0.3;"></i>
+                        <p style="font-size: 16px; margin-bottom: 8px;">Nenhuma conta encontrada</p>
+                        <p style="font-size: 13px;">Clique em "Nova Conta" para criar</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = contasRaiz.map(conta => renderizarItem(conta, 1)).join('');
+        }
+
+        // Renderizar item da árvore
+        function renderizarItem(conta, nivel) {
+            const filhos = planoContas.filter(c => c.pai_id === conta.id);
+            const temFilhos = filhos.length > 0;
+            
+            return `
+                <div class="tree-item nivel-${nivel}" data-id="${conta.id}" data-tipo="${conta.tipo}">
+                    <div class="tree-row">
+                        ${temFilhos ? `
+                            <button class="tree-toggle" onclick="toggleFilhos(${conta.id})">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        ` : '<div style="width: 32px;"></div>'}
+                        <div class="tree-icon ${conta.tipo}" style="background: ${conta.cor}20; color: ${conta.cor};">
+                            <i class="fas ${conta.icone || 'fa-folder'}"></i>
+                        </div>
+                        <div class="tree-info">
+                            <div class="codigo">${conta.id.toString().padStart(3, '0')}</div>
+                            <div class="nome">${conta.nome}</div>
+                        </div>
+                        <span class="tree-badge ${conta.tipo}">${conta.tipo === 'receita' ? 'Receita' : 'Despesa'}</span>
+                        <div class="tree-actions">
+                            <button title="Adicionar subconta" onclick="adicionarSubconta(${conta.id})">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                            <button title="Editar" onclick="editarConta(${conta.id})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button title="Excluir" onclick="excluirConta(${conta.id})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${temFilhos ? `
+                        <div class="tree-children" id="children-${conta.id}">
+                            ${filhos.map(f => renderizarItem(f, Math.min(nivel + 1, 3))).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Toggle filhos
+        function toggleFilhos(id) {
+            const container = document.getElementById(`children-${id}`);
+            const toggle = document.querySelector(`.tree-item[data-id="${id}"] .tree-toggle`);
+            
+            if (container) {
+                container.classList.toggle('expanded');
+                toggle?.classList.toggle('expanded');
+            }
+        }
+
+        // Expandir todos
+        function expandirTodos() {
+            document.querySelectorAll('.tree-children').forEach(el => el.classList.add('expanded'));
+            document.querySelectorAll('.tree-toggle').forEach(el => el.classList.add('expanded'));
+        }
+
+        // Filtrar por tipo
+        function filtrarTipo(tipo) {
+            filtroAtual = tipo;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[data-tipo="${tipo}"]`).classList.add('active');
+            renderizarArvore();
+        }
+
+        // Filtrar contas (busca)
+        function filtrarContas() {
+            const termo = document.getElementById('search-input').value.toLowerCase();
+            document.querySelectorAll('.tree-item').forEach(item => {
+                const nome = item.querySelector('.nome')?.textContent.toLowerCase() || '';
+                item.style.display = nome.includes(termo) ? '' : 'none';
+            });
+        }
+
+        // Atualizar contadores
+        function atualizarContadores() {
+            const receitas = planoContas.filter(c => c.tipo === 'receita').length;
+            const despesas = planoContas.filter(c => c.tipo === 'despesa').length;
+            document.getElementById('count-todos').textContent = planoContas.length;
+            document.getElementById('count-receitas').textContent = receitas;
+            document.getElementById('count-despesas').textContent = despesas;
+        }
+
+        // Atualizar select de conta pai
+        function atualizarSelectPai() {
+            const select = document.getElementById('conta-pai');
+            select.innerHTML = '<option value="">Nenhuma (Conta Principal)</option>';
+            planoContas.filter(c => !c.pai_id).forEach(c => {
+                select.innerHTML += `<option value="${c.id}">${c.nome}</option>`;
+            });
+        }
+
+        // Setup color picker
+        function setupColorPicker() {
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.addEventListener('click', () => {
+                    document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                    opt.classList.add('selected');
+                    corSelecionada = opt.dataset.color;
+                });
+            });
+        }
+
+        // Formatar moeda
+        function formatarMoeda(input) {
+            let valor = input.value.replace(/\D/g, '');
+            valor = (parseInt(valor) / 100).toFixed(2);
+            input.value = valor.replace('.', ',');
+        }
+
+        // Abrir modal
+        function abrirModal() {
+            editandoId = null;
+            document.getElementById('modal-titulo').textContent = 'Nova Conta';
+            document.getElementById('form-conta').reset();
+            document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+            document.querySelector('.color-option[data-color="#22c55e"]').classList.add('selected');
+            corSelecionada = '#22c55e';
+            document.getElementById('modal-conta').classList.add('active');
+        }
+
+        // Fechar modal
+        function fecharModal() {
+            document.getElementById('modal-conta').classList.remove('active');
+            editandoId = null;
+        }
+
+        // Adicionar subconta
+        function adicionarSubconta(paiId) {
+            const pai = planoContas.find(c => c.id === paiId);
+            if (!pai) return;
+            
+            abrirModal();
+            document.getElementById('conta-tipo').value = pai.tipo;
+            document.getElementById('conta-pai').value = paiId;
+        }
+
+        // Editar conta
+        function editarConta(id) {
+            const conta = planoContas.find(c => c.id === id);
+            if (!conta) return;
+
+            editandoId = id;
+            document.getElementById('modal-titulo').textContent = 'Editar Conta';
+            document.getElementById('conta-id').value = conta.id;
+            document.getElementById('conta-tipo').value = conta.tipo;
+            document.getElementById('conta-pai').value = conta.pai_id || '';
+            document.getElementById('conta-nome').value = conta.nome;
+            document.getElementById('conta-descrição').value = conta.descrição || '';
+            document.getElementById('conta-icone').value = conta.icone || 'fa-folder';
+            document.getElementById('conta-orcamento').value = conta.orcamento_mensal ? (conta.orcamento_mensal / 1).toFixed(2).replace('.', ',') : '';
+            document.getElementById('conta-status').value = conta.ativo ? '1' : '0';
+
+            // Selecionar cor
+            document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+            const corOpt = document.querySelector(`.color-option[data-color="${conta.cor}"]`);
+            if (corOpt) {
+                corOpt.classList.add('selected');
+                corSelecionada = conta.cor;
+            }
+
+            document.getElementById('modal-conta').classList.add('active');
+        }
+
+        // Salvar conta
+        async function salvarConta() {
+            const nome = document.getElementById('conta-nome').value.trim();
+            const tipo = document.getElementById('conta-tipo').value;
+            const pai_id = document.getElementById('conta-pai').value || null;
+            const descrição = document.getElementById('conta-descrição').value.trim();
+            const icone = document.getElementById('conta-icone').value;
+            const orcamento = parseFloat(document.getElementById('conta-orcamento').value.replace(',', '.')) || 0;
+            const ativo = document.getElementById('conta-status').value === '1';
+
+            if (!nome) {
+                showToast('Preencha o nome da conta', 'error');
+                return;
+            }
+
+            const dados = { nome, tipo, pai_id: pai_id ? parseInt(pai_id) : null, descrição, icone, cor: corSelecionada, orcamento_mensal: orcamento, ativo };
+
+            try {
+                const url = editandoId 
+                    ? `/api/financeiro/categorias/${editandoId}` 
+                    : '/api/financeiro/categorias';
+                const method = editandoId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast(editandoId ? 'Conta atualizada!' : 'Conta criada!', 'success');
+                    fecharModal();
+                    await carregarPlanoContas();
+                } else {
+                    // Fallback local
+                    if (editandoId) {
+                        const idx = planoContas.findIndex(c => c.id === editandoId);
+                        if (idx !== -1) planoContas[idx] = { ...planoContas[idx], ...dados };
+                    } else {
+                        planoContas.push({ id: Date.now(), ...dados });
+                    }
+                    renderizarArvore();
+                    atualizarContadores();
+                    atualizarSelectPai();
+                    showToast(editandoId ? 'Conta atualizada!' : 'Conta criada!', 'success');
+                    fecharModal();
+                }
+            } catch (e) {
+                console.error('Erro ao salvar:', e);
+                showToast('Erro ao salvar conta', 'error');
+            }
+        }
+
+        // Excluir conta
+        async function excluirConta(id) {
+            const conta = planoContas.find(c => c.id === id);
+            const temFilhos = planoContas.some(c => c.pai_id === id);
+            
+            if (temFilhos) {
+                showToast('Não é possível excluir conta com subcontas', 'error');
+                return;
+            }
+
+            // Modal de confirmação profissional
+            const confirmado = await showConfirmModal({
+                type: 'danger',
+                title: 'Excluir Conta',
+                message: `Deseja realmente excluir a conta "${conta?.nome}"? Esta ação não pode ser desfeita.`,
+                confirmText: 'Excluir',
+                cancelText: 'Cancelar'
+            });
+
+            if (!confirmado) return;
+
+            try {
+                const response = await fetch(`/api/financeiro/categorias/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    showToast('Conta excluída!', 'success');
+                    await carregarPlanoContas();
+                } else {
+                    planoContas = planoContas.filter(c => c.id !== id);
+                    renderizarArvore();
+                    atualizarContadores();
+                    atualizarSelectPai();
+                    showToast('Conta excluída!', 'success');
+                }
+            } catch (e) {
+                console.error('Erro ao excluir:', e);
+                showToast('Erro ao excluir conta', 'error');
+            }
+        }
+
+        // Toast
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    </script>
+    <script src="/js/confirm-modal.js?v=20260110"></script>
+    <script src="/js/modal-fix-global.js?v=20260110"></script>
+    <script src="public/js/financeiro-user-loader.js?v=20260119"></script>
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+

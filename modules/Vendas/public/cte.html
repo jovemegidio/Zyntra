@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: CT-e</title>
+    
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        .status-badge {
+            padding: 0.35rem 0.65rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        .status-pendente { background-color: #fff3cd; color: #856404; }
+        .status-autorizada { background-color: #d1e7dd; color: #0a3622; }
+        .status-cancelada { background-color: #f8d7da; color: #58151c; }
+        .status-inutilizada { background-color: #e2e3e5; color: #41464b; }
+        .cte-card { transition: all 0.3s; cursor: pointer; }
+        .cte-card:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.1); transform: translateY(-2px); }
+        .stats-card { border-left: 4px solid; }
+        .stats-card.primary { border-color: #0d6efd; }
+        .stats-card.success { border-color: #198754; }
+        .stats-card.danger { border-color: #dc3545; }
+        .stats-card.warning { border-color: #ffc107; }
+    </style>
+    <script src="/js/modal-title.js?v=20260210"></script>
+
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/vendas.html">
+                <i class="bi bi-truck"></i> CT-e - Conhecimento de Transporte
+            </a>
+            <button class="btn btn-light" onclick="mostrarFormularioEmissao()">
+                <i class="bi bi-plus-circle"></i> Novo CT-e
+            </button>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Dashboard de Estatísticas -->
+        <div class="row mb-4" id="dashboard">
+            <div class="col-md-3">
+                <div class="card stats-card primary">
+                    <div class="card-body">
+                        <h5 class="card-title">Total Emitidos</h5>
+                        <h2 id="totalEmitidos">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card success">
+                    <div class="card-body">
+                        <h5 class="card-title">Autorizados</h5>
+                        <h2 id="totalAutorizados">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card danger">
+                    <div class="card-body">
+                        <h5 class="card-title">Cancelados</h5>
+                        <h2 id="totalCancelados">-</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stats-card warning">
+                    <div class="card-body">
+                        <h5 class="card-title">Valor Total</h5>
+                        <h2 id="valorTotal">R$ -</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="filtroStatus" title="Filtrar por status">
+                            <option value="">Todos</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="autorizada">Autorizada</option>
+                            <option value="cancelada">Cancelada</option>
+                            <option value="inutilizada">Inutilizada</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Transportadora</label>
+                        <input type="text" class="form-control" id="filtroTransportadora" placeholder="Nome da transportadora">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="filtroDataInicio">Data Início</label>
+                        <input type="date" class="form-control" id="filtroDataInicio" title="Data início do filtro">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="filtroDataFim">Data Fim</label>
+                        <input type="date" class="form-control" id="filtroDataFim" title="Data fim do filtro">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" onclick="buscarCTes()">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de CT-es -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">CT-es Cadastrados</h5>
+                <button class="btn btn-sm btn-outline-secondary" onclick="exportarExcel()">
+                    <i class="bi bi-file-earmark-excel"></i> Exportar
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="listaCTes" class="row g-3">
+                    <div class="col-12 text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Emitir CT-e -->
+    <div class="modal fade" id="modalEmissao" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Emitir CT-e</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formEmissao">
+                        <!-- Remetente -->
+                        <h6 class="border-bottom pb-2 mb-3">Remetente</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">CNPJ/CPF *</label>
+                                <input type="text" class="form-control" name="remetente_cnpj" required title="CNPJ ou CPF do remetente" placeholder="00.000.000/0000-00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nome/Razão Social *</label>
+                                <input type="text" class="form-control" name="remetente_nome" required title="Nome ou razão social do remetente" placeholder="Nome/Razão Social">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Endereço *</label>
+                                <input type="text" class="form-control" name="remetente_endereco" required title="Endereço do remetente" placeholder="Rua, número, bairro">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Cidade *</label>
+                                <input type="text" class="form-control" name="remetente_cidade" required title="Cidade do remetente" placeholder="Cidade">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">UF *</label>
+                                <select class="form-select" name="remetente_uf" required title="UF do remetente">
+                                    <option value="">Selecione</option>
+                                    <option value="AC">AC</option>
+                                    <option value="AL">AL</option>
+                                    <option value="AP">AP</option>
+                                    <option value="AM">AM</option>
+                                    <option value="BA">BA</option>
+                                    <option value="CE">CE</option>
+                                    <option value="DF">DF</option>
+                                    <option value="ES">ES</option>
+                                    <option value="GO">GO</option>
+                                    <option value="MA">MA</option>
+                                    <option value="MT">MT</option>
+                                    <option value="MS">MS</option>
+                                    <option value="MG">MG</option>
+                                    <option value="PA">PA</option>
+                                    <option value="PB">PB</option>
+                                    <option value="PR">PR</option>
+                                    <option value="PE">PE</option>
+                                    <option value="PI">PI</option>
+                                    <option value="RJ">RJ</option>
+                                    <option value="RN">RN</option>
+                                    <option value="RS">RS</option>
+                                    <option value="RO">RO</option>
+                                    <option value="RR">RR</option>
+                                    <option value="SC">SC</option>
+                                    <option value="SP">SP</option>
+                                    <option value="SE">SE</option>
+                                    <option value="TO">TO</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Destinatário -->
+                        <h6 class="border-bottom pb-2 mb-3">Destinatário</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">CNPJ/CPF *</label>
+                                <input type="text" class="form-control" name="destinatario_cnpj" required title="CNPJ ou CPF do destinatário" placeholder="00.000.000/0000-00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nome/Razão Social *</label>
+                                <input type="text" class="form-control" name="destinatario_nome" required title="Nome ou razão social do destinatário" placeholder="Nome/Razão Social">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Endereço *</label>
+                                <input type="text" class="form-control" name="destinatario_endereco" required title="Endereço do destinatário" placeholder="Rua, número, bairro">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Cidade *</label>
+                                <input type="text" class="form-control" name="destinatario_cidade" required title="Cidade do destinatário" placeholder="Cidade">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">UF *</label>
+                                <select class="form-select" name="destinatario_uf" required title="UF do destinatário">
+                                    <option value="">Selecione</option>
+                                    <option value="AC">AC</option>
+                                    <option value="AL">AL</option>
+                                    <option value="AP">AP</option>
+                                    <option value="AM">AM</option>
+                                    <option value="BA">BA</option>
+                                    <option value="CE">CE</option>
+                                    <option value="DF">DF</option>
+                                    <option value="ES">ES</option>
+                                    <option value="GO">GO</option>
+                                    <option value="MA">MA</option>
+                                    <option value="MT">MT</option>
+                                    <option value="MS">MS</option>
+                                    <option value="MG">MG</option>
+                                    <option value="PA">PA</option>
+                                    <option value="PB">PB</option>
+                                    <option value="PR">PR</option>
+                                    <option value="PE">PE</option>
+                                    <option value="PI">PI</option>
+                                    <option value="RJ">RJ</option>
+                                    <option value="RN">RN</option>
+                                    <option value="RS">RS</option>
+                                    <option value="RO">RO</option>
+                                    <option value="RR">RR</option>
+                                    <option value="SC">SC</option>
+                                    <option value="SP">SP</option>
+                                    <option value="SE">SE</option>
+                                    <option value="TO">TO</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Valores e Carga -->
+                        <h6 class="border-bottom pb-2 mb-3">Valores e Carga</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3">
+                                <label class="form-label">Valor do Serviço *</label>
+                                <input type="number" step="0.01" class="form-control" name="valor_servico" required title="Valor do serviço de transporte" placeholder="0.00">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Valor da Carga *</label>
+                                <input type="number" step="0.01" class="form-control" name="valor_carga" required title="Valor da carga" placeholder="0.00">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Peso Bruto (kg)</label>
+                                <input type="number" step="0.01" class="form-control" name="peso_bruto" title="Peso bruto em quilogramas" placeholder="0.00">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Quantidade Volumes</label>
+                                <input type="number" class="form-control" name="quantidade_volumes" title="Quantidade de volumes" placeholder="0">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Produto Predominante</label>
+                                <input type="text" class="form-control" name="produto_predominante" title="Produto predominante da carga" placeholder="Descrição do produto">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Modal *</label>
+                                <select class="form-select" name="modal" required title="Modal de transporte">
+                                    <option value="rodoviario">Rodoviário</option>
+                                    <option value="aereo">Aéreo</option>
+                                    <option value="ferroviario">Ferroviário</option>
+                                    <option value="aquaviario">Aquaviário</option>
+                                    <option value="dutoviario">Dutoviário</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Transportadora e Veículo -->
+                        <h6 class="border-bottom pb-2 mb-3">Transportadora</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">CNPJ Transportadora</label>
+                                <input type="text" class="form-control" name="transportadora_cnpj" title="CNPJ da transportadora" placeholder="00.000.000/0000-00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nome Transportadora</label>
+                                <input type="text" class="form-control" name="transportadora_nome" title="Nome da transportadora" placeholder="Nome da transportadora">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Placa Veículo</label>
+                                <input type="text" class="form-control" name="veiculo_placa" title="Placa do veículo" placeholder="ABC-1234">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">UF Veículo</label>
+                                <select class="form-select" name="veiculo_uf" title="UF do veículo">
+                                    <option value="">Selecione</option>
+                                    <option value="AC">AC</option>
+                                    <option value="AL">AL</option>
+                                    <option value="AP">AP</option>
+                                    <option value="AM">AM</option>
+                                    <option value="BA">BA</option>
+                                    <option value="CE">CE</option>
+                                    <option value="DF">DF</option>
+                                    <option value="ES">ES</option>
+                                    <option value="GO">GO</option>
+                                    <option value="MA">MA</option>
+                                    <option value="MT">MT</option>
+                                    <option value="MS">MS</option>
+                                    <option value="MG">MG</option>
+                                    <option value="PA">PA</option>
+                                    <option value="PB">PB</option>
+                                    <option value="PR">PR</option>
+                                    <option value="PE">PE</option>
+                                    <option value="PI">PI</option>
+                                    <option value="RJ">RJ</option>
+                                    <option value="RN">RN</option>
+                                    <option value="RS">RS</option>
+                                    <option value="RO">RO</option>
+                                    <option value="RR">RR</option>
+                                    <option value="SC">SC</option>
+                                    <option value="SP">SP</option>
+                                    <option value="SE">SE</option>
+                                    <option value="TO">TO</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">RNTRC</label>
+                                <input type="text" class="form-control" name="veiculo_rntrc" title="RNTRC do transportador" placeholder="00000000">
+                            </div>
+                        </div>
+
+                        <!-- NF-es Vinculadas -->
+                        <h6 class="border-bottom pb-2 mb-3">NF-es Vinculadas (Opcional)</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Chaves de Acesso (uma por linha)</label>
+                            <textarea class="form-control" name="chaves_nfe" rows="3" placeholder="44231234567890123456789012345678901234567890&#10;44231234567890123456789012345678901234567891"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Observações</label>
+                            <textarea class="form-control" name="observacoes" rows="3" title="Observações adicionais" placeholder="Observações opcionais..."></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="emitirCTe()">
+                        <i class="bi bi-send"></i> Emitir CT-e
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Detalhes do CT-e -->
+    <div class="modal fade" id="modalDetalhes" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalhes do CT-e</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body" id="conteudoDetalhes">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger" onclick="cancelarCTe()">
+                        <i class="bi bi-x-circle"></i> Cancelar CT-e
+                    </button>
+                    <button type="button" class="btn btn-outline-info" onclick="baixarDACTE()">
+                        <i class="bi bi-file-pdf"></i> Baixar DACTE
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let cteAtual = null;
+        let ctesCarregados = []; // Cache para exportação
+
+        /**
+         * Sanitiza string para prevenir XSS ao usar innerHTML.
+         * Escapa &, <, >, " e '.
+         */
+        function esc(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        /**
+         * Formata data de forma segura, retornando '-' para valores inválidos.
+         */
+        function formatarDataSegura(data) {
+            if (!data) return '-';
+            const d = new Date(data);
+            if (isNaN(d.getTime())) return '-';
+            return d.toLocaleDateString('pt-BR');
+        }
+
+        /**
+         * Formata valor monetário BRL de forma segura.
+         */
+        function formatarMoedaSegura(valor) {
+            const num = parseFloat(valor);
+            if (isNaN(num)) return 'R$ 0,00';
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+        }
+
+        /**
+         * Sanitiza string contra CSV/formula injection.
+         */
+        function sanitizarCSV(str) {
+            if (typeof str !== 'string') return String(str ?? '');
+            let s = str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+            if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+            return s;
+        }
+
+        /**
+         * Faz fetch com tratamento robusto de erros e credentials.
+         */
+        async function fetchSeguro(url, options = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            
+            const response = await fetch(url, { ...options, headers, credentials: 'include' });
+            if (!response.ok) {
+                const errorText = await response.text().catch(() => 'Erro desconhecido');
+                throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+            }
+            return response.json();
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarDashboard();
+            buscarCTes();
+        });
+
+        // Dashboard
+        async function carregarDashboard() {
+            try {
+                const data = await fetchSeguro('/api/cte/dashboard/resumo');
+
+                if (data.sucesso) {
+                    document.getElementById('totalEmitidos').textContent = data.total || 0;
+                    document.getElementById('totalAutorizados').textContent = data.por_status?.autorizada || 0;
+                    document.getElementById('totalCancelados').textContent = data.por_status?.cancelada || 0;
+                    document.getElementById('valorTotal').textContent = formatarMoedaSegura(data.valor_total);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar dashboard:', error);
+            }
+        }
+
+        // Buscar CT-es com parâmetros encodados (previne URL injection)
+        async function buscarCTes() {
+            const status = document.getElementById('filtroStatus').value;
+            const transportadora = document.getElementById('filtroTransportadora').value;
+            const dataInicio = document.getElementById('filtroDataInicio').value;
+            const dataFim = document.getElementById('filtroDataFim').value;
+
+            const params = new URLSearchParams();
+            if (status) params.set('status', status);
+            if (transportadora) params.set('transportadora', transportadora);
+            if (dataInicio) params.set('data_inicio', dataInicio);
+            if (dataFim) params.set('data_fim', dataFim);
+
+            try {
+                const data = await fetchSeguro(`/api/cte?${params.toString()}`);
+
+                if (data.sucesso) {
+                    ctesCarregados = data.ctes || [];
+                    renderizarCTes(ctesCarregados);
+                }
+            } catch (error) {
+                console.error('Erro ao buscar CT-es:', error);
+                document.getElementById('listaCTes').innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-danger">Erro ao carregar CT-es. Verifique sua conexão.</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Renderizar lista de CT-es (XSS-safe)
+        function renderizarCTes(ctes) {
+            const container = document.getElementById('listaCTes');
+
+            if (!ctes || ctes.length === 0) {
+                container.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info">Nenhum CT-e encontrado.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = ctes.map(cte => {
+                const statusSafe = esc(cte.status || 'pendente');
+                return `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card cte-card" onclick="verDetalhes(${parseInt(cte.id) || 0})">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="card-title mb-0">CT-e #${esc(cte.numero)}</h6>
+                                <span class="status-badge status-${statusSafe}">${statusSafe.toUpperCase()}</span>
+                            </div>
+                            <p class="card-text small mb-1">
+                                <strong>Remetente:</strong> ${esc(cte.remetente_nome || '-')}<br>
+                                <strong>Destinatário:</strong> ${esc(cte.destinatario_nome || '-')}<br>
+                                <strong>Transportadora:</strong> ${esc(cte.transportadora_nome || '-')}<br>
+                                <strong>Modal:</strong> ${esc(cte.modal || '-')}<br>
+                                <strong>Valor:</strong> ${formatarMoedaSegura(cte.valor_servico)}
+                            </p>
+                            <small class="text-muted">
+                                Emitido em: ${formatarDataSegura(cte.data_emissao)}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // Ver detalhes (XSS-safe)
+        async function verDetalhes(id) {
+            const idSafe = parseInt(id);
+            if (isNaN(idSafe) || idSafe <= 0) return;
+            cteAtual = idSafe;
+            const modal = new bootstrap.Modal(document.getElementById('modalDetalhes'));
+            modal.show();
+
+            try {
+                const data = await fetchSeguro(`/api/cte/${idSafe}`);
+
+                if (data.sucesso && data.cte) {
+                    const cte = data.cte;
+                    const statusSafe = esc(cte.status || 'pendente');
+                    document.getElementById('conteudoDetalhes').innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <strong>Número:</strong> ${esc(cte.numero)}<br>
+                                <strong>Série:</strong> ${esc(cte.serie)}<br>
+                                <strong>Status:</strong> <span class="status-badge status-${statusSafe}">${statusSafe.toUpperCase()}</span><br>
+                                <strong>Chave de Acesso:</strong> <small>${esc(cte.chave_acesso || '-')}</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <strong>Modal:</strong> ${esc(cte.modal)}<br>
+                                <strong>Emissão:</strong> ${formatarDataSegura(cte.data_emissao)}<br>
+                                <strong>Protocolo:</strong> ${esc(cte.protocolo_autorizacao || '-')}
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <h6>Remetente</h6>
+                                <strong>${esc(cte.remetente_nome)}</strong><br>
+                                CNPJ: ${esc(cte.remetente_cnpj)}<br>
+                                ${esc(cte.remetente_endereco)}<br>
+                                ${esc(cte.remetente_cidade)}/${esc(cte.remetente_uf)}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <h6>Destinatário</h6>
+                                <strong>${esc(cte.destinatario_nome)}</strong><br>
+                                CNPJ: ${esc(cte.destinatario_cnpj)}<br>
+                                ${esc(cte.destinatario_endereco)}<br>
+                                ${esc(cte.destinatario_cidade)}/${esc(cte.destinatario_uf)}
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row">
+                            <div class="col-md-3">
+                                <strong>Valor Serviço:</strong><br>
+                                ${formatarMoedaSegura(cte.valor_servico)}
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Valor Carga:</strong><br>
+                                ${formatarMoedaSegura(cte.valor_carga)}
+                            </div>
+                            <div class="col-md-3">
+                                <strong>ICMS:</strong><br>
+                                ${formatarMoedaSegura(cte.valor_icms)}
+                            </div>
+                            <div class="col-md-3">
+                                <strong>Peso Bruto:</strong><br>
+                                ${esc(cte.peso_bruto || 0)} kg
+                            </div>
+                        </div>
+
+                        ${cte.transportadora_nome ? `
+                        <hr>
+                        <h6>Transportadora</h6>
+                        <strong>${esc(cte.transportadora_nome)}</strong><br>
+                        CNPJ: ${esc(cte.transportadora_cnpj || '-')}<br>
+                        Veículo: ${esc(cte.veiculo_placa || '-')}/${esc(cte.veiculo_uf || '-')}
+                        ` : ''}
+
+                        ${cte.documentos && cte.documentos.length > 0 ? `
+                        <hr>
+                        <h6>Documentos Vinculados</h6>
+                        <ul class="list-group">
+                            ${cte.documentos.map(doc => `
+                                <li class="list-group-item">
+                                    <strong>${esc((doc.tipo_documento || '').toUpperCase())}:</strong> ${esc(doc.numero || '-')}<br>
+                                    <small>Chave: ${esc(doc.chave_acesso)}</small>
+                                </li>
+                            `).join('')}
+                        </ul>
+                        ` : ''}
+
+                        ${cte.eventos && cte.eventos.length > 0 ? `
+                        <hr>
+                        <h6>Histórico de Eventos</h6>
+                        <ul class="list-group">
+                            ${cte.eventos.map(evento => `
+                                <li class="list-group-item">
+                                    <strong>${esc(evento.tipo)}:</strong> ${esc(evento.descricao)}<br>
+                                    <small class="text-muted">
+                                        ${formatarDataSegura(evento.data_evento)} - ${esc(evento.usuario_nome)}
+                                    </small>
+                                </li>
+                            `).join('')}
+                        </ul>
+                        ` : ''}
+
+                        ${cte.observacoes ? `
+                        <hr>
+                        <h6>Observações</h6>
+                        <p>${esc(cte.observacoes)}</p>
+                        ` : ''}
+                    `;
+                } else {
+                    document.getElementById('conteudoDetalhes').innerHTML = `
+                        <div class="alert alert-warning">CT-e não encontrado.</div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar detalhes:', error);
+                document.getElementById('conteudoDetalhes').innerHTML = `
+                    <div class="alert alert-danger">Erro ao carregar detalhes do CT-e. ${esc(error.message)}</div>
+                `;
+            }
+        }
+
+        // Mostrar formulário de emissão
+        function mostrarFormularioEmissao() {
+            document.getElementById('formEmissao').reset();
+            const modal = new bootstrap.Modal(document.getElementById('modalEmissao'));
+            modal.show();
+        }
+
+        // Emitir CT-e (com validação de chaves NF-e)
+        async function emitirCTe() {
+            const form = document.getElementById('formEmissao');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            const formData = new FormData(form);
+            const dados = {};
+            formData.forEach((value, key) => {
+                dados[key] = value.trim();
+            });
+
+            // Validar valores monetários
+            const valorServico = parseFloat(dados.valor_servico);
+            const valorCarga = parseFloat(dados.valor_carga);
+            if (isNaN(valorServico) || valorServico <= 0) {
+                alert('Valor do Serviço deve ser maior que zero.');
+                return;
+            }
+            if (isNaN(valorCarga) || valorCarga <= 0) {
+                alert('Valor da Carga deve ser maior que zero.');
+                return;
+            }
+
+            // Processar e validar chaves de NF-e (44 dígitos numéricos)
+            if (dados.chaves_nfe) {
+                const chaves = dados.chaves_nfe.split('\n')
+                    .map(chave => chave.trim())
+                    .filter(chave => chave.length > 0);
+
+                const chaveInvalida = chaves.find(c => !/^\d{44}$/.test(c));
+                if (chaveInvalida) {
+                    alert(`Chave NF-e inválida (deve ter 44 dígitos numéricos):\n${chaveInvalida}`);
+                    return;
+                }
+                dados.chaves_nfe = chaves;
+            }
+
+            try {
+                const data = await fetchSeguro('/api/cte/emitir', {
+                    method: 'POST',
+                    body: JSON.stringify(dados)
+                });
+
+                if (data.sucesso) {
+                    alert(`CT-e emitido com sucesso!\nNúmero: ${data.numero}\nChave: ${data.chave_acesso}`);
+                    bootstrap.Modal.getInstance(document.getElementById('modalEmissao')).hide();
+                    carregarDashboard();
+                    buscarCTes();
+                } else {
+                    alert(`Erro ao emitir CT-e: ${data.erro || 'Erro desconhecido'}`);
+                }
+            } catch (error) {
+                console.error('Erro ao emitir CT-e:', error);
+                alert('Erro ao emitir CT-e: ' + error.message);
+            }
+        }
+
+        // Cancelar CT-e
+        async function cancelarCTe() {
+            if (!cteAtual) return;
+
+            const justificativa = prompt('Digite a justificativa para cancelamento (mínimo 15 caracteres):');
+            if (!justificativa || justificativa.trim().length < 15) {
+                alert('Justificativa deve ter no mínimo 15 caracteres.');
+                return;
+            }
+
+            try {
+                const data = await fetchSeguro(`/api/cte/${parseInt(cteAtual)}/cancelar`, {
+                    method: 'POST',
+                    body: JSON.stringify({ justificativa: justificativa.trim() })
+                });
+
+                if (data.sucesso) {
+                    alert('CT-e cancelado com sucesso!');
+                    bootstrap.Modal.getInstance(document.getElementById('modalDetalhes')).hide();
+                    carregarDashboard();
+                    buscarCTes();
+                } else {
+                    alert(`Erro ao cancelar: ${data.erro || 'Erro desconhecido'}`);
+                }
+            } catch (error) {
+                console.error('Erro ao cancelar CT-e:', error);
+                alert('Erro ao cancelar CT-e: ' + error.message);
+            }
+        }
+
+        // Baixar DACTE
+        function baixarDACTE() {
+            if (!cteAtual) return;
+            window.open(`/api/cte/${parseInt(cteAtual)}/dacte`, '_blank');
+        }
+
+        /**
+         * Exporta CT-es carregados para CSV com BOM UTF-8.
+         * - Sanitização contra formula injection
+         * - Headers com credentials
+         * - Valores monetários formatados
+         */
+        function exportarExcel() {
+            if (!ctesCarregados || ctesCarregados.length === 0) {
+                alert('Nenhum CT-e para exportar. Faça uma busca primeiro.');
+                return;
+            }
+
+            try {
+                const headers = ['Número', 'Status', 'Remetente', 'Destinatário', 'Transportadora', 'Modal', 'Valor Serviço', 'Valor Carga', 'Data Emissão'];
+                const linhas = ctesCarregados.map(cte => [
+                    sanitizarCSV(cte.numero || ''),
+                    sanitizarCSV((cte.status || '').toUpperCase()),
+                    `"${sanitizarCSV(cte.remetente_nome || '-').replace(/"/g, '""')}"`,
+                    `"${sanitizarCSV(cte.destinatario_nome || '-').replace(/"/g, '""')}"`,
+                    `"${sanitizarCSV(cte.transportadora_nome || '-').replace(/"/g, '""')}"`,
+                    sanitizarCSV(cte.modal || '-'),
+                    (parseFloat(cte.valor_servico) || 0).toFixed(2).replace('.', ','),
+                    (parseFloat(cte.valor_carga) || 0).toFixed(2).replace('.', ','),
+                    formatarDataSegura(cte.data_emissao)
+                ]);
+
+                const csv = [headers.join(';'), ...linhas.map(l => l.join(';'))].join('\n');
+                const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `cte_aluforce_${new Date().toISOString().split('T')[0]}.csv`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+            } catch (error) {
+                console.error('Erro ao exportar:', error);
+                alert('Erro ao gerar arquivo de exportação.');
+            }
+        }
+    </script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+</body>
+</html>

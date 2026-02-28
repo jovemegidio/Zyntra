@@ -1,0 +1,953 @@
+openapi: 3.1.0
+info:
+  title: ALUFORCE ERP API
+  version: 2.1.7
+  description: |
+    API RESTful do sistema ALUFORCE ERP — Gestão Empresarial Integrada.
+
+    **Módulos:**
+    - Vendas (126 rotas) — Pedidos, clientes, orçamentos, comissões, exportação
+    - Financeiro (102 rotas) — Contas a pagar/receber, conciliação, DRE, fluxo de caixa
+    - PCP (204 rotas) — Ordens de produção, BOM, planejamento, qualidade
+    - Compras (50 rotas) — Cotações, ordens de compra, fornecedores
+    - RH (43 rotas) — Colaboradores, ponto, folha, eSocial
+    - NF-e (12+ rotas) — Emissão, cancelamento, inutilização, certificado digital
+    - Logística (8 rotas) — Expedição, frete, rastreamento
+    - Integração (11 rotas) — Sincronização inter-módulos
+
+    **Total: 665+ endpoints**
+  contact:
+    name: ALUFORCE Engineering
+    email: suporte@aluforce.ind.br
+    url: https://aluforce.ind.br
+  license:
+    name: Proprietary
+    identifier: UNLICENSED
+
+servers:
+  - url: https://aluforce.api.br
+    description: Production
+  - url: http://localhost:3000
+    description: Development
+
+tags:
+  - name: Auth
+    description: Autenticação JWT, refresh tokens, RBAC
+  - name: Vendas
+    description: Gestão de vendas, pedidos, clientes, orçamentos
+  - name: Financeiro
+    description: Financeiro — contas, conciliação, DRE, fluxo de caixa
+  - name: PCP
+    description: Planejamento e Controle de Produção
+  - name: Compras
+    description: Gestão de compras e fornecedores
+  - name: RH
+    description: Recursos Humanos — ponto, folha, colaboradores
+  - name: NFe
+    description: Nota Fiscal Eletrônica
+  - name: Logistica
+    description: Expedição e logística
+  - name: Integracao
+    description: Integração entre módulos
+  - name: Dashboard
+    description: KPIs executivos e painéis
+  - name: Admin
+    description: Administração do sistema
+  - name: LGPD
+    description: Conformidade LGPD
+  - name: Health
+    description: Monitoramento e observabilidade
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token JWT obtido via POST /api/auth/login.
+        Enviar no header: Authorization: Bearer <token>
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        statusCode:
+          type: integer
+      required: [error, message]
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+        totalPages:
+          type: integer
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        usuario:
+          type: string
+        acao:
+          type: string
+        tabela:
+          type: string
+        registro_id:
+          type: integer
+        dados_anteriores:
+          type: object
+        dados_novos:
+          type: object
+        ip:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        uptime:
+          type: number
+        version:
+          type: string
+        database:
+          type: object
+          properties:
+            connected:
+              type: boolean
+            poolSize:
+              type: integer
+            activeConnections:
+              type: integer
+        cache:
+          type: object
+          properties:
+            provider:
+              type: string
+              enum: [redis, memory]
+            connected:
+              type: boolean
+        memory:
+          type: object
+          properties:
+            rss:
+              type: string
+            heapUsed:
+              type: string
+            heapTotal:
+              type: string
+
+    LoginRequest:
+      type: object
+      required: [email, senha]
+      properties:
+        email:
+          type: string
+          format: email
+        senha:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        refreshToken:
+          type: string
+        user:
+          type: object
+          properties:
+            id:
+              type: integer
+            nome:
+              type: string
+            email:
+              type: string
+            area:
+              type: string
+            role:
+              type: string
+
+    Pedido:
+      type: object
+      properties:
+        id:
+          type: integer
+        numero:
+          type: string
+        cliente_id:
+          type: integer
+        cliente_nome:
+          type: string
+        data_pedido:
+          type: string
+          format: date
+        valor_total:
+          type: number
+          format: double
+        status:
+          type: string
+          enum: [rascunho, pendente, aprovado, faturado, cancelado]
+        condicao_pagamento:
+          type: string
+        vendedor_id:
+          type: integer
+        observacoes:
+          type: string
+
+    ContaFinanceira:
+      type: object
+      properties:
+        id:
+          type: integer
+        tipo:
+          type: string
+          enum: [pagar, receber]
+        descricao:
+          type: string
+        valor:
+          type: number
+          format: double
+        data_vencimento:
+          type: string
+          format: date
+        data_pagamento:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+          enum: [pendente, pago, vencido, cancelado]
+        fornecedor_id:
+          type: integer
+          nullable: true
+        cliente_id:
+          type: integer
+          nullable: true
+
+    OrdemProducao:
+      type: object
+      properties:
+        id:
+          type: integer
+        numero:
+          type: string
+        produto_id:
+          type: integer
+        quantidade:
+          type: number
+        status:
+          type: string
+          enum: [planejada, em_producao, finalizada, cancelada]
+        data_inicio:
+          type: string
+          format: date
+        data_previsao:
+          type: string
+          format: date
+
+  responses:
+    Unauthorized:
+      description: Token JWT ausente ou inválido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Sem permissão para acessar este recurso
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Limite de requisições excedido
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+paths:
+  # ═══════════════════════════════════════════════════════════════
+  # HEALTH & MONITORING
+  # ═══════════════════════════════════════════════════════════════
+  /api/health:
+    get:
+      summary: Health check — estado do sistema
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Sistema operacional
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+        '503':
+          description: Sistema degradado
+
+  /metrics:
+    get:
+      summary: Prometheus metrics (internal-only via nginx)
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Métricas em formato Prometheus text
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ═══════════════════════════════════════════════════════════════
+  # AUTH
+  # ═══════════════════════════════════════════════════════════════
+  /api/auth/login:
+    post:
+      summary: Autenticação de usuário
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login bem-sucedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /api/auth/refresh:
+    post:
+      summary: Renovar token JWT via refresh token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Novo token gerado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/auth/logout:
+    post:
+      summary: Encerrar sessão e invalidar tokens
+      tags: [Auth]
+      responses:
+        '200':
+          description: Logout bem-sucedido
+
+  # ═══════════════════════════════════════════════════════════════
+  # VENDAS (126 routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/vendas/pedidos:
+    get:
+      summary: Listar pedidos de venda
+      tags: [Vendas]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [rascunho, pendente, aprovado, faturado, cancelado] }
+        - name: cliente_id
+          in: query
+          schema: { type: integer }
+        - name: data_inicio
+          in: query
+          schema: { type: string, format: date }
+        - name: data_fim
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Lista de pedidos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pedido'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: Criar novo pedido de venda
+      tags: [Vendas]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pedido'
+      responses:
+        '201':
+          description: Pedido criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pedido'
+
+  /api/vendas/pedidos/{id}:
+    get:
+      summary: Buscar pedido por ID
+      tags: [Vendas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Pedido encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pedido'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Atualizar pedido
+      tags: [Vendas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pedido'
+      responses:
+        '200':
+          description: Pedido atualizado
+    patch:
+      summary: "Atualizar parcialmente (ex: status)"
+      tags: [Vendas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Pedido atualizado parcialmente
+    delete:
+      summary: Excluir pedido
+      tags: [Vendas]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Pedido excluído
+
+  /api/vendas/clientes:
+    get:
+      summary: Listar clientes
+      tags: [Vendas]
+      responses:
+        '200':
+          description: Lista de clientes
+    post:
+      summary: Cadastrar cliente
+      tags: [Vendas]
+      responses:
+        '201':
+          description: Cliente criado
+
+  /api/vendas/orcamentos:
+    get:
+      summary: Listar orçamentos
+      tags: [Vendas]
+      responses:
+        '200':
+          description: Lista de orçamentos
+    post:
+      summary: Criar orçamento
+      tags: [Vendas]
+      responses:
+        '201':
+          description: Orçamento criado
+
+  /api/vendas/comissoes:
+    get:
+      summary: Listar comissões de vendedores
+      tags: [Vendas]
+      responses:
+        '200':
+          description: Lista de comissões
+
+  /api/vendas/exportar/{formato}:
+    get:
+      summary: Exportar dados de vendas (Excel/PDF/CSV)
+      tags: [Vendas]
+      parameters:
+        - name: formato
+          in: path
+          required: true
+          schema: { type: string, enum: [excel, pdf, csv] }
+      responses:
+        '200':
+          description: Arquivo exportado
+          content:
+            application/octet-stream: {}
+
+  # ═══════════════════════════════════════════════════════════════
+  # FINANCEIRO (102 routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/financeiro/contas-pagar:
+    get:
+      summary: Listar contas a pagar
+      tags: [Financeiro]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [pendente, pago, vencido, cancelado] }
+        - name: data_inicio
+          in: query
+          schema: { type: string, format: date }
+        - name: data_fim
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Lista de contas a pagar
+    post:
+      summary: Criar conta a pagar
+      tags: [Financeiro]
+      responses:
+        '201':
+          description: Conta criada
+
+  /api/financeiro/contas-receber:
+    get:
+      summary: Listar contas a receber
+      tags: [Financeiro]
+      responses:
+        '200':
+          description: Lista de contas a receber
+    post:
+      summary: Criar conta a receber
+      tags: [Financeiro]
+      responses:
+        '201':
+          description: Conta criada
+
+  /api/financeiro/conciliacao:
+    get:
+      summary: Conciliação bancária
+      tags: [Financeiro]
+      responses:
+        '200':
+          description: Dados de conciliação
+
+  /api/financeiro/dre:
+    get:
+      summary: Demonstração de Resultado do Exercício
+      tags: [Financeiro]
+      parameters:
+        - name: ano
+          in: query
+          schema: { type: integer }
+        - name: mes
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: DRE
+
+  /api/financeiro/fluxo-caixa:
+    get:
+      summary: Fluxo de caixa
+      tags: [Financeiro]
+      responses:
+        '200':
+          description: Fluxo de caixa
+
+  # ═══════════════════════════════════════════════════════════════
+  # PCP (204 routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/pcp/ordens-producao:
+    get:
+      summary: Listar ordens de produção
+      tags: [PCP]
+      responses:
+        '200':
+          description: Lista de ordens de produção
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrdemProducao'
+    post:
+      summary: Criar ordem de produção
+      tags: [PCP]
+      responses:
+        '201':
+          description: Ordem criada
+
+  /api/pcp/ordens-producao/{id}:
+    get:
+      summary: Buscar ordem de produção por ID
+      tags: [PCP]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Ordem de produção
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      summary: Atualizar ordem de produção
+      tags: [PCP]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Ordem atualizada
+
+  /api/pcp/produtos:
+    get:
+      summary: Listar produtos
+      tags: [PCP]
+      responses:
+        '200':
+          description: Lista de produtos
+
+  /api/pcp/bom:
+    get:
+      summary: Bill of Materials
+      tags: [PCP]
+      responses:
+        '200':
+          description: Estruturas de produto
+
+  /api/pcp/estoque:
+    get:
+      summary: Consultar estoque
+      tags: [PCP]
+      responses:
+        '200':
+          description: Posição de estoque
+
+  /api/pcp/qualidade:
+    get:
+      summary: Registros de qualidade
+      tags: [PCP]
+      responses:
+        '200':
+          description: Lista de registros de qualidade
+
+  # ═══════════════════════════════════════════════════════════════
+  # COMPRAS (50 routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/compras/cotacoes:
+    get:
+      summary: Listar cotações de compra
+      tags: [Compras]
+      responses:
+        '200':
+          description: Lista de cotações
+    post:
+      summary: Criar cotação
+      tags: [Compras]
+      responses:
+        '201':
+          description: Cotação criada
+
+  /api/compras/ordens:
+    get:
+      summary: Listar ordens de compra
+      tags: [Compras]
+      responses:
+        '200':
+          description: Lista de ordens de compra
+    post:
+      summary: Criar ordem de compra
+      tags: [Compras]
+      responses:
+        '201':
+          description: Ordem criada
+
+  /api/compras/fornecedores:
+    get:
+      summary: Listar fornecedores
+      tags: [Compras]
+      responses:
+        '200':
+          description: Lista de fornecedores
+    post:
+      summary: Cadastrar fornecedor
+      tags: [Compras]
+      responses:
+        '201':
+          description: Fornecedor criado
+
+  # ═══════════════════════════════════════════════════════════════
+  # RH (43 routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/rh/colaboradores:
+    get:
+      summary: Listar colaboradores
+      tags: [RH]
+      responses:
+        '200':
+          description: Lista de colaboradores
+    post:
+      summary: Cadastrar colaborador
+      tags: [RH]
+      responses:
+        '201':
+          description: Colaborador criado
+
+  /api/rh/ponto:
+    get:
+      summary: Registros de ponto
+      tags: [RH]
+      responses:
+        '200':
+          description: Lista de registros
+
+  /api/rh/folha:
+    get:
+      summary: Folha de pagamento
+      tags: [RH]
+      responses:
+        '200':
+          description: Dados da folha
+
+  # ═══════════════════════════════════════════════════════════════
+  # NF-e (12+ routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/nfe/emitir:
+    post:
+      summary: Emitir NF-e
+      tags: [NFe]
+      responses:
+        '200':
+          description: NF-e emitida
+
+  /api/nfe/cancelar/{chave}:
+    post:
+      summary: Cancelar NF-e
+      tags: [NFe]
+      parameters:
+        - name: chave
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: NF-e cancelada
+
+  /api/nfe/consultar/{chave}:
+    get:
+      summary: Consultar status NF-e na SEFAZ
+      tags: [NFe]
+      parameters:
+        - name: chave
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Status da NF-e
+
+  /api/nfe/certificado:
+    get:
+      summary: Status do certificado digital A1
+      tags: [NFe]
+      responses:
+        '200':
+          description: Status do certificado
+
+  # ═══════════════════════════════════════════════════════════════
+  # LOGÍSTICA (8 routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/logistica/expedicao:
+    get:
+      summary: Lista de expedições
+      tags: [Logistica]
+      responses:
+        '200':
+          description: Expedições
+
+  /api/logistica/frete:
+    get:
+      summary: Cálculo de frete
+      tags: [Logistica]
+      responses:
+        '200':
+          description: Cotação de frete
+
+  # ═══════════════════════════════════════════════════════════════
+  # INTEGRAÇÃO (11 routes)
+  # ═══════════════════════════════════════════════════════════════
+  /api/integracao/sync:
+    post:
+      summary: Sincronizar dados entre módulos
+      tags: [Integracao]
+      responses:
+        '200':
+          description: Sincronização executada
+
+  # ═══════════════════════════════════════════════════════════════
+  # DASHBOARD
+  # ═══════════════════════════════════════════════════════════════
+  /api/dashboard/kpis:
+    get:
+      summary: KPIs executivos
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: Indicadores-chave de desempenho
+
+  # ═══════════════════════════════════════════════════════════════
+  # LGPD
+  # ═══════════════════════════════════════════════════════════════
+  /api/lgpd/dados-pessoais:
+    get:
+      summary: Consultar dados pessoais (direito de acesso)
+      tags: [LGPD]
+      responses:
+        '200':
+          description: Dados pessoais do titular
+
+  /api/lgpd/exclusao:
+    post:
+      summary: Solicitar exclusão de dados (direito ao esquecimento)
+      tags: [LGPD]
+      responses:
+        '200':
+          description: Solicitação registrada
+
+  # ═══════════════════════════════════════════════════════════════
+  # ADMIN
+  # ═══════════════════════════════════════════════════════════════
+  /api/admin/usuarios:
+    get:
+      summary: Listar usuários do sistema
+      tags: [Admin]
+      responses:
+        '200':
+          description: Lista de usuários
+
+  /api/admin/auditoria:
+    get:
+      summary: Logs de auditoria
+      tags: [Admin]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer }
+        - name: usuario
+          in: query
+          schema: { type: string }
+        - name: acao
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Logs de auditoria
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /api/admin/permissoes:
+    get:
+      summary: Listar permissões (RBAC)
+      tags: [Admin]
+      responses:
+        '200':
+          description: Matriz de permissões

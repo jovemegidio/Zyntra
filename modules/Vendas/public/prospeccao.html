@@ -1,0 +1,3005 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: CRM Prospecção B2B</title>
+    
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-color: #225cfa;
+            --primary-dark: #1a1a2e;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #38bdf8;
+            --purple: #8b5cf6;
+            --pink: #ec4899;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f5f6f8; min-height: 100vh; overflow-x: hidden; }
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 12px 0; z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-color);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; cursor: pointer; text-decoration: none;
+        }
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+        .sidebar-btn {
+            width: 34px; height: 34px; min-height: 34px; border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; transition: all 0.15s ease; position: relative; margin: 0 auto; padding: 0;
+        }
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn:focus, .sidebar-btn:focus-visible { outline: none; border: none; box-shadow: none; }
+        .sidebar-btn.active { background: var(--primary-color); color: white; }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* HEADER */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */ margin-top: 0; padding: 0; }
+
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px; border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+        .user-greeting strong { color: white; }
+
+        /* Content Area */
+        .content-area { flex: 1; overflow-y: auto; padding: 20px; background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); }
+
+        /* TABS */
+        .tabs-bar {
+            height: 40px;
+            background: white;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex; align-items: center;
+            padding: 0 16px; gap: 8px;
+        }
+        .tabs-bar .tab {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px;
+            background: #f5f5f5; border: none; border-radius: 6px;
+            color: #666; font-size: 13px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .tabs-bar .tab:hover { background: #e5e5e5; }
+        .tabs-bar .tab.active { background: var(--primary-color); color: white; }
+        .tabs-actions { margin-left: auto; display: flex; gap: 8px; }
+        .tab-action-btn {
+            width: 32px; height: 32px;
+            border: none; background: transparent; color: #666;
+            border-radius: 6px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; transition: all 0.2s;
+        }
+        .tab-action-btn:hover { background: #f5f5f5; }
+
+        /* ========================================
+           HERO SECTION - BUSCA INTELIGENTE
+           ======================================== */
+        .search-hero {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #0ea5e9 100%);
+            border-radius: 20px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.3);
+        }
+        .search-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .search-hero h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .search-hero h1 i { font-size: 28px; }
+        .search-hero p { opacity: 0.9; margin-bottom: 20px; font-size: 14px; }
+        
+        .search-container {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: stretch;
+        }
+        .search-input-wrapper {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+        .search-input-wrapper i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            font-size: 18px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 16px 16px 16px 50px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            background: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.4), 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .filter-select {
+            padding: 14px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            min-width: 140px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.95);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .btn-search {
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        .btn-search:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+        .btn-search.secondary {
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            box-shadow: none;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .btn-search.secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .search-stats {
+            display: flex;
+            gap: 24px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+        .search-stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        .search-stat i { font-size: 16px; }
+        .search-stat strong { font-weight: 700; }
+
+        /* ========================================
+           DASHBOARD METRICS
+           ======================================== */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        }
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+        .metric-card.blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .metric-card.orange::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .metric-card.purple::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .metric-card.green::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+        .metric-card.red::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+        
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        .metric-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .metric-icon.blue { background: #eff6ff; color: #3b82f6; }
+        .metric-icon.orange { background: #fff7ed; color: #f59e0b; }
+        .metric-icon.purple { background: #faf5ff; color: #8b5cf6; }
+        .metric-icon.green { background: #f0fdf4; color: #22c55e; }
+        .metric-icon.red { background: #fef2f2; color: #ef4444; }
+        
+        .metric-trend {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        .metric-trend.up { background: #dcfce7; color: #16a34a; }
+        .metric-trend.down { background: #fee2e2; color: #dc2626; }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: 800;
+            color: #1e293b;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .metric-label {
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        /* ========================================
+           KANBAN CRM VIEW
+           ======================================== */
+        .view-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .view-btn {
+            padding: 10px 20px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+        .view-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .view-btn:hover:not(.active) {
+            background: #f1f5f9;
+        }
+        
+        .kanban-crm {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            min-height: 500px;
+        }
+        .kanban-column {
+            background: #f8fafc;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #e2e8f0;
+        }
+        .kanban-column-header {
+            padding: 16px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .kanban-column-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .kanban-column-title .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+        .kanban-column-title .indicator.novo { background: #3b82f6; }
+        .kanban-column-title .indicator.contato { background: #f59e0b; }
+        .kanban-column-title .indicator.qualificado { background: #8b5cf6; }
+        .kanban-column-title .indicator.negociacao { background: #ec4899; }
+        .kanban-column-title .indicator.convertido { background: #22c55e; }
+        
+        .kanban-column-title h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .kanban-count {
+            background: #e2e8f0;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+        }
+        .kanban-column-content {
+            flex: 1;
+            padding: 12px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 400px;
+        }
+        
+        /* Lead Cards */
+        .lead-card {
+            background: white;
+            border-radius: 12px;
+            padding: 14px;
+            border: 1px solid #e2e8f0;
+            cursor: grab;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .lead-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        .lead-card.dragging {
+            opacity: 0.5;
+            transform: rotate(2deg);
+        }
+        .lead-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .lead-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: white;
+            flex-shrink: 0;
+        }
+        .lead-avatar.industria { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .lead-avatar.comercio { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .lead-avatar.construcao { background: linear-gradient(135deg, #f97316, #fb923c); }
+        .lead-avatar.servicos { background: linear-gradient(135deg, #14b8a6, #2dd4bf); }
+        .lead-avatar.default { background: linear-gradient(135deg, #64748b, #94a3b8); }
+        
+        .lead-info { flex: 1; min-width: 0; }
+        .lead-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e293b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+        .lead-company {
+            font-size: 11px;
+            color: #64748b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .lead-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .lead-detail {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: #64748b;
+        }
+        .lead-detail i { width: 14px; color: #94a3b8; }
+        
+        .lead-tags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .lead-tag {
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .lead-tag.ativo { background: #dcfce7; color: #166534; }
+        .lead-tag.simples { background: #dbeafe; color: #1e40af; }
+        .lead-tag.score-high { background: #fef3c7; color: #92400e; }
+        
+        .lead-card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 10px;
+            border-top: 1px solid #f1f5f9;
+        }
+        .lead-date {
+            font-size: 10px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .lead-actions {
+            display: flex;
+            gap: 4px;
+        }
+        .lead-action-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: #f1f5f9;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+        .lead-action-btn:hover { background: var(--primary-color); color: white; }
+        .lead-action-btn.whatsapp:hover { background: #25d366; }
+        .lead-action-btn.email:hover { background: #ea4335; }
+
+        /* ========================================
+           TABLE VIEW
+           ======================================== */
+        .table-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            display: none;
+        }
+        .table-container.active { display: block; }
+        
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+        .table-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .table-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            padding: 14px 16px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 13px;
+            color: #374151;
+        }
+        tr:hover { background: #f8fafc; }
+        
+        .empresa-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .empresa-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: white;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        }
+        .empresa-info h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+        .empresa-info span {
+            font-size: 11px;
+            color: #64748b;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .badge-novo { background: #dbeafe; color: #1e40af; }
+        .badge-contato { background: #fef3c7; color: #92400e; }
+        .badge-qualificado { background: #ede9fe; color: #5b21b6; }
+        .badge-negociacao { background: #fce7f3; color: #9d174d; }
+        .badge-convertido { background: #dcfce7; color: #166534; }
+        .badge-perdido { background: #fee2e2; color: #991b1b; }
+        
+        .score-bar {
+            width: 60px;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+            display: inline-block;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .score-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+        .score-fill.high { background: #22c55e; }
+        .score-fill.medium { background: #f59e0b; }
+        .score-fill.low { background: #ef4444; }
+
+        /* ========================================
+           BUTTONS
+           ======================================== */
+        .btn {
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            border: none;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(34, 92, 250, 0.2);
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(34, 92, 250, 0.3);
+        }
+        .btn-secondary {
+            background: white;
+            color: #374151;
+            border: 1px solid #e2e8f0;
+        }
+        .btn-secondary:hover { background: #f8fafc; }
+        .btn-success {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+        }
+
+        /* ========================================
+           MODALS
+           ======================================== */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 720px;
+            max-height: 90vh;
+            overflow: hidden;
+            animation: modalSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+        }
+        @keyframes modalSlideUp {
+            from { transform: translateY(30px) scale(0.97); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .modal-header {
+            padding: 24px 28px 20px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .modal-header h2 i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+        }
+        .modal-close {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 20px;
+            color: #64748b;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .modal-close:hover { background: #fee2e2; color: #dc2626; }
+        .modal-body {
+            padding: 28px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .modal-footer {
+            padding: 20px 28px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* Forms */
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+        .form-group label::before {
+            content: '';
+            width: 3px;
+            height: 14px;
+            background: var(--primary-color);
+            border-radius: 2px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+            color: #1e293b;
+        }
+        .form-control:hover { border-color: #cbd5e1; background: white; }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(34, 92, 250, 0.1);
+        }
+        .form-section-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin: 24px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 1px dashed #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Toast */
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10000; }
+        .toast {
+            padding: 14px 20px;
+            background: #1e293b;
+            color: white;
+            border-radius: 12px;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .toast.success { background: linear-gradient(135deg, #059669, #10b981); }
+        .toast.error { background: linear-gradient(135deg, #dc2626, #ef4444); }
+        .toast.warning { background: linear-gradient(135deg, #d97706, #f59e0b); }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        /* Empty State */
+        .empty-column {
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+        }
+        .empty-column i { font-size: 32px; margin-bottom: 12px; opacity: 0.5; }
+        .empty-column p { font-size: 13px; }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .pagination-info { font-size: 13px; color: #64748b; }
+        .pagination-btns { display: flex; gap: 6px; }
+        .page-btn {
+            padding: 8px 14px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .page-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .page-btn:hover:not(.active) { background: #f1f5f9; }
+
+        /* Responsive */
+        @media (max-width: 1400px) {
+            .metrics-grid { grid-template-columns: repeat(3, 1fr); }
+            .kanban-crm { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 1024px) {
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+            .kanban-crm { grid-template-columns: repeat(2, 1fr); }
+            .form-row { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .metrics-grid { grid-template-columns: 1fr; }
+            .kanban-crm { grid-template-columns: 1fr; }
+            .search-container { flex-direction: column; }
+            .filter-group { width: 100%; }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Kanban" onclick="window.location.href='index.html'"><i class="fas fa-columns"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Clientes" onclick="window.location.href='clientes.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn active" title="Prospecção CRM"><i class="fas fa-crosshairs"></i></button>
+                <button class="sidebar-btn" title="Estoque" onclick="window.location.href='estoque.html'"><i class="fas fa-boxes-stacked"></i></button>
+                <button class="sidebar-btn" title="Meu Dashboard" onclick="window.location.href='dashboard.html'"><i class="fas fa-chart-pie"></i></button>
+                <button class="sidebar-btn" title="Gestão de Vendas" onclick="window.location.href='dashboard-admin.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+                <button class="sidebar-btn" title="Comissões" onclick="window.location.href='comissoes.html'"><i class="fas fa-percentage"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Prospecções</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações">
+                        <i class="fas fa-bell"></i>
+                    </button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Tabs -->
+            <div class="tabs-bar">
+                <button class="tab" onclick="window.location.href='index.html'">Vendas e NF-e</button>
+                <button class="tab active">Prospecção CRM</button>
+                <div class="tabs-actions">
+                    <button class="tab-action-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="tab-action-btn" title="Configurações"><i class="fas fa-cog"></i></button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="content-area">
+                <!-- Hero Search Section -->
+                <div class="search-hero">
+                    <h1><i class="fas fa-rocket"></i> Prospecção Inteligente B2B</h1>
+                    <p>Encontre empresas com dados da Receita Federal, Simples Nacional e bases públicas. Gerencie seu funil de vendas.</p>
+                    
+                    <div class="search-container">
+                        <div class="search-input-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="search-input" id="search-empresa" placeholder="Busque por CNPJ, Razão Social, Cidade ou Segmento...">
+                        </div>
+                        <div class="filter-group">
+                            <select class="filter-select" id="filter-segmento">
+                                <option value="">Segmento</option>
+                                <option value="industria">🏭 Indústria</option>
+                                <option value="comercio">🛒 Comércio</option>
+                                <option value="construcao">🏗️ Construção</option>
+                                <option value="servicos">💼 Serviços</option>
+                                <option value="agro">🌾 Agronegócio</option>
+                            </select>
+                            <select class="filter-select" id="filter-uf">
+                                <option value="">Estado</option>
+                                <option value="SP">São Paulo</option>
+                                <option value="MG">Minas Gerais</option>
+                                <option value="RJ">Rio de Janeiro</option>
+                                <option value="PR">Paraná</option>
+                                <option value="RS">Rio Grande do Sul</option>
+                                <option value="SC">Santa Catarina</option>
+                            </select>
+                            <select class="filter-select" id="filter-porte">
+                                <option value="">Porte</option>
+                                <option value="mei">MEI</option>
+                                <option value="me">ME</option>
+                                <option value="epp">EPP</option>
+                                <option value="medio">Médio</option>
+                                <option value="grande">Grande</option>
+                            </select>
+                        </div>
+                        <button class="btn-search" onclick="CRM.buscarEmpresas()">
+                            <i class="fas fa-search"></i> Buscar Empresas
+                        </button>
+                    </div>
+                    
+                    <div class="search-stats">
+                        <div class="search-stat">
+                            <i class="fas fa-landmark"></i>
+                            <span><strong>Receita Federal</strong></span>
+                        </div>
+                        <div class="search-stat">
+                            <i class="fas fa-file-invoice"></i>
+                            <span><strong>Simples Nacional</strong></span>
+                        </div>
+                        <div class="search-stat">
+                            <i class="fas fa-map-marked-alt"></i>
+                            <span><strong>IBGE</strong></span>
+                        </div>
+                        <div class="search-stat">
+                            <i class="fas fa-industry"></i>
+                            <span><strong>CNAE</strong></span>
+                        </div>
+                        <div class="search-stat">
+                            <i class="fas fa-envelope"></i>
+                            <span><strong>Correios</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Dashboard -->
+                <div class="metrics-grid">
+                    <div class="metric-card blue">
+                        <div class="metric-header">
+                            <div class="metric-icon blue"><i class="fas fa-building"></i></div>
+                            <span class="metric-trend up">+12%</span>
+                        </div>
+                        <div class="metric-value" id="metric-total">0</div>
+                        <div class="metric-label">Total de Leads</div>
+                    </div>
+                    <div class="metric-card orange">
+                        <div class="metric-header">
+                            <div class="metric-icon orange"><i class="fas fa-phone-alt"></i></div>
+                            <span class="metric-trend up">+8%</span>
+                        </div>
+                        <div class="metric-value" id="metric-contato">0</div>
+                        <div class="metric-label">Em Contato</div>
+                    </div>
+                    <div class="metric-card purple">
+                        <div class="metric-header">
+                            <div class="metric-icon purple"><i class="fas fa-star"></i></div>
+                        </div>
+                        <div class="metric-value" id="metric-qualificado">0</div>
+                        <div class="metric-label">Qualificados</div>
+                    </div>
+                    <div class="metric-card green">
+                        <div class="metric-header">
+                            <div class="metric-icon green"><i class="fas fa-handshake"></i></div>
+                        </div>
+                        <div class="metric-value" id="metric-negociacao">0</div>
+                        <div class="metric-label">Em Negociação</div>
+                    </div>
+                    <div class="metric-card green">
+                        <div class="metric-header">
+                            <div class="metric-icon green"><i class="fas fa-trophy"></i></div>
+                            <span class="metric-trend up">+25%</span>
+                        </div>
+                        <div class="metric-value" id="metric-convertido">0</div>
+                        <div class="metric-label">Convertidos</div>
+                    </div>
+                </div>
+
+                <!-- View Toggle -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div class="view-toggle">
+                        <button class="view-btn active" onclick="CRM.setView('kanban')" id="btn-view-kanban">
+                            <i class="fas fa-columns"></i> Kanban CRM
+                        </button>
+                        <button class="view-btn" onclick="CRM.setView('table')" id="btn-view-table">
+                            <i class="fas fa-table"></i> Lista
+                        </button>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-secondary" onclick="CRM.importarCNPJs()">
+                            <i class="fas fa-file-import"></i> Importar CNPJs
+                        </button>
+                        <button class="btn btn-secondary" onclick="CRM.exportarLeads()">
+                            <i class="fas fa-download"></i> Exportar
+                        </button>
+                        <button class="btn btn-primary" onclick="CRM.abrirModalNovoLead()">
+                            <i class="fas fa-plus"></i> Novo Lead
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Kanban CRM View -->
+                <div class="kanban-crm" id="kanban-view">
+                    <!-- Coluna: Novos -->
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <div class="kanban-column-title">
+                                <div class="indicator novo"></div>
+                                <h3>Novos Leads</h3>
+                            </div>
+                            <span class="kanban-count" id="count-novo">0</span>
+                        </div>
+                        <div class="kanban-column-content" id="col-novo">
+                            <div class="empty-column">
+                                <i class="fas fa-inbox"></i>
+                                <p>Nenhum lead novo</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coluna: Contato -->
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <div class="kanban-column-title">
+                                <div class="indicator contato"></div>
+                                <h3>Em Contato</h3>
+                            </div>
+                            <span class="kanban-count" id="count-contato">0</span>
+                        </div>
+                        <div class="kanban-column-content" id="col-contato">
+                            <div class="empty-column">
+                                <i class="fas fa-phone"></i>
+                                <p>Nenhum lead em contato</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coluna: Qualificado -->
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <div class="kanban-column-title">
+                                <div class="indicator qualificado"></div>
+                                <h3>Qualificados</h3>
+                            </div>
+                            <span class="kanban-count" id="count-qualificado">0</span>
+                        </div>
+                        <div class="kanban-column-content" id="col-qualificado">
+                            <div class="empty-column">
+                                <i class="fas fa-star"></i>
+                                <p>Nenhum lead qualificado</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coluna: Negociação -->
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <div class="kanban-column-title">
+                                <div class="indicator negociacao"></div>
+                                <h3>Negociação</h3>
+                            </div>
+                            <span class="kanban-count" id="count-negociacao">0</span>
+                        </div>
+                        <div class="kanban-column-content" id="col-negociacao">
+                            <div class="empty-column">
+                                <i class="fas fa-handshake"></i>
+                                <p>Nenhuma negociação</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coluna: Convertido -->
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <div class="kanban-column-title">
+                                <div class="indicator convertido"></div>
+                                <h3>Convertidos</h3>
+                            </div>
+                            <span class="kanban-count" id="count-convertido">0</span>
+                        </div>
+                        <div class="kanban-column-content" id="col-convertido">
+                            <div class="empty-column">
+                                <i class="fas fa-trophy"></i>
+                                <p>Nenhum lead convertido</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table View -->
+                <div class="table-container" id="table-view">
+                    <div class="table-header">
+                        <h3 class="table-title">Lista de Leads</h3>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Empresa</th>
+                                <th>Contato</th>
+                                <th>Localização</th>
+                                <th>Segmento</th>
+                                <th>Status</th>
+                                <th>Score</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leads-tbody">
+                            <tr><td colspan="7"><div class="empty-column"><i class="fas fa-inbox"></i><p>Nenhum lead cadastrado</p></div></td></tr>
+                        </tbody>
+                    </table>
+                    <div class="pagination">
+                        <div class="pagination-info">Mostrando <span id="pagination-showing">0</span> de <span id="pagination-total">0</span> leads</div>
+                        <div class="pagination-btns">
+                            <button class="page-btn" onclick="CRM.paginaAnterior()"><i class="fas fa-chevron-left"></i></button>
+                            <button class="page-btn active">1</button>
+                            <button class="page-btn" onclick="CRM.proximaPagina()"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Novo Lead -->
+    <div class="modal" id="modal-lead">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-building"></i> <span id="modal-title">Novo Lead</span></h2>
+                <button class="modal-close" onclick="CRM.fecharModal('modal-lead')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="lead-id">
+                
+                <div class="form-section-title"><i class="fas fa-building"></i> Dados da Empresa</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Razão Social *</label>
+                        <input type="text" class="form-control" id="lead-razao" placeholder="Nome oficial da empresa">
+                    </div>
+                    <div class="form-group">
+                        <label>Nome Fantasia</label>
+                        <input type="text" class="form-control" id="lead-fantasia" placeholder="Nome comercial">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>CNPJ</label>
+                        <input type="text" class="form-control" id="lead-cnpj" placeholder="00.000.000/0000-00" maxlength="18">
+                    </div>
+                    <div class="form-group">
+                        <label>Segmento</label>
+                        <select class="form-control" id="lead-segmento">
+                            <option value="">Selecione...</option>
+                            <option value="industria">🏭 Indústria</option>
+                            <option value="comercio">🛒 Comércio</option>
+                            <option value="construcao">🏗️ Construção Civil</option>
+                            <option value="servicos">💼 Serviços</option>
+                            <option value="agro">🌾 Agronegócio</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-section-title"><i class="fas fa-user-tie"></i> Contato Principal</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nome do Contato</label>
+                        <input type="text" class="form-control" id="lead-contato" placeholder="Nome completo">
+                    </div>
+                    <div class="form-group">
+                        <label>Cargo</label>
+                        <input type="text" class="form-control" id="lead-cargo" placeholder="Ex: Diretor Comercial">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Telefone / WhatsApp</label>
+                        <input type="text" class="form-control" id="lead-telefone" placeholder="(00) 00000-0000">
+                    </div>
+                    <div class="form-group">
+                        <label>E-mail</label>
+                        <input type="email" class="form-control" id="lead-email" placeholder="contato@empresa.com.br">
+                    </div>
+                </div>
+
+                <div class="form-section-title"><i class="fas fa-map-marker-alt"></i> Localização</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Cidade</label>
+                        <input type="text" class="form-control" id="lead-cidade" placeholder="Nome da cidade">
+                    </div>
+                    <div class="form-group">
+                        <label>Estado (UF)</label>
+                        <select class="form-control" id="lead-uf">
+                            <option value="">Selecione...</option>
+                            <option value="SP">São Paulo</option>
+                            <option value="MG">Minas Gerais</option>
+                            <option value="RJ">Rio de Janeiro</option>
+                            <option value="PR">Paraná</option>
+                            <option value="RS">Rio Grande do Sul</option>
+                            <option value="SC">Santa Catarina</option>
+                            <option value="BA">Bahia</option>
+                            <option value="GO">Goiás</option>
+                            <option value="ES">Espírito Santo</option>
+                            <option value="DF">Distrito Federal</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-section-title"><i class="fas fa-tag"></i> Status</div>
+                <div class="form-group">
+                    <select class="form-control" id="lead-status">
+                        <option value="novo">🆕 Novo Lead</option>
+                        <option value="contato">📞 Em Contato</option>
+                        <option value="qualificado">⭐ Qualificado</option>
+                        <option value="negociacao">🤝 Em Negociação</option>
+                        <option value="convertido">🏆 Convertido</option>
+                        <option value="perdido">❌ Perdido</option>
+                    </select>
+                </div>
+
+                <div class="form-section-title"><i class="fas fa-sticky-note"></i> Observações</div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <textarea class="form-control" id="lead-obs" rows="3" placeholder="Informações importantes sobre o lead..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="CRM.fecharModal('modal-lead')">Cancelar</button>
+                <button class="btn btn-primary" onclick="CRM.salvarLead()"><i class="fas fa-check"></i> Salvar Lead</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalhes Lead -->
+    <div class="modal" id="modal-detalhes">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-building"></i> <span id="detalhe-nome">Empresa</span></h2>
+                <button class="modal-close" onclick="CRM.fecharModal('modal-detalhes')">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-detalhes-body">
+                <!-- Conteúdo dinâmico -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="CRM.fecharModal('modal-detalhes')">Fechar</button>
+                <button class="btn btn-primary" onclick="CRM.editarLead()"><i class="fas fa-edit"></i> Editar</button>
+                <button class="btn btn-success" onclick="CRM.converterCliente()"><i class="fas fa-user-plus"></i> Converter em Cliente</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Importar CNPJs -->
+    <div class="modal" id="modal-importar">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-file-import"></i> Importar CNPJs em Lote</h2>
+                <button class="modal-close" onclick="CRM.fecharModal('modal-importar')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 16px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                    <div style="display: flex; align-items: flex-start; gap: 12px;">
+                        <i class="fas fa-info-circle" style="color: #3b82f6; font-size: 20px; margin-top: 2px;"></i>
+                        <div>
+                            <strong style="color: #1e40af; font-size: 14px;">Como funciona?</strong>
+                            <p style="color: #1e40af; font-size: 13px; margin-top: 4px; opacity: 0.8;">
+                                Cole os CNPJs abaixo (um por linha) e o sistema irá consultar automaticamente a Receita Federal para obter os dados completos de cada empresa.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fas fa-list-ol"></i> CNPJs para Importar</label>
+                    <textarea class="form-control" id="import-cnpjs" rows="8" placeholder="Cole os CNPJs aqui, um por linha:
+
+12.345.678/0001-99
+98.765.432/0001-11
+11.222.333/0001-44
+
+Aceita com ou sem formatação"></textarea>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <div style="flex: 1; background: #f8fafc; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 24px; font-weight: 800; color: #3b82f6;" id="import-count">0</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500;">CNPJs Detectados</div>
+                    </div>
+                    <div style="flex: 1; background: #f8fafc; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 24px; font-weight: 800; color: #22c55e;" id="import-valid">0</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500;">Válidos</div>
+                    </div>
+                    <div style="flex: 1; background: #f8fafc; border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #e2e8f0;">
+                        <div style="font-size: 24px; font-weight: 800; color: #f59e0b;" id="import-time">0s</div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 500;">Tempo Estimado</div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar (hidden initially) -->
+                <div id="import-progress-container" style="display: none; margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #1e293b;">Importando...</span>
+                        <span style="font-size: 13px; color: #64748b;" id="import-progress-text">0 / 0</span>
+                    </div>
+                    <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                        <div id="import-progress-bar" style="height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa); width: 0%; transition: width 0.3s ease; border-radius: 4px;"></div>
+                    </div>
+                    <div id="import-current" style="margin-top: 10px; font-size: 12px; color: #64748b; text-align: center;">
+                        Aguardando...
+                    </div>
+                </div>
+
+                <!-- Results (hidden initially) -->
+                <div id="import-results" style="display: none; margin-top: 16px;">
+                    <div style="background: #f0fdf4; border-radius: 12px; padding: 16px; border: 1px solid #bbf7d0;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <i class="fas fa-check-circle" style="color: #22c55e; font-size: 20px;"></i>
+                            <strong style="color: #166534;">Importação Concluída!</strong>
+                        </div>
+                        <p style="color: #166534; font-size: 13px;">
+                            <span id="import-success-count">0</span> empresas importadas com sucesso.
+                            <span id="import-errors-text"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="CRM.fecharModal('modal-importar')" id="btn-cancel-import">Cancelar</button>
+                <button class="btn btn-primary" onclick="CRM.iniciarImportacao()" id="btn-start-import">
+                    <i class="fas fa-cloud-download-alt"></i> Iniciar Importação
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="js/vendas-admin-check.js"></script>
+    <script src="js/vendas-access-control.js?v=20260114"></script>
+    <script>
+    const CRM = {
+        leads: [],
+        leadAtual: null,
+        currentView: 'kanban',
+        paginaAtual: 1,
+        porPagina: 20,
+
+        init() {
+            this.configurarEventos();
+            this.carregarLeads();
+            this.carregarUsuario();
+            this.initDragAndDrop();
+        },
+
+        getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            return { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' };
+        },
+
+        toast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i> ${msg}`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        },
+
+        setView(view) {
+            this.currentView = view;
+            document.getElementById('kanban-view').style.display = view === 'kanban' ? 'grid' : 'none';
+            document.getElementById('table-view').classList.toggle('active', view === 'table');
+            document.getElementById('btn-view-kanban').classList.toggle('active', view === 'kanban');
+            document.getElementById('btn-view-table').classList.toggle('active', view === 'table');
+        },
+
+        configurarEventos() {
+            document.getElementById('search-empresa').addEventListener('keypress', e => {
+                if (e.key === 'Enter') this.buscarEmpresas();
+            });
+
+            // Limpar busca ao esvaziar campo
+            document.getElementById('search-empresa').addEventListener('input', e => {
+                if (!e.target.value.trim()) {
+                    this.renderizarKanban();
+                    this.renderizarTabela();
+                }
+            });
+
+            // Filtros conectados — filtrar leads ao mudar
+            ['filter-segmento', 'filter-uf', 'filter-porte'].forEach(id => {
+                document.getElementById(id)?.addEventListener('change', () => {
+                    const termo = document.getElementById('search-empresa').value.trim();
+                    if (termo) {
+                        this.buscarPorTexto(termo);
+                    } else {
+                        this.aplicarFiltros();
+                    }
+                });
+            });
+
+            // Máscaras
+            document.getElementById('lead-cnpj')?.addEventListener('input', e => {
+                let v = e.target.value.replace(/\D/g, '');
+                v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+                v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+                v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
+                v = v.replace(/(\d{4})(\d)/, '$1-$2');
+                e.target.value = v.substring(0, 18);
+            });
+
+            document.getElementById('lead-telefone')?.addEventListener('input', e => {
+                let v = e.target.value.replace(/\D/g, '');
+                v = v.replace(/^(\d{2})(\d)/, '($1) $2');
+                v = v.replace(/(\d{5})(\d)/, '$1-$2');
+                e.target.value = v.substring(0, 15);
+            });
+        },
+
+        aplicarFiltros() {
+            const segmento = document.getElementById('filter-segmento').value;
+            const uf = document.getElementById('filter-uf').value;
+            const porte = document.getElementById('filter-porte').value;
+
+            if (!segmento && !uf && !porte) {
+                this.renderizarKanban();
+                this.renderizarTabela();
+                return;
+            }
+
+            let filtrados = [...this.leads];
+            if (segmento) filtrados = filtrados.filter(l => l.segmento === segmento);
+            if (uf) filtrados = filtrados.filter(l => l.uf === uf);
+            if (porte) filtrados = filtrados.filter(l => (l.porte || '').toLowerCase().includes(porte));
+
+            this.renderizarKanbanFiltrado(filtrados);
+            this.renderizarTabelaFiltrada(filtrados);
+            this.toast(`${filtrados.length} lead(s) filtrado(s)`, 'info');
+        },
+
+        carregarUsuario() {
+            const hora = new Date().getHours();
+            let saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+            document.getElementById('greeting-text').textContent = saudacao;
+            
+            fetch('/api/me', { credentials: 'include' })
+                .then(res => res.ok ? res.json() : null)
+                .then(user => {
+                    if (user) {
+                        const nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Vendedor');
+                        document.getElementById('user-name').textContent = nome;
+                        document.getElementById('user-initial').textContent = nome.charAt(0).toUpperCase();
+                        
+                        const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                        if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                            const fotoEl = document.getElementById('user-photo');
+                            fotoEl.src = fotoUrl;
+                            fotoEl.onload = () => { fotoEl.style.display = 'block'; document.getElementById('user-initial').style.display = 'none'; };
+                        }
+                    }
+                }).catch(() => {});
+        },
+
+        async carregarLeads() {
+            try {
+                const response = await fetch('/api/vendas/leads', { headers: this.getAuthHeaders(), credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    this.leads = data.leads || data || [];
+                } else {
+                    this.leads = JSON.parse(localStorage.getItem('crm_leads') || '[]');
+                }
+            } catch (e) {
+                this.leads = JSON.parse(localStorage.getItem('crm_leads') || '[]');
+            }
+            this.atualizarMetricas();
+            this.renderizarKanban();
+            this.renderizarTabela();
+        },
+
+        atualizarMetricas() {
+            const total = this.leads.length;
+            const contato = this.leads.filter(l => l.status === 'contato').length;
+            const qualificado = this.leads.filter(l => l.status === 'qualificado').length;
+            const negociacao = this.leads.filter(l => l.status === 'negociacao').length;
+            const convertido = this.leads.filter(l => l.status === 'convertido').length;
+
+            document.getElementById('metric-total').textContent = total;
+            document.getElementById('metric-contato').textContent = contato;
+            document.getElementById('metric-qualificado').textContent = qualificado;
+            document.getElementById('metric-negociacao').textContent = negociacao;
+            document.getElementById('metric-convertido').textContent = convertido;
+
+            document.getElementById('count-novo').textContent = this.leads.filter(l => l.status === 'novo' || !l.status).length;
+            document.getElementById('count-contato').textContent = contato;
+            document.getElementById('count-qualificado').textContent = qualificado;
+            document.getElementById('count-negociacao').textContent = negociacao;
+            document.getElementById('count-convertido').textContent = convertido;
+        },
+
+        renderizarKanban() {
+            const colunas = ['novo', 'contato', 'qualificado', 'negociacao', 'convertido'];
+            
+            colunas.forEach(status => {
+                const leads = this.leads.filter(l => (l.status || 'novo') === status);
+                const container = document.getElementById(`col-${status}`);
+                
+                if (leads.length === 0) {
+                    container.innerHTML = `<div class="empty-column"><i class="fas fa-inbox"></i><p>Nenhum lead</p></div>`;
+                    return;
+                }
+
+                container.innerHTML = leads.map(lead => this.renderLeadCard(lead)).join('');
+            });
+
+            this.initDragAndDrop();
+        },
+
+        renderLeadCard(lead) {
+            const segmentoClass = lead.segmento || 'default';
+            const inicial = (lead.nome_fantasia || lead.razao_social || 'E')[0].toUpperCase();
+            const score = lead.score_prospeccao || 50;
+            
+            return `
+                <div class="lead-card" draggable="true" data-id="${lead.id}" data-status="${lead.status || 'novo'}">
+                    <div class="lead-card-header">
+                        <div class="lead-avatar ${segmentoClass}">${inicial}</div>
+                        <div class="lead-info">
+                            <div class="lead-name">${lead.nome_fantasia || lead.razao_social || '-'}</div>
+                            <div class="lead-company">${lead.cnpj || 'CNPJ não informado'}</div>
+                        </div>
+                    </div>
+                    <div class="lead-card-body">
+                        ${lead.contato ? `<div class="lead-detail"><i class="fas fa-user"></i> ${lead.contato}</div>` : ''}
+                        ${lead.telefone ? `<div class="lead-detail"><i class="fas fa-phone"></i> ${lead.telefone}</div>` : ''}
+                        ${lead.cidade ? `<div class="lead-detail"><i class="fas fa-map-marker-alt"></i> ${lead.cidade}${lead.uf ? '/' + lead.uf : ''}</div>` : ''}
+                    </div>
+                    <div class="lead-tags">
+                        ${lead.situacao === 'ATIVA' ? '<span class="lead-tag ativo">Ativa</span>' : ''}
+                        ${lead.optante_simples ? '<span class="lead-tag simples">Simples</span>' : ''}
+                        ${score >= 70 ? '<span class="lead-tag score-high">Score ' + score + '%</span>' : ''}
+                    </div>
+                    <div class="lead-card-footer">
+                        <div class="lead-date">
+                            <i class="fas fa-clock"></i>
+                            ${lead.created_at ? new Date(lead.created_at).toLocaleDateString('pt-BR') : 'Hoje'}
+                        </div>
+                        <div class="lead-actions">
+                            <button class="lead-action-btn" title="Ver" onclick="CRM.verDetalhes(${lead.id})"><i class="fas fa-eye"></i></button>
+                            ${lead.telefone ? `<button class="lead-action-btn whatsapp" title="WhatsApp" onclick="CRM.abrirWhatsApp('${lead.telefone}')"><i class="fab fa-whatsapp"></i></button>` : ''}
+                            ${lead.email ? `<button class="lead-action-btn email" title="Email" onclick="CRM.abrirEmail('${lead.email}')"><i class="fas fa-envelope"></i></button>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+
+        renderizarTabela() {
+            const tbody = document.getElementById('leads-tbody');
+            
+            if (this.leads.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7"><div class="empty-column"><i class="fas fa-inbox"></i><p>Nenhum lead cadastrado</p></div></td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = this.leads.map(lead => {
+                const score = lead.score_prospeccao || 50;
+                const scoreClass = score >= 70 ? 'high' : score >= 50 ? 'medium' : 'low';
+                
+                return `
+                    <tr>
+                        <td>
+                            <div class="empresa-cell">
+                                <div class="empresa-avatar">${(lead.nome_fantasia || lead.razao_social || 'E')[0]}</div>
+                                <div class="empresa-info">
+                                    <h4>${lead.nome_fantasia || lead.razao_social || '-'}</h4>
+                                    <span>${lead.cnpj || '-'}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            ${lead.contato || '-'}<br>
+                            <small style="color: #64748b;">${lead.telefone || ''}</small>
+                        </td>
+                        <td>${lead.cidade || '-'}${lead.uf ? '/' + lead.uf : ''}</td>
+                        <td>${this.formatarSegmento(lead.segmento)}</td>
+                        <td><span class="badge badge-${lead.status || 'novo'}">${this.formatarStatus(lead.status)}</span></td>
+                        <td>
+                            <div class="score-bar"><div class="score-fill ${scoreClass}" style="width: ${score}%"></div></div>
+                            <strong>${score}%</strong>
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="lead-action-btn" onclick="CRM.verDetalhes(${lead.id})"><i class="fas fa-eye"></i></button>
+                                <button class="lead-action-btn" onclick="CRM.editarLeadById(${lead.id})"><i class="fas fa-edit"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('pagination-showing').textContent = this.leads.length;
+            document.getElementById('pagination-total').textContent = this.leads.length;
+        },
+
+        formatarStatus(status) {
+            const map = { novo: 'Novo', contato: 'Em Contato', qualificado: 'Qualificado', negociacao: 'Negociação', convertido: 'Convertido', perdido: 'Perdido' };
+            return map[status] || 'Novo';
+        },
+
+        formatarSegmento(seg) {
+            const map = { industria: 'Indústria', comercio: 'Comércio', construcao: 'Construção', servicos: 'Serviços', agro: 'Agronegócio' };
+            return map[seg] || seg || '-';
+        },
+
+        initDragAndDrop() {
+            const cards = document.querySelectorAll('.lead-card');
+            const columns = document.querySelectorAll('.kanban-column-content');
+
+            cards.forEach(card => {
+                card.addEventListener('dragstart', e => {
+                    card.classList.add('dragging');
+                    e.dataTransfer.setData('text/plain', card.dataset.id);
+                });
+                card.addEventListener('dragend', () => card.classList.remove('dragging'));
+            });
+
+            columns.forEach(col => {
+                col.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    col.style.background = '#e0f2fe';
+                });
+                col.addEventListener('dragleave', () => col.style.background = '');
+                col.addEventListener('drop', e => {
+                    e.preventDefault();
+                    col.style.background = '';
+                    const leadId = e.dataTransfer.getData('text/plain');
+                    const novoStatus = col.id.replace('col-', '');
+                    this.atualizarStatusLead(leadId, novoStatus);
+                });
+            });
+        },
+
+        async atualizarStatusLead(leadId, novoStatus) {
+            const lead = this.leads.find(l => l.id == leadId);
+            if (!lead) return;
+
+            const statusAnterior = lead.status;
+            lead.status = novoStatus;
+
+            try {
+                await fetch(`/api/vendas/leads/${leadId}`, {
+                    method: 'PUT',
+                    headers: this.getAuthHeaders(),
+                    credentials: 'include',
+                    body: JSON.stringify({ status: novoStatus })
+                });
+            } catch (e) {
+                localStorage.setItem('crm_leads', JSON.stringify(this.leads));
+            }
+
+            this.toast(`Lead movido para ${this.formatarStatus(novoStatus)}`, 'success');
+            this.atualizarMetricas();
+            this.renderizarKanban();
+        },
+
+        async buscarEmpresas() {
+            const termo = document.getElementById('search-empresa').value.trim();
+            if (!termo) {
+                this.toast('Digite um termo para buscar', 'warning');
+                return;
+            }
+
+            const cnpjLimpo = termo.replace(/\D/g, '');
+            if (cnpjLimpo.length === 14) {
+                // CNPJ completo - buscar via API pública
+                await this.buscarPorCNPJ(cnpjLimpo);
+            } else if (cnpjLimpo.length === 8) {
+                // CEP - buscar empresas por região
+                await this.buscarPorCEP(cnpjLimpo);
+            } else {
+                // Busca por texto (Razão Social, Cidade, Segmento) nos leads locais + banco
+                await this.buscarPorTexto(termo);
+            }
+        },
+
+        async buscarPorTexto(termo) {
+            const termoLower = termo.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const segmento = document.getElementById('filter-segmento').value;
+            const uf = document.getElementById('filter-uf').value;
+            const porte = document.getElementById('filter-porte').value;
+
+            // 1. Filtrar leads locais
+            let resultados = this.leads.filter(l => {
+                const nome = (l.nome_fantasia || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const razao = (l.razao_social || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const cidade = (l.cidade || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const cnaeDesc = (l.cnae_descricao || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const matchTermo = nome.includes(termoLower) || razao.includes(termoLower) || cidade.includes(termoLower) || cnaeDesc.includes(termoLower);
+                const matchSegmento = !segmento || l.segmento === segmento;
+                const matchUf = !uf || l.uf === uf;
+                const matchPorte = !porte || (l.porte || '').toLowerCase().includes(porte);
+                return matchTermo && matchSegmento && matchUf && matchPorte;
+            });
+
+            // 2. Tentar buscar no banco de dados da empresa
+            try {
+                const response = await fetch(`/api/vendas/empresas/buscar?termo=${encodeURIComponent(termo)}`, {
+                    headers: this.getAuthHeaders(), credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.empresas && data.empresas.length > 0) {
+                        this.toast(`${data.empresas.length} empresa(s) encontrada(s) no banco de dados`, 'success');
+                    }
+                }
+            } catch (e) { /* API pode não existir ainda */ }
+
+            if (resultados.length > 0) {
+                // Aplicar filtros visuais — mostrar apenas os resultados
+                this.leadsOriginal = this.leadsOriginal || [...this.leads];
+                this.leadsFiltrados = resultados;
+                this.renderizarKanbanFiltrado(resultados);
+                this.renderizarTabelaFiltrada(resultados);
+                this.toast(`${resultados.length} lead(s) encontrado(s) para "${termo}"`, 'success');
+            } else {
+                this.toast(`Nenhum lead encontrado para "${termo}". Use um CNPJ (14 dígitos) para consultar bases públicas.`, 'info');
+            }
+        },
+
+        renderizarKanbanFiltrado(leads) {
+            const colunas = ['novo', 'contato', 'qualificado', 'negociacao', 'convertido'];
+            colunas.forEach(status => {
+                const filtered = leads.filter(l => (l.status || 'novo') === status);
+                const container = document.getElementById(`col-${status}`);
+                if (filtered.length === 0) {
+                    container.innerHTML = `<div class="empty-column"><i class="fas fa-inbox"></i><p>Nenhum lead</p></div>`;
+                    return;
+                }
+                container.innerHTML = filtered.map(lead => this.renderLeadCard(lead)).join('');
+            });
+            this.initDragAndDrop();
+        },
+
+        renderizarTabelaFiltrada(leads) {
+            const tbody = document.getElementById('leads-tbody');
+            if (leads.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7"><div class="empty-column"><i class="fas fa-inbox"></i><p>Nenhum lead encontrado</p></div></td></tr>`;
+                return;
+            }
+            tbody.innerHTML = leads.map(lead => {
+                const score = lead.score_prospeccao || 50;
+                const scoreClass = score >= 70 ? 'high' : score >= 50 ? 'medium' : 'low';
+                return `
+                    <tr>
+                        <td>
+                            <div class="empresa-cell">
+                                <div class="empresa-avatar">${(lead.nome_fantasia || lead.razao_social || 'E')[0]}</div>
+                                <div class="empresa-info">
+                                    <h4>${lead.nome_fantasia || lead.razao_social || '-'}</h4>
+                                    <span>${lead.cnpj || '-'}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${lead.contato || '-'}<br><small style="color: #64748b;">${lead.telefone || ''}</small></td>
+                        <td>${lead.cidade || '-'}${lead.uf ? '/' + lead.uf : ''}</td>
+                        <td>${this.formatarSegmento(lead.segmento)}</td>
+                        <td><span class="badge badge-${lead.status || 'novo'}">${this.formatarStatus(lead.status)}</span></td>
+                        <td><div class="score-bar"><div class="score-fill ${scoreClass}" style="width: ${score}%"></div></div><strong>${score}%</strong></td>
+                        <td>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="lead-action-btn" onclick="CRM.verDetalhes(${lead.id})"><i class="fas fa-eye"></i></button>
+                                <button class="lead-action-btn" onclick="CRM.editarLeadById(${lead.id})"><i class="fas fa-edit"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            document.getElementById('pagination-showing').textContent = leads.length;
+            document.getElementById('pagination-total').textContent = this.leads.length;
+        },
+
+        async buscarPorCEP(cep) {
+            this.toast('Buscando informações do CEP...', 'info');
+            try {
+                const response = await fetch(`/api/vendas/proxy/cep/${cep}`, { credentials: 'include' });
+                if (response.ok) {
+                    const dados = await response.json();
+                    this.toast(`Região encontrada: ${dados.city}/${dados.state}`, 'success');
+                }
+            } catch (e) {
+                this.toast('CEP não encontrado', 'error');
+            }
+        },
+
+        async buscarPorCNPJ(cnpj) {
+            // Mostrar loading profissional
+            this.mostrarLoadingConsulta(cnpj);
+            
+            const dadosEnriquecidos = {
+                receita_federal: null,
+                simples_nacional: null,
+                ibge: null,
+                cep: null,
+                fontes_consultadas: []
+            };
+
+            try {
+                // ========== 1. RECEITA FEDERAL (BrasilAPI) ==========
+                this.atualizarLoadingEtapa('receita', 'loading');
+                try {
+                    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+                    if (response.ok) {
+                        dadosEnriquecidos.receita_federal = await response.json();
+                        dadosEnriquecidos.fontes_consultadas.push('Receita Federal');
+                        this.atualizarLoadingEtapa('receita', 'success');
+                    } else {
+                        this.atualizarLoadingEtapa('receita', 'error');
+                    }
+                } catch (e) {
+                    this.atualizarLoadingEtapa('receita', 'error');
+                }
+
+                // Se não encontrou na Receita, tentar API alternativa
+                if (!dadosEnriquecidos.receita_federal) {
+                    try {
+                        const response2 = await fetch(`https://receitaws.com.br/v1/cnpj/${cnpj}`);
+                        if (response2.ok) {
+                            const data = await response2.json();
+                            if (data.status !== 'ERROR') {
+                                dadosEnriquecidos.receita_federal = this.converterReceitaWS(data);
+                                dadosEnriquecidos.fontes_consultadas.push('ReceitaWS');
+                                this.atualizarLoadingEtapa('receita', 'success');
+                            }
+                        }
+                    } catch (e) {}
+                }
+
+                if (!dadosEnriquecidos.receita_federal) {
+                    this.fecharLoadingConsulta();
+                    this.toast('CNPJ não encontrado nas bases públicas', 'error');
+                    return;
+                }
+
+                // ========== 2. DADOS DO IBGE (Município) ==========
+                this.atualizarLoadingEtapa('ibge', 'loading');
+                try {
+                    const uf = dadosEnriquecidos.receita_federal.uf;
+                    const municipio = dadosEnriquecidos.receita_federal.municipio;
+                    if (uf && municipio) {
+                        const responseIBGE = await fetch(`https://brasilapi.com.br/api/ibge/municipios/v1/${uf}?providers=dados-abertos-br,gov,wikipedia`);
+                        if (responseIBGE.ok) {
+                            const municipios = await responseIBGE.json();
+                            const mun = municipios.find(m => 
+                                m.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') === 
+                                municipio.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                            );
+                            if (mun) {
+                                dadosEnriquecidos.ibge = mun;
+                                dadosEnriquecidos.fontes_consultadas.push('IBGE');
+                            }
+                        }
+                    }
+                    this.atualizarLoadingEtapa('ibge', dadosEnriquecidos.ibge ? 'success' : 'skip');
+                } catch (e) {
+                    this.atualizarLoadingEtapa('ibge', 'skip');
+                }
+
+                // ========== 3. DADOS DO CEP (Complemento) ==========
+                this.atualizarLoadingEtapa('cep', 'loading');
+                try {
+                    const cep = dadosEnriquecidos.receita_federal.cep?.replace(/\D/g, '');
+                    if (cep && cep.length === 8) {
+                        const responseCEP = await fetch(`/api/vendas/proxy/cep/${cep}`, { credentials: 'include' });
+                        if (responseCEP.ok) {
+                            dadosEnriquecidos.cep = await responseCEP.json();
+                            dadosEnriquecidos.fontes_consultadas.push('Correios');
+                        }
+                    }
+                    this.atualizarLoadingEtapa('cep', dadosEnriquecidos.cep ? 'success' : 'skip');
+                } catch (e) {
+                    this.atualizarLoadingEtapa('cep', 'skip');
+                }
+
+                // ========== 4. CNAE (Atividade Econômica) ==========
+                this.atualizarLoadingEtapa('cnae', 'loading');
+                try {
+                    const cnae = dadosEnriquecidos.receita_federal.cnae_fiscal;
+                    if (cnae) {
+                        const responseCNAE = await fetch(`https://brasilapi.com.br/api/cnae/v2/${cnae}`);
+                        if (responseCNAE.ok) {
+                            dadosEnriquecidos.cnae_detalhes = await responseCNAE.json();
+                            dadosEnriquecidos.fontes_consultadas.push('CNAE/IBGE');
+                        }
+                    }
+                    this.atualizarLoadingEtapa('cnae', dadosEnriquecidos.cnae_detalhes ? 'success' : 'skip');
+                } catch (e) {
+                    this.atualizarLoadingEtapa('cnae', 'skip');
+                }
+
+                // ========== 5. DDD/REGIÃO ==========
+                this.atualizarLoadingEtapa('ddd', 'loading');
+                try {
+                    const ddd = dadosEnriquecidos.receita_federal.ddd_telefone_1?.substring(0, 2);
+                    if (ddd) {
+                        const responseDDD = await fetch(`https://brasilapi.com.br/api/ddd/v1/${ddd}`);
+                        if (responseDDD.ok) {
+                            dadosEnriquecidos.ddd_info = await responseDDD.json();
+                            dadosEnriquecidos.fontes_consultadas.push('ANATEL');
+                        }
+                    }
+                    this.atualizarLoadingEtapa('ddd', dadosEnriquecidos.ddd_info ? 'success' : 'skip');
+                } catch (e) {
+                    this.atualizarLoadingEtapa('ddd', 'skip');
+                }
+
+                // Fechar loading
+                await new Promise(r => setTimeout(r, 500));
+                this.fecharLoadingConsulta();
+
+                // Transformar e salvar lead
+                const lead = this.transformarDadosEnriquecidos(dadosEnriquecidos, cnpj);
+                
+                // Verificar duplicado local
+                const existenteLocal = this.leads.find(l => l.cnpj === lead.cnpj);
+                if (existenteLocal) {
+                    this.toast('Esta empresa já está cadastrada como lead', 'warning');
+                    this.verDetalhes(existenteLocal.id);
+                    return;
+                }
+
+                // Salvar na API
+                try {
+                    const saveResponse = await fetch('/api/vendas/leads', {
+                        method: 'POST',
+                        headers: this.getAuthHeaders(),
+                        credentials: 'include',
+                        body: JSON.stringify(lead)
+                    });
+                    const saveResult = await saveResponse.json();
+                    
+                    if (saveResult.success && saveResult.id) {
+                        lead.id = saveResult.id;
+                    } else if (saveResult.lead_id) {
+                        // CNPJ já existe no banco
+                        this.toast('Esta empresa já está cadastrada', 'warning');
+                        await this.carregarLeads();
+                        return;
+                    }
+                } catch (e) {
+                    console.log('Salvando localmente:', e);
+                }
+
+                this.leads.unshift(lead);
+                localStorage.setItem('crm_leads', JSON.stringify(this.leads));
+                
+                this.toast(`🎯 Empresa adicionada! ${dadosEnriquecidos.fontes_consultadas.length} fontes consultadas.`, 'success');
+                this.atualizarMetricas();
+                this.renderizarKanban();
+                this.renderizarTabela();
+                this.verDetalhes(lead.id);
+
+            } catch (e) {
+                this.fecharLoadingConsulta();
+                this.toast('Erro ao consultar bases públicas', 'error');
+                console.error(e);
+            }
+        },
+
+        converterReceitaWS(data) {
+            return {
+                razao_social: data.nome,
+                nome_fantasia: data.fantasia,
+                municipio: data.municipio,
+                uf: data.uf,
+                bairro: data.bairro,
+                logradouro: data.logradouro,
+                numero: data.numero,
+                cep: data.cep,
+                ddd_telefone_1: data.telefone?.replace(/\D/g, ''),
+                email: data.email,
+                porte: data.porte,
+                cnae_fiscal: data.atividade_principal?.[0]?.code?.replace(/\D/g, ''),
+                cnae_fiscal_descricao: data.atividade_principal?.[0]?.text,
+                descricao_situacao_cadastral: data.situacao,
+                capital_social: parseFloat(data.capital_social) || 0,
+                opcao_pelo_simples: data.simples?.optante === 'Sim',
+                data_inicio_atividade: data.abertura,
+                qsa: data.qsa?.map(s => ({ nome_socio: s.nome, qualificacao_socio: s.qual })) || []
+            };
+        },
+
+        mostrarLoadingConsulta(cnpj) {
+            const modal = document.createElement('div');
+            modal.id = 'loading-consulta';
+            modal.className = 'modal active';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);">
+                        <h2 style="color: white;"><i class="fas fa-search" style="background: rgba(255,255,255,0.2); color: white;"></i> Consultando Bases Públicas</h2>
+                    </div>
+                    <div class="modal-body" style="padding: 24px;">
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <p style="color: #64748b; font-size: 13px;">Buscando dados para o CNPJ</p>
+                            <p style="font-size: 18px; font-weight: 700; color: #1e293b; font-family: monospace;">${this.formatarCNPJ(cnpj)}</p>
+                        </div>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            <div class="consulta-etapa" id="etapa-receita">
+                                <div class="etapa-icon"><i class="fas fa-landmark"></i></div>
+                                <div class="etapa-info">
+                                    <strong>Receita Federal</strong>
+                                    <span>Dados cadastrais, sócios, capital social</span>
+                                </div>
+                                <div class="etapa-status"><i class="fas fa-circle-notch fa-spin"></i></div>
+                            </div>
+                            <div class="consulta-etapa" id="etapa-ibge">
+                                <div class="etapa-icon"><i class="fas fa-map-marked-alt"></i></div>
+                                <div class="etapa-info">
+                                    <strong>IBGE</strong>
+                                    <span>Dados municipais e regionais</span>
+                                </div>
+                                <div class="etapa-status waiting"><i class="fas fa-clock"></i></div>
+                            </div>
+                            <div class="consulta-etapa" id="etapa-cep">
+                                <div class="etapa-icon"><i class="fas fa-envelope"></i></div>
+                                <div class="etapa-info">
+                                    <strong>Correios</strong>
+                                    <span>Endereço completo e geolocalização</span>
+                                </div>
+                                <div class="etapa-status waiting"><i class="fas fa-clock"></i></div>
+                            </div>
+                            <div class="consulta-etapa" id="etapa-cnae">
+                                <div class="etapa-icon"><i class="fas fa-industry"></i></div>
+                                <div class="etapa-info">
+                                    <strong>CNAE / IBGE</strong>
+                                    <span>Classificação de atividade econômica</span>
+                                </div>
+                                <div class="etapa-status waiting"><i class="fas fa-clock"></i></div>
+                            </div>
+                            <div class="consulta-etapa" id="etapa-ddd">
+                                <div class="etapa-icon"><i class="fas fa-phone"></i></div>
+                                <div class="etapa-info">
+                                    <strong>ANATEL</strong>
+                                    <span>Informações de DDD e região</span>
+                                </div>
+                                <div class="etapa-status waiting"><i class="fas fa-clock"></i></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Adicionar estilos
+            if (!document.getElementById('loading-styles')) {
+                const style = document.createElement('style');
+                style.id = 'loading-styles';
+                style.textContent = `
+                    .consulta-etapa {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 12px 16px;
+                        background: #f8fafc;
+                        border-radius: 10px;
+                        border: 1px solid #e2e8f0;
+                    }
+                    .consulta-etapa .etapa-icon {
+                        width: 40px;
+                        height: 40px;
+                        background: linear-gradient(135deg, #3b82f6, #60a5fa);
+                        border-radius: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-size: 16px;
+                    }
+                    .consulta-etapa .etapa-info {
+                        flex: 1;
+                    }
+                    .consulta-etapa .etapa-info strong {
+                        display: block;
+                        font-size: 13px;
+                        color: #1e293b;
+                    }
+                    .consulta-etapa .etapa-info span {
+                        font-size: 11px;
+                        color: #64748b;
+                    }
+                    .consulta-etapa .etapa-status {
+                        width: 28px;
+                        height: 28px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 14px;
+                        color: #3b82f6;
+                    }
+                    .consulta-etapa .etapa-status.waiting { color: #94a3b8; }
+                    .consulta-etapa .etapa-status.success { color: #22c55e; }
+                    .consulta-etapa .etapa-status.error { color: #ef4444; }
+                    .consulta-etapa .etapa-status.skip { color: #f59e0b; }
+                    .consulta-etapa.active { border-color: #3b82f6; background: #eff6ff; }
+                    .consulta-etapa.done { border-color: #22c55e; }
+                `;
+                document.head.appendChild(style);
+            }
+        },
+
+        atualizarLoadingEtapa(etapa, status) {
+            const el = document.getElementById(`etapa-${etapa}`);
+            if (!el) return;
+
+            const statusEl = el.querySelector('.etapa-status');
+            el.classList.remove('active');
+            
+            if (status === 'loading') {
+                el.classList.add('active');
+                statusEl.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+                statusEl.className = 'etapa-status';
+            } else if (status === 'success') {
+                el.classList.add('done');
+                statusEl.innerHTML = '<i class="fas fa-check-circle"></i>';
+                statusEl.className = 'etapa-status success';
+            } else if (status === 'error') {
+                statusEl.innerHTML = '<i class="fas fa-times-circle"></i>';
+                statusEl.className = 'etapa-status error';
+            } else if (status === 'skip') {
+                statusEl.innerHTML = '<i class="fas fa-minus-circle"></i>';
+                statusEl.className = 'etapa-status skip';
+            }
+        },
+
+        fecharLoadingConsulta() {
+            const modal = document.getElementById('loading-consulta');
+            if (modal) modal.remove();
+        },
+
+        transformarDadosEnriquecidos(dados, cnpj) {
+            const rf = dados.receita_federal;
+            const cep = dados.cep;
+            const ibge = dados.ibge;
+            const cnae = dados.cnae_detalhes;
+            const ddd = dados.ddd_info;
+
+            return {
+                id: Date.now(),
+                cnpj: this.formatarCNPJ(cnpj),
+                razao_social: rf.razao_social,
+                nome_fantasia: rf.nome_fantasia || rf.razao_social,
+                cidade: rf.municipio,
+                uf: rf.uf,
+                bairro: rf.bairro,
+                endereco: `${rf.logradouro || ''}, ${rf.numero || 's/n'}`.trim(),
+                cep: rf.cep,
+                telefone: rf.ddd_telefone_1 ? `(${rf.ddd_telefone_1.substring(0,2)}) ${rf.ddd_telefone_1.substring(2)}` : '',
+                email: rf.email || '',
+                porte: rf.porte,
+                cnae_codigo: rf.cnae_fiscal,
+                cnae_descricao: rf.cnae_fiscal_descricao,
+                cnae_grupo: cnae?.descricao || null,
+                segmento: this.inferirSegmento(rf.cnae_fiscal_descricao),
+                situacao: rf.descricao_situacao_cadastral,
+                capital_social: rf.capital_social,
+                optante_simples: rf.opcao_pelo_simples,
+                optante_mei: rf.opcao_pelo_mei || false,
+                data_abertura: rf.data_inicio_atividade,
+                socios: rf.qsa || [],
+                // Dados enriquecidos
+                coordenadas: cep?.location?.coordinates ? {
+                    lat: cep.location.coordinates.latitude,
+                    lng: cep.location.coordinates.longitude
+                } : null,
+                ibge_codigo: ibge?.codigo_ibge || null,
+                regiao_ddd: ddd?.state || null,
+                cidades_ddd: ddd?.cities || [],
+                fontes: dados.fontes_consultadas,
+                score_prospeccao: this.calcularScoreEnriquecido(rf, cep, ibge),
+                status: 'novo',
+                created_at: new Date().toISOString()
+            };
+        },
+
+        calcularScoreEnriquecido(rf, cep, ibge) {
+            let score = 40; // Base
+
+            // Situação cadastral
+            if (rf.descricao_situacao_cadastral === 'ATIVA') score += 20;
+            
+            // Capital social
+            if (rf.capital_social > 50000) score += 5;
+            if (rf.capital_social > 100000) score += 5;
+            if (rf.capital_social > 500000) score += 5;
+            if (rf.capital_social > 1000000) score += 5;
+
+            // Contatos
+            if (rf.ddd_telefone_1) score += 5;
+            if (rf.ddd_telefone_2) score += 3;
+            if (rf.email) score += 5;
+
+            // Dados completos
+            if (cep) score += 3;
+            if (ibge) score += 2;
+
+            // Porte
+            if (rf.porte === 'MEDIA EMPRESA' || rf.porte === 'GRANDE') score += 5;
+
+            return Math.min(score, 100);
+        },
+
+        inferirSegmento(atividade) {
+            if (!atividade) return 'servicos';
+            const atv = atividade.toLowerCase();
+            if (atv.includes('constru') || atv.includes('obra')) return 'construcao';
+            if (atv.includes('indústria') || atv.includes('fabric') || atv.includes('metal')) return 'industria';
+            if (atv.includes('comércio') || atv.includes('venda')) return 'comercio';
+            if (atv.includes('agro') || atv.includes('rural')) return 'agro';
+            return 'servicos';
+        },
+
+        formatarCNPJ(cnpj) {
+            return cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+        },
+
+        abrirModalNovoLead() {
+            document.getElementById('modal-title').textContent = 'Novo Lead';
+            document.getElementById('lead-id').value = '';
+            document.querySelectorAll('#modal-lead .form-control').forEach(el => el.value = '');
+            document.getElementById('lead-status').value = 'novo';
+            document.getElementById('modal-lead').classList.add('active');
+        },
+
+        async salvarLead() {
+            const id = document.getElementById('lead-id').value;
+            const lead = {
+                id: id ? parseInt(id) : Date.now(),
+                razao_social: document.getElementById('lead-razao').value,
+                nome_fantasia: document.getElementById('lead-fantasia').value,
+                cnpj: document.getElementById('lead-cnpj').value,
+                segmento: document.getElementById('lead-segmento').value,
+                contato: document.getElementById('lead-contato').value,
+                cargo: document.getElementById('lead-cargo').value,
+                telefone: document.getElementById('lead-telefone').value,
+                email: document.getElementById('lead-email').value,
+                cidade: document.getElementById('lead-cidade').value,
+                uf: document.getElementById('lead-uf').value,
+                status: document.getElementById('lead-status').value,
+                observacoes: document.getElementById('lead-obs').value,
+                created_at: id ? undefined : new Date().toISOString()
+            };
+
+            if (!lead.razao_social) {
+                this.toast('Razão Social é obrigatória', 'error');
+                return;
+            }
+
+            try {
+                await fetch('/api/vendas/leads' + (id ? `/${id}` : ''), {
+                    method: id ? 'PUT' : 'POST',
+                    headers: this.getAuthHeaders(),
+                    credentials: 'include',
+                    body: JSON.stringify(lead)
+                });
+            } catch (e) {
+                if (id) {
+                    const idx = this.leads.findIndex(l => l.id == id);
+                    if (idx >= 0) this.leads[idx] = { ...this.leads[idx], ...lead };
+                } else {
+                    this.leads.unshift(lead);
+                }
+                localStorage.setItem('crm_leads', JSON.stringify(this.leads));
+            }
+
+            this.toast(id ? 'Lead atualizado!' : 'Lead cadastrado!', 'success');
+            this.fecharModal('modal-lead');
+            this.carregarLeads();
+        },
+
+        verDetalhes(id) {
+            const lead = this.leads.find(l => l.id == id);
+            if (!lead) return;
+            
+            this.leadAtual = lead;
+            document.getElementById('detalhe-nome').textContent = lead.nome_fantasia || lead.razao_social;
+            
+            const capitalFormatado = lead.capital_social ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.capital_social) : '-';
+            const dataAbertura = lead.data_abertura ? new Date(lead.data_abertura).toLocaleDateString('pt-BR') : '-';
+            const idadeEmpresa = lead.data_abertura ? Math.floor((new Date() - new Date(lead.data_abertura)) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+            
+            document.getElementById('modal-detalhes-body').innerHTML = `
+                <!-- Badges de Fontes -->
+                ${lead.fontes && lead.fontes.length > 0 ? `
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;">
+                    ${lead.fontes.map(f => `<span style="padding: 4px 12px; background: linear-gradient(135deg, #eff6ff, #dbeafe); color: #1e40af; font-size: 11px; font-weight: 600; border-radius: 20px;"><i class="fas fa-check-circle"></i> ${f}</span>`).join('')}
+                </div>
+                ` : ''}
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div>
+                        <div class="form-section-title"><i class="fas fa-building"></i> Dados Cadastrais</div>
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                            <p style="margin-bottom: 12px;"><strong>Razão Social:</strong><br><span style="font-size: 14px;">${lead.razao_social || '-'}</span></p>
+                            <p style="margin-bottom: 12px;"><strong>Nome Fantasia:</strong><br><span style="font-size: 14px;">${lead.nome_fantasia || '-'}</span></p>
+                            <p style="margin-bottom: 12px;">
+                                <strong>CNPJ:</strong> 
+                                <code style="background: #1e293b; color: #22c55e; padding: 4px 10px; border-radius: 6px; font-size: 14px;">${lead.cnpj || '-'}</code>
+                            </p>
+                            <p style="margin-bottom: 12px;">
+                                <strong>Situação:</strong> 
+                                <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; ${lead.situacao === 'ATIVA' ? 'background: #dcfce7; color: #166534;' : 'background: #fee2e2; color: #991b1b;'}">${lead.situacao || '-'}</span>
+                            </p>
+                            <p style="margin-bottom: 12px;"><strong>Data de Abertura:</strong> ${dataAbertura} ${idadeEmpresa ? `<span style="color: #64748b;">(${idadeEmpresa} anos)</span>` : ''}</p>
+                            <p style="margin-bottom: 12px;"><strong>Capital Social:</strong> <span style="color: #3b82f6; font-weight: 600;">${capitalFormatado}</span></p>
+                            <p><strong>Porte:</strong> ${lead.porte || '-'}</p>
+                        </div>
+                        
+                        <div class="form-section-title"><i class="fas fa-file-invoice"></i> Regime Tributário</div>
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                            <div style="display: flex; gap: 12px;">
+                                <div style="flex: 1; text-align: center; padding: 12px; background: ${lead.optante_simples ? '#dcfce7' : '#f1f5f9'}; border-radius: 8px;">
+                                    <i class="fas fa-${lead.optante_simples ? 'check-circle' : 'times-circle'}" style="font-size: 24px; color: ${lead.optante_simples ? '#22c55e' : '#94a3b8'}; margin-bottom: 4px;"></i>
+                                    <p style="font-size: 12px; font-weight: 600; color: #1e293b;">Simples Nacional</p>
+                                </div>
+                                <div style="flex: 1; text-align: center; padding: 12px; background: ${lead.optante_mei ? '#dcfce7' : '#f1f5f9'}; border-radius: 8px;">
+                                    <i class="fas fa-${lead.optante_mei ? 'check-circle' : 'times-circle'}" style="font-size: 24px; color: ${lead.optante_mei ? '#22c55e' : '#94a3b8'}; margin-bottom: 4px;"></i>
+                                    <p style="font-size: 12px; font-weight: 600; color: #1e293b;">MEI</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section-title"><i class="fas fa-map-marker-alt"></i> Localização</div>
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px;">
+                            <p style="margin-bottom: 8px;"><i class="fas fa-road" style="color: #64748b; width: 20px;"></i> ${lead.endereco || '-'}</p>
+                            <p style="margin-bottom: 8px;"><i class="fas fa-map" style="color: #64748b; width: 20px;"></i> ${lead.bairro || '-'}</p>
+                            <p style="margin-bottom: 8px;"><i class="fas fa-city" style="color: #64748b; width: 20px;"></i> <strong>${lead.cidade || '-'}/${lead.uf || '-'}</strong></p>
+                            <p><i class="fas fa-mail-bulk" style="color: #64748b; width: 20px;"></i> CEP: ${lead.cep || '-'}</p>
+                            ${lead.coordenadas ? `
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                                <p style="font-size: 11px; color: #64748b;"><i class="fas fa-globe"></i> Coordenadas: ${lead.coordenadas.lat?.toFixed(6)}, ${lead.coordenadas.lng?.toFixed(6)}</p>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-section-title"><i class="fas fa-phone"></i> Contato</div>
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                            <p style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+                                <span style="width: 36px; height: 36px; background: #25d366; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white;"><i class="fab fa-whatsapp"></i></span>
+                                <span>${lead.telefone || 'Não informado'}</span>
+                                ${lead.telefone ? `<button onclick="CRM.abrirWhatsApp('${lead.telefone}')" style="margin-left: auto; padding: 6px 12px; background: #25d366; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px;">Abrir</button>` : ''}
+                            </p>
+                            <p style="display: flex; align-items: center; gap: 10px;">
+                                <span style="width: 36px; height: 36px; background: #ea4335; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white;"><i class="fas fa-envelope"></i></span>
+                                <span style="font-size: 13px;">${lead.email || 'Não informado'}</span>
+                                ${lead.email ? `<button onclick="CRM.abrirEmail('${lead.email}')" style="margin-left: auto; padding: 6px 12px; background: #ea4335; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 11px;">Enviar</button>` : ''}
+                            </p>
+                        </div>
+                        
+                        <div class="form-section-title"><i class="fas fa-industry"></i> Atividade Econômica (CNAE)</div>
+                        <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                            ${lead.cnae_codigo ? `<p style="margin-bottom: 8px;"><strong>Código:</strong> <code style="background: #e2e8f0; padding: 2px 8px; border-radius: 4px;">${lead.cnae_codigo}</code></p>` : ''}
+                            <p style="font-size: 13px; color: #374151;">${lead.cnae_descricao || '-'}</p>
+                            ${lead.cnae_grupo ? `<p style="margin-top: 8px; font-size: 12px; color: #64748b;"><strong>Grupo:</strong> ${lead.cnae_grupo}</p>` : ''}
+                        </div>
+                        
+                        <div class="form-section-title"><i class="fas fa-chart-line"></i> Score de Prospecção</div>
+                        <div style="background: linear-gradient(135deg, #f8fafc 0%, ${(lead.score_prospeccao || 50) >= 70 ? '#f0fdf4' : '#fefce8'} 100%); border-radius: 12px; padding: 20px; text-align: center; border: 2px solid ${(lead.score_prospeccao || 50) >= 70 ? '#22c55e' : '#f59e0b'};">
+                            <div style="font-size: 56px; font-weight: 800; color: ${(lead.score_prospeccao || 50) >= 70 ? '#22c55e' : '#f59e0b'}; line-height: 1;">${lead.score_prospeccao || 50}<span style="font-size: 24px;">%</span></div>
+                            <p style="color: #64748b; font-size: 13px; margin-top: 4px;">Probabilidade de conversão</p>
+                            <div style="margin-top: 12px; display: flex; justify-content: center; gap: 8px;">
+                                ${(lead.score_prospeccao || 50) >= 80 ? '<span style="background: #22c55e; color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">🔥 HOT LEAD</span>' : ''}
+                                ${(lead.score_prospeccao || 50) >= 60 && (lead.score_prospeccao || 50) < 80 ? '<span style="background: #f59e0b; color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">⭐ QUALIFICADO</span>' : ''}
+                                ${(lead.score_prospeccao || 50) < 60 ? '<span style="background: #94a3b8; color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">📋 NOVO</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                ${lead.socios && lead.socios.length > 0 ? `
+                    <div class="form-section-title" style="margin-top: 24px;"><i class="fas fa-users"></i> Quadro Societário (${lead.socios.length} ${lead.socios.length === 1 ? 'sócio' : 'sócios'})</div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+                        ${lead.socios.slice(0, 6).map(s => `
+                            <div style="background: #f8fafc; border-radius: 10px; padding: 14px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 44px; height: 44px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700;">
+                                    ${(s.nome_socio || s.nome || 'S')[0]}
+                                </div>
+                                <div>
+                                    <p style="font-size: 13px; font-weight: 600; color: #1e293b;">${s.nome_socio || s.nome || '-'}</p>
+                                    <p style="font-size: 11px; color: #64748b;">${s.qualificacao_socio || s.qualificacao || 'Sócio'}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    ${lead.socios.length > 6 ? `<p style="text-align: center; margin-top: 12px; color: #64748b; font-size: 12px;">+ ${lead.socios.length - 6} outros sócios</p>` : ''}
+                ` : ''}
+            `;
+            
+            document.getElementById('modal-detalhes').classList.add('active');
+        },
+
+        editarLeadById(id) {
+            const lead = this.leads.find(l => l.id == id);
+            if (!lead) return;
+            
+            document.getElementById('modal-title').textContent = 'Editar Lead';
+            document.getElementById('lead-id').value = lead.id;
+            document.getElementById('lead-razao').value = lead.razao_social || '';
+            document.getElementById('lead-fantasia').value = lead.nome_fantasia || '';
+            document.getElementById('lead-cnpj').value = lead.cnpj || '';
+            document.getElementById('lead-segmento').value = lead.segmento || '';
+            document.getElementById('lead-contato').value = lead.contato || '';
+            document.getElementById('lead-cargo').value = lead.cargo || '';
+            document.getElementById('lead-telefone').value = lead.telefone || '';
+            document.getElementById('lead-email').value = lead.email || '';
+            document.getElementById('lead-cidade').value = lead.cidade || '';
+            document.getElementById('lead-uf').value = lead.uf || '';
+            document.getElementById('lead-status').value = lead.status || 'novo';
+            document.getElementById('lead-obs').value = lead.observacoes || '';
+            
+            document.getElementById('modal-lead').classList.add('active');
+        },
+
+        editarLead() {
+            if (this.leadAtual) {
+                this.fecharModal('modal-detalhes');
+                this.editarLeadById(this.leadAtual.id);
+            }
+        },
+
+        async converterCliente() {
+            if (!this.leadAtual) return;
+            
+            try {
+                await fetch('/api/vendas/clientes', {
+                    method: 'POST',
+                    headers: this.getAuthHeaders(),
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        nome: this.leadAtual.nome_fantasia || this.leadAtual.razao_social,
+                        razao_social: this.leadAtual.razao_social,
+                        cnpj: this.leadAtual.cnpj,
+                        telefone: this.leadAtual.telefone,
+                        email: this.leadAtual.email,
+                        cidade: this.leadAtual.cidade,
+                        uf: this.leadAtual.uf,
+                        origem: 'prospeccao'
+                    })
+                });
+                
+                // Atualizar status do lead
+                this.leadAtual.status = 'convertido';
+                this.atualizarStatusLead(this.leadAtual.id, 'convertido');
+                
+                this.toast('Lead convertido em cliente com sucesso!', 'success');
+                this.fecharModal('modal-detalhes');
+            } catch (e) {
+                this.toast('Cliente cadastrado localmente', 'success');
+            }
+        },
+
+        abrirWhatsApp(telefone) {
+            if (!telefone) return;
+            const numero = telefone.replace(/\D/g, '');
+            window.open(`https://wa.me/55${numero}`, '_blank');
+        },
+
+        abrirEmail(email) {
+            if (!email) return;
+            window.location.href = `mailto:${email}`;
+        },
+
+        fecharModal(id) {
+            document.getElementById(id).classList.remove('active');
+        },
+
+        exportarLeads() {
+            // Aplicar filtros se existirem
+            const segmento = document.getElementById('filter-segmento').value;
+            const uf = document.getElementById('filter-uf').value;
+            const porte = document.getElementById('filter-porte').value;
+
+            let dadosExportar = [...this.leads];
+            if (segmento) dadosExportar = dadosExportar.filter(l => l.segmento === segmento);
+            if (uf) dadosExportar = dadosExportar.filter(l => l.uf === uf);
+            if (porte) dadosExportar = dadosExportar.filter(l => (l.porte || '').toLowerCase().includes(porte));
+
+            if (dadosExportar.length === 0) {
+                this.toast('Não há leads para exportar', 'warning');
+                return;
+            }
+
+            const dataHoje = new Date().toLocaleDateString('pt-BR');
+            const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const statusLabel = (s) => ({ novo: 'Novo', contato: 'Em Contato', qualificado: 'Qualificado', negociacao: 'Negociação', convertido: 'Convertido', perdido: 'Perdido' }[s] || 'Novo');
+            const escXml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const formatMoeda = (v) => v ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v) : '-';
+
+            // Contadores
+            const totalNovo = dadosExportar.filter(l => (l.status || 'novo') === 'novo').length;
+            const totalContato = dadosExportar.filter(l => l.status === 'contato').length;
+            const totalQualificado = dadosExportar.filter(l => l.status === 'qualificado').length;
+            const totalNegociacao = dadosExportar.filter(l => l.status === 'negociacao').length;
+            const totalConvertido = dadosExportar.filter(l => l.status === 'convertido').length;
+
+            // Gerar Excel XML (abre direto no Excel)
+            let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+ <Style ss:ID="header">
+  <Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="11" ss:FontName="Segoe UI"/>
+  <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
+  <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+  <Borders>
+   <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#1E3A8A"/>
+  </Borders>
+ </Style>
+ <Style ss:ID="titulo">
+  <Font ss:Bold="1" ss:Color="#1E3A8A" ss:Size="16" ss:FontName="Segoe UI"/>
+  <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+ </Style>
+ <Style ss:ID="subtitulo">
+  <Font ss:Color="#64748B" ss:Size="10" ss:FontName="Segoe UI"/>
+  <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+ </Style>
+ <Style ss:ID="resumoLabel">
+  <Font ss:Bold="1" ss:Color="#334155" ss:Size="10" ss:FontName="Segoe UI"/>
+  <Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/>
+  <Alignment ss:Horizontal="Right" ss:Vertical="Center"/>
+  <Borders>
+   <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
+  </Borders>
+ </Style>
+ <Style ss:ID="resumoValor">
+  <Font ss:Bold="1" ss:Color="#1E40AF" ss:Size="11" ss:FontName="Segoe UI"/>
+  <Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/>
+  <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  <Borders>
+   <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/>
+  </Borders>
+ </Style>
+ <Style ss:ID="normal">
+  <Font ss:Size="10" ss:FontName="Segoe UI" ss:Color="#1E293B"/>
+  <Alignment ss:Vertical="Center" ss:WrapText="1"/>
+  <Borders>
+   <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#F1F5F9"/>
+  </Borders>
+ </Style>
+ <Style ss:ID="cnpj">
+  <Font ss:Size="10" ss:FontName="Courier New" ss:Color="#475569"/>
+  <Interior ss:Color="#F8FAFC" ss:Pattern="Solid"/>
+  <Alignment ss:Vertical="Center"/>
+  <Borders>
+   <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#F1F5F9"/>
+  </Borders>
+ </Style>
+ <Style ss:ID="score">
+  <Font ss:Bold="1" ss:Size="10" ss:FontName="Segoe UI"/>
+  <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+  <Borders>
+   <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#F1F5F9"/>
+  </Borders>
+ </Style>
+ <Style ss:ID="scoreHigh"><Font ss:Bold="1" ss:Size="10" ss:FontName="Segoe UI" ss:Color="#16A34A"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Interior ss:Color="#F0FDF4" ss:Pattern="Solid"/></Style>
+ <Style ss:ID="scoreMed"><Font ss:Bold="1" ss:Size="10" ss:FontName="Segoe UI" ss:Color="#D97706"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Interior ss:Color="#FFFBEB" ss:Pattern="Solid"/></Style>
+ <Style ss:ID="scoreLow"><Font ss:Bold="1" ss:Size="10" ss:FontName="Segoe UI" ss:Color="#DC2626"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Interior ss:Color="#FEF2F2" ss:Pattern="Solid"/></Style>
+ <Style ss:ID="statusNovo"><Font ss:Bold="1" ss:Size="9" ss:FontName="Segoe UI" ss:Color="#1E40AF"/><Interior ss:Color="#DBEAFE" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+ <Style ss:ID="statusContato"><Font ss:Bold="1" ss:Size="9" ss:FontName="Segoe UI" ss:Color="#92400E"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+ <Style ss:ID="statusQualificado"><Font ss:Bold="1" ss:Size="9" ss:FontName="Segoe UI" ss:Color="#6B21A8"/><Interior ss:Color="#F3E8FF" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+ <Style ss:ID="statusNegociacao"><Font ss:Bold="1" ss:Size="9" ss:FontName="Segoe UI" ss:Color="#9A3412"/><Interior ss:Color="#FFEDD5" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+ <Style ss:ID="statusConvertido"><Font ss:Bold="1" ss:Size="9" ss:FontName="Segoe UI" ss:Color="#166534"/><Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+ <Style ss:ID="statusPerdido"><Font ss:Bold="1" ss:Size="9" ss:FontName="Segoe UI" ss:Color="#991B1B"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>
+ <Style ss:ID="rodape">
+  <Font ss:Color="#94A3B8" ss:Size="9" ss:FontName="Segoe UI" ss:Italic="1"/>
+  <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+ </Style>
+ <Style ss:ID="moeda"><Font ss:Size="10" ss:FontName="Segoe UI" ss:Color="#1E293B"/><Alignment ss:Vertical="Center" ss:Horizontal="Right"/><NumberFormat ss:Format="#,##0.00"/></Style>
+</Styles>
+<Worksheet ss:Name="Leads Prospecção">
+ <Table ss:DefaultRowHeight="22">
+  <Column ss:Index="1" ss:Width="35"/>
+  <Column ss:Index="2" ss:Width="220"/>
+  <Column ss:Index="3" ss:Width="180"/>
+  <Column ss:Index="4" ss:Width="155"/>
+  <Column ss:Index="5" ss:Width="140"/>
+  <Column ss:Index="6" ss:Width="120"/>
+  <Column ss:Index="7" ss:Width="120"/>
+  <Column ss:Index="8" ss:Width="110"/>
+  <Column ss:Index="9" ss:Width="120"/>
+  <Column ss:Index="10" ss:Width="100"/>
+  <Column ss:Index="11" ss:Width="130"/>
+  <Column ss:Index="12" ss:Width="75"/>
+  <Column ss:Index="13" ss:Width="100"/>
+  <Column ss:Index="14" ss:Width="120"/>
+  <Column ss:Index="15" ss:Width="200"/>
+`;
+            // Título
+            xml += `  <Row ss:Height="35">
+   <Cell ss:StyleID="titulo" ss:MergeAcross="7"><Data ss:Type="String">ALUFORCE  |  Relatório de Leads - Prospecção B2B</Data></Cell>
+  </Row>
+  <Row ss:Height="20">
+   <Cell ss:StyleID="subtitulo" ss:MergeAcross="7"><Data ss:Type="String">Gerado em ${dataHoje} às ${horaAtual} — ${dadosExportar.length} lead(s) exportado(s)</Data></Cell>
+  </Row>
+  <Row ss:Height="8"></Row>
+`;
+            // Resumo
+            xml += `  <Row ss:Height="24">
+   <Cell ss:StyleID="resumoLabel" ss:MergeAcross="1"><Data ss:Type="String">Novos</Data></Cell>
+   <Cell ss:StyleID="resumoValor"><Data ss:Type="Number">${totalNovo}</Data></Cell>
+   <Cell ss:StyleID="resumoLabel"><Data ss:Type="String">Em Contato</Data></Cell>
+   <Cell ss:StyleID="resumoValor"><Data ss:Type="Number">${totalContato}</Data></Cell>
+   <Cell ss:StyleID="resumoLabel"><Data ss:Type="String">Qualificados</Data></Cell>
+   <Cell ss:StyleID="resumoValor"><Data ss:Type="Number">${totalQualificado}</Data></Cell>
+   <Cell ss:StyleID="resumoLabel"><Data ss:Type="String">Negociação</Data></Cell>
+   <Cell ss:StyleID="resumoValor"><Data ss:Type="Number">${totalNegociacao}</Data></Cell>
+  </Row>
+  <Row ss:Height="8"></Row>
+`;
+            // Headers da tabela
+            xml += `  <Row ss:Height="30">
+   <Cell ss:StyleID="header"><Data ss:Type="String">#</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Nome Fantasia</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Razão Social</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">CNPJ</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Telefone</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Email</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Cidade/UF</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Segmento</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Status</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Score</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Porte</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Capital Social</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Situação</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">Data Abertura</Data></Cell>
+   <Cell ss:StyleID="header"><Data ss:Type="String">CNAE</Data></Cell>
+  </Row>
+`;
+            // Dados
+            dadosExportar.forEach((l, i) => {
+                const score = l.score_prospeccao || 50;
+                const scoreStyle = score >= 70 ? 'scoreHigh' : score >= 50 ? 'scoreMed' : 'scoreLow';
+                const statusMap = { novo: 'statusNovo', contato: 'statusContato', qualificado: 'statusQualificado', negociacao: 'statusNegociacao', convertido: 'statusConvertido', perdido: 'statusPerdido' };
+                const stStyle = statusMap[l.status || 'novo'] || 'statusNovo';
+                const dataAb = l.data_abertura ? new Date(l.data_abertura).toLocaleDateString('pt-BR') : '-';
+                xml += `  <Row>
+   <Cell ss:StyleID="normal"><Data ss:Type="Number">${i + 1}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(l.nome_fantasia || l.razao_social || '-')}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(l.razao_social || '-')}</Data></Cell>
+   <Cell ss:StyleID="cnpj"><Data ss:Type="String">${escXml(l.cnpj || '-')}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(l.telefone || '-')}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(l.email || '-')}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml((l.cidade || '-') + (l.uf ? '/' + l.uf : ''))}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(this.formatarSegmento(l.segmento))}</Data></Cell>
+   <Cell ss:StyleID="${stStyle}"><Data ss:Type="String">${escXml(statusLabel(l.status || 'novo'))}</Data></Cell>
+   <Cell ss:StyleID="${scoreStyle}"><Data ss:Type="Number">${score}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(l.porte || '-')}</Data></Cell>
+   <Cell ss:StyleID="moeda"><Data ss:Type="Number">${l.capital_social || 0}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(l.situacao || '-')}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(dataAb)}</Data></Cell>
+   <Cell ss:StyleID="normal"><Data ss:Type="String">${escXml(l.cnae_descricao || '-')}</Data></Cell>
+  </Row>\n`;
+            });
+            // Rodapé
+            xml += `  <Row ss:Height="8"></Row>
+  <Row ss:Height="20">
+   <Cell ss:StyleID="rodape" ss:MergeAcross="14"><Data ss:Type="String">ALUFORCE — Sistema de Gestão Empresarial | Relatório gerado em ${dataHoje} às ${horaAtual}</Data></Cell>
+  </Row>
+`;
+            xml += ` </Table>
+ <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+  <FitToPage/>
+  <Print><FitHeight>0</FitHeight><FitWidth>1</FitWidth></Print>
+  <Selected/>
+  <FreezePanes/>
+  <FrozenNoSplit/>
+  <SplitHorizontal>6</SplitHorizontal>
+  <TopRowBottomPane>6</TopRowBottomPane>
+ </WorksheetOptions>
+</Worksheet>
+</Workbook>`;
+
+            const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `leads_prospeccao_${new Date().toISOString().split('T')[0]}.xls`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            this.toast('📊 Relatório XLSX exportado com sucesso!', 'success');
+        },
+
+        importarCNPJs() {
+            document.getElementById('import-cnpjs').value = '';
+            document.getElementById('import-count').textContent = '0';
+            document.getElementById('import-valid').textContent = '0';
+            document.getElementById('import-time').textContent = '0s';
+            document.getElementById('import-progress-container').style.display = 'none';
+            document.getElementById('import-results').style.display = 'none';
+            document.getElementById('btn-start-import').disabled = false;
+            document.getElementById('btn-start-import').innerHTML = '<i class="fas fa-cloud-download-alt"></i> Iniciar Importação';
+            document.getElementById('modal-importar').classList.add('active');
+
+            // Listener para contar CNPJs em tempo real
+            document.getElementById('import-cnpjs').oninput = () => {
+                const texto = document.getElementById('import-cnpjs').value;
+                const linhas = texto.split('\n').filter(l => l.trim());
+                const cnpjs = linhas.map(l => l.replace(/\D/g, '')).filter(c => c.length >= 11);
+                const validos = cnpjs.filter(c => c.length === 14);
+                
+                document.getElementById('import-count').textContent = linhas.length;
+                document.getElementById('import-valid').textContent = validos.length;
+                document.getElementById('import-time').textContent = (validos.length * 2) + 's';
+            };
+        },
+
+        transformarDadosCNPJ(dados, cnpj) {
+            return {
+                id: Date.now() + Math.floor(Math.random() * 1000),
+                cnpj: this.formatarCNPJ(cnpj),
+                razao_social: dados.razao_social,
+                nome_fantasia: dados.nome_fantasia || dados.razao_social,
+                cidade: dados.municipio,
+                uf: dados.uf,
+                bairro: dados.bairro,
+                endereco: `${dados.logradouro || ''}, ${dados.numero || 's/n'}`.trim(),
+                cep: dados.cep,
+                telefone: dados.ddd_telefone_1 ? `(${dados.ddd_telefone_1.substring(0,2)}) ${dados.ddd_telefone_1.substring(2)}` : '',
+                email: dados.email || '',
+                porte: dados.porte,
+                cnae_codigo: dados.cnae_fiscal,
+                cnae_descricao: dados.cnae_fiscal_descricao,
+                segmento: this.inferirSegmento(dados.cnae_fiscal_descricao),
+                situacao: dados.descricao_situacao_cadastral,
+                capital_social: dados.capital_social,
+                optante_simples: dados.opcao_pelo_simples || false,
+                optante_mei: dados.opcao_pelo_mei || false,
+                data_abertura: dados.data_inicio_atividade,
+                socios: dados.qsa || [],
+                fontes: ['Receita Federal'],
+                score_prospeccao: this.calcularScoreEnriquecido(dados, null, null),
+                status: 'novo',
+                created_at: new Date().toISOString()
+            };
+        },
+
+        async iniciarImportacao() {
+            const texto = document.getElementById('import-cnpjs').value;
+            const linhas = texto.split('\n').filter(l => l.trim());
+            const cnpjs = linhas.map(l => l.replace(/\D/g, '')).filter(c => c.length === 14);
+
+            if (cnpjs.length === 0) {
+                this.toast('Nenhum CNPJ válido encontrado (14 dígitos)', 'error');
+                return;
+            }
+
+            // Mostrar progresso
+            document.getElementById('import-progress-container').style.display = 'block';
+            document.getElementById('btn-start-import').disabled = true;
+            document.getElementById('btn-start-import').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
+            document.getElementById('btn-cancel-import').style.display = 'none';
+
+            let sucesso = 0;
+            let erros = 0;
+
+            for (let i = 0; i < cnpjs.length; i++) {
+                const cnpj = cnpjs[i];
+                const progresso = Math.round(((i + 1) / cnpjs.length) * 100);
+                
+                document.getElementById('import-progress-bar').style.width = progresso + '%';
+                document.getElementById('import-progress-text').textContent = `${i + 1} / ${cnpjs.length}`;
+                document.getElementById('import-current').innerHTML = `<i class="fas fa-search"></i> Consultando CNPJ: <strong>${this.formatarCNPJ(cnpj)}</strong>`;
+
+                try {
+                    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+                    if (response.ok) {
+                        const dados = await response.json();
+                        const lead = this.transformarDadosCNPJ(dados, cnpj);
+                        
+                        // Verificar se já existe
+                        if (!this.leads.find(l => l.cnpj === lead.cnpj)) {
+                            // Salvar na API
+                            try {
+                                const saveResp = await fetch('/api/vendas/leads', {
+                                    method: 'POST',
+                                    headers: this.getAuthHeaders(),
+                                    credentials: 'include',
+                                    body: JSON.stringify(lead)
+                                });
+                                const saveData = await saveResp.json();
+                                if (saveData.success && saveData.id) lead.id = saveData.id;
+                            } catch (e2) { /* salvar localmente */ }
+                            this.leads.unshift(lead);
+                            sucesso++;
+                        }
+                    } else {
+                        erros++;
+                    }
+                } catch (e) {
+                    erros++;
+                }
+
+                // Aguardar 1.5s entre requisições para não sobrecarregar a API
+                if (i < cnpjs.length - 1) {
+                    await new Promise(r => setTimeout(r, 1500));
+                }
+            }
+
+            // Salvar
+            localStorage.setItem('crm_leads', JSON.stringify(this.leads));
+            
+            // Mostrar resultados
+            document.getElementById('import-progress-container').style.display = 'none';
+            document.getElementById('import-results').style.display = 'block';
+            document.getElementById('import-success-count').textContent = sucesso;
+            document.getElementById('import-errors-text').textContent = erros > 0 ? `${erros} CNPJs não encontrados.` : '';
+            
+            document.getElementById('btn-cancel-import').style.display = 'inline-flex';
+            document.getElementById('btn-cancel-import').textContent = 'Fechar';
+            document.getElementById('btn-start-import').style.display = 'none';
+
+            // Atualizar interface
+            this.atualizarMetricas();
+            this.renderizarKanban();
+            this.renderizarTabela();
+        }
+    };
+
+    // Inicializar
+    document.addEventListener('DOMContentLoaded', () => CRM.init());
+    </script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/js/user-dropdown.js?v=20260223" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+

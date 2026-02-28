@@ -1,0 +1,340 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — NF-e</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <link rel="stylesheet" href="/css/skeleton-loader.css">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn active" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                        <div>
+                            <h1 class="page-title">Notas Fiscais Eletrônicas</h1>
+                            <p class="page-subtitle">Gerenciamento de NF-e emitidas</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" onclick="abrirModalNovaNovenfe()"><i class="fas fa-plus"></i> Nova NF-e</button>
+                        <button class="btn btn-secondary" onclick="limparFiltros()"><i class="fas fa-eraser"></i> Limpar Filtros</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card fade-in-delay-1">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-file-invoice"></i></div></div>
+                    <div class="stat-value" id="statTotal">0</div>
+                    <div class="stat-label">Total NF-e</div>
+                </div>
+                <div class="stat-card green fade-in-delay-2">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-check-circle"></i></div></div>
+                    <div class="stat-value" id="statAutorizadas">0</div>
+                    <div class="stat-label">Autorizadas</div>
+                </div>
+                <div class="stat-card yellow fade-in-delay-3">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-clock"></i></div></div>
+                    <div class="stat-value" id="statPendentes">0</div>
+                    <div class="stat-label">Pendentes</div>
+                </div>
+                <div class="stat-card cyan fade-in-delay-4">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-dollar-sign"></i></div></div>
+                    <div class="stat-value" id="statValor">R$ 0,00</div>
+                    <div class="stat-label">Valor Total</div>
+                </div>
+            </div>
+
+            <div class="filters-bar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Buscar por número, cliente..." id="filtroTexto">
+                </div>
+                <select class="filter-btn" id="filtroStatus">
+                    <option value="">Todos os Status</option>
+                    <option value="autorizada">Autorizada</option>
+                    <option value="pendente">Pendente</option>
+                    <option value="cancelada">Cancelada</option>
+                    <option value="denegada">Denegada</option>
+                </select>
+                <input type="date" class="filter-btn" id="filtroDataInicio" title="Data Início">
+                <input type="date" class="filter-btn" id="filtroDataFim" title="Data Fim">
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-list"></i> Listagem de NF-e</h3>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <div style="overflow-x:auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Série</th>
+                                    <th>Destinatário</th>
+                                    <th>Valor</th>
+                                    <th>Data Emissão</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nfesList">
+                                <tr><td colspan="7"><div class="empty-state"><i class="fas fa-file-invoice"></i><p>Carregando notas fiscais...</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal Nova NF-e -->
+<div class="modal-overlay" id="modalNovaNovenfe">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-plus-circle"></i> Gerar NF-e a partir de Pedido</h3>
+            <button class="modal-close" onclick="fecharModal('modalNovaNovenfe')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>ID do Pedido de Venda</label>
+                <input type="number" class="form-control" id="pedidoId" placeholder="Informe o ID do pedido">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label><input type="checkbox" id="gerarDanfe" checked> Gerar DANFE automaticamente</label>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="enviarEmail"> Enviar por e-mail</label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="fecharModal('modalNovaNovenfe')">Cancelar</button>
+            <button class="btn btn-primary" onclick="gerarNFe()"><i class="fas fa-file-invoice"></i> Gerar NF-e</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
+
+function abrirModalNovaNovenfe() {
+    document.getElementById('modalNovaNovenfe').classList.add('active');
+}
+
+function fecharModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
+
+function formatarMoeda(valor) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+}
+
+function formatarData(data) {
+    if (!data) return '-';
+    return new Date(data).toLocaleDateString('pt-BR');
+}
+
+function limparFiltros() {
+    document.getElementById('filtroStatus').value = '';
+    document.getElementById('filtroDataInicio').value = '';
+    document.getElementById('filtroDataFim').value = '';
+    document.getElementById('filtroTexto').value = '';
+    carregarNFes();
+}
+
+async function carregarEstatisticas() {
+    try {
+        const r = await fetch('/api/faturamento/estatisticas', { credentials: 'include' });
+        if (r.ok) {
+            const d = await r.json();
+            document.getElementById('statTotal').textContent = d.total || 0;
+            document.getElementById('statAutorizadas').textContent = d.autorizadas || 0;
+            document.getElementById('statPendentes').textContent = d.pendentes || 0;
+            document.getElementById('statValor').textContent = formatarMoeda(d.valor_total);
+        }
+    } catch(e) { console.error('Erro ao carregar estatísticas:', e); }
+}
+
+async function carregarNFes() {
+    try {
+        const status = document.getElementById('filtroStatus').value;
+        const inicio = document.getElementById('filtroDataInicio').value;
+        const fim = document.getElementById('filtroDataFim').value;
+        const r = await fetch(`/api/faturamento/nfes?status=${status}&data_inicio=${inicio}&data_fim=${fim}`, { credentials: 'include' });
+        if (r.ok) {
+            const nfes = await r.json();
+            renderizarNFes(Array.isArray(nfes) ? nfes : nfes.data || []);
+        }
+    } catch(e) { console.error('Erro:', e); }
+}
+
+function renderizarNFes(nfes) {
+    const tbody = document.getElementById('nfesList');
+    if (!nfes.length) {
+        tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-file-invoice"></i><h3>Nenhuma NF-e encontrada</h3><p>Emita sua primeira nota fiscal</p></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = nfes.map(n => `
+        <tr>
+            <td><span class="code">${n.numero || '-'}</span></td>
+            <td>${n.serie || '1'}</td>
+            <td>${n.destinatario || n.cliente || '-'}</td>
+            <td><strong>${formatarMoeda(n.valor)}</strong></td>
+            <td>${formatarData(n.data_emissao)}</td>
+            <td><span class="badge ${(n.status||'pendente').toLowerCase()}">${n.status || 'Pendente'}</span></td>
+            <td>
+                <div style="display:flex;gap:4px;">
+                    <button class="action-btn view" onclick="verDetalhes(${n.id})" title="Detalhes"><i class="fas fa-eye"></i></button>
+                    <button class="action-btn success" onclick="enviarSEFAZ(${n.id})" title="Enviar SEFAZ"><i class="fas fa-paper-plane"></i></button>
+                    <button class="action-btn" onclick="baixarDANFE(${n.id})" title="DANFE"><i class="fas fa-file-pdf"></i></button>
+                    <button class="action-btn delete" onclick="cancelarNFe(${n.id})" title="Cancelar"><i class="fas fa-times"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function gerarNFe() {
+    const pedidoId = document.getElementById('pedidoId').value;
+    if (!pedidoId) { alert('Informe o ID do pedido'); return; }
+    try {
+        const r = await fetch('/api/faturamento/gerar-nfe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ pedido_id: pedidoId, gerar_danfe: document.getElementById('gerarDanfe').checked, enviar_email: document.getElementById('enviarEmail').checked })
+        });
+        if (r.ok) {
+            fecharModal('modalNovaNovenfe');
+            carregarNFes();
+            carregarEstatisticas();
+            alert('NF-e gerada com sucesso!');
+        } else { const e = await r.json(); alert(e.message || 'Erro ao gerar NF-e'); }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+async function cancelarNFe(id) {
+    if (!confirm('Deseja realmente cancelar esta NF-e?')) return;
+    try {
+        await fetch(`/api/faturamento/nfes/${id}/cancelar`, { method: 'POST', credentials: 'include' });
+        carregarNFes();
+        carregarEstatisticas();
+    } catch(e) { alert('Erro ao cancelar'); }
+}
+
+function verDetalhes(id) { alert('Detalhes da NF-e #' + id); }
+
+async function enviarSEFAZ(id) {
+    try {
+        const r = await fetch(`/api/nfe/${id}/enviar-sefaz`, { method: 'POST', credentials: 'include' });
+        if (r.ok) { alert('Enviado à SEFAZ com sucesso!'); carregarNFes(); }
+        else { alert('Erro ao enviar à SEFAZ'); }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+async function baixarDANFE(id) {
+    window.open(`/api/nfe/${id}/danfe`, '_blank');
+}
+
+function carregarUsuarioLogado() {
+    const avatarNameMap = {'admin':'AD','Admin':'AD','usuario':'US','João':'JO','Maria':'MA','Pedro':'PE','Ana':'AN','Carlos':'CA','Lucas':'LU','Mariana':'MN','Fernanda':'FE','Rafael':'RA','Juliana':'JU','Gabriel':'GA','Beatriz':'BE','Diego':'DI','Camila':'CM'};
+    const h = new Date().getHours();
+    const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    document.getElementById('greeting-text').textContent = g;
+    fetch('/api/me', { credentials: 'include' })
+        .then(r => r.json())
+        .then(u => {
+            const nome = u.nome || u.name || 'Usuário';
+            document.getElementById('user-name').textContent = nome.split(' ')[0];
+            const initials = avatarNameMap[nome.split(' ')[0]] || nome.substring(0,2).toUpperCase();
+            document.getElementById('user-initials').textContent = initials;
+            if (u.foto || u.avatar) {
+                document.getElementById('user-photo').src = u.foto || u.avatar;
+                document.getElementById('user-photo').style.display = 'block';
+                document.getElementById('user-initials').style.display = 'none';
+            }
+        }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarUsuarioLogado();
+    carregarEstatisticas();
+    carregarNFes();
+});
+</script>
+<script src="../../_shared/connection-monitor.js?v=20251223"></script>
+<script src="/js/tooltips-professional.js?v=20260216"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

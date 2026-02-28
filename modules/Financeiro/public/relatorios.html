@@ -1,0 +1,485 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Relatórios Financeiros</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260216">
+
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <script src="/js/modal-title.js?v=20260210"></script>
+
+    <style>
+        /* ===== RELATÓRIOS — ESTILOS ESPECÍFICOS ===== */
+        .page-header-section {
+            margin-bottom: 24px;
+        }
+        .page-header-title { font-size: 18px; font-weight: 800; color: var(--gray-800); margin: 0 0 4px; }
+        .page-header-subtitle { font-size: 13px; color: var(--gray-500); }
+
+        .operations-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 30px;
+        }
+        .operation-card {
+            background: white; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border: 1px solid var(--gray-100); overflow: hidden; transition: all 0.2s; cursor: pointer;
+        }
+        .operation-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-2px); }
+        .operation-card-header {
+            display: flex; align-items: center; gap: 14px; padding: 20px;
+        }
+        .operation-icon {
+            width: 48px; height: 48px; border-radius: 12px; display: flex;
+            align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+        }
+        .operation-info { flex: 1; }
+        .operation-title { font-size: 15px; font-weight: 700; color: var(--gray-800); margin: 0 0 4px; }
+        .operation-desc { font-size: 12px; color: var(--gray-500); line-height: 1.4; }
+        .operation-card-footer {
+            padding: 12px 20px; border-top: 1px solid var(--gray-100); background: var(--gray-50);
+            display: flex; justify-content: flex-end;
+        }
+        .operation-btn {
+            padding: 8px 16px; border: none; border-radius: 8px; font-size: 12px;
+            font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+            color: white;
+        }
+
+        .section-title {
+            font-size: 16px; font-weight: 700; color: var(--gray-800);
+            margin: 0 0 16px; display: flex; align-items: center; gap: 8px;
+        }
+        .section-title i { color: var(--info-500); }
+
+        /* Templates Section */
+        .templates-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+        }
+        .template-card {
+            background: white; border: 1px solid var(--gray-200); border-radius: 10px;
+            padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s;
+        }
+        .template-card:hover { border-color: var(--info-500); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .template-icon {
+            width: 40px; height: 40px; border-radius: 10px; margin: 0 auto 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+        .template-name { font-size: 13px; font-weight: 600; color: var(--gray-700); margin-bottom: 4px; }
+        .template-desc { font-size: 11px; color: var(--gray-400); }
+
+        /* ===== MODAL OVERLAY STYLE ===== */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: white; border-radius: 16px; width: 95%; max-height: 90vh; overflow-y: auto;
+        }
+
+        /* Modal Desconto */
+        .modal-desconto { max-width: 700px; }
+        .modal-desconto-header {
+            display: flex; align-items: center; gap: 14px; padding: 20px 24px;
+            background: linear-gradient(135deg, #7c3aed, #8b5cf6); border-radius: 16px 16px 0 0; color: white;
+        }
+        .modal-desconto-header .icon {
+            width: 42px; height: 42px; background: rgba(255,255,255,0.2); border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+        }
+        .modal-desconto-header .info { flex: 1; }
+        .modal-desconto-header .info h3 { font-size: 17px; font-weight: 700; margin: 0; }
+        .modal-desconto-header .info p { font-size: 12px; opacity: 0.85; margin: 2px 0 0; }
+        .close-modal-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; opacity: 0.8; }
+
+        .form-section { border: 1px solid var(--gray-100); border-radius: 10px; margin: 16px 24px; overflow: hidden; }
+        .section-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--gray-50); border-bottom: 1px solid var(--gray-100); font-size: 13px; font-weight: 700; color: var(--gray-700); }
+        .section-header i { color: #8b5cf6; }
+        .section-header h4 { margin: 0; font-size: 13px; }
+        .section-content { padding: 16px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+        .form-group label i { color: var(--gray-400); font-size: 12px; }
+        .form-input, .form-select { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; color: var(--gray-800); }
+        .form-input:focus, .form-select:focus { outline: none; border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .input-with-prefix { display: flex; align-items: center; }
+        .input-prefix { padding: 10px 12px; background: var(--gray-100); border: 1px solid var(--gray-200); border-right: none; border-radius: 8px 0 0 8px; font-size: 13px; font-weight: 600; color: var(--gray-500); }
+        .form-input.with-prefix { border-radius: 0 8px 8px 0; }
+
+        .resumo-desconto {
+            margin: 0 24px 16px; padding: 16px; background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+            border-radius: 10px; border: 1px solid #ddd6fe;
+        }
+        .resumo-title { font-size: 13px; font-weight: 700; color: #7c3aed; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+        .resumo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .resumo-item {}
+        .resumo-label { font-size: 10px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; }
+        .resumo-value { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+        .resumo-value.destaque { font-size: 18px; color: #7c3aed; font-weight: 800; }
+
+        .modal-footer {
+            display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px;
+            border-top: 1px solid var(--gray-100); background: var(--gray-50); border-radius: 0 0 16px 16px;
+        }
+        .btn-cancel { padding: 10px 20px; background: white; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--gray-600); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .btn-save { padding: 10px 20px; background: linear-gradient(135deg, #7c3aed, #8b5cf6); border: none; border-radius: 8px; font-size: 13px; font-weight: 600; color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+
+        /* Modal Templates */
+        .modal-templates { max-width: 700px; }
+        .modal-templates-header {
+            display: flex; align-items: center; gap: 14px; padding: 20px 24px;
+            background: linear-gradient(135deg, #059669, #10b981); border-radius: 16px 16px 0 0; color: white;
+        }
+        .modal-templates-header .icon { width: 42px; height: 42px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .modal-templates-header .info { flex: 1; }
+        .modal-templates-header .info h3 { font-size: 17px; font-weight: 700; margin: 0; }
+        .modal-templates-header .info p { font-size: 12px; opacity: 0.85; margin: 2px 0 0; }
+        .modal-templates-body { padding: 24px; }
+
+        /* Toast */
+        .toast-wrapper { position: fixed; top: 60px; right: 20px; z-index: 100000; }
+        .toast {
+            display: none; align-items: center; gap: 10px; padding: 12px 18px;
+            border-radius: 10px; background: white; box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+            border-left: 4px solid #10b981; font-size: 13px; font-weight: 500;
+        }
+        .toast.show { display: flex; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        @media (max-width: 768px) { .operations-grid { grid-template-columns: 1fr; } .templates-grid { grid-template-columns: 1fr 1fr; } .form-row { grid-template-columns: 1fr; } .resumo-grid { grid-template-columns: 1fr 1fr; } }
+    </style>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <!-- Toast -->
+    <div class="toast-wrapper"><div class="toast" id="toast"><i class="fas fa-check-circle" style="color:#10b981;"></i><span id="toast-message">Sucesso!</span></div></div>
+
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="contas_pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="contas_receber.html" class="sidebar-btn" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
+                <a href="contas_bancarias.html" class="sidebar-btn" title="Contas Bancárias"><i class="fas fa-university"></i></a>
+                <a href="fluxo_caixa.html" class="sidebar-btn" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="relatorios.html" class="sidebar-btn active" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            </nav>
+            <div class="sidebar-bottom"><a href="/dashboard" class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></a></div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-area" data-page-name="Relatórios">
+            <header class="header" id="financeiro-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span class="header-separator">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span class="header-dash">—</span>
+                        <span class="page-title">Relatórios</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i><span class="notification-badge" id="notification-count" style="display:none;">0</span>
+                        </button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto" id="user-photo" style="display:none;">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Operações Financeiras -->
+                <h3 class="section-title"><i class="fas fa-calculator"></i> Operações Financeiras</h3>
+                <div class="operations-grid">
+                    <div class="operation-card" onclick="abrirModalDesconto()">
+                        <div class="operation-card-header">
+                            <div class="operation-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fas fa-percentage"></i></div>
+                            <div class="operation-info">
+                                <div class="operation-title">Operação de Desconto</div>
+                                <div class="operation-desc">Calcule desconto de títulos com taxas bancárias, IOF e tarifas automaticamente</div>
+                            </div>
+                        </div>
+                        <div class="operation-card-footer">
+                            <button class="operation-btn" style="background:#7c3aed;"><i class="fas fa-calculator"></i> Simular</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Templates de Importação -->
+                <h3 class="section-title"><i class="fas fa-file-download"></i> Templates de Importação</h3>
+                <div class="templates-grid">
+                    <div class="template-card" onclick="baixarTemplate('contas_pagar')">
+                        <div class="template-icon" style="background:#fee2e2;color:#ef4444;"><i class="fas fa-file-invoice-dollar"></i></div>
+                        <div class="template-name">Contas a Pagar</div>
+                        <div class="template-desc">Modelo XLSX para importação</div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('contas_receber')">
+                        <div class="template-icon" style="background:#dcfce7;color:#16a34a;"><i class="fas fa-hand-holding-usd"></i></div>
+                        <div class="template-name">Contas a Receber</div>
+                        <div class="template-desc">Modelo XLSX para importação</div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('bancos')">
+                        <div class="template-icon" style="background:#dbeafe;color:#2563eb;"><i class="fas fa-university"></i></div>
+                        <div class="template-name">Contas Bancárias</div>
+                        <div class="template-desc">Modelo XLSX para importação</div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('movimentacoes')">
+                        <div class="template-icon" style="background:#fef3c7;color:#d97706;"><i class="fas fa-exchange-alt"></i></div>
+                        <div class="template-name">Movimentações</div>
+                        <div class="template-desc">Modelo XLSX para importação</div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('fluxo_caixa')">
+                        <div class="template-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fas fa-chart-line"></i></div>
+                        <div class="template-name">Fluxo de Caixa</div>
+                        <div class="template-desc">Modelo XLSX para importação</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Desconto -->
+    <div id="modal-desconto" class="modal-overlay">
+        <div class="modal-content modal-desconto">
+            <div class="modal-desconto-header">
+                <div class="icon"><i class="fas fa-percentage"></i></div>
+                <div class="info"><h3>Operação de Desconto</h3><p>Simule o desconto de títulos com cálculo automático</p></div>
+                <button class="close-modal-btn" onclick="fecharModalDesconto()">×</button>
+            </div>
+            <form id="form-desconto" onsubmit="salvarDesconto(event)">
+                <div class="form-section">
+                    <div class="section-header"><i class="fas fa-file-alt"></i><h4>Dados do Título</h4></div>
+                    <div class="section-content">
+                        <div class="form-row">
+                            <div class="form-group"><label><i class="fas fa-hashtag"></i> Nº do Título *</label><input type="text" class="form-input" id="numero-titulo" required placeholder="Ex: NF-001234"></div>
+                            <div class="form-group"><label><i class="fas fa-user"></i> Cliente/Sacado *</label><input type="text" class="form-input" id="cliente-sacado" required placeholder="Nome do sacado"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-dollar-sign"></i> Valor do Título *</label>
+                                <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0.01" class="form-input with-prefix" id="valor-titulo" required oninput="calcularDesconto()"></div>
+                            </div>
+                            <div class="form-group"><label><i class="fas fa-calendar"></i> Vencimento *</label><input type="date" class="form-input" id="data-vencimento" required onchange="calcularDesconto()"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="section-header"><i class="fas fa-university"></i><h4>Dados da Operação</h4></div>
+                    <div class="section-content">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-building"></i> Banco *</label>
+                                <select class="form-input" id="banco-desconto" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="001">Banco do Brasil</option>
+                                    <option value="237">Bradesco</option>
+                                    <option value="104">Caixa Econômica</option>
+                                    <option value="341">Itaú</option>
+                                    <option value="033">Santander</option>
+                                    <option value="260">Nubank</option>
+                                    <option value="077">Inter</option>
+                                </select>
+                            </div>
+                            <div class="form-group"><label><i class="fas fa-calendar-check"></i> Data da Operação</label><input type="date" class="form-input" id="data-operacao" onchange="calcularDesconto()"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label><i class="fas fa-percentage"></i> Taxa Desconto (% a.m.) *</label><input type="number" step="0.01" class="form-input" id="taxa-desconto" required placeholder="Ex: 2.5" oninput="calcularDesconto()"></div>
+                            <div class="form-group"><label><i class="fas fa-percentage"></i> IOF (% a.a.)</label><input type="number" step="0.01" class="form-input" id="iof-desconto" value="0.38" oninput="calcularDesconto()"></div>
+                        </div>
+                        <div class="form-group"><label><i class="fas fa-comment"></i> Observações</label><textarea class="form-input" id="obs-desconto" rows="2" placeholder="Observações sobre a operação..."></textarea></div>
+                    </div>
+                </div>
+
+                <!-- Resumo Automático -->
+                <div class="resumo-desconto">
+                    <div class="resumo-title"><i class="fas fa-calculator"></i> Resumo da Operação</div>
+                    <div class="resumo-grid">
+                        <div class="resumo-item"><div class="resumo-label">Valor do Título</div><div class="resumo-value" id="resumo-valor">R$ 0,00</div></div>
+                        <div class="resumo-item"><div class="resumo-label">Prazo (dias)</div><div class="resumo-value" id="resumo-prazo">0</div></div>
+                        <div class="resumo-item"><div class="resumo-label">Desconto</div><div class="resumo-value" id="resumo-desconto" style="color:#ef4444;">R$ 0,00</div></div>
+                        <div class="resumo-item"><div class="resumo-label">IOF</div><div class="resumo-value" id="resumo-iof" style="color:#f59e0b;">R$ 0,00</div></div>
+                        <div class="resumo-item"><div class="resumo-label">Tarifa Bancária</div><div class="resumo-value" id="resumo-tarifa">R$ 15,00</div></div>
+                        <div class="resumo-item"><div class="resumo-label">Valor Líquido</div><div class="resumo-value destaque" id="resumo-liquido">R$ 0,00</div></div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="fecharModalDesconto()"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="submit" class="btn-save"><i class="fas fa-save"></i> Salvar Operação</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Templates -->
+    <div id="modal-templates" class="modal-overlay">
+        <div class="modal-content modal-templates">
+            <div class="modal-templates-header">
+                <div class="icon"><i class="fas fa-file-download"></i></div>
+                <div class="info"><h3>Templates de Importação</h3><p>Baixe os modelos XLSX para importação em lote</p></div>
+                <button class="close-modal-btn" onclick="fecharModalTemplates()">×</button>
+            </div>
+            <div class="modal-templates-body">
+                <div class="templates-grid" id="templates-download-grid"></div>
+            </div>
+            <div class="modal-footer"><button class="btn-cancel" onclick="fecharModalTemplates()">Fechar</button></div>
+        </div>
+    </div>
+
+    <script>
+        function toggleMobileSidebar() { document.getElementById('mobile-sidebar')?.classList.toggle('mobile-open'); document.getElementById('sidebar-overlay')?.classList.toggle('active'); }
+        function toggleNotificacoes() { if (typeof window.NotificationsManager !== 'undefined') window.NotificationsManager.togglePanel(); }
+
+        // ===== TOAST =====
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 4000);
+        }
+
+        // ===== CARREGAR USUÁRIO =====
+        async function carregarUsuarioLogado() {
+            try {
+                const r = await fetch('/api/me', { credentials: 'include' });
+                if (r.ok) {
+                    const user = await r.json();
+                    const nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    const h = new Date().getHours();
+                    const greetEl = document.getElementById('greeting-text');
+                    if (greetEl) greetEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia';
+                    document.getElementById('user-name').textContent = nome;
+
+                    const avatarMap = {'clemerson':'/avatars/Clemerson.webp','isabela':'/avatars/Isabela.webp','thaina':'/avatars/Thaina.webp','thiago':'/avatars/Thiago.webp','nicolas':'/avatars/NicolasDaniel.webp','nicolasdaniel':'/avatars/NicolasDaniel.webp','rh':'/avatars/Rh.webp','admin':'/avatars/admin.webp','ti':'/avatars/TI.webp','tialuforce':'/avatars/TI.webp','antonio':'/avatars/Antonio.webp','antônio':'/avatars/Antonio.webp','andreia':'/avatars/Andreia.webp','guilherme':'/avatars/Guilherme.webp','marcelo':'/avatars/Marcelo.webp','financeiro':'/avatars/Financeiro.webp','douglas':'/avatars/Douglas.webp','hellen':'/avatars/Hellen.webp','helen':'/avatars/Hellen.webp'};
+                    let avatarUrl = null;
+                    if (user.avatar && user.avatar !== '/avatars/default.webp') avatarUrl = user.avatar;
+                    else if (user.foto && user.foto !== '/avatars/default.webp') avatarUrl = user.foto;
+                    else if (user.email) avatarUrl = avatarMap[user.email.split('@')[0].split('.')[0].toLowerCase()];
+                    if (!avatarUrl && user.nome) avatarUrl = avatarMap[user.nome.split(' ')[0].toLowerCase()];
+                    const photoEl = document.getElementById('user-photo'), initEl = document.getElementById('user-initials');
+                    if (avatarUrl && photoEl) { photoEl.src=avatarUrl;photoEl.style.display='block';photoEl.onerror=function(){this.style.display='none';if(initEl){initEl.textContent=nome.charAt(0).toUpperCase();initEl.style.display='flex';}};if(initEl)initEl.style.display='none'; }
+                    else if (initEl) { initEl.textContent=nome.charAt(0).toUpperCase();initEl.style.display='flex';if(photoEl)photoEl.style.display='none'; }
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // ===== MODAL DESCONTO =====
+        function abrirModalDesconto() {
+            document.getElementById('modal-desconto').classList.add('active');
+            document.getElementById('form-desconto').reset();
+            document.getElementById('data-operacao').value = new Date().toISOString().split('T')[0];
+            document.getElementById('iof-desconto').value = '0.38';
+            calcularDesconto();
+        }
+        function fecharModalDesconto() { document.getElementById('modal-desconto').classList.remove('active'); }
+
+        function calcularDesconto() {
+            const valor = parseFloat(document.getElementById('valor-titulo').value) || 0;
+            const taxa = parseFloat(document.getElementById('taxa-desconto').value) || 0;
+            const iofAnual = parseFloat(document.getElementById('iof-desconto').value) || 0;
+            const dataVencimento = document.getElementById('data-vencimento').value;
+            const dataOperacao = document.getElementById('data-operacao').value || new Date().toISOString().split('T')[0];
+            const tarifa = 15;
+
+            let prazo = 0;
+            if (dataVencimento && dataOperacao) {
+                const diff = new Date(dataVencimento) - new Date(dataOperacao);
+                prazo = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+            }
+
+            const taxaDiaria = taxa / 30;
+            const desconto = valor * (taxaDiaria / 100) * prazo;
+            const iof = valor * (iofAnual / 100) * (prazo / 365);
+            const liquido = valor - desconto - iof - tarifa;
+
+            document.getElementById('resumo-valor').textContent = `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('resumo-prazo').textContent = `${prazo} dias`;
+            document.getElementById('resumo-desconto').textContent = `R$ ${desconto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('resumo-iof').textContent = `R$ ${iof.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('resumo-tarifa').textContent = `R$ ${tarifa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+            document.getElementById('resumo-liquido').textContent = `R$ ${liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+        }
+
+        async function salvarDesconto(event) {
+            event.preventDefault();
+            const dados = {
+                numero_titulo: document.getElementById('numero-titulo').value,
+                cliente_sacado: document.getElementById('cliente-sacado').value,
+                valor_titulo: parseFloat(document.getElementById('valor-titulo').value),
+                data_vencimento: document.getElementById('data-vencimento').value,
+                banco: document.getElementById('banco-desconto').value,
+                data_operacao: document.getElementById('data-operacao').value,
+                taxa_desconto: parseFloat(document.getElementById('taxa-desconto').value),
+                iof: parseFloat(document.getElementById('iof-desconto').value),
+                observacoes: document.getElementById('obs-desconto').value
+            };
+            try {
+                const r = await fetch('/api/financeiro/operacoes/desconto', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(dados)
+                });
+                if (r.ok) { showToast('Operação de desconto salva com sucesso!'); fecharModalDesconto(); }
+                else { alert('Erro ao salvar operação'); }
+            } catch(e) { console.error(e); alert('Erro ao salvar operação'); }
+        }
+
+        // ===== MODAL TEMPLATES =====
+        function abrirModalTemplates() { document.getElementById('modal-templates').classList.add('active'); }
+        function fecharModalTemplates() { document.getElementById('modal-templates').classList.remove('active'); }
+
+        function baixarTemplate(tipo) {
+            const templates = {
+                'contas_pagar': { nome: 'Contas a Pagar', arquivo: 'contas_pagar.xlsx' },
+                'contas_receber': { nome: 'Contas a Receber', arquivo: 'contas_receber.xlsx' },
+                'bancos': { nome: 'Contas Bancárias', arquivo: 'bancos.xlsx' },
+                'movimentacoes': { nome: 'Movimentações', arquivo: 'movimentacoes.xlsx' },
+                'fluxo_caixa': { nome: 'Fluxo de Caixa', arquivo: 'fluxo_caixa.xlsx' }
+            };
+            const tmpl = templates[tipo];
+            if (!tmpl) return;
+            const link = document.createElement('a');
+            link.href = `templates/${tmpl.arquivo}`;
+            link.download = tmpl.arquivo;
+            link.click();
+            showToast(`Template "${tmpl.nome}" baixado!`);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { carregarUsuarioLogado().catch(e => console.error(e)); });
+    </script>
+
+    <script src="/js/notifications-manager.js?v=20260103"></script>
+    <script src="/js/notification-button.js?v=20260103"></script>
+    <script src="/js/chat-suporte-widgets.js?v=20260103"></script>
+    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

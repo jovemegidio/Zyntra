@@ -1,0 +1,673 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Folha de Pagamento</title>
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --primary-teal: #11998e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 12px 0; z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; cursor: pointer; text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s; text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; background: #ffffff; }
+
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-teal); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* TABS */
+        .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+        .tab-btn {
+            padding: 12px 24px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            color: #64748b;
+            transition: all 0.2s;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tab-btn:hover { background: #f8fafc; border-color: var(--primary-teal); color: var(--primary-teal); }
+        .tab-btn.active { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border-color: transparent; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* STATS */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .stat-card {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            padding: 24px; border-radius: 16px; color: white;
+            box-shadow: 0 4px 20px rgba(17, 153, 142, 0.3);
+        }
+        .stat-card h3 { font-size: 0.875rem; opacity: 0.9; margin-bottom: 8px; }
+        .stat-card .value { font-size: 1.75rem; font-weight: 700; margin-bottom: 4px; }
+        .stat-card .subtitle { font-size: 0.75rem; opacity: 0.8; }
+
+        /* HOLERITE */
+        .holerite-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .holerite-header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .holerite-header h2 { font-size: 24px; margin-bottom: 8px; }
+        .holerite-header p { opacity: 0.9; }
+
+        .holerite-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 24px;
+            background: #f8fafc;
+        }
+
+        .info-item { display: flex; flex-direction: column; gap: 4px; }
+        .info-item label { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; }
+        .info-item span { font-size: 14px; color: #1e293b; font-weight: 500; }
+
+        .holerite-table { width: 100%; border-collapse: collapse; }
+        .holerite-table th {
+            background: var(--primary-teal);
+            color: white;
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        .holerite-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.875rem;
+        }
+        .holerite-table tr:hover { background: #f8fafc; }
+
+        .total-row { background: #f8fafc; font-weight: 600; }
+        .liquido-row {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+        .liquido-row td { padding: 20px 16px; }
+
+        /* CARDS */
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .card-title { font-size: 1rem; font-weight: 600; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: var(--primary-teal); }
+        .card-body { padding: 24px; }
+
+        /* HISTORICO GRID */
+        .historico-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .holerite-card {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+        }
+        .holerite-card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(17, 153, 142, 0.4); }
+        .holerite-card .mes { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+        .holerite-card .valor { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+        .holerite-card .info { font-size: 12px; opacity: 0.8; }
+
+        .month-selector {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .month-selector select {
+            padding: 10px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-download:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4); }
+
+        @media (max-width: 768px) {
+            .holerite-info { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .tabs { flex-wrap: wrap; }
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn active" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Folha de Pagamento</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title"><i class="fas fa-file-invoice-dollar"></i> Folha de Pagamento</h1>
+                        <p class="page-subtitle">Visualize seus holerites e demonstrativos</p>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showTab('holerite')"><i class="fas fa-file-alt"></i> Holerite Atual</button>
+                    <button class="tab-btn" onclick="showTab('historico')"><i class="fas fa-history"></i> Histórico</button>
+                </div>
+
+                <!-- Tab: Holerite -->
+                <div id="holerite" class="tab-content active">
+                    <div class="month-selector">
+                        <select id="mes-selecionado">
+                            <option value="12-2025">Dezembro 2025</option>
+                            <option value="11-2025">Novembro 2025</option>
+                            <option value="10-2025">Outubro 2025</option>
+                        </select>
+                        <button class="btn-download" onclick="downloadHolerite()"><i class="fas fa-download"></i> Baixar PDF</button>
+                    </div>
+
+                    <div class="holerite-container">
+                        <div class="holerite-header">
+                            <h2>DEMONSTRATIVO DE PAGAMENTO</h2>
+                            <p>Dezembro 2025</p>
+                        </div>
+
+                        <div class="holerite-info">
+                            <div class="info-item">
+                                <label>Funcionário</label>
+                                <span id="func-nome">João da Silva</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Cargo</label>
+                                <span>Analista de Sistemas</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Admissão</label>
+                                <span>15/01/2023</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Período</label>
+                                <span>01/12/2025 a 31/12/2025</span>
+                            </div>
+                        </div>
+
+                        <table class="holerite-table">
+                            <thead>
+                                <tr>
+                                    <th>Descrição</th>
+                                    <th style="text-align: right;">Proventos</th>
+                                    <th style="text-align: right;">Descontos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Salário Base</td>
+                                    <td style="text-align: right;">R$ 5.000,00</td>
+                                    <td style="text-align: right;">-</td>
+                                </tr>
+                                <tr>
+                                    <td>Horas Extras (50%)</td>
+                                    <td style="text-align: right;">R$ 340,91</td>
+                                    <td style="text-align: right;">-</td>
+                                </tr>
+                                <tr>
+                                    <td>CS Saúde</td>
+                                    <td style="text-align: right;">-</td>
+                                    <td style="text-align: right;">R$ 50,00</td>
+                                </tr>
+                                <tr>
+                                    <td>Vale Refeição</td>
+                                    <td style="text-align: right;">-</td>
+                                    <td style="text-align: right;">R$ 150,00</td>
+                                </tr>
+                                <tr>
+                                    <td>INSS</td>
+                                    <td style="text-align: right;">-</td>
+                                    <td style="text-align: right;">R$ 550,00</td>
+                                </tr>
+                                <tr>
+                                    <td>IRRF</td>
+                                    <td style="text-align: right;">-</td>
+                                    <td style="text-align: right;">R$ 280,00</td>
+                                </tr>
+                                <tr class="total-row">
+                                    <td><strong>TOTAIS</strong></td>
+                                    <td style="text-align: right;"><strong>R$ 5.340,91</strong></td>
+                                    <td style="text-align: right;"><strong>R$ 1.280,00</strong></td>
+                                </tr>
+                                <tr class="liquido-row">
+                                    <td colspan="2"><strong>SALÁRIO LÍQUIDO</strong></td>
+                                    <td style="text-align: right;"><strong>R$ 4.060,91</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: Histórico -->
+                <div id="historico" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-history"></i> Histórico de Holerites</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="historico-grid">
+                                <div class="holerite-card" onclick="verHolerite('12-2025')">
+                                    <div class="mes">Dezembro 2025</div>
+                                    <div class="valor">R$ 4.060,91</div>
+                                    <div class="info">Líquido</div>
+                                </div>
+                                <div class="holerite-card" onclick="verHolerite('11-2025')">
+                                    <div class="mes">Novembro 2025</div>
+                                    <div class="valor">R$ 3.950,00</div>
+                                    <div class="info">Líquido</div>
+                                </div>
+                                <div class="holerite-card" onclick="verHolerite('10-2025')">
+                                    <div class="mes">Outubro 2025</div>
+                                    <div class="valor">R$ 4.100,50</div>
+                                    <div class="info">Líquido</div>
+                                </div>
+                                <div class="holerite-card" onclick="verHolerite('09-2025')">
+                                    <div class="mes">Setembro 2025</div>
+                                    <div class="valor">R$ 3.980,00</div>
+                                    <div class="info">Líquido</div>
+                                </div>
+                                <div class="holerite-card" onclick="verHolerite('08-2025')">
+                                    <div class="mes">Agosto 2025</div>
+                                    <div class="valor">R$ 4.020,00</div>
+                                    <div class="info">Líquido</div>
+                                </div>
+                                <div class="holerite-card" onclick="verHolerite('07-2025')">
+                                    <div class="mes">Julho 2025</div>
+                                    <div class="valor">R$ 3.890,00</div>
+                                    <div class="info">Líquido</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const avatarNameMap = { 'clemerson': '/avatars/Clemerson.webp', 'isabela': '/avatars/Isabela.webp', 'thaina': '/avatars/Thaina.webp', 'thiago': '/avatars/Thiago.webp', 'nicolas': '/avatars/NicolasDaniel.webp', 'rh': '/avatars/Rh.webp', 'admin': '/avatars/admin.webp', 'ti': '/avatars/TI.webp', 'antonio': '/avatars/Antonio.webp', 'andreia': '/avatars/Andreia.webp', 'guilherme': '/avatars/Guilherme.webp' };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) { const firstName = nome.split(' ')[0].toLowerCase(); if (avatarNameMap[firstName]) return avatarNameMap[firstName]; }
+            return null;
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                ...additionalHeaders
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { 
+                    headers: getAuthHeaders(),
+                    credentials: 'include' 
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : getAvatarFromEmail(user.email, userName);
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    document.getElementById('func-nome').textContent = userName;
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    if (userAvatar && userPhotoEl) { userPhotoEl.src = userAvatar; userPhotoEl.classList.add('visible'); userPhotoEl.style.display = 'block'; if (userInitialEl) userInitialEl.style.display = 'none'; }
+                    else if (userInitialEl) { userInitialEl.textContent = userName.charAt(0).toUpperCase(); userInitialEl.style.display = 'flex'; if (userPhotoEl) userPhotoEl.style.display = 'none'; }
+                }
+            } catch (error) { console.error('Erro ao carregar usuário:', error); }
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.closest('.tab-btn').classList.add('active');
+        }
+
+        async function downloadHolerite() {
+            const mes = document.getElementById('mes-selecionado').value;
+            const [mesNum, ano] = mes.split('-');
+            
+            try {
+                // Tentar buscar holerite do servidor
+                const response = await fetch(`/api/rh/holerites/download?mes=${mesNum}&ano=${ano}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/pdf')) {
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `holerite_${mes}.pdf`;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                    } else {
+                        // Gerar PDF do conteúdo atual da tela
+                        gerarHoleritePDF(mes);
+                    }
+                } else {
+                    // Fallback: gerar PDF do conteúdo visível
+                    gerarHoleritePDF(mes);
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                // Fallback: imprimir a página
+                gerarHoleritePDF(mes);
+            }
+        }
+        
+        function gerarHoleritePDF(mes) {
+            // Criar janela de impressão com o conteúdo do holerite
+            const holerite = document.querySelector('.holerite-container');
+            if (!holerite) {
+                alert('Holerite não encontrado');
+                return;
+            }
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Holerite - ${mes}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        .holerite-header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+                        .holerite-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+                        .info-item label { font-weight: bold; display: block; color: #666; font-size: 12px; }
+                        .info-item span { font-size: 14px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        th { background: #f5f5f5; }
+                        .total-row { font-weight: bold; background: #e3f2fd; }
+                        @media print { body { margin: 0; } }
+                    </style>
+</head>
+                <body>
+                    ${holerite.innerHTML}
+                    <script>window.onload = function() { window.print(); }<\/script>
+</body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        function verHolerite(mes) {
+            document.getElementById('mes-selecionado').value = mes;
+            showTab('holerite');
+            document.querySelector('.tab-btn').click();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { carregarUsuarioLogado(); });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+        <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

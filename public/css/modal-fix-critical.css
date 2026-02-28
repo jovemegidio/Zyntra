@@ -1,0 +1,109 @@
+﻿/* =============================================
+   CORREÇÃO CRÍTICA - OCULTAR MODAIS POR PADRÃO
+   Este arquivo DEVE ser carregado PRIMEIRO
+   Versão: 2026-01-23 v4 - Fix modal configurações
+   ============================================= */
+
+/* RESET - Ocultar modais ESPECÍFICOS por padrão */
+#preferences-modal:not(.active),
+#profile-modal:not(.active),
+#modal-configuracoes:not(.active),
+#omie-settings-modal:not(.active),
+.settings-modal:not(.active):not(.main-content):not(.main-dashboard),
+.modal-config:not(.active),
+.config-detail-modal:not(.active),
+.modal-overlay:not(.active),
+.settings-modal-card:not(.active),
+.preferences-modal:not(.active) {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    z-index: -1 !important;
+}
+
+/* Só mostrar quando tiver classe active explícita */
+#preferences-modal.active,
+#preferences-modal[aria-hidden="false"],
+#profile-modal.active,
+#profile-modal[aria-hidden="false"],
+#modal-configuracoes.active,
+#omie-settings-modal.active,
+#omie-settings-modal[aria-hidden="false"],
+.settings-modal.active,
+.settings-modal[aria-hidden="false"],
+.modal-config.active,
+.modal-overlay.active {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 10002 !important;
+}
+
+/* Sub-modais de configuração SEMPRE acima do modal principal */
+.config-detail-modal.active,
+.config-detail-modal[aria-hidden="false"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 200000 !important;
+}
+
+/* Mostrar filhos quando pai está ativo */
+#preferences-modal.active *,
+#preferences-modal[aria-hidden="false"] *,
+#profile-modal.active *,
+#profile-modal[aria-hidden="false"] *,
+#modal-configuracoes.active *,
+.settings-modal.active *,
+.modal-config.active *,
+.config-detail-modal.active *,
+.config-detail-modal[aria-hidden="false"] * {
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+
+/* Exceção para modais de conteúdo (como edição de pedido, etc) que usam display:flex inline */
+.modal-overlay[style*="display: flex"],
+.modal-overlay[style*="display: block"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 100003 !important;
+}
+.config-detail-modal[style*="display: flex"],
+.config-detail-modal[style*="display: block"] {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    z-index: 200000 !important;
+}
+
+/* Garantir z-index alto para config-detail-modal sobrepor modal-configuracoes */
+.config-detail-modal.active {
+    z-index: 200000 !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+/* Filhos do config-detail-modal ativo devem ser visiveis */
+.config-detail-modal.active * {
+    visibility: visible !important;
+    pointer-events: auto !important;
+}
+
+/* Botão de fechar sempre clicável quando modal está ativo */
+#modal-configuracoes.active .modal-config-close,
+#modal-configuracoes.active #btn-fechar-config,
+.modal-config.active .modal-config-close {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 10010 !important;
+    position: relative !important;
+}

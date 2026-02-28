@@ -1,0 +1,664 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Módulo RH</title>
+    
+    <!-- CSP Fix - Converter onclick inline para addEventListener -->
+    <script src="/js/csp-fix.js" defer></script>
+    
+    <!-- Favicon -->
+    
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Modern SaaS UI -->
+    <link rel="stylesheet" href="../_shared/modern-saas.css?v=3.0">
+    <!-- Performance: Skeleton Loaders -->
+    <link rel="stylesheet" href="/css/skeleton-loader.css">
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --hr-primary: #e11d48;
+            --hr-secondary: #db2777;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --background: #f8fafc;
+            --white: #ffffff;
+            --text-dark: #0f172a;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--hr-primary) 0%, var(--hr-secondary) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .logo img {
+            width: 50px;
+            height: 50px;
+            object-fit: contain;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 12px;
+            text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .version-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 32px;
+            margin-bottom: 48px;
+        }
+
+        .version-card {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .version-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, var(--hr-primary) 0%, var(--hr-secondary) 100%);
+        }
+
+        .version-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+        }
+
+        .version-icon {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, var(--hr-primary) 0%, var(--hr-secondary) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            color: white;
+            font-size: 40px;
+            box-shadow: 0 8px 24px rgba(225, 29, 72, 0.3);
+        }
+
+        .version-card h2 {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 16px;
+        }
+
+        .version-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: linear-gradient(135deg, var(--hr-primary) 0%, var(--hr-secondary) 100%);
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 20px;
+        }
+
+        .version-description {
+            color: var(--text-secondary);
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .features-list {
+            list-style: none;
+            margin-bottom: 32px;
+        }
+
+        .features-list li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+
+        .features-list li i {
+            color: var(--success);
+            font-size: 16px;
+            width: 20px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 32px;
+            background: linear-gradient(135deg, var(--hr-primary) 0%, var(--hr-secondary) 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(225, 29, 72, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(225, 29, 72, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--text-secondary);
+            box-shadow: 0 4px 16px rgba(100, 116, 139, 0.3);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 8px 24px rgba(100, 116, 139, 0.4);
+        }
+
+        .comparison-section {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 32px;
+        }
+
+        .comparison-title {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .comparison-title h3 {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 12px;
+        }
+
+        .comparison-title p {
+            color: var(--text-secondary);
+            font-size: 18px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 16px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .comparison-table th {
+            background: var(--background);
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .comparison-table td {
+            color: var(--text-secondary);
+        }
+
+        .feature-available {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .feature-unavailable {
+            color: var(--error);
+            font-weight: 600;
+        }
+
+        .feature-partial {
+            color: var(--warning);
+            font-weight: 600;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 48px;
+        }
+
+        .footer p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 16px;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 12px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .version-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 36px;
+            }
+            
+            .header p {
+                font-size: 18px;
+            }
+            
+            .version-card {
+                padding: 24px;
+            }
+            
+            .comparison-section {
+                padding: 24px;
+            }
+            
+            .comparison-table {
+                font-size: 14px;
+            }
+            
+            .comparison-table th,
+            .comparison-table td {
+                padding: 12px 16px;
+            }
+        }
+
+        .new-badge {
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .admin-section, .employee-section {
+            margin-top: 24px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 12px 20px;
+            font-size: 14px;
+        }
+        
+        /* TABLET RESPONSIVO - Portrait e Landscape */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            .version-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+            .main-grid { grid-template-columns: 1fr; }
+            .container { padding: 16px; }
+            .version-card { padding: 24px; }
+            .header h1 { font-size: 32px; }
+            .header p { font-size: 16px; }
+            table { display: block; overflow-x: auto; white-space: nowrap; }
+        }
+        
+        @media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+            .version-grid { grid-template-columns: 1fr; }
+            .container { padding: 20px; }
+        }
+        
+        @media (min-width: 768px) and (max-width: 1280px) and (orientation: landscape) {
+            .version-grid { grid-template-columns: repeat(2, 1fr); gap: 24px; }
+            .header h1 { font-size: 36px; }
+        }
+    </style>
+
+    <!-- ?? Sistema de Gerenciamento de Inatividade -->
+    <!-- Sistema de Cache API -->
+    <script src="api-cache.js" defer></script>
+    
+    <script src="../_shared/inactivity-manager.js" defer></script>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <!-- Correções Mobile - DEVE SER O ÃšLTIMO CSS -->    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/tooltips-professional.js?v=20260216"></script>
+</head>
+<body>
+    <a href="/dashboard" class="back-button">
+        <i class="fas fa-arrow-left"></i>
+        Voltar ao Painel de Controle
+    </a>
+
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <img src="Alu.png" alt="ALUFORCE">
+            </div>
+            <h1>Módulo RH</h1>
+            <p>Sistema de Recursos Humanos - Escolha sua versão</p>
+        </div>
+
+        <div class="version-grid">
+            <!-- Versão 1.0 (Original) -->
+            <div class="version-card">
+                <div class="version-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <h2>RH Classic v1.0</h2>
+                <div class="version-badge">Estável</div>
+                <p class="version-description">
+                    Versão original do sistema RH com funcionalidades básicas e interface tradicional. 
+                    Ideal para operações essenciais do dia a dia.
+                </p>
+                
+                <ul class="features-list">
+                    <li><i class="fas fa-check"></i> Gestão básica de funcionários</li>
+                    <li><i class="fas fa-check"></i> Controle de ponto simples</li>
+                    <li><i class="fas fa-check"></i> Relatórios básicos</li>
+                    <li><i class="fas fa-check"></i> Interface familiar</li>
+                    <li><i class="fas fa-check"></i> Sistema testado e estável</li>
+                </ul>
+
+                <div class="admin-section">
+                    <div class="section-title">
+                        <i class="fas fa-user-shield"></i>
+                        Ãrea Administrativa
+                    </div>
+                    <div class="section-buttons">
+                        <a href="public/areaadm.html" class="btn btn-small">
+                            <i class="fas fa-cog"></i>
+                            Admin v1.0
+                        </a>
+                    </div>
+                </div>
+
+                <div class="employee-section">
+                    <div class="section-title">
+                        <i class="fas fa-user"></i>
+                        Portal do Funcionário
+                    </div>
+                    <div class="section-buttons">
+                        <a href="public/funcionario.html" class="btn btn-small btn-secondary">
+                            <i class="fas fa-user-circle"></i>
+                            Portal v1.0
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Versão 2.0 (Nova) -->
+            <div class="version-card">
+                <div class="version-icon">
+                    <i class="fas fa-rocket"></i>
+                </div>
+                <h2>RH Advanced v2.0</h2>
+                <div class="version-badge new-badge">Novo</div>
+                <p class="version-description">
+                    Nova versão modernizada com interface avançada, recursos aprimorados e 
+                    experiência do usuário completamente renovada.
+                </p>
+                
+                <ul class="features-list">
+                    <li><i class="fas fa-check"></i> Interface moderna e responsiva</li>
+                    <li><i class="fas fa-check"></i> Dashboard interativo avançado</li>
+                    <li><i class="fas fa-check"></i> Gestão completa de funcionários</li>
+                    <li><i class="fas fa-check"></i> Sistema de notificações</li>
+                    <li><i class="fas fa-check"></i> Relatórios avançados</li>
+                    <li><i class="fas fa-check"></i> Experiência otimizada</li>
+                </ul>
+
+                <div class="admin-section">
+                    <div class="section-title">
+                        <i class="fas fa-user-shield"></i>
+                        Ãrea Administrativa
+                    </div>
+                    <div class="section-buttons">
+                        <a href="public/areaadm.html" class="btn btn-small">
+                            <i class="fas fa-rocket"></i>
+                            Admin
+                        </a>
+                    </div>
+                </div>
+
+                <div class="employee-section">
+                    <div class="section-title">
+                        <i class="fas fa-user"></i>
+                        Portal do Funcionário
+                    </div>
+                    <div class="section-buttons">
+                        <a href="public/funcionario-v2.html" class="btn btn-small btn-secondary">
+                            <i class="fas fa-star"></i>
+                            Portal v2.0
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-section">
+            <div class="comparison-title">
+                <h3>Comparação de Recursos</h3>
+                <p>Veja as diferenças entre as versões disponíveis</p>
+            </div>
+            
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Recurso</th>
+                        <th>RH Classic v1.0</th>
+                        <th>RH Advanced v2.0</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Cadastro de Funcionários</td>
+                        <td class="feature-available">? Básico</td>
+                        <td class="feature-available">? Avançado</td>
+                    </tr>
+                    <tr>
+                        <td>Controle de Ponto</td>
+                        <td class="feature-available">? Simples</td>
+                        <td class="feature-available">? Interativo</td>
+                    </tr>
+                    <tr>
+                        <td>Dashboard Administrativo</td>
+                        <td class="feature-partial">? Básico</td>
+                        <td class="feature-available">? Completo</td>
+                    </tr>
+                    <tr>
+                        <td>Portal do Funcionário</td>
+                        <td class="feature-partial">? Limitado</td>
+                        <td class="feature-available">? Completo</td>
+                    </tr>
+                    <tr>
+                        <td>Sistema de Notificações</td>
+                        <td class="feature-unavailable">? Não disponível</td>
+                        <td class="feature-available">? Disponível</td>
+                    </tr>
+                    <tr>
+                        <td>Relatórios Avançados</td>
+                        <td class="feature-partial">? Básicos</td>
+                        <td class="feature-available">? Completos</td>
+                    </tr>
+                    <tr>
+                        <td>Interface Responsiva</td>
+                        <td class="feature-partial">? Parcial</td>
+                        <td class="feature-available">? Total</td>
+                    </tr>
+                    <tr>
+                        <td>Gestão de Benefícios</td>
+                        <td class="feature-unavailable">? Não disponível</td>
+                        <td class="feature-available">? Disponível</td>
+                    </tr>
+                    <tr>
+                        <td>Sistema de Treinamentos</td>
+                        <td class="feature-unavailable">? Não disponível</td>
+                        <td class="feature-available">? Disponível</td>
+                    </tr>
+                    <tr>
+                        <td>Exportação de Dados</td>
+                        <td class="feature-partial">? Limitada</td>
+                        <td class="feature-available">? Completa</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <p>ALUFORCE v2.0 - Sistema Integrado de Gestão Industrial</p>
+        </div>
+    </div>
+
+    <script>
+        // Animação de entrada
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.version-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 200);
+            });
+
+            // Animação da tabela de comparação
+            setTimeout(() => {
+                const comparison = document.querySelector('.comparison-section');
+                comparison.style.opacity = '0';
+                comparison.style.transform = 'translateY(20px)';
+                comparison.style.transition = 'all 0.6s ease';
+                
+                setTimeout(() => {
+                    comparison.style.opacity = '1';
+                    comparison.style.transform = 'translateY(0)';
+                }, 100);
+            }, 800);
+
+            console.log('?? Módulo RH - Seleção de Versão carregado');
+        });
+
+        // Analytics de cliques
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.btn')) {
+                const button = e.target.closest('.btn');
+                const version = button.href.includes('v2') ? 'v2.0' : 'v1.0';
+                const type = button.href.includes('areaadm') ? 'admin' : 'funcionario';
+                
+                // Navegação registrada
+            }
+        });
+    </script>
+    
+<!-- Sistema de Notificações Global -->
+<script src="/js/notification-manager.js?v=20260119"></script>
+
+<!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+<!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
+
+<!-- Sistema de Monitoramento de Conexão -->
+<script src="../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260131c" defer></script>
+    <!-- Performance Utilities -->
+    <script src="/js/performance-utils.js" defer></script>
+    
+    <!-- Mobile Enterprise Component -->
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+        </body>
+</html>
+
+

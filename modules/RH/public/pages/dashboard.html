@@ -1,0 +1,1867 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <!-- DNS Prefetch e Preconnect para carregamento mais rápido -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Dashboard RH</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../dashboard-numbers-fix.css">
+    <style>
+        :root { --sidebar-width: 48px; --header-height: 42px; --primary-pink: #ec4899; --primary-dark: #1a1a2e; --bg-gray: #f5f5f5; --border-color: #e5e5e5; --text-primary: #1a1a1a; --text-secondary: #666; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: var(--text-primary); overflow-x: hidden; }
+        .app-container { display: flex; height: 100vh; }
+        .sidebar { width: var(--sidebar-width); background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; z-index: 100; }
+        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-pink); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; text-decoration: none; }
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; text-decoration: none; position: relative; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-btn::after { content: attr(title); position: absolute; left: 54px; background: #1a1a2e; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .sidebar-btn::before { content: ''; position: absolute; left: 46px; border: 6px solid transparent; border-right-color: #1a1a2e; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; }
+        .sidebar-btn:hover::after, .sidebar-btn:hover::before { opacity: 1; }
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ }
+        .header { height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; }
+        .header-brand { display: flex; align-items: center; gap: 8px; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+        /* Estatísticas Principais */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+            width: 100%;
+        }
+
+        .stat-card {
+            background: #ffffff !important;
+            border-radius: 16px;
+            padding: 32px 28px;
+            box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.15), 0 2px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 2px solid #e2e8f0;
+            position: relative;
+            overflow: visible !important;
+            min-height: 200px;
+            width: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.25), 0 6px 20px -4px rgba(0, 0, 0, 0.18);
+        }
+
+        .stat-card:hover .stat-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .stat-card.blue { 
+            border-left: 6px solid #3b82f6;
+            border-top: 2px solid #dbeafe;
+        }
+        .stat-card.blue .stat-value { color: #1d4ed8 !important; }
+        
+        .stat-card.green { 
+            border-left: 6px solid #10b981;
+            border-top: 2px solid #d1fae5;
+        }
+        .stat-card.green .stat-value { color: #047857 !important; }
+        
+        .stat-card.yellow { 
+            border-left: 6px solid #f59e0b;
+            border-top: 2px solid #fef3c7;
+        }
+        .stat-card.yellow .stat-value { color: #d97706 !important; }
+        
+        .stat-card.red { 
+            border-left: 6px solid #ef4444;
+            border-top: 2px solid #fee2e2;
+        }
+        .stat-card.red .stat-value { color: #dc2626 !important; }
+
+        /* Ajuste especial para valores monetários longos */
+        .stat-card.green .stat-value {
+            font-size: 36px !important;
+            letter-spacing: -0.8px;
+            word-break: keep-all;
+            hyphens: none;
+            white-space: nowrap;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 24px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .modal-body {
+            padding: 32px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .form-section {
+            background: #f8fafc;
+            padding: 24px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .form-section h3 {
+            margin: 0 0 20px 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a202c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group.required label::after {
+            content: " *";
+            color: #ef4444;
+        }
+
+        .modal-footer {
+            padding: 24px 32px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background-color: #f8fafc;
+            border-radius: 0 0 12px 12px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .loading::after {
+            content: "";
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-header,
+            .modal-body,
+            .modal-footer {
+                padding: 20px;
+            }
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            flex-shrink: 0;
+            min-height: 60px;
+        }
+
+        .stat-title {
+            font-size: 14px;
+            font-weight: 700 !important;
+            color: #374151 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            line-height: 1.3;
+            max-width: 180px;
+            margin-top: 8px;
+        }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .stat-icon:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-card.blue .stat-icon { 
+            background: linear-gradient(135deg, #3b82f6, #1e40af, #1d4ed8); 
+            color: #ffffff; 
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+        }
+        .stat-card.green .stat-icon { 
+            background: linear-gradient(135deg, #10b981, #059669, #047857); 
+            color: #ffffff; 
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+        .stat-card.yellow .stat-icon { 
+            background: linear-gradient(135deg, #f59e0b, #d97706, #b45309); 
+            color: #ffffff; 
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+        }
+        .stat-card.red .stat-icon { 
+            background: linear-gradient(135deg, #ef4444, #dc2626, #b91c1c); 
+            color: #ffffff; 
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .stat-value {
+            font-size: 48px !important;
+            font-weight: 900 !important;
+            color: #1f2937 !important;
+            margin: 16px 0;
+            line-height: 1.1;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: block !important;
+            visibility: visible !important;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: nowrap;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            width: 100%;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 60px;
+        }
+
+        .stat-subtitle {
+            font-size: 13px;
+            color: #6b7280 !important;
+            font-weight: 500 !important;
+            margin-top: 8px;
+            flex-shrink: 0;
+            line-height: 1.3;
+            opacity: 0.8;
+        }
+
+        /* Dashboard Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        .dashboard-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid #e2e8f0;
+            background-color: #f8fafc;
+        }
+
+        .card-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a202c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* Estilos específicos dos cards */
+        .top-colaboradores {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .colaborador-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+
+        .posicao {
+            font-size: 18px;
+            min-width: 24px;
+        }
+
+        .colaborador-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e2e8f0;
+        }
+
+        .colaborador-info {
+            flex: 1;
+        }
+
+        .colaborador-info strong {
+            display: block;
+            font-weight: 600;
+            color: #1a202c;
+            font-size: 14px;
+        }
+
+        .colaborador-info small {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .colaborador-score {
+            font-weight: 600;
+            color: #3b82f6;
+            font-size: 14px;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .quick-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            color: #6b7280;
+        }
+
+        .quick-action-btn:hover {
+            border-color: #3b82f6;
+            background-color: #f8fafc;
+            color: #3b82f6;
+            transform: translateY(-2px);
+        }
+
+        .quick-action-btn:active {
+            transform: translateY(0);
+            background-color: #e0f2fe;
+        }
+
+        .quick-action-btn:focus {
+            outline: 2px solid #3b82f6;
+            outline-offset: 2px;
+        }
+
+        .quick-action-btn i {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .quick-action-btn span {
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        /* Activity List */
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: #f8fafc;
+        }
+
+        .activity-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .activity-icon.success { background-color: #d1fae5; color: #10b981; }
+        .activity-icon.info { background-color: #dbeafe; color: #3b82f6; }
+        .activity-icon.warning { background-color: #fef3c7; color: #f59e0b; }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-content p {
+            margin: 0;
+            font-size: 14px;
+            color: #1a202c;
+        }
+
+        .activity-content small {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        /* Aniversariantes */
+        .aniversariantes-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .aniversariante-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: #f8fafc;
+        }
+
+        .aniversariante-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e2e8f0;
+        }
+
+        .aniversariante-info {
+            flex: 1;
+        }
+
+        .aniversariante-info strong {
+            display: block;
+            font-weight: 600;
+            color: #1a202c;
+            font-size: 14px;
+        }
+
+        .aniversariante-info small {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .aniversariante-idade {
+            font-weight: 600;
+            color: #f59e0b;
+            font-size: 14px;
+        }
+
+
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-row {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-card {
+                min-height: 160px;
+                padding: 20px 16px;
+            }
+
+            .stat-value {
+                font-size: 36px !important;
+                min-height: 45px;
+            }
+
+            .stat-card.green .stat-value {
+                font-size: 28px !important;
+                letter-spacing: -0.5px;
+            }
+
+            .stat-icon {
+                width: 48px;
+                height: 48px;
+                font-size: 22px;
+                border-radius: 12px;
+            }
+
+            .stat-title {
+                font-size: 12px;
+                max-width: 160px;
+                margin-top: 4px;
+            }
+
+            .stat-header {
+                min-height: 52px;
+                margin-bottom: 12px;
+            }
+        }
+
+        /* Preview Area Styles */
+        .preview-area {
+            background: #f8fafc;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 120px;
+        }
+
+        .preview-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .preview-item {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            text-align: center;
+        }
+
+        .preview-item .label {
+            font-size: 12px;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .preview-item .value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .preview-item.positive .value { color: #10b981; }
+        .preview-item.negative .value { color: #ef4444; }
+        .preview-item.total .value { color: #3b82f6; }
+
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .stat-value {
+                font-size: 40px !important;
+            }
+            
+            .stat-card.green .stat-value {
+                font-size: 32px !important;
+                letter-spacing: -0.6px;
+            }
+
+            .stat-card {
+                min-height: 170px;
+            }
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn active" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Dashboard RH</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span>Olá, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar"><span id="user-initials">U</span></div>
+                    </div>
+                </div>
+            </header>
+            <div class="page-content">
+        <!-- Estatísticas Principais -->
+        <div class="stats-row">
+            <div class="stat-card blue">
+                <div class="stat-header">
+                    <h3 class="stat-title">Total Funcionários</h3>
+                    <div class="stat-icon">
+                        <i class="fas fa-user-friends"></i>
+                    </div>
+                </div>
+                <div class="stat-value widget-value" id="total-funcionarios">39</div>
+                <div class="stat-subtitle">Ativos na empresa</div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-header">
+                    <h3 class="stat-title">Folha Mensal</h3>
+                    <div class="stat-icon">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                </div>
+                <div class="stat-value widget-value" id="count-folha">R$ 45.750</div>
+                <div class="stat-subtitle">Setembro 2024</div>
+            </div>
+            <div class="stat-card yellow">
+                <div class="stat-header">
+                    <h3 class="stat-title">Aniversariantes</h3>
+                    <div class="stat-icon">
+                        <i class="fas fa-birthday-cake"></i>
+                    </div>
+                </div>
+                <div class="stat-value widget-value" id="count-aniversariantes">2</div>
+                <div class="stat-subtitle">Este mês</div>
+            </div>
+        </div>
+
+        <!-- Grid de Cards do Dashboard -->
+        <div class="dashboard-grid">
+            <!-- Card Últimas Atividades -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-clock"></i> Últimas Atividades</h3>
+                </div>
+                <div class="card-body">
+                    <div class="activity-list">
+                        <div class="activity-item">
+                            <div class="activity-icon success">
+                                <i class="fas fa-user-plus"></i>
+                            </div>
+                            <div class="activity-content">
+                                <p><strong>Nova contratação</strong> - Andreia Silva</p>
+                                <small>Há 2 horas</small>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon info">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="activity-content">
+                                <p><strong>Relatório gerado</strong> - Folha de Pagamento</p>
+                                <small>Há 4 horas</small>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon warning">
+                                <i class="fas fa-bell"></i>
+                            </div>
+                            <div class="activity-content">
+                                <p><strong>Novo aviso</strong> - Reunião mensal</p>
+                                <small>Ontem</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Colaboradores com mais tempo de casa -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-trophy"></i> Colaboradores com mais tempo de casa</h3>
+                </div>
+                <div class="card-body">
+                    <div class="top-colaboradores">
+                        <div class="colaborador-item">
+                            <span class="posicao"><i class="fas fa-crown" style="color: #ffd700; font-size: 16px;"></i></span>
+                            <img src="../Interativo-Aluforce.jpg" alt="Andreia" class="colaborador-avatar">
+                            <div class="colaborador-info">
+                                <strong>Andreia Silva</strong>
+                                <small>Gerente RH</small>
+                            </div>
+                            <div class="colaborador-score">8 anos e 3 meses</div>
+                        </div>
+                        <div class="colaborador-item">
+                            <span class="posicao"><i class="fas fa-award" style="color: #c0c0c0; font-size: 16px;"></i></span>
+                            <img src="../Interativo-Aluforce.jpg" alt="Douglas" class="colaborador-avatar">
+                            <div class="colaborador-info">
+                                <strong>Douglas Santos</strong>
+                                <small>Desenvolvedor</small>
+                            </div>
+                            <div class="colaborador-score">6 anos e 7 meses</div>
+                        </div>
+                        <div class="colaborador-item">
+                            <span class="posicao"><i class="fas fa-star" style="color: #cd7f32; font-size: 16px;"></i></span>
+                            <img src="../Interativo-Aluforce.jpg" alt="Hellen" class="colaborador-avatar">
+                            <div class="colaborador-info">
+                                <strong>Hellen Costa</strong>
+                                <small>Designer</small>
+                            </div>
+                            <div class="colaborador-score">5 anos e 2 meses</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Ações Rápidas -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-link"></i> Ações Rápidas</h3>
+                </div>
+                <div class="card-body">
+                    <div class="quick-actions">
+                        <button class="quick-action-btn" id="btnNovoFuncionario" onclick="openNovoFuncionarioModal()">
+                            <i class="fas fa-user-plus"></i>
+                            <span>Novo Funcionário</span>
+                        </button>
+                        <button class="quick-action-btn" id="btnGerarHolerites" onclick="openGerarHoleritesModal()">
+                            <i class="fas fa-file-invoice"></i>
+                            <span>Gerar Holerites</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Aniversariantes -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-birthday-cake"></i> Aniversariantes do Mês</h3>
+                </div>
+                <div class="card-body">
+                    <div class="aniversariantes-list">
+                        <div class="aniversariante-item">
+                            <img src="../Interativo-Aluforce.jpg" alt="Junior" class="aniversariante-avatar">
+                            <div class="aniversariante-info">
+                                <strong>Junior Oliveira</strong>
+                                <small>15 de Setembro</small>
+                            </div>
+                            <div class="aniversariante-idade">28 anos</div>
+                        </div>
+                        <div class="aniversariante-item">
+                            <img src="../Interativo-Aluforce.jpg" alt="Hellen" class="aniversariante-avatar">
+                            <div class="aniversariante-info">
+                                <strong>Hellen Costa</strong>
+                                <small>22 de Setembro</small>
+                            </div>
+                            <div class="aniversariante-idade">31 anos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+            </div><!-- /page-content -->
+        </main>
+    </div><!-- /app-container -->
+
+    <!-- Modal Novo Funcionário -->
+    <div id="novoFuncionarioModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-plus"></i> Novo Funcionário</h2>
+                <button class="modal-close" onclick="closeNovoFuncionarioModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="novoFuncionarioForm">
+                    <div class="form-grid">
+                        <!-- Dados Pessoais -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-user"></i> Dados Pessoais</h3>
+                            <div class="form-group required">
+                                <label for="nome">Nome Completo</label>
+                                <input type="text" id="nome" name="nome" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="email">Email</label>
+                                <input type="email" id="email" name="email" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="telefone">Telefone</label>
+                                <input type="tel" id="telefone" name="telefone" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="cpf">CPF</label>
+                                <input type="text" id="cpf" name="cpf" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="rg">RG</label>
+                                <input type="text" id="rg" name="rg" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="data_nascimento">Data de Nascimento</label>
+                                <input type="date" id="data_nascimento" name="data_nascimento" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="genero">Gênero</label>
+                                <select id="genero" name="genero" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="masculino">Masculino</option>
+                                    <option value="feminino">Feminino</option>
+                                    <option value="outro">Outro</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="estado_civil">Estado Civil</label>
+                                <select id="estado_civil" name="estado_civil">
+                                    <option value="">Selecione...</option>
+                                    <option value="solteiro">Solteiro(a)</option>
+                                    <option value="casado">Casado(a)</option>
+                                    <option value="divorciado">Divorciado(a)</option>
+                                    <option value="viuvo">Viúvo(a)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Endereço -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-map-marker-alt"></i> Endereço</h3>
+                            <div class="form-group required">
+                                <label for="cep">CEP</label>
+                                <input type="text" id="cep" name="cep" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="endereco">Endereço</label>
+                                <input type="text" id="endereco" name="endereco" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="número">Número</label>
+                                <input type="text" id="número" name="número" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="complemento">Complemento</label>
+                                <input type="text" id="complemento" name="complemento">
+                            </div>
+                            <div class="form-group required">
+                                <label for="bairro">Bairro</label>
+                                <input type="text" id="bairro" name="bairro" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="cidade">Cidade</label>
+                                <input type="text" id="cidade" name="cidade" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="estado">Estado</label>
+                                <select id="estado" name="estado" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="AC">Acre</option>
+                                    <option value="AL">Alagoas</option>
+                                    <option value="AP">Amapá</option>
+                                    <option value="AM">Amazonas</option>
+                                    <option value="BA">Bahia</option>
+                                    <option value="CE">Ceará</option>
+                                    <option value="DF">Distrito Federal</option>
+                                    <option value="ES">Espírito Santo</option>
+                                    <option value="GO">Goiás</option>
+                                    <option value="MA">Maranhão</option>
+                                    <option value="MT">Mato Grosso</option>
+                                    <option value="MS">Mato Grosso do Sul</option>
+                                    <option value="MG">Minas Gerais</option>
+                                    <option value="PA">Pará</option>
+                                    <option value="PB">Paraíba</option>
+                                    <option value="PR">Paraná</option>
+                                    <option value="PE">Pernambuco</option>
+                                    <option value="PI">Piauí</option>
+                                    <option value="RJ">Rio de Janeiro</option>
+                                    <option value="RN">Rio Grande do Norte</option>
+                                    <option value="RS">Rio Grande do Sul</option>
+                                    <option value="RO">Rondônia</option>
+                                    <option value="RR">Roraima</option>
+                                    <option value="SC">Santa Catarina</option>
+                                    <option value="SP">São Paulo</option>
+                                    <option value="SE">Sergipe</option>
+                                    <option value="TO">Tocantins</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Dados Profissionais -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-briefcase"></i> Dados Profissionais</h3>
+                            <div class="form-group required">
+                                <label for="cargo">Cargo</label>
+                                <input type="text" id="cargo" name="cargo" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="departamento">Departamento</label>
+                                <select id="departamento" name="departamento" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="rh">Recursos Humanos</option>
+                                    <option value="ti">Tecnologia da Informação</option>
+                                    <option value="financeiro">Financeiro</option>
+                                    <option value="vendas">Vendas</option>
+                                    <option value="marketing">Marketing</option>
+                                    <option value="produção">Produção</option>
+                                    <option value="administrativo">Administrativo</option>
+                                </select>
+                            </div>
+                            <div class="form-group required">
+                                <label for="data_admissao">Data de Admissão</label>
+                                <input type="date" id="data_admissao" name="data_admissao" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="salario">Salário</label>
+                                <input type="number" id="salario" name="salario" step="0.01" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="tipo_contrato">Tipo de Contrato</label>
+                                <select id="tipo_contrato" name="tipo_contrato" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="clt">CLT</option>
+                                    <option value="pj">Pessoa Jurídica</option>
+                                    <option value="estagio">Estágio</option>
+                                    <option value="terceirizado">Terceirizado</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="observacoes">Observações</label>
+                                <textarea id="observacoes" name="observacoes" placeholder="Informações adicionais..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Dados Bancários -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-university"></i> Dados Bancários</h3>
+                            <div class="form-group">
+                                <label for="banco">Banco</label>
+                                <input type="text" id="banco" name="banco">
+                            </div>
+                            <div class="form-group">
+                                <label for="agencia">Agência</label>
+                                <input type="text" id="agencia" name="agencia">
+                            </div>
+                            <div class="form-group">
+                                <label for="conta">Conta</label>
+                                <input type="text" id="conta" name="conta">
+                            </div>
+                            <div class="form-group">
+                                <label for="tipo_conta">Tipo de Conta</label>
+                                <select id="tipo_conta" name="tipo_conta">
+                                    <option value="">Selecione...</option>
+                                    <option value="corrente">Conta Corrente</option>
+                                    <option value="poupanca">Conta Poupança</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeNovoFuncionarioModal()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="salvarFuncionario()">
+                    <i class="fas fa-save"></i> Salvar Funcionário
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Gerar Holerites -->
+    <div id="gerarHoleritesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-file-invoice"></i> Gerar Holerites</h2>
+                <button class="modal-close" onclick="closeGerarHoleritesModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="gerarHoleritesForm">
+                    <div class="form-grid">
+                        <!-- Configurações do Holerite -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-cog"></i> Configurações Gerais</h3>
+                            <div class="form-group required">
+                                <label for="competencia">Competência (Mês/Ano)</label>
+                                <input type="month" id="competencia" name="competencia" required>
+                            </div>
+                            <div class="form-group required">
+                                <label for="tipo_geracao">Tipo de Geração</label>
+                                <select id="tipo_geracao" name="tipo_geracao" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="todos">Todos os Funcionários</option>
+                                    <option value="departamento">Por Departamento</option>
+                                    <option value="funcionario">Funcionário Específico</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="departamento_group" style="display: none;">
+                                <label for="filtro_departamento">Departamento</label>
+                                <select id="filtro_departamento" name="filtro_departamento">
+                                    <option value="">Selecione o departamento...</option>
+                                    <option value="rh">Recursos Humanos</option>
+                                    <option value="ti">Tecnologia da Informação</option>
+                                    <option value="financeiro">Financeiro</option>
+                                    <option value="vendas">Vendas</option>
+                                    <option value="marketing">Marketing</option>
+                                    <option value="produção">Produção</option>
+                                    <option value="administrativo">Administrativo</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="funcionario_group" style="display: none;">
+                                <label for="filtro_funcionario">Funcionário</label>
+                                <select id="filtro_funcionario" name="filtro_funcionario">
+                                    <option value="">Carregando funcionários...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Dados Salariais -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-money-bill-wave"></i> Informações Salariais</h3>
+                            <div class="form-group">
+                                <label for="dias_trabalhados">Dias Trabalhados</label>
+                                <input type="number" id="dias_trabalhados" name="dias_trabalhados" min="1" max="31" value="30">
+                            </div>
+                            <div class="form-group">
+                                <label for="horas_extras">Horas Extras</label>
+                                <input type="number" id="horas_extras" name="horas_extras" min="0" step="0.5" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="faltas">Faltas (em dias)</label>
+                                <input type="number" id="faltas" name="faltas" min="0" max="31" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="cs_saude">CS Saúde</label>
+                                <input type="number" id="cs_saude" name="cs_saude" step="0.01" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="vale_refeicao">Vale Refeição</label>
+                                <input type="number" id="vale_refeicao" name="vale_refeicao" step="0.01" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="plano_saude">Plano de Saúde</label>
+                                <input type="number" id="plano_saude" name="plano_saude" step="0.01" value="0">
+                            </div>
+                        </div>
+
+                        <!-- Descontos -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-minus-circle"></i> Descontos</h3>
+                            <div class="form-group">
+                                <label for="desconto_inss">
+                                    <input type="checkbox" id="calcular_inss" name="calcular_inss" checked style="width: auto; margin-right: 8px;">
+                                    Calcular INSS Automaticamente
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="desconto_irrf">
+                                    <input type="checkbox" id="calcular_irrf" name="calcular_irrf" checked style="width: auto; margin-right: 8px;">
+                                    Calcular IRRF Automaticamente
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="outros_descontos">Outros Descontos</label>
+                                <input type="number" id="outros_descontos" name="outros_descontos" step="0.01" value="0">
+                            </div>
+                            <div class="form-group">
+                                <label for="descrição_outros_descontos">Descrição dos Outros Descontos</label>
+                                <input type="text" id="descrição_outros_descontos" name="descrição_outros_descontos" placeholder="Ex: Empréstimo consignado, etc.">
+                            </div>
+                        </div>
+
+                        <!-- Opções de Saída -->
+                        <div class="form-section">
+                            <h3><i class="fas fa-file-export"></i> Opções de Geração</h3>
+                            <div class="form-group required">
+                                <label for="formato_saida">Formato de Saída</label>
+                                <select id="formato_saida" name="formato_saida" required>
+                                    <option value="pdf">PDF Individual</option>
+                                    <option value="pdf_compilado">PDF Compilado (Todos)</option>
+                                    <option value="excel">Planilha Excel</option>
+                                    <option value="email">Enviar por Email</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="email_group" style="display: none;">
+                                <label for="assunto_email">Assunto do Email</label>
+                                <input type="text" id="assunto_email" name="assunto_email" value="Holerite - [COMPETENCIA]">
+                            </div>
+                            <div class="form-group" id="mensagem_group" style="display: none;">
+                                <label for="mensagem_email">Mensagem do Email</label>
+                                <textarea id="mensagem_email" name="mensagem_email" rows="4">
+Prezado(a) colaborador(a),
+
+Segue em anexo seu holerite referente à competência [COMPETENCIA].
+
+Aténciosamente,
+Equipe de Recursos Humanos
+                                </textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="incluir_logo">
+                                    <input type="checkbox" id="incluir_logo" name="incluir_logo" checked style="width: auto; margin-right: 8px;">
+                                    Incluir Logo da Empresa
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="observacoes_holerite">Observações no Holerite</label>
+                                <textarea id="observacoes_holerite" name="observacoes_holerite" rows="3" placeholder="Observações que aparecerão no holerite..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preview dos Cálculos -->
+                    <div class="form-section" style="margin-top: 24px;">
+                        <h3><i class="fas fa-calculator"></i> Preview dos Cálculos</h3>
+                        <div id="preview_calculos" class="preview-area">
+                            <p style="color: #6b7280; text-align: center; padding: 20px;">
+                                <i class="fas fa-info-circle"></i>
+                                Selecione os parmetros acima para visualizar o preview dos cálculos
+                            </p>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeGerarHoleritesModal()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="gerarHolerites()">
+                    <i class="fas fa-file-invoice"></i> Gerar Holerites
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Funções do dashboard
+
+        // Funções dos Modals - Definir como globais
+        window.openNovoFuncionarioModal = function() {
+            console.log('Abrindo modal de novo funcionário...');
+            const modal = document.getElementById('novoFuncionarioModal');
+            if (modal) {
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                console.log('Modal de funcionário aberto');
+            } else {
+                console.error('Modal de funcionário não encontrado');
+            }
+        };
+
+        window.closeNovoFuncionarioModal = function() {
+            console.log('Fechando modal de novo funcionário...');
+            const modal = document.getElementById('novoFuncionarioModal');
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+                const form = document.getElementById('novoFuncionarioForm');
+                if (form) form.reset();
+            }
+        };
+
+        window.openGerarHoleritesModal = function() {
+            console.log('Abrindo modal de gerar holerites...');
+            const modal = document.getElementById('gerarHoleritesModal');
+            if (modal) {
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+                carregarFuncionarios();
+                definirCompetenciaAtual();
+                console.log('Modal de holerites aberto');
+            } else {
+                console.error('Modal de holerites não encontrado');
+            }
+        };
+
+        window.closeGerarHoleritesModal = function() {
+            console.log('Fechando modal de gerar holerites...');
+            const modal = document.getElementById('gerarHoleritesModal');
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+                const form = document.getElementById('gerarHoleritesForm');
+                if (form) form.reset();
+            }
+        };
+
+        // Fechar modals clicando no fundo
+        window.onclick = function(event) {
+            const modalFuncionario = document.getElementById('novoFuncionarioModal');
+            const modalHolerites = document.getElementById('gerarHoleritesModal');
+            
+            if (event.target === modalFuncionario) {
+                closeNovoFuncionarioModal();
+            } else if (event.target === modalHolerites) {
+                closeGerarHoleritesModal();
+            }
+        }
+
+        // Definir competência atual (mês anterior)
+        function definirCompetenciaAtual() {
+            const hoje = new Date();
+            const mesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+            const competencia = mesAnterior.toISOString().slice(0, 7);
+            document.getElementById('competencia').value = competencia;
+        }
+
+        // Carregar lista de funcionários
+        async function carregarFuncionarios() {
+            try {
+                const response = await fetch('/api/funcionarios');
+                if (response.ok) {
+                    const funcionarios = await response.json();
+                    const select = document.getElementById('filtro_funcionario');
+                    select.innerHTML = '<option value="">Selecione o funcionário...</option>';
+                    
+                    funcionarios.forEach(func => {
+                        const option = document.createElement('option');
+                        option.value = func.id;
+                        option.textContent = `${func.nome} - ${func.cargo}`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.log('Erro ao carregar funcionários:', error);
+                document.getElementById('filtro_funcionario').innerHTML = '<option value="">Erro ao carregar funcionários</option>';
+            }
+        }
+
+        // Controlar visibilidade dos campos baseado no tipo de geração
+        function controlarCamposFiltro() {
+            const tipoGeracao = document.getElementById('tipo_geracao').value;
+            const depGroup = document.getElementById('departamento_group');
+            const funcGroup = document.getElementById('funcionario_group');
+            
+            depGroup.style.display = tipoGeracao === 'departamento' ? 'block' : 'none';
+            funcGroup.style.display = tipoGeracao === 'funcionario' ? 'block' : 'none';
+            
+            // Limpar campos não utilizados
+            if (tipoGeracao !== 'departamento') {
+                document.getElementById('filtro_departamento').value = '';
+            }
+            if (tipoGeracao !== 'funcionario') {
+                document.getElementById('filtro_funcionario').value = '';
+            }
+
+            calcularPreview();
+        }
+
+        // Controlar campos de email
+        function controlarCamposEmail() {
+            const formatoSaida = document.getElementById('formato_saida').value;
+            const emailGroup = document.getElementById('email_group');
+            const mensagemGroup = document.getElementById('mensagem_group');
+            
+            if (formatoSaida === 'email') {
+                emailGroup.style.display = 'block';
+                mensagemGroup.style.display = 'block';
+            } else {
+                emailGroup.style.display = 'none';
+                mensagemGroup.style.display = 'none';
+            }
+        }
+
+        // Calcular preview dos valores
+        function calcularPreview() {
+            const competencia = document.getElementById('competencia').value;
+            const diasTrabalhados = parseInt(document.getElementById('dias_trabalhados').value) || 0;
+            const horasExtras = parseFloat(document.getElementById('horas_extras').value) || 0;
+            const faltas = parseInt(document.getElementById('faltas').value) || 0;
+            
+            if (!competencia || diasTrabalhados === 0) {
+                document.getElementById('preview_calculos').innerHTML = `
+                    <p style="color: #6b7280; text-align: center; padding: 20px;">
+                        <i class="fas fa-info-circle"></i>
+                        Preencha a competência e dias trabalhados para ver o preview
+                    </p>
+                `;
+                return;
+            }
+
+            // Simulação de cálculo (valores exemplo)
+            const salarioBase = 3000; // Valor exemplo
+            const valorHoraExtra = (salarioBase / 220) * 1.5;
+            const totalHorasExtras = horasExtras * valorHoraExtra;
+            const descontoFaltas = (salarioBase / 30) * faltas;
+            const salarioBruto = salarioBase + totalHorasExtras - descontoFaltas;
+            
+            const inss = salarioBruto * 0.11; // 11% exemplo
+            const irrf = salarioBruto > 2259.20 ? salarioBruto * 0.075 : 0;
+            const outrosDescontos = parseFloat(document.getElementById('outros_descontos').value) || 0;
+            
+            const totalDescontos = inss + irrf + outrosDescontos;
+            const salarioLiquido = salarioBruto - totalDescontos;
+
+            document.getElementById('preview_calculos').innerHTML = `
+                <div class="preview-content">
+                    <div class="preview-item positive">
+                        <div class="label">Salário Base</div>
+                        <div class="value">R$ ${salarioBase.toFixed(2)}</div>
+                    </div>
+                    <div class="preview-item positive">
+                        <div class="label">Horas Extras</div>
+                        <div class="value">R$ ${totalHorasExtras.toFixed(2)}</div>
+                    </div>
+                    <div class="preview-item negative">
+                        <div class="label">Faltas</div>
+                        <div class="value">- R$ ${descontoFaltas.toFixed(2)}</div>
+                    </div>
+                    <div class="preview-item">
+                        <div class="label">Salário Bruto</div>
+                        <div class="value">R$ ${salarioBruto.toFixed(2)}</div>
+                    </div>
+                    <div class="preview-item negative">
+                        <div class="label">INSS</div>
+                        <div class="value">- R$ ${inss.toFixed(2)}</div>
+                    </div>
+                    <div class="preview-item negative">
+                        <div class="label">IRRF</div>
+                        <div class="value">- R$ ${irrf.toFixed(2)}</div>
+                    </div>
+                    <div class="preview-item negative">
+                        <div class="label">Outros</div>
+                        <div class="value">- R$ ${outrosDescontos.toFixed(2)}</div>
+                    </div>
+                    <div class="preview-item total">
+                        <div class="label">Salário Líquido</div>
+                        <div class="value">R$ ${salarioLiquido.toFixed(2)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Função para buscar CEP
+        async function buscarCEP(cep) {
+            try {
+                const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                const data = await response.json();
+                
+                if (!data.erro) {
+                    document.getElementById('endereco').value = data.logradouro || '';
+                    document.getElementById('bairro').value = data.bairro || '';
+                    document.getElementById('cidade').value = data.localidade || '';
+                    document.getElementById('estado').value = data.uf || '';
+                }
+            } catch (error) {
+                console.log('Erro ao buscar CEP:', error);
+            }
+        }
+
+        // Máscara para CPF
+        function formatarCPF(valor) {
+            return valor.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        }
+
+        // Máscara para telefone
+        function formatarTelefone(valor) {
+            valor = valor.replace(/\D/g, '');
+            if (valor.length <= 10) {
+                return valor.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+            } else {
+                return valor.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+            }
+        }
+
+        // Salvar funcionário no banco de dados
+        async function salvarFuncionario() {
+            const form = document.getElementById('novoFuncionarioForm');
+            const formData = new FormData(form);
+            
+            // Validar campos obrigatórios
+            const requiredFields = form.querySelectorAll('[required]');
+            let isValid = true;
+            
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    isValid = false;
+                    field.style.borderColor = '#ef4444';
+                } else {
+                    field.style.borderColor = '#d1d5db';
+                }
+            });
+            
+            if (!isValid) {
+                alert('Por favor, preencha todos os campos obrigatórios.');
+                return;
+            }
+
+            // Converter FormData para objeto
+            const funcionarioData = {};
+            for (let [key, value] of formData.entries()) {
+                funcionarioData[key] = value;
+            }
+
+            // Adicionar timestamp
+            funcionarioData.data_cadastro = new Date().toISOString();
+            
+            // Mostrar loading
+            const btnSalvar = form.querySelector('.btn-primary');
+            const originalText = btnSalvar.innerHTML;
+            btnSalvar.classList.add('loading');
+            btnSalvar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+            btnSalvar.disabled = true;
+            
+            try {
+                const response = await fetch('/api/funcionarios', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(funcionarioData)
+                });
+                
+                if (response.ok) {
+                    const resultado = await response.json();
+                    alert('âœ… Funcionário cadastrado com sucesso!');
+                    closeNovoFuncionarioModal();
+                    
+                    // Atualizar contador se existir
+                    const totalElement = document.getElementById('total-funcionarios');
+                    if (totalElement) {
+                        const currentTotal = parseInt(totalElement.textContent) || 0;
+                        totalElement.textContent = currentTotal + 1;
+                    }
+                } else {
+                    const error = await response.json();
+                    alert('âŒ Erro ao cadastrar funcionário: ' + (error.message || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('âŒ Erro de conexão. Verifique sua internet e tente novamente.');
+            } finally {
+                // Remover loading
+                btnSalvar.classList.remove('loading');
+                btnSalvar.innerHTML = originalText;
+                btnSalvar.disabled = false;
+            }
+        }
+
+        // Inicializar quando o documento estiver pronto
+        function initializeDashboard() {
+            console.log('Inicializando dashboard...');
+            
+            // Verificar se os modais existem
+            const modalFuncionario = document.getElementById('novoFuncionarioModal');
+            const modalHolerites = document.getElementById('gerarHoleritesModal');
+            
+            if (!modalFuncionario) {
+                console.error('Modal de funcionário não encontrado!');
+            } else {
+                console.log('Modal de funcionário encontrado âœ“');
+            }
+            
+            if (!modalHolerites) {
+                console.error('Modal de holerites não encontrado!');
+            } else {
+                console.log('Modal de holerites encontrado âœ“');
+            }
+            
+            // Garantir que os modais estejam ocultos inicialmente
+            if (modalFuncionario) modalFuncionario.style.display = 'none';
+            if (modalHolerites) modalHolerites.style.display = 'none';
+
+            // Verificar se os botões existem e adicionar event listeners alternativos
+            const btnFuncionario = document.getElementById('btnNovoFuncionario');
+            const btnHolerites = document.getElementById('btnGerarHolerites');
+
+            if (btnFuncionario) {
+                console.log('Botão Novo Funcionário encontrado âœ“');
+                // Adicionar event listener alternativo
+                btnFuncionario.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('Clique detectado no botão Novo Funcionário');
+                    window.openNovoFuncionarioModal();
+                });
+            } else {
+                console.warn('Botão Novo Funcionário não encontrado!');
+            }
+
+            if (btnHolerites) {
+                console.log('Botão Gerar Holerites encontrado âœ“');
+                // Adicionar event listener alternativo
+                btnHolerites.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('Clique detectado no botão Gerar Holerites');
+                    window.openGerarHoleritesModal();
+                });
+            } else {
+                console.warn('Botão Gerar Holerites não encontrado!');
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeDashboard();
+            // Máscara para CPF
+            const cpfInput = document.getElementById('cpf');
+            if (cpfInput) {
+                cpfInput.addEventListener('input', function(e) {
+                    e.target.value = formatarCPF(e.target.value);
+                });
+            }
+
+            // Máscara para telefone
+            const telefoneInput = document.getElementById('telefone');
+            if (telefoneInput) {
+                telefoneInput.addEventListener('input', function(e) {
+                    e.target.value = formatarTelefone(e.target.value);
+                });
+            }
+
+            // Buscar CEP automaticamente
+            const cepInput = document.getElementById('cep');
+            if (cepInput) {
+                cepInput.addEventListener('blur', function(e) {
+                    const cep = e.target.value.replace(/\D/g, '');
+                    if (cep.length === 8) {
+                        buscarCEP(cep);
+                    }
+                });
+            }
+
+            // Event listeners para o modal de holerites
+            const tipoGeracaoSelect = document.getElementById('tipo_geracao');
+            if (tipoGeracaoSelect) {
+                tipoGeracaoSelect.addEventListener('change', controlarCamposFiltro);
+            }
+
+            const formatoSaidaSelect = document.getElementById('formato_saida');
+            if (formatoSaidaSelect) {
+                formatoSaidaSelect.addEventListener('change', controlarCamposEmail);
+            }
+
+            // Event listeners para recalcular preview
+            const camposCalculo = ['dias_trabalhados', 'horas_extras', 'faltas', 'outros_descontos'];
+            camposCalculo.forEach(campo => {
+                const elemento = document.getElementById(campo);
+                if (elemento) {
+                    elemento.addEventListener('input', calcularPreview);
+                }
+            });
+
+            // Fechar modals com ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    closeNovoFuncionarioModal();
+                    closeGerarHoleritesModal();
+                }
+            });
+        });
+
+        // Função principal para gerar holerites
+        async function gerarHolerites() {
+            const form = document.getElementById('gerarHoleritesForm');
+            const formData = new FormData(form);
+            
+            // Validar campos obrigatórios
+            const competencia = document.getElementById('competencia').value;
+            const tipoGeracao = document.getElementById('tipo_geracao').value;
+            const formatoSaida = document.getElementById('formato_saida').value;
+            
+            if (!competencia || !tipoGeracao || !formatoSaida) {
+                alert('Por favor, preencha todos os campos obrigatórios.');
+                return;
+            }
+
+            // Validar filtros específicos
+            if (tipoGeracao === 'departamento' && !document.getElementById('filtro_departamento').value) {
+                alert('Por favor, selecione um departamento.');
+                return;
+            }
+            
+            if (tipoGeracao === 'funcionario' && !document.getElementById('filtro_funcionario').value) {
+                alert('Por favor, selecione um funcionário.');
+                return;
+            }
+
+            // Converter FormData para objeto
+            const holeritesData = {};
+            for (let [key, value] of formData.entries()) {
+                holeritesData[key] = value;
+            }
+
+            // Adicionar dados calculados
+            holeritesData.data_geracao = new Date().toISOString();
+            
+            // Mostrar loading
+            const btnGerar = form.querySelector('.btn-primary');
+            const originalText = btnGerar.innerHTML;
+            btnGerar.classList.add('loading');
+            btnGerar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando Holerites...';
+            btnGerar.disabled = true;
+            
+            try {
+                const response = await fetch('/api/holerites/gerar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(holeritesData)
+                });
+                
+                if (response.ok) {
+                    const resultado = await response.json();
+                    
+                    if (formatoSaida === 'email') {
+                        alert(`âœ… Holerites enviados por email com sucesso!ðŸ“§ ${resultado.emails_enviados || 0} emails enviados`);
+                    } else {
+                        alert(`âœ… Holerites gerados com sucesso!ðŸ“„ ${resultado.arquivos_gerados || 0} arquivos criados`);
+                        
+                        // Se houver arquivo para download
+                        if (resultado.download_url) {
+                            window.open(resultado.download_url, '_blank');
+                        }
+                    }
+                    
+                    closeGerarHoleritesModal();
+                } else {
+                    const error = await response.json();
+                    alert('âŒ Erro ao gerar holerites: ' + (error.message || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('âŒ Erro de conexão. Verifique sua internet e tente novamente.');
+            } finally {
+                // Remover loading
+                btnGerar.classList.remove('loading');
+                btnGerar.innerHTML = originalText;
+                btnGerar.disabled = false;
+            }
+        }
+    </script>
+    
+    <!-- Script de correção dos números -->
+    <script src="../dashboard-numbers-script.js"></script>
+
+<!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+<!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+        <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

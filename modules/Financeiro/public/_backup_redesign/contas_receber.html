@@ -1,0 +1,3008 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Contas a Receber</title>
+
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #0ea5e9;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-gray);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-orange);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav {
+            display: flex; flex-direction: column; gap: 4px; flex: 1;
+        }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s;
+            position: relative;
+        }
+
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn:focus, .sidebar-btn:focus-visible { outline: none; border: none; box-shadow: none; }
+        .sidebar-btn.active { background: var(--primary-orange); color: white; }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+
+        .main-area {
+            flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */
+        }
+
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .header-btn:focus, .header-btn:focus-visible { outline: none; border: none; box-shadow: none; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        .notification-container { position: relative; }
+        .notification-btn { position: relative; }
+
+        .notification-badge {
+            position: absolute; top: 2px; right: 2px;
+            min-width: 18px; height: 18px;
+            background: #ef4444; color: white;
+            font-size: 10px; font-weight: 600;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 5px;
+        }
+
+        .notification-badge.hidden { display: none; }
+
+        /* Layout corrigido */
+        .nav-tooltip {
+            z-index: 1100 !important;
+            overflow: visible !important;
+        }
+
+        .filters-bar {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: grid;
+            grid-template-columns: 2fr repeat(4, 1fr);
+            gap: 16px;
+            align-items: end;
+        }
+
+        @media (max-width: 1200px) {
+            .filters-bar {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filter-group label i {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .filter-input {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        /* Barra de Pesquisa Global */
+        .search-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-global {
+            width: 100%;
+            padding-right: 36px;
+        }
+
+        .clear-search {
+            position: absolute;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 50%;
+            transition: all 0.2s;
+            display: none;
+        }
+
+        .clear-search:hover {
+            color: #ef4444;
+            background: #fee2e2;
+        }
+
+        .search-global:not(:placeholder-shown) + .clear-search {
+            display: block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #16a34a, #15803d);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        /* Resultados da pesquisa */
+        .search-results-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: #f0f9ff;
+            border-bottom: 1px solid #bae6fd;
+            font-size: 14px;
+            color: #0369a1;
+        }
+
+        .search-results-info strong {
+            color: #0c4a6e;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            padding: 20px 24px;
+            border-bottom: 2px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f9fafb;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 14px;
+            color: #374151;
+        }
+
+        tr:hover {
+            background: #f9fafb;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-received { background: #d1fae5; color: #065f46; }
+        .badge-overdue { background: #fee2e2; color: #991b1b; }
+        .badge-partial { background: #dbeafe; color: #1e40af; }
+
+        /* Ações da Tabela */
+        .actions-cell {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            padding: 8px 10px;
+            cursor: pointer;
+            color: #6b7280;
+            transition: all 0.2s;
+            font-size: 14px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .action-btn.view {
+            color: #3b82f6;
+        }
+        .action-btn.view:hover {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .action-btn.success {
+            color: #10b981;
+        }
+        .action-btn.success:hover {
+            background: #d1fae5;
+            color: #059669;
+        }
+
+        .action-btn.edit {
+            color: #f59e0b;
+        }
+        .action-btn.edit:hover {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .action-btn.danger {
+            color: #ef4444;
+        }
+        .action-btn.danger:hover {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .action-btn.mail {
+            color: #0ea5e9;
+        }
+        .action-btn.mail:hover {
+            background: #e0f2fe;
+            color: #0284c7;
+        }
+
+        /* ===== CENTRO DE NOTIFICAÇÕES ===== */
+        .notification-center {
+            position: relative;
+            margin-right: 12px;
+        }
+
+        .notification-bell {
+            position: relative;
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .notification-bell:hover {
+            background: #f1f5f9;
+            color: #3b82f6;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 10px;
+            min-width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .notification-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 380px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            max-height: 500px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .notification-dropdown.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .notification-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+        }
+
+        .notification-header h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notification-header button {
+            background: none;
+            border: none;
+            color: #3b82f6;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .notification-header button:hover {
+            background: #eff6ff;
+        }
+
+        .notification-list {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 350px;
+        }
+
+        .notification-item {
+            padding: 16px 20px;
+            display: flex;
+            gap: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .notification-item:hover {
+            background: #f9fafb;
+        }
+
+        .notification-item.unread {
+            background: #eff6ff;
+        }
+
+        .notification-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 16px;
+        }
+
+        .notification-icon.success { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+        .notification-icon.warning { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+        .notification-icon.error { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+        .notification-icon.info { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-content p {
+            margin: 0 0 4px;
+            font-size: 14px;
+            color: #1f2937;
+            line-height: 1.4;
+        }
+
+        .notification-time {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .notification-footer {
+            padding: 12px 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            background: #f9fafb;
+        }
+
+        .notification-footer a {
+            color: #3b82f6;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .notification-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .no-notifications {
+            padding: 40px 20px;
+            text-align: center;
+            color: #9ca3af;
+        }
+
+        .no-notifications i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            display: block;
+            opacity: 0.5;
+        }
+
+        .no-notifications p {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        /* ===== MODAL DE VISUALIZAÇÃO ===== */
+        .view-details {
+            padding: 0;
+        }
+
+        .view-status-bar {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .view-status-bar .badge {
+            padding: 8px 20px;
+            font-size: 14px;
+        }
+
+        .view-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .view-item {
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .view-item.full-width {
+            grid-column: span 2;
+        }
+
+        .view-item.highlight {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border-color: #93c5fd;
+        }
+
+        .view-item label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .view-item label i {
+            color: #3b82f6;
+        }
+
+        .view-item span {
+            display: block;
+            font-size: 15px;
+            color: #1f2937;
+            font-weight: 500;
+        }
+
+        .valor-destaque {
+            font-size: 24px !important;
+            font-weight: 700 !important;
+            color: #1e40af !important;
+        }
+
+        .view-recebimento {
+            margin-top: 24px;
+            padding: 20px;
+            background: #d1fae5;
+            border-radius: 12px;
+            border: 1px solid #6ee7b7;
+        }
+
+        .view-recebimento h4 {
+            color: #065f46;
+            margin: 0 0 16px 0;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .view-recebimento .view-grid {
+            gap: 12px;
+        }
+
+        .view-recebimento .view-item {
+            background: white;
+            border-color: #a7f3d0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        /* ===== MODAL INSTITUCIONAL ===== */
+        .modal-institucional {
+            max-width: 750px;
+            padding: 0;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .modal-header-institucional {
+            background: linear-gradient(135deg, #0369a1, #075985);
+            padding: 28px 32px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+        }
+
+        .modal-header-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .modal-header-info {
+            flex: 1;
+        }
+
+        .modal-header-info .modal-title {
+            color: white;
+            font-size: 22px;
+            margin: 0;
+        }
+
+        .modal-header-info .modal-subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            margin: 4px 0 0 0;
+        }
+
+        .close-modal-inst {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 24px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .close-modal-inst:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .form-section {
+            padding: 24px 32px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .form-section:last-of-type {
+            border-bottom: none;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .section-header i {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #0369a1;
+            font-size: 14px;
+        }
+
+        .section-header h4 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .section-content {
+            padding-left: 42px;
+        }
+
+        .form-group.full {
+            grid-column: span 2;
+        }
+
+        .form-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+        }
+
+        .form-group label i {
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .input-hint {
+            display: block;
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 6px;
+        }
+
+        .input-with-prefix {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-prefix {
+            position: absolute;
+            left: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .form-input.with-prefix {
+            padding-left: 36px;
+        }
+
+        .parcelas-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .parcelas-wrapper .form-input {
+            width: 80px;
+            text-align: center;
+        }
+
+        .parcelas-info {
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .parcelas-preview {
+            margin-top: 16px;
+            background: #f9fafb;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            overflow: hidden;
+        }
+
+        .preview-header {
+            background: #f3f4f6;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .preview-content {
+            padding: 12px 16px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .parcela-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            border-bottom: 1px dashed #e5e7eb;
+        }
+
+        .parcela-item:last-child {
+            border-bottom: none;
+        }
+
+        .parcela-numero {
+            color: #6b7280;
+        }
+
+        .parcela-data {
+            color: #374151;
+        }
+
+        .parcela-valor {
+            font-weight: 600;
+            color: #1e40af;
+        }
+
+        .form-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px dashed #e5e7eb;
+        }
+
+        .checkbox-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 10px 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.2s;
+        }
+
+        .checkbox-option:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+        }
+
+        .checkbox-option input {
+            display: none;
+        }
+
+        .checkbox-option .checkmark {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .checkbox-option input:checked + .checkmark {
+            background: #0ea5e9;
+            border-color: #0ea5e9;
+        }
+
+        .checkbox-option input:checked + .checkmark::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .checkbox-option .option-text {
+            font-size: 13px;
+            color: #4b5563;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .checkbox-option .option-text i {
+            color: #6b7280;
+        }
+
+        .modal-footer-institucional {
+            padding: 20px 32px;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .footer-info i {
+            color: #9ca3af;
+        }
+
+        .footer-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-cancel {
+            background: white;
+            color: #6b7280;
+            border: 1px solid #d1d5db;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-cancel:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(30, 64, 175, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .modal-institucional {
+                max-width: 95%;
+                margin: 10px;
+            }
+
+            .section-content {
+                padding-left: 0;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .form-group.full {
+                grid-column: span 1;
+            }
+
+            .modal-footer-institucional {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .footer-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #6b7280;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #1e40af;
+            box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .summary-value {
+            font-size: 24px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .summary-label {
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 600;
+        }
+
+        .parcelas-list {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .parcela-item {
+            padding: 8px;
+            background: white;
+            margin-bottom: 6px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        /* Sistema de Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            animation: slideIn 0.3s ease-out;
+            min-width: 300px;
+            max-width: 450px;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .toast.warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .toast.info {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+
+        .toast i {
+            font-size: 20px;
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .toast-message {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* ===== SAUDAÇÃO DO USUÁRIO ===== */
+        .user-greeting {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 16px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .user-greeting strong {
+            color: #1e40af;
+            font-weight: 600;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            overflow: hidden;
+            border: 2px solid #e5e7eb;
+            transition: all 0.2s;
+        }
+
+        .user-avatar:hover {
+            border-color: #3b82f6;
+            transform: scale(1.05);
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .btn-nova-conta {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7) !important;
+            color: white !important;
+            padding: 10px 20px !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            border: none !important;
+            cursor: pointer !important;
+            transition: all 0.2s !important;
+            font-size: 13px !important;
+        }
+
+        .btn-nova-conta:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(30, 64, 175, 0.3) !important;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Botão Importar XLSX */
+        .btn-importar {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        .btn-importar:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="js/importar-xlsx.js"></script>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Design System Institucional Financeiro -->
+    <link rel="stylesheet" href="css/financeiro-common.css?v=20260215">
+
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/tooltips-professional.js?v=20260216"></script>
+
+</head>
+<body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="app-container">
+        <!-- Overlay Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <!-- Sidebar Lateral -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'">
+                    <i class="fas fa-chart-pie"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas a Pagar" onclick="window.location.href='contas_pagar.html'">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </button>
+                <button class="sidebar-btn active" title="Contas a Receber" onclick="window.location.href='contas_receber.html'">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas Bancárias" onclick="window.location.href='contas_bancarias.html'">
+                    <i class="fas fa-university"></i>
+                </button>
+                <button class="sidebar-btn" title="Fluxo de Caixa" onclick="window.location.href='fluxo_caixa.html'">
+                    <i class="fas fa-money-bill-wave"></i>
+                </button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area" data-page-name="Contas a Receber">
+            <!-- Header -->
+            <header class="header" id="financeiro-header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Contas a Receber</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count">0</span>
+                        </button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Resumo -->
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-value" style="color: #1e40af;" id="total-receber">R$ 0,00</div>
+                        <div class="summary-label">Total a Receber</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" style="color: #3b82f6;" id="total-vencendo">R$ 0,00</div>
+                        <div class="summary-label">Vencendo (7 dias)</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" style="color: #ef4444;" id="total-vencidas">R$ 0,00</div>
+                        <div class="summary-label">Inadimplentes</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" style="color: #1e3a8a;" id="total-recebidas">R$ 0,00</div>
+                        <div class="summary-label">Recebidas este Mês</div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="filters-bar">
+                    <!-- Barra de Pesquisa Global -->
+                    <div class="filter-group" style="flex: 2;">
+                        <label><i class="fas fa-search"></i> Pesquisar</label>
+                        <div class="search-input-wrapper">
+                            <input type="text" class="filter-input search-global" id="pesquisa-global"
+                                   placeholder="Buscar por Descrição, cliente, valor..."
+                                   oninput="pesquisarGlobal()">
+                            <button type="button" class="clear-search" onclick="limparPesquisa()" title="Limpar pesquisa">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar"></i> Período</label>
+                        <select class="filter-input" id="filtro-periodo" onchange="filtrarContas()">
+                            <option value="todas">Todas</option>
+                            <option value="mes">Este Mês</option>
+                            <option value="proximos7">Próximos 7 dias</option>
+                            <option value="proximos30">Próximos 30 dias</option>
+                            <option value="vencidas">Vencidas</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-tag"></i> Status</label>
+                        <select class="filter-input" id="filtro-status" onchange="filtrarContas()">
+                            <option value="">Todos</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="recebido">Recebido</option>
+                            <option value="vencido">Vencido</option>
+                            <option value="parcial">Parcial</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-user"></i> Cliente</label>
+                        <select class="filter-input" id="filtro-cliente-select" onchange="filtrarContas()">
+                            <option value="">Todos os clientes</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="align-self: end;">
+                        <button class="btn-secondary" onclick="limparFiltros()" title="Limpar filtros">
+                            <i class="fas fa-eraser"></i> Limpar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3 class="table-title">Listagem de Contas a Receber</h3>
+                        <div>
+                            <button class="btn-warning" onclick="enviarCobrancas()">
+                                <i class="fas fa-envelope"></i> Cobranças
+                            </button>
+                            <button class="btn-success" onclick="exportarExcel()" style="margin-left: 8px;">
+                                <i class="fas fa-file-excel"></i> Exportar
+                            </button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Descrição</th>
+                                <th>Cliente</th>
+                                <th>Vencimento</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-contas">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 60px; color: #9ca3af;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                                    Carregando contas...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Visualizar Conta -->
+    <div id="modal-visualizar" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; margin: -32px -32px 24px -32px; padding: 24px 32px; border-radius: 16px 16px 0 0;">
+                <h3 class="modal-title" style="color: white; display: flex; align-items: center; gap: 12px;">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <span>Detalhes da Conta</span>
+                </h3>
+                <button class="close-modal" onclick="fecharModalVisualizar()" style="color: white;">&times;</button>
+            </div>
+
+            <div class="view-details">
+                <div class="view-status-bar" id="view-status-bar">
+                    <span class="badge" id="view-status-badge">Pendente</span>
+                </div>
+
+                <div class="view-grid">
+                    <div class="view-item">
+                        <label><i class="fas fa-hashtag"></i> ID</label>
+                        <span id="view-id">-</span>
+                    </div>
+                    <div class="view-item">
+                        <label><i class="fas fa-file-alt"></i> Descrição</label>
+                        <span id="view-descrição">-</span>
+                    </div>
+                    <div class="view-item">
+                        <label><i class="fas fa-user"></i> Cliente</label>
+                        <span id="view-cliente">-</span>
+                    </div>
+                    <div class="view-item">
+                        <label><i class="fas fa-folder"></i> Categoria</label>
+                        <span id="view-categoria">-</span>
+                    </div>
+                    <div class="view-item highlight">
+                        <label><i class="fas fa-dollar-sign"></i> Valor</label>
+                        <span id="view-valor" class="valor-destaque">R$ 0,00</span>
+                    </div>
+                    <div class="view-item">
+                        <label><i class="fas fa-calendar"></i> Vencimento</label>
+                        <span id="view-vencimento">-</span>
+                    </div>
+                    <div class="view-item">
+                        <label><i class="fas fa-credit-card"></i> Forma de Pagamento</label>
+                        <span id="view-forma">-</span>
+                    </div>
+                    <div class="view-item">
+                        <label><i class="fas fa-file-invoice"></i> Nº Documento</label>
+                        <span id="view-documento">-</span>
+                    </div>
+                    <div class="view-item full-width">
+                        <label><i class="fas fa-sticky-note"></i> Observações</label>
+                        <span id="view-observacoes">-</span>
+                    </div>
+                </div>
+
+                <div class="view-recebimento" id="view-recebimento-info" style="display: none;">
+                    <h4><i class="fas fa-check-circle"></i> Informações de Recebimento</h4>
+                    <div class="view-grid">
+                        <div class="view-item">
+                            <label>Data do Recebimento</label>
+                            <span id="view-data-recebimento">-</span>
+                        </div>
+                        <div class="view-item">
+                            <label>Valor Recebido</label>
+                            <span id="view-valor-recebido">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+                <button type="button" class="btn-secondary" onclick="fecharModalVisualizar()">
+                    <i class="fas fa-times"></i> Fechar
+                </button>
+                <button type="button" class="btn-primary" onclick="editarContaFromView()" id="btn-editar-view">
+                    <i class="fas fa-edit"></i> Editar
+                </button>
+                <button type="button" class="btn-success" onclick="receberContaFromView()" id="btn-receber-view">
+                    <i class="fas fa-check-circle"></i> Receber
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nova/Editar Conta - Design Institucional -->
+    <div id="modal-conta" class="modal">
+        <div class="modal-content modal-institucional">
+            <!-- Header Institucional -->
+            <div class="modal-header-institucional">
+                <div class="modal-header-icon">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </div>
+                <div class="modal-header-info">
+                    <h3 class="modal-title" id="modal-titulo">Nova Receita</h3>
+                    <p class="modal-subtitle">Cadastre uma nova conta a receber</p>
+                </div>
+                <button class="close-modal-inst" onclick="fecharModal()">&times;</button>
+            </div>
+
+            <!-- Corpo do Modal -->
+            <form id="form-conta" onsubmit="salvarConta(event)">
+                <input type="hidden" id="conta-id">
+
+                <!-- Seção: Informações Principais -->
+                <div class="form-section">
+                    <div class="section-header">
+                        <i class="fas fa-info-circle"></i>
+                        <h4>Informações Principais</h4>
+                    </div>
+                    <div class="section-content">
+                        <div class="form-group full">
+                            <label><i class="fas fa-file-alt"></i> Descrição *</label>
+                            <input type="text" class="form-input" id="descrição" placeholder="Ex: Venda de produtos, Serviço prestado..." required>
+                            <span class="input-hint">Descreva brevemente a origem desta receita</span>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-user-tie"></i> Cliente *</label>
+                                <select class="form-input" id="cliente-id" required>
+                                    <option value="">Selecione o cliente...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-folder-open"></i> Categoria *</label>
+                                <select class="form-input" id="categoria-id" required>
+                                    <option value="">Selecione a categoria...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção: Valores e Datas -->
+                <div class="form-section">
+                    <div class="section-header">
+                        <i class="fas fa-dollar-sign"></i>
+                        <h4>Valores e Datas</h4>
+                    </div>
+                    <div class="section-content">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-money-bill-wave"></i> Valor *</label>
+                                <div class="input-with-prefix">
+                                    <span class="input-prefix">R$</span>
+                                    <input type="number" step="0.01" min="0.01" class="form-input with-prefix" id="valor" placeholder="0,00" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-calendar-alt"></i> Data de Vencimento *</label>
+                                <input type="date" class="form-input" id="data-vencimento" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-credit-card"></i> Forma de Recebimento</label>
+                                <select class="form-input" id="forma-pagamento">
+                                    <option value="pix">💳 PIX</option>
+                                    <option value="boleto">📄 Boleto Bancário</option>
+                                    <option value="transferencia">🏦 Transferência Bancária</option>
+                                    <option value="cartao">💳 Cartão de Crédito/Débito</option>
+                                    <option value="dinheiro">💵 Dinheiro</option>
+                                    <option value="cheque">📝 Cheque</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-layer-group"></i> Parcelas</label>
+                                <div class="parcelas-wrapper">
+                                    <input type="number" min="1" max="48" value="1" class="form-input" id="num-parcelas" onchange="calcularParcelas()">
+                                    <span class="parcelas-info" id="parcelas-info">à vista</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Preview de Parcelas -->
+                        <div class="parcelas-preview" id="parcelas-preview" style="display: none;">
+                            <div class="preview-header">
+                                <i class="fas fa-calculator"></i>
+                                <span>Simulação de Parcelas</span>
+                            </div>
+                            <div class="preview-content" id="parcelas-lista"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção: Informações Adicionais -->
+                <div class="form-section">
+                    <div class="section-header">
+                        <i class="fas fa-plus-circle"></i>
+                        <h4>Informações Adicionais</h4>
+                    </div>
+                    <div class="section-content">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-file-invoice"></i> Número do Documento</label>
+                                <input type="text" class="form-input" id="numero-documento" placeholder="NF, Recibo, Contrato...">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-building"></i> Centro de Custo</label>
+                                <select class="form-input" id="centro-custo">
+                                    <option value="">Selecione (opcional)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group full">
+                            <label><i class="fas fa-sticky-note"></i> Observações</label>
+                            <textarea class="form-input" id="observacoes" rows="3" placeholder="Informações adicionais sobre esta receita..."></textarea>
+                        </div>
+
+                        <!-- Opções Extras -->
+                        <div class="form-options">
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="enviar-notificacao">
+                                <span class="checkmark"></span>
+                                <span class="option-text">
+                                    <i class="fas fa-bell"></i> Notificar antes do vencimento
+                                </span>
+                            </label>
+                            <label class="checkbox-option">
+                                <input type="checkbox" id="gerar-boleto">
+                                <span class="checkmark"></span>
+                                <span class="option-text">
+                                    <i class="fas fa-barcode"></i> Gerar boleto automaticamente
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer com Ações -->
+                <div class="modal-footer-institucional">
+                    <div class="footer-info">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Campos com * são obrigatórios</span>
+                    </div>
+                    <div class="footer-actions">
+                        <button type="button" class="btn-cancel" onclick="fecharModal()">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn-save">
+                            <i class="fas fa-save"></i> Salvar Receita
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Receber -->
+    <div id="modal-receber" class="modal">
+        <div class="modal-content modal-institucional" style="max-width: 500px;">
+            <div class="modal-header-institucional" style="background: linear-gradient(135deg, #10b981, #059669);">
+                <div class="modal-header-icon">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </div>
+                <div class="modal-header-info">
+                    <h3 class="modal-title">Confirmar Recebimento</h3>
+                    <p class="modal-subtitle">Registre o recebimento desta conta</p>
+                </div>
+                <button class="close-modal-inst" onclick="fecharModalReceber()">&times;</button>
+            </div>
+            <form id="form-receber" onsubmit="confirmarRecebimento(event)">
+                <input type="hidden" id="receber-conta-id">
+
+                <div class="form-section" style="border: none; margin: 0;">
+                    <div class="section-content" style="padding-top: 0;">
+                        <div class="form-group">
+                            <label><i class="fas fa-receipt"></i> Valor Original</label>
+                            <input type="text" class="form-input" id="receber-valor-original" readonly style="background: #f3f4f6; font-weight: 700; font-size: 18px; color: #1e40af;">
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-money-bill-wave"></i> Valor Recebido *</label>
+                                <div class="input-with-prefix">
+                                    <span class="input-prefix">R$</span>
+                                    <input type="number" step="0.01" class="form-input with-prefix" id="receber-valor" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-calendar-check"></i> Data *</label>
+                                <input type="date" class="form-input" id="receber-data" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-credit-card"></i> Forma de Recebimento</label>
+                            <select class="form-input" id="receber-forma">
+                                <option value="pix">💳 PIX</option>
+                                <option value="transferencia">🏦 Transferência</option>
+                                <option value="boleto">📄 Boleto</option>
+                                <option value="cartao">💳 Cartão</option>
+                                <option value="dinheiro">💵 Dinheiro</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-sticky-note"></i> Observações</label>
+                            <textarea class="form-input" id="receber-obs" rows="2" placeholder="Informações sobre o recebimento..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer-institucional">
+                    <div class="footer-actions" style="width: 100%; justify-content: flex-end;">
+                        <button type="button" class="btn-cancel" onclick="fecharModalReceber()">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn-save" style="background: linear-gradient(135deg, #10b981, #059669);">
+                            <i class="fas fa-check-circle"></i> Confirmar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ===== SISTEMA DE TOAST =====
+        function showToast(message, type = 'info', title = null, duration = 4000) {
+            const container = document.getElementById('toast-container');
+
+            const icons = {
+                success: 'fas fa-check-circle',
+                error: 'fas fa-exclamation-circle',
+                warning: 'fas fa-exclamation-triangle',
+                info: 'fas fa-info-circle'
+            };
+
+            const titles = {
+                success: 'Sucesso',
+                error: 'Erro',
+                warning: 'Atenção',
+                info: 'Informação'
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="${icons[type]}"></i>
+                <div class="toast-content">
+                    <div class="toast-title">${title || titles[type]}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        // Toggle sidebar
+        document.getElementById('toggle-sidebar')?.addEventListener('click', () => {
+            document.querySelector('.sidebar')?.classList.toggle('active');
+            document.getElementById('sidebar-overlay')?.classList.toggle('active');
+        });
+
+        document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+            document.querySelector('.sidebar')?.classList.remove('active');
+            document.getElementById('sidebar-overlay')?.classList.remove('active');
+        });
+
+        let contas = [];
+
+        // Carregar dados iniciais
+        async function init() {
+            await Promise.all([
+                carregarResumo(),
+                carregarContas(),
+                carregarClientes(),
+                carregarCategorias()
+            ]);
+
+            // Verificar se foi redirecionado com ao para abrir modal
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('acao') === 'nova') {
+                // Abrir modal de nova receita
+                abrirModal();
+                // Limpar o parâmetro da URL sem recarregar a página
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        }
+
+        async function carregarResumo() {
+            try {
+                const response = await fetch('/api/financeiro/contas-receber/estatisticas', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('total-receber').textContent =
+                        `R$ ${(data.total_receber || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+                    document.getElementById('total-vencendo').textContent =
+                        `R$ ${(data.vencendo || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+                    document.getElementById('total-vencidas').textContent =
+                        `R$ ${(data.vencidas || data.inadimplentes || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+                    document.getElementById('total-recebidas').textContent =
+                        `R$ ${(data.recebidas_mes || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar resumo:', error);
+            }
+        }
+
+        async function carregarContas() {
+            try {
+                const response = await fetch('/api/financeiro/contas-receber', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    // API retorna { success: true, data: rows }
+                    contas = result.data || result || [];
+                    renderizarTabela(contas);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar contas:', error);
+                document.getElementById('tabela-contas').innerHTML = `
+                    <tr><td colspan="7" style="text-align: center; color: #ef4444; padding: 40px;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                        Erro ao carregar contas
+                    </td></tr>
+                `;
+            }
+        }
+
+        // Função auxiliar para formatar data de forma segura
+        function formatarDataSegura(data) {
+            if (!data) return 'Sem data';
+            const d = new Date(data);
+            if (isNaN(d.getTime())) return 'Data inválida';
+            return d.toLocaleDateString('pt-BR');
+        }
+
+        function renderizarTabela(dados, termoPesquisa = '') {
+            const tbody = document.getElementById('tabela-contas');
+
+            if (dados.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="7" style="text-align: center; padding: 60px; color: #9ca3af;">
+                        <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                        ${termoPesquisa ? 'Nenhum resultado encontrado para "' + termoPesquisa + '"' : 'Nenhuma conta encontrada'}
+                    </td></tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = dados.map(conta => {
+                const status = conta.status || 'pendente';
+                const badges = {
+                    'pendente': '<span class="badge badge-pending">Pendente</span>',
+                    'recebido': '<span class="badge badge-received">Recebido</span>',
+                    'vencido': '<span class="badge badge-overdue">Vencido</span>',
+                    'parcial': '<span class="badge badge-partial">Parcial</span>'
+                };
+
+                return `
+                    <tr>
+                        <td>#${conta.id}</td>
+                        <td><strong>${conta.descrição || 'Sem Descrição'}</strong></td>
+                        <td>${conta.cliente_nome || '-'}</td>
+                        <td>${formatarDataSegura(conta.data_vencimento || conta.vencimento)}</td>
+                        <td><strong>R$ ${(parseFloat(conta.valor_total || conta.valor) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</strong></td>
+                        <td>${badges[status] || badges.pendente}</td>
+                        <td>
+                            <div class="actions-cell">
+                                <button class="action-btn view" onclick="visualizarConta(${conta.id})" title="Visualizar">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                ${status !== 'recebido' ? `<button class="action-btn success" onclick="abrirModalReceber(${conta.id}, ${parseFloat(conta.valor_total || conta.valor) || 0})" title="Marcar como Recebido">
+                                    <i class="fas fa-check-circle"></i>
+                                </button>` : ''}
+                                <button class="action-btn edit" onclick="editarConta(${conta.id})" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                ${status === 'vencido' ? `<button class="action-btn mail" onclick="enviarCobranca(${conta.id})" title="Enviar Cobrança">
+                                    <i class="fas fa-envelope"></i>
+                                </button>` : ''}
+                                <button class="action-btn danger" onclick="excluirConta(${conta.id})" title="Excluir">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function carregarClientes() {
+            try {
+                const response = await fetch('/api/clientes', { credentials: 'include' });
+                if (response.ok) {
+                    const clientes = await response.json();
+                    // Preencher select do modal
+                    const select = document.getElementById('cliente-id');
+                    select.innerHTML = '<option value="">Selecione...</option>' +
+                        clientes.map(c => `<option value="${c.id}">${c.razao_social || c.nome}</option>`).join('');
+
+                    // Preencher select do filtro
+                    const selectFiltro = document.getElementById('filtro-cliente-select');
+                    if (selectFiltro) {
+                        selectFiltro.innerHTML = '<option value="">Todos os clientes</option>' +
+                            clientes.map(c => `<option value="${c.id}">${c.razao_social || c.nome}</option>`).join('');
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar clientes:', error);
+            }
+        }
+
+        async function carregarCategorias() {
+            try {
+                const response = await fetch('/api/financeiro/categorias', { credentials: 'include' });
+                if (response.ok) {
+                    const categorias = await response.json();
+                    const select = document.getElementById('categoria-id');
+                    select.innerHTML = '<option value="">Selecione...</option>' +
+                        categorias.filter(c => c.tipo === 'receita').map(c =>
+                            `<option value="${c.id}">${c.nome}</option>`
+                        ).join('');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar categorias:', error);
+            }
+        }
+
+        function abrirModal(id = null) {
+            document.getElementById('modal-conta').classList.add('active');
+            document.getElementById('form-conta').reset();
+            document.getElementById('conta-id').value = '';
+            document.getElementById('modal-titulo').textContent = 'Nova Receita';
+
+            if (id) {
+                const conta = contas.find(c => c.id === id);
+                if (conta) {
+                    document.getElementById('modal-titulo').textContent = 'Editar Receita';
+                    document.getElementById('conta-id').value = conta.id;
+                    document.getElementById('descrição').value = conta.descrição;
+                    document.getElementById('cliente-id').value = conta.cliente_id;
+                    document.getElementById('categoria-id').value = conta.categoria_id;
+                    document.getElementById('valor').value = conta.valor;
+                    document.getElementById('data-vencimento').value = conta.data_vencimento?.split('T')[0];
+                    document.getElementById('forma-pagamento').value = conta.forma_pagamento || 'dinheiro';
+                    document.getElementById('numero-documento').value = conta.numero_documento || '';
+                    document.getElementById('observacoes').value = conta.observacoes || '';
+                }
+            }
+        }
+
+        function fecharModal() {
+            document.getElementById('modal-conta').classList.remove('active');
+        }
+
+        function abrirModalReceber(id, valor) {
+            const conta = contas.find(c => c.id === id);
+            if (!conta) return;
+
+            document.getElementById('modal-receber').classList.add('active');
+            document.getElementById('receber-conta-id').value = id;
+            document.getElementById('receber-valor-original').value =
+                `R$ ${valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('receber-valor').value = valor;
+            document.getElementById('receber-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('receber-forma').value = conta.forma_pagamento || 'dinheiro';
+        }
+
+        function fecharModalReceber() {
+            document.getElementById('modal-receber').classList.remove('active');
+        }
+
+        async function salvarConta(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('conta-id').value;
+            const dados = {
+                descrição: document.getElementById('descrição').value,
+                cliente_id: document.getElementById('cliente-id').value,
+                categoria_id: document.getElementById('categoria-id').value,
+                valor: parseFloat(document.getElementById('valor').value),
+                data_vencimento: document.getElementById('data-vencimento').value,
+                forma_pagamento: document.getElementById('forma-pagamento').value,
+                numero_documento: document.getElementById('numero-documento').value,
+                observacoes: document.getElementById('observacoes').value,
+                num_parcelas: parseInt(document.getElementById('num-parcelas').value) || 1
+            };
+
+            try {
+                const url = id ? `/api/financeiro/contas-receber/${id}` : '/api/financeiro/contas-receber';
+                const method = id ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast('Conta salva com sucesso!', 'success');
+                    fecharModal();
+                    await init();
+                } else {
+                    showToast('Erro ao salvar conta', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao salvar conta', 'error');
+            }
+        }
+
+        async function confirmarRecebimento(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('receber-conta-id').value;
+            const dados = {
+                valor_recebido: parseFloat(document.getElementById('receber-valor').value),
+                data_recebimento: document.getElementById('receber-data').value,
+                forma_pagamento: document.getElementById('receber-forma').value,
+                observacoes: document.getElementById('receber-obs').value
+            };
+
+            try {
+                const response = await fetch(`/api/financeiro/contas-receber/${id}/receber`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast('Recebimento confirmado com sucesso!', 'success');
+                    fecharModalReceber();
+                    await init();
+                } else {
+                    showToast('Erro ao confirmar recebimento', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao confirmar recebimento', 'error');
+            }
+        }
+
+        function editarConta(id) {
+            abrirModal(id);
+        }
+
+        async function excluirConta(id) {
+            if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
+
+            try {
+                const response = await fetch(`/api/financeiro/contas-receber/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    showToast('Conta excluída com sucesso!', 'success');
+                    await init();
+                } else {
+                    showToast('Erro ao excluir conta', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao excluir conta', 'error');
+            }
+        }
+
+        async function enviarCobranca(id) {
+            if (!confirm('Deseja enviar cobrança para este cliente?')) return;
+
+            try {
+                const response = await fetch(`/api/financeiro/contas-receber/${id}/cobrar`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    showToast('Cobrança enviada com sucesso!', 'success');
+                } else {
+                    showToast('Erro ao enviar cobrança', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao enviar cobrança', 'error');
+            }
+        }
+
+        async function enviarCobrancas() {
+            // Filtrar contas vencidas/pendentes
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+
+            const inadimplentes = contas.filter(c => {
+                const venc = new Date(c.data_vencimento);
+                venc.setHours(0, 0, 0, 0);
+                return venc < hoje && c.status !== 'recebido' && c.cliente_email;
+            });
+
+            if (inadimplentes.length === 0) {
+                showToast('Nenhuma conta vencida com email de cliente cadastrado', 'info');
+                return;
+            }
+
+            // Modal de Confirmação com lista
+            const clientesAgrupados = {};
+            inadimplentes.forEach(c => {
+                if (!clientesAgrupados[c.cliente_id]) {
+                    clientesAgrupados[c.cliente_id] = {
+                        nome: c.cliente_nome,
+                        email: c.cliente_email,
+                        contas: [],
+                        total: 0
+                    };
+                }
+                clientesAgrupados[c.cliente_id].contas.push(c);
+                clientesAgrupados[c.cliente_id].total += parseFloat(c.valor) || 0;
+            });
+
+            const qtdClientes = Object.keys(clientesAgrupados).length;
+            const totalGeral = inadimplentes.reduce((s, c) => s + (parseFloat(c.valor) || 0), 0);
+
+            if (!confirm(`Enviar cobranças em lote?\n\n` +
+                `📧 ${qtdClientes} cliente(s)\n` +
+                `📄 ${inadimplentes.length} conta(s) vencida(s)\n` +
+                `💰 Total: R$ ${totalGeral.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n\n` +
+                `Confirma o envio?`)) {
+                return;
+            }
+
+            showToast('Processando envio de cobranças...', 'info');
+
+            let enviados = 0;
+            let erros = 0;
+
+            for (const clienteId of Object.keys(clientesAgrupados)) {
+                const cliente = clientesAgrupados[clienteId];
+                try {
+                    const response = await fetch('/api/financeiro/enviar-cobranca-lote', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            cliente_id: clienteId,
+                            cliente_nome: cliente.nome,
+                            cliente_email: cliente.email,
+                            contas: cliente.contas.map(c => ({
+                                id: c.id,
+                                descrição: c.descrição,
+                                valor: c.valor,
+                                data_vencimento: c.data_vencimento
+                            })),
+                            total: cliente.total
+                        })
+                    });
+
+                    if (response.ok) {
+                        enviados++;
+                    } else {
+                        erros++;
+                    }
+                } catch (error) {
+                    console.error('Erro ao enviar cobrança:', error);
+                    erros++;
+                }
+            }
+
+            if (enviados > 0) {
+                showToast(`✅ ${enviados} cobrança(s) enviada(s) com sucesso!`, 'success');
+            }
+            if (erros > 0) {
+                showToast(`⚠️ ${erros} cobrança(s) com erro no envio`, 'warning');
+            }
+
+            // Registrar log
+            console.log(`Envio em lote: ${enviados} enviados, ${erros} erros`);
+        }
+
+        function filtrarContas() {
+            const periodo = document.getElementById('filtro-periodo').value;
+            const status = document.getElementById('filtro-status').value;
+            const clienteId = document.getElementById('filtro-cliente-select').value;
+            const pesquisa = document.getElementById('pesquisa-global').value.toLowerCase();
+
+            let filtradas = [...contas];
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+
+            // Filtro por período
+            if (periodo && periodo !== 'todas') {
+                filtradas = filtradas.filter(c => {
+                    const venc = new Date(c.data_vencimento);
+                    venc.setHours(0, 0, 0, 0);
+
+                    switch (periodo) {
+                        case 'mes':
+                            return venc.getMonth() === hoje.getMonth() && venc.getFullYear() === hoje.getFullYear();
+                        case 'proximos7':
+                            const em7dias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
+                            return venc >= hoje && venc <= em7dias;
+                        case 'proximos30':
+                            const em30dias = new Date(hoje.getTime() + 30 * 24 * 60 * 60 * 1000);
+                            return venc >= hoje && venc <= em30dias;
+                        case 'vencidas':
+                            return venc < hoje && c.status !== 'recebido';
+                        default:
+                            return true;
+                    }
+                });
+            }
+
+            // Filtro por status
+            if (status) {
+                filtradas = filtradas.filter(c => c.status === status);
+            }
+
+            // Filtro por cliente
+            if (clienteId) {
+                filtradas = filtradas.filter(c => c.cliente_id == clienteId);
+            }
+
+            // Pesquisa global
+            if (pesquisa) {
+                filtradas = filtradas.filter(c =>
+                    (c.descrição || '').toLowerCase().includes(pesquisa) ||
+                    (c.cliente_nome || '').toLowerCase().includes(pesquisa) ||
+                    (c.valor?.toString() || '').includes(pesquisa) ||
+                    (c.id?.toString() || '').includes(pesquisa) ||
+                    (c.numero_documento || '').toLowerCase().includes(pesquisa)
+                );
+            }
+
+            renderizarTabela(filtradas, pesquisa);
+        }
+
+        // Pesquisa Global (com debounce)
+        let pesquisaTimeout;
+        function pesquisarGlobal() {
+            clearTimeout(pesquisaTimeout);
+            pesquisaTimeout = setTimeout(() => {
+                filtrarContas();
+            }, 300);
+        }
+
+        // Limpar pesquisa
+        function limparPesquisa() {
+            document.getElementById('pesquisa-global').value = '';
+            filtrarContas();
+        }
+
+        // Limpar todos os filtros
+        function limparFiltros() {
+            document.getElementById('pesquisa-global').value = '';
+            document.getElementById('filtro-periodo').value = 'todas';
+            document.getElementById('filtro-status').value = '';
+            document.getElementById('filtro-cliente-select').value = '';
+            renderizarTabela(contas);
+        }
+
+        // ===== VISUALIZAR CONTA =====
+        let contaVisualizando = null;
+
+        function visualizarConta(id) {
+            const conta = contas.find(c => c.id === id);
+            if (!conta) return;
+
+            contaVisualizando = conta;
+
+            // Preencher dados
+            document.getElementById('view-id').textContent = '#' + conta.id;
+            document.getElementById('view-descrição').textContent = conta.descrição || '-';
+            document.getElementById('view-cliente').textContent = conta.cliente_nome || '-';
+            document.getElementById('view-categoria').textContent = conta.categoria_nome || '-';
+            document.getElementById('view-valor').textContent = `R$ ${(conta.valor || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('view-vencimento').textContent = new Date(conta.data_vencimento).toLocaleDateString('pt-BR');
+            document.getElementById('view-forma').textContent = formatarFormaPagamento(conta.forma_pagamento);
+            document.getElementById('view-documento').textContent = conta.numero_documento || '-';
+            document.getElementById('view-observacoes').textContent = conta.observacoes || 'Nenhuma observação';
+
+            // Status badge
+            const badges = {
+                'pendente': { class: 'badge-pending', text: 'Pendente' },
+                'recebido': { class: 'badge-received', text: 'Recebido' },
+                'vencido': { class: 'badge-overdue', text: 'Vencido' },
+                'parcial': { class: 'badge-partial', text: 'Parcial' }
+            };
+            const statusInfo = badges[conta.status] || badges.pendente;
+            document.getElementById('view-status-badge').className = 'badge ' + statusInfo.class;
+            document.getElementById('view-status-badge').textContent = statusInfo.text;
+
+            // Mostrar/ocultar info de recebimento
+            const recebimentoInfo = document.getElementById('view-recebimento-info');
+            const btnReceber = document.getElementById('btn-receber-view');
+
+            if (conta.status === 'recebido') {
+                recebimentoInfo.style.display = 'block';
+                document.getElementById('view-data-recebimento').textContent = conta.data_recebimento
+                    ? new Date(conta.data_recebimento).toLocaleDateString('pt-BR')
+                    : '-';
+                document.getElementById('view-valor-recebido').textContent = conta.valor_recebido
+                    ? `R$ ${conta.valor_recebido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+                    : document.getElementById('view-valor').textContent;
+                btnReceber.style.display = 'none';
+            } else {
+                recebimentoInfo.style.display = 'none';
+                btnReceber.style.display = 'inline-flex';
+            }
+
+            document.getElementById('modal-visualizar').classList.add('active');
+        }
+
+        function formatarFormaPagamento(forma) {
+            const formas = {
+                'dinheiro': 'Dinheiro',
+                'pix': 'PIX',
+                'transferencia': 'Transferência Bancária',
+                'cartao': 'Cartão',
+                'boleto': 'Boleto',
+                'cheque': 'Cheque'
+            };
+            return formas[forma] || forma || '-';
+        }
+
+        function fecharModalVisualizar() {
+            document.getElementById('modal-visualizar').classList.remove('active');
+            contaVisualizando = null;
+        }
+
+        function editarContaFromView() {
+            if (contaVisualizando) {
+                fecharModalVisualizar();
+                editarConta(contaVisualizando.id);
+            }
+        }
+
+        function receberContaFromView() {
+            if (contaVisualizando) {
+                fecharModalVisualizar();
+                abrirModalReceber(contaVisualizando.id, contaVisualizando.valor);
+            }
+        }
+
+        // ===== EXPORTAR EXCEL =====
+        function exportarExcel() {
+            if (contas.length === 0) {
+                showToast('Não há dados para exportar', 'warning');
+                return;
+            }
+
+            // Aplicar filtros atuais
+            const periodo = document.getElementById('filtro-periodo').value;
+            const status = document.getElementById('filtro-status').value;
+            const clienteId = document.getElementById('filtro-cliente-select').value;
+            const pesquisa = document.getElementById('pesquisa-global').value.toLowerCase();
+
+            let dadosExportar = [...contas];
+
+            // Aplicar os mesmos filtros da tabela
+            if (status) dadosExportar = dadosExportar.filter(c => c.status === status);
+            if (clienteId) dadosExportar = dadosExportar.filter(c => c.cliente_id == clienteId);
+            if (pesquisa) {
+                dadosExportar = dadosExportar.filter(c =>
+                    (c.descrição || '').toLowerCase().includes(pesquisa) ||
+                    (c.cliente_nome || '').toLowerCase().includes(pesquisa)
+                );
+            }
+
+            if (dadosExportar.length === 0) {
+                showToast('Não há dados para exportar com os filtros atuais', 'warning');
+                return;
+            }
+
+            // Criar CSV
+            const headers = ['ID', 'Descrição', 'Cliente', 'Vencimento', 'Valor', 'Status', 'Forma Pagamento', 'Nº Documento'];
+            const linhas = dadosExportar.map(c => [
+                c.id,
+                `"${(c.descrição || '').replace(/"/g, '""')}"`,
+                `"${(c.cliente_nome || '').replace(/"/g, '""')}"`,
+                new Date(c.data_vencimento).toLocaleDateString('pt-BR'),
+                (c.valor || 0).toFixed(2).replace('.', ','),
+                c.status || 'pendente',
+                formatarFormaPagamento(c.forma_pagamento),
+                c.numero_documento || ''
+            ]);
+
+            const csv = [headers.join(';'), ...linhas.map(l => l.join(';'))].join('');
+
+            // Download
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `contas_receber_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        // ===== SISTEMA DE NOTIFICAÇÕES =====
+        let notificacoes = [];
+
+        // Toggle dropdown de notificações
+        document.getElementById('notification-bell')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = document.getElementById('notification-dropdown');
+            dropdown.classList.toggle('active');
+        });
+
+        // Fechar dropdown ao clicar fora
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('notification-dropdown');
+            const bell = document.getElementById('notification-bell');
+            if (dropdown && !dropdown.contains(e.target) && !bell.contains(e.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
+
+        // Carregar notificações
+        async function carregarNotificacoes() {
+            try {
+                // Notificações baseadas em contas vencidas e a vencer
+                const notifs = [];
+
+                // Verificar contas vencidas
+                const vencidas = contas.filter(c => c.status === 'vencido');
+                if (vencidas.length > 0) {
+                    notifs.push({
+                        id: 1,
+                        tipo: 'error',
+                        icone: 'fas fa-exclamation-circle',
+                        mensagem: `Você tem ${vencidas.length} conta(s) vencida(s)`,
+                        tempo: 'Agora',
+                        lida: false
+                    });
+                }
+
+                // Verificar contas vencendo em 7 dias
+                const hoje = new Date();
+                const em7dias = new Date(hoje.getTime() + 7 * 24 * 60 * 60 * 1000);
+                const vencendo = contas.filter(c => {
+                    const venc = new Date(c.data_vencimento);
+                    return c.status === 'pendente' && venc >= hoje && venc <= em7dias;
+                });
+
+                if (vencendo.length > 0) {
+                    notifs.push({
+                        id: 2,
+                        tipo: 'warning',
+                        icone: 'fas fa-clock',
+                        mensagem: `${vencendo.length} conta(s) vencem nos próximos 7 dias`,
+                        tempo: 'Agora',
+                        lida: false
+                    });
+                }
+
+                // Contas recebidas hoje
+                const recebidas = contas.filter(c => {
+                    if (c.status !== 'recebido' || !c.data_recebimento) return false;
+                    const receb = new Date(c.data_recebimento);
+                    return receb.toDateString() === hoje.toDateString();
+                });
+
+                if (recebidas.length > 0) {
+                    notifs.push({
+                        id: 3,
+                        tipo: 'success',
+                        icone: 'fas fa-check-circle',
+                        mensagem: `${recebidas.length} conta(s) recebida(s) hoje`,
+                        tempo: 'Hoje',
+                        lida: true
+                    });
+                }
+
+                notificacoes = notifs;
+                renderizarNotificacoes();
+                atualizarBadgeNotificacoes();
+            } catch (error) {
+                console.error('Erro ao carregar notificações:', error);
+            }
+        }
+
+        function renderizarNotificacoes() {
+            const lista = document.getElementById('notification-list');
+
+            if (notificacoes.length === 0) {
+                lista.innerHTML = `
+                    <div class="no-notifications">
+                        <i class="fas fa-inbox"></i>
+                        <p>Nenhuma notificação</p>
+                    </div>
+                `;
+                return;
+            }
+
+            lista.innerHTML = notificacoes.map(n => `
+                <div class="notification-item ${n.lida ? '' : 'unread'}" onclick="marcarLida(${n.id})">
+                    <div class="notification-icon ${n.tipo}">
+                        <i class="${n.icone}"></i>
+                    </div>
+                    <div class="notification-content">
+                        <p>${n.mensagem}</p>
+                        <span class="notification-time">${n.tempo}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function atualizarBadgeNotificacoes() {
+            const badge = document.getElementById('notification-count');
+            const naoLidas = notificacoes.filter(n => !n.lida).length;
+
+            if (naoLidas > 0) {
+                badge.textContent = naoLidas > 9 ? '9+' : naoLidas;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        function marcarLida(id) {
+            const notif = notificacoes.find(n => n.id === id);
+            if (notif) {
+                notif.lida = true;
+                renderizarNotificacoes();
+                atualizarBadgeNotificacoes();
+            }
+        }
+
+        function marcarTodasLidas() {
+            notificacoes.forEach(n => n.lida = true);
+            renderizarNotificacoes();
+            atualizarBadgeNotificacoes();
+        }
+
+        function verTodasNotificacoes() {
+            document.getElementById('notification-dropdown').classList.remove('active');
+
+            // Abrir modal com todas as notificações
+            let modal = document.getElementById('modal-todas-notificacoes');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'modal-todas-notificacoes';
+                modal.className = 'modal-overlay';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 600px;">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-bell"></i> Central de Notificações</h3>
+                            <button onclick="this.closest('.modal-overlay').classList.remove('active')" class="btn-fechar">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="max-height: 500px; overflow-y: auto;" id="lista-todas-notificacoes">
+                        </div>
+                        <div class="modal-footer">
+                            <button onclick="marcarTodasLidas(); this.closest('.modal-overlay').classList.remove('active');" class="btn-secondary">
+                                <i class="fas fa-check-double"></i> Marcar Todas como Lidas
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+
+            // Renderizar notificações
+            const container = document.getElementById('lista-todas-notificacoes');
+            if (notificacoes.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Nenhuma notificação</p>';
+            } else {
+                container.innerHTML = notificacoes.map(n => `
+                    <div style="padding: 15px; border-bottom: 1px solid #e5e7eb; background: ${n.lida ? 'white' : '#f0f9ff'};">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <strong style="color: ${n.tipo === 'vencimento' ? '#ef4444' : '#1e40af'};">
+                                    <i class="fas fa-${n.tipo === 'vencimento' ? 'exclamation-circle' : 'info-circle'}"></i>
+                                    ${n.titulo || 'Notificao'}
+                                </strong>
+                                <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">${n.mensagem || ''}</p>
+                            </div>
+                            <small style="color: #999;">${n.data || ''}</small>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            modal.classList.add('active');
+        }
+
+        // ===== CALCULADORA DE PARCELAS =====
+        function calcularParcelas() {
+            const valor = parseFloat(document.getElementById('valor').value) || 0;
+            const numParcelas = parseInt(document.getElementById('num-parcelas').value) || 1;
+            const parcelasInfo = document.getElementById('parcelas-info');
+            const parcelasPreview = document.getElementById('parcelas-preview');
+            const parcelasLista = document.getElementById('parcelas-lista');
+            const vencimentoBase = document.getElementById('data-vencimento').value;
+
+            // Atualizar texto info
+            if (numParcelas === 1) {
+                parcelasInfo.textContent = 'à vista';
+            } else {
+                parcelasInfo.textContent = `${numParcelas}x`;
+            }
+
+            // Mostrar/ocultar preview
+            if (numParcelas > 1 && valor > 0) {
+                parcelasPreview.style.display = 'block';
+                const valorParcela = valor / numParcelas;
+
+                let html = '';
+                for (let i = 1; i <= numParcelas; i++) {
+                    let dataVenc = '-';
+                    if (vencimentoBase) {
+                        const baseDate = new Date(vencimentoBase);
+                        baseDate.setMonth(baseDate.getMonth() + (i - 1));
+                        dataVenc = baseDate.toLocaleDateString('pt-BR');
+                    }
+
+                    html += `
+                        <div class="parcela-item">
+                            <span><strong>${i}ª</strong> Parcela</span>
+                            <span>${dataVenc}</span>
+                            <span style="color: #1e40af; font-weight: 600;">R$ ${valorParcela.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
+                        </div>
+                    `;
+                }
+
+                parcelasLista.innerHTML = html;
+            } else {
+                parcelasPreview.style.display = 'none';
+            }
+        }
+
+        // Listeners para atualizar parcelas
+        document.getElementById('valor')?.addEventListener('input', calcularParcelas);
+        document.getElementById('num-parcelas')?.addEventListener('input', calcularParcelas);
+        document.getElementById('data-vencimento')?.addEventListener('change', calcularParcelas);
+
+        // ===== CARREGAR USUÁRIO LOGADO =====
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    // Atualizar nome na saudação
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) {
+                        userNameEl.textContent = primeiroNome;
+                    }
+
+                    // Mapeamento de avatares por nome/email
+                    const avatarNameMap = {
+                        'clemerson': '/avatars/Clemerson.webp',
+                        'isabela': '/avatars/Isabela.webp',
+                        'thaina': '/avatars/Thaina.webp',
+                        'thiago': '/avatars/Thiago.webp',
+                        'nicolas': '/avatars/NicolasDaniel.webp',
+                        'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+                        'rh': '/avatars/Rh.webp',
+                        'admin': '/avatars/admin.webp',
+                        'ti': '/avatars/TI.webp',
+                        'tialuforce': '/avatars/TI.webp',
+                        'antonio': '/avatars/Antonio.webp',
+                        'antônio': '/avatars/Antonio.webp',
+                        'andreia': '/avatars/Andreia.webp',
+                        'guilherme': '/avatars/Guilherme.webp',
+                        'marcelo': '/avatars/Marcelo.webp',
+                        'financeiro': '/avatars/Financeiro.webp',
+                        'douglas': '/avatars/Douglas.webp',
+                        'hellen': '/avatars/Hellen.webp',
+                        'helen': '/avatars/Hellen.webp'
+                    };
+
+                    // Determinar avatar
+                    let avatarUrl = null;
+                    if (user.avatar && user.avatar !== '/avatars/default.webp') {
+                        avatarUrl = user.avatar;
+                    } else if (user.foto && user.foto !== '/avatars/default.webp') {
+                        avatarUrl = user.foto;
+                    } else if (user.email) {
+                        const username = user.email.split('@')[0].split('.')[0].toLowerCase();
+                        avatarUrl = avatarNameMap[username];
+                    }
+                    if (!avatarUrl && userName) {
+                        const firstName = userName.split(' ')[0].toLowerCase();
+                        avatarUrl = avatarNameMap[firstName];
+                    }
+
+                    // Atualizar avatar/foto
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+
+                    if (avatarUrl && userPhotoEl) {
+                        userPhotoEl.src = avatarUrl;
+                        userPhotoEl.style.display = 'block';
+                        userPhotoEl.onerror = function() {
+                            this.style.display = 'none';
+                            if (userInitialEl) {
+                                userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                                userInitialEl.style.display = 'flex';
+                            }
+                        };
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            carregarUsuarioLogado();
+            // Carregar notificações após carregar contas
+            setTimeout(carregarNotificacoes, 1000);
+        });
+    </script>
+
+    <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+    <!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
+    <script src="/js/chat-suporte-widgets.js?v=20260103"></script>
+
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Sidebar + Header RBAC Component -->
+    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
+</body>
+</html>
+
+
+

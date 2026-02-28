@@ -1,0 +1,1077 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Gestão de Férias</title>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --primary-purple: #667eea;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 12px 0; z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; cursor: pointer; text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s; text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */ }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; background: #ffffff; }
+
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* TABS */
+        .tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+        .tab-btn {
+            padding: 12px 24px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            color: #64748b;
+            transition: all 0.2s;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .tab-btn:hover { background: #f8fafc; border-color: var(--primary-pink); color: var(--primary-pink); }
+        .tab-btn.active { background: var(--primary-pink); color: white; border-color: var(--primary-pink); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* SALDO CARDS */
+        .saldo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 24px; }
+        .saldo-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 24px; border-radius: 16px; color: white;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+        }
+        .saldo-card h3 { font-size: 0.875rem; opacity: 0.9; margin-bottom: 8px; }
+        .saldo-card .value { font-size: 2.5rem; font-weight: 700; margin-bottom: 4px; }
+        .saldo-card .subtitle { font-size: 0.75rem; opacity: 0.8; }
+
+        /* CARDS */
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .card-title { font-size: 1rem; font-weight: 600; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: var(--primary-pink); }
+        .card-body { padding: 24px; }
+
+        /* TABELA */
+        .table-ferias { width: 100%; border-collapse: collapse; }
+        .table-ferias th {
+            background: #f8fafc;
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .table-ferias td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.875rem;
+            color: #334155;
+        }
+        .table-ferias tr:hover { background: #f8fafc; }
+
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+        .badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .badge-warning { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+        .badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .badge-info { background: rgba(102, 126, 234, 0.1); color: #667eea; }
+
+        /* FORM */
+        .form-section { padding: 24px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-weight: 600; color: #374151; font-size: 14px; }
+        .form-input {
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        .form-input:focus { outline: none; border-color: var(--primary-pink); box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 32px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4); }
+
+        .btn-secondary {
+            background: white;
+            color: var(--primary-pink);
+            padding: 14px 32px;
+            border: 2px solid var(--primary-pink);
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-left: 12px;
+        }
+        .btn-secondary:hover { background: var(--primary-pink); color: white; }
+
+        @media (max-width: 768px) {
+            .form-row { grid-template-columns: 1fr; }
+            .saldo-grid { grid-template-columns: 1fr; }
+            .tabs { flex-wrap: wrap; }
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn active" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Férias</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title"><i class="fas fa-umbrella-beach"></i> Gestão de Férias</h1>
+                        <p class="page-subtitle">Controle de períodos de descanso</p>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showTab('saldo')"><i class="fas fa-chart-pie"></i> Saldo de Férias</button>
+                    <button class="tab-btn" onclick="showTab('solicitar')"><i class="fas fa-paper-plane"></i> Solicitar Férias</button>
+                    <button class="tab-btn" onclick="showTab('historico')"><i class="fas fa-history"></i> Histórico</button>
+                </div>
+
+                <!-- Tab: Saldo -->
+                <div id="saldo" class="tab-content active">
+                    <div class="saldo-grid">
+                        <div class="saldo-card">
+                            <h3>Saldo Disponível</h3>
+                            <div class="value" id="saldo-disponivel">--</div>
+                            <div class="subtitle">dias disponíveis</div>
+                        </div>
+                        <div class="saldo-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                            <h3>Férias Gozadas</h3>
+                            <div class="value" id="ferias-gozadas">--</div>
+                            <div class="subtitle">dias utilizados</div>
+                        </div>
+                        <div class="saldo-card" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);">
+                            <h3>Período Aquisitivo</h3>
+                            <div class="value" id="periodo-aquisitivo-atual">--</div>
+                            <div class="subtitle">vigente</div>
+                        </div>
+                        <div class="saldo-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                            <h3>Vencimento</h3>
+                            <div class="value" id="data-vencimento">--</div>
+                            <div class="subtitle" id="ano-vencimento">--</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-calendar"></i> Períodos Aquisitivos</h3>
+                        </div>
+                        <div class="card-body">
+                            <table class="table-ferias">
+                                <thead>
+                                    <tr>
+                                        <th>Período</th>
+                                        <th>Início</th>
+                                        <th>Fim</th>
+                                        <th>Dias Direito</th>
+                                        <th>Dias Gozados</th>
+                                        <th>Saldo</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-periodos">
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; padding: 30px; color: #6b7280;">
+                                            <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                                            Carregando períodos...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Solicitar -->
+                <div id="solicitar" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-paper-plane"></i> Nova Solicitação de Férias</h3>
+                        </div>
+                        <div class="form-section">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="dataInicio">Data de Início</label>
+                                    <input type="date" id="dataInicio" class="form-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="dataFim">Data de Término</label>
+                                    <input type="date" id="dataFim" class="form-input">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="periodo">Período Aquisitivo</label>
+                                    <select id="periodo" class="form-input">
+                                        <option value="2024-2025">2024/2025 (30 dias disponíveis)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="diasSolicitados">Dias Solicitados</label>
+                                    <input type="number" id="diasSolicitados" class="form-input" value="30" min="1" max="31" step="1" oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length > 2) this.value = this.value.slice(0,2); if(Number(this.value) > 31) this.value = '31'; if(Number(this.value) < 0) this.value = '1';">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="observacoes">Observações</label>
+                                <textarea id="observacoes" class="form-input" rows="3" placeholder="Informações adicionais..."></textarea>
+                            </div>
+                            <div style="margin-top: 24px;">
+                                <button class="btn-primary" onclick="solicitarFerias()"><i class="fas fa-paper-plane"></i> Enviar Solicitação</button>
+                                <button class="btn-secondary" onclick="limparFormulario()">Limpar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Histórico -->
+                <div id="historico" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-history"></i> Histórico de Férias</h3>
+                        </div>
+                        <div class="card-body">
+                            <table class="table-ferias">
+                                <thead>
+                                    <tr>
+                                        <th>Período</th>
+                                        <th>Data Início</th>
+                                        <th>Data Fim</th>
+                                        <th>Dias</th>
+                                        <th>Solicitado em</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-historico">
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; padding: 30px; color: #6b7280;">
+                                            <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                                            Carregando histórico...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const avatarNameMap = { 'clemerson': '/avatars/Clemerson.webp', 'isabela': '/avatars/Isabela.webp', 'thaina': '/avatars/Thaina.webp', 'thiago': '/avatars/Thiago.webp', 'nicolas': '/avatars/NicolasDaniel.webp', 'nicolasdaniel': '/avatars/NicolasDaniel.webp', 'rh': '/avatars/Rh.webp', 'admin': '/avatars/admin.webp', 'ti': '/avatars/TI.webp', 'tialuforce': '/avatars/TI.webp', 'antonio': '/avatars/Antonio.webp', 'antônio': '/avatars/Antonio.webp', 'andreia': '/avatars/Andreia.webp', 'guilherme': '/avatars/Guilherme.webp', 'marcelo': '/avatars/Marcelo.webp', 'financeiro': '/avatars/Financeiro.webp', 'douglas': '/avatars/Douglas.webp', 'hellen': '/avatars/Hellen.webp', 'helen': '/avatars/Hellen.webp' };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) { const firstName = nome.split(' ')[0].toLowerCase(); if (avatarNameMap[firstName]) return avatarNameMap[firstName]; }
+            return null;
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                ...additionalHeaders
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const user = await response.json();
+
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : getAvatarFromEmail(user.email, userName);
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    if (userAvatar && userPhotoEl) { userPhotoEl.src = userAvatar; userPhotoEl.classList.add('visible'); userPhotoEl.style.display = 'block'; if (userInitialEl) userInitialEl.style.display = 'none'; }
+                    else if (userInitialEl) { userInitialEl.textContent = userName.charAt(0).toUpperCase(); userInitialEl.style.display = 'flex'; if (userPhotoEl) userPhotoEl.style.display = 'none'; }
+
+                    // Salvar dados do usuário e carregar informações de férias
+                    localStorage.setItem('userData', JSON.stringify(user));
+                    localStorage.setItem('user', JSON.stringify(user));
+
+                    // Carregar dados de férias
+                    await carregarDadosFerias(user);
+                }
+            } catch (error) { console.error('Erro ao carregar usuário:', error); }
+        }
+
+        // Variável global para armazenar o usuário logado
+        let usuarioLogado = null;
+
+        async function carregarDadosFerias(user) {
+            usuarioLogado = user;
+            const funcionarioId = user.funcionario_id || user.id;
+
+            if (!funcionarioId) {
+                console.warn('Funcionário ID não encontrado');
+                mostrarDadosPadrao();
+                return;
+            }
+
+            try {
+                // Carregar saldo de férias
+                const saldoResp = await fetch(`/api/rh/ferias/saldo/${funcionarioId}`, {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+
+                if (saldoResp.ok) {
+                    const saldoData = await saldoResp.json();
+                    atualizarCardsSaldo(saldoData);
+                    atualizarTabelaPeriodos(saldoData.períodos || saldoData.periodos || []);
+                    atualizarSelectPeriodos(saldoData.períodos || saldoData.periodos || []);
+                } else {
+                    // Tentar calcular baseado na data de admissão
+                    await calcularFeriasBaseadoAdmissao(user);
+                }
+
+                // Carregar histórico de solicitações
+                const historicoResp = await fetch(`/api/rh/ferias/minhas/${funcionarioId}`, {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+
+                if (historicoResp.ok) {
+                    const historicoData = await historicoResp.json();
+                    atualizarTabelaHistorico(historicoData);
+                } else {
+                    // Mostrar mensagem de sem histórico
+                    document.getElementById('tbody-historico').innerHTML = `
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 30px; color: #6b7280;">
+                                <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.3;"></i>
+                                Nenhuma solicitação de férias encontrada
+                            </td>
+                        </tr>`;
+                }
+
+            } catch (error) {
+                console.error('Erro ao carregar dados de férias:', error);
+                await calcularFeriasBaseadoAdmissao(user);
+            }
+        }
+
+        async function calcularFeriasBaseadoAdmissao(user) {
+            // Tentar buscar dados do funcionário para calcular férias baseado na admissão
+            try {
+                const funcionarioId = user.funcionario_id || user.id;
+                const resp = await fetch(`/api/rh/funcionarios/${funcionarioId}`, {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+
+                if (resp.ok) {
+                    const funcionario = await resp.json();
+                    const dataAdmissao = funcionario.data_admissao ? new Date(funcionario.data_admissao) : null;
+
+                    if (dataAdmissao) {
+                        const hoje = new Date();
+                        const anoAdmissao = dataAdmissao.getFullYear();
+                        const mesAdmissao = dataAdmissao.getMonth();
+                        const diaAdmissao = dataAdmissao.getDate();
+
+                        // Calcular período aquisitivo atual
+                        let anoInicioPeriodo = hoje.getFullYear();
+                        let dataInicioPeriodo = new Date(anoInicioPeriodo, mesAdmissao, diaAdmissao);
+
+                        if (dataInicioPeriodo > hoje) {
+                            anoInicioPeriodo--;
+                            dataInicioPeriodo = new Date(anoInicioPeriodo, mesAdmissao, diaAdmissao);
+                        }
+
+                        const dataFimPeriodo = new Date(anoInicioPeriodo + 1, mesAdmissao, diaAdmissao - 1);
+                        const dataVencimento = new Date(anoInicioPeriodo + 2, mesAdmissao, diaAdmissao - 1);
+
+                        // Atualizar cards
+                        document.getElementById('saldo-disponivel').textContent = '30';
+                        document.getElementById('ferias-gozadas').textContent = '0';
+                        document.getElementById('periodo-aquisitivo-atual').textContent = `${anoInicioPeriodo}/${anoInicioPeriodo + 1}`;
+                        document.getElementById('data-vencimento').textContent = `${String(dataVencimento.getDate()).padStart(2, '0')}/${String(dataVencimento.getMonth() + 1).padStart(2, '0')}`;
+                        document.getElementById('ano-vencimento').textContent = dataVencimento.getFullYear();
+
+                        // Atualizar tabela de períodos
+                        document.getElementById('tbody-periodos').innerHTML = `
+                            <tr>
+                                <td><strong>${anoInicioPeriodo}/${anoInicioPeriodo + 1}</strong></td>
+                                <td>${formatarData(dataInicioPeriodo)}</td>
+                                <td>${formatarData(dataFimPeriodo)}</td>
+                                <td>30</td>
+                                <td>0</td>
+                                <td>30</td>
+                                <td><span class="badge badge-success">Disponível</span></td>
+                            </tr>`;
+
+                        // Atualizar select de período
+                        const periodoSelect = document.getElementById('periodo');
+                        if (periodoSelect) {
+                            periodoSelect.innerHTML = `<option value="${anoInicioPeriodo}-${anoInicioPeriodo + 1}">${anoInicioPeriodo}/${anoInicioPeriodo + 1} (30 dias disponíveis)</option>`;
+                        }
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao calcular férias baseado na admissão:', e);
+            }
+
+            mostrarDadosPadrao();
+        }
+
+        function mostrarDadosPadrao() {
+            const anoAtual = new Date().getFullYear();
+            document.getElementById('saldo-disponivel').textContent = '30';
+            document.getElementById('ferias-gozadas').textContent = '0';
+            document.getElementById('periodo-aquisitivo-atual').textContent = `${anoAtual - 1}/${anoAtual}`;
+            document.getElementById('data-vencimento').textContent = '--/--';
+            document.getElementById('ano-vencimento').textContent = '--';
+
+            document.getElementById('tbody-periodos').innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 30px; color: #6b7280;">
+                        <i class="fas fa-info-circle" style="font-size: 24px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                        Sem períodos aquisitivos cadastrados.<br>
+                        <small>Entre em contato com o RH para atualizar seus dados.</small>
+                    </td>
+                </tr>`;
+        }
+
+        function atualizarCardsSaldo(data) {
+            const totalDisponivel = data.total_dias_disponivel || 0;
+            const periodos = data.períodos || data.periodos || [];
+
+            // Calcular total gozado
+            let totalGozado = 0;
+            periodos.forEach(p => {
+                totalGozado += (p.dias_gozados || 0);
+            });
+
+            document.getElementById('saldo-disponivel').textContent = totalDisponivel;
+            document.getElementById('ferias-gozadas').textContent = totalGozado;
+
+            // Período aquisitivo atual (o mais recente ativo)
+            const periodoAtivo = periodos.find(p => p.status === 'ativo') || periodos[0];
+            if (periodoAtivo) {
+                const inicio = new Date(periodoAtivo.data_inicio);
+                const fim = new Date(periodoAtivo.data_fim);
+                document.getElementById('periodo-aquisitivo-atual').textContent = `${inicio.getFullYear()}/${fim.getFullYear()}`;
+
+                if (data.próximo_vencimento || data.proximo_vencimento || periodoAtivo.data_limite_gozo) {
+                    const vencimento = new Date(data.próximo_vencimento || data.proximo_vencimento || periodoAtivo.data_limite_gozo);
+                    document.getElementById('data-vencimento').textContent = `${String(vencimento.getDate()).padStart(2, '0')}/${String(vencimento.getMonth() + 1).padStart(2, '0')}`;
+                    document.getElementById('ano-vencimento').textContent = vencimento.getFullYear();
+                }
+            }
+        }
+
+        function atualizarTabelaPeriodos(periodos) {
+            const tbody = document.getElementById('tbody-periodos');
+
+            if (!periodos || periodos.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 30px; color: #6b7280;">
+                            <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.3;"></i>
+                            Nenhum período aquisitivo encontrado
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = periodos.map(p => {
+                const inicio = new Date(p.data_inicio);
+                const fim = new Date(p.data_fim);
+                const diasDireito = p.dias_direito || 30;
+                const diasGozados = p.dias_gozados || 0;
+                const saldo = p.dias_disponivel || (diasDireito - diasGozados);
+
+                let statusBadge = '';
+                switch (p.status) {
+                    case 'ativo':
+                        statusBadge = '<span class="badge badge-success">Disponível</span>';
+                        break;
+                    case 'em_gozo':
+                        statusBadge = '<span class="badge badge-warning">Em Gozo</span>';
+                        break;
+                    case 'gozado':
+                        statusBadge = '<span class="badge badge-info">Gozado</span>';
+                        break;
+                    case 'vencido':
+                        statusBadge = '<span class="badge badge-danger">Vencido</span>';
+                        break;
+                    default:
+                        statusBadge = `<span class="badge">${p.status || 'N/A'}</span>`;
+                }
+
+                return `
+                    <tr>
+                        <td><strong>${inicio.getFullYear()}/${fim.getFullYear()}</strong></td>
+                        <td>${formatarData(inicio)}</td>
+                        <td>${formatarData(fim)}</td>
+                        <td>${diasDireito}</td>
+                        <td>${diasGozados}</td>
+                        <td>${saldo}</td>
+                        <td>${statusBadge}</td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function atualizarSelectPeriodos(periodos) {
+            const select = document.getElementById('periodo');
+            if (!select) return;
+
+            const periodosAtivos = periodos.filter(p => p.status === 'ativo' && (p.dias_disponivel || 0) > 0);
+
+            if (periodosAtivos.length === 0) {
+                select.innerHTML = '<option value="">Nenhum período disponível</option>';
+                return;
+            }
+
+            select.innerHTML = periodosAtivos.map(p => {
+                const inicio = new Date(p.data_inicio);
+                const fim = new Date(p.data_fim);
+                return `<option value="${inicio.getFullYear()}-${fim.getFullYear()}">${inicio.getFullYear()}/${fim.getFullYear()} (${p.dias_disponivel || 30} dias disponíveis)</option>`;
+            }).join('');
+        }
+
+        function atualizarTabelaHistorico(data) {
+            const tbody = document.getElementById('tbody-historico');
+
+            // Normalizar dados - pode vir como array ou objeto com propriedade solicitacoes
+            let solicitacoes = [];
+            if (Array.isArray(data)) {
+                solicitacoes = data;
+            } else if (data && Array.isArray(data.solicitacoes)) {
+                solicitacoes = data.solicitacoes;
+            } else if (data && Array.isArray(data.ferias)) {
+                solicitacoes = data.ferias;
+            } else if (data && typeof data === 'object') {
+                // Tentar encontrar qualquer array no objeto
+                const keys = Object.keys(data);
+                for (const key of keys) {
+                    if (Array.isArray(data[key])) {
+                        solicitacoes = data[key];
+                        break;
+                    }
+                }
+            }
+
+            if (!solicitacoes || solicitacoes.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 30px; color: #6b7280;">
+                            <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 10px; display: block; opacity: 0.3;"></i>
+                            Nenhuma solicitação de férias encontrada
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = solicitacoes.map(s => {
+                const dataInicio = new Date(s.data_inicio);
+                const dataFim = new Date(s.data_fim);
+                const dataSolicitacao = new Date(s.created_at || s.data_solicitacao);
+
+                let statusBadge = '';
+                switch (s.status) {
+                    case 'aprovado':
+                    case 'aprovada':
+                        statusBadge = '<span class="badge badge-success">Aprovado</span>';
+                        break;
+                    case 'pendente':
+                        statusBadge = '<span class="badge badge-warning">Pendente</span>';
+                        break;
+                    case 'reprovado':
+                    case 'reprovada':
+                        statusBadge = '<span class="badge badge-danger">Reprovado</span>';
+                        break;
+                    case 'cancelado':
+                    case 'cancelada':
+                        statusBadge = '<span class="badge" style="background: #6b7280;">Cancelado</span>';
+                        break;
+                    default:
+                        statusBadge = `<span class="badge">${s.status || 'N/A'}</span>`;
+                }
+
+                const periodoInicio = new Date(s.periodo_aquisitivo_inicio || s.data_inicio);
+                const periodoFim = new Date(s.periodo_aquisitivo_fim || s.data_fim);
+
+                return `
+                    <tr>
+                        <td><strong>${periodoInicio.getFullYear()}/${periodoFim.getFullYear()}</strong></td>
+                        <td>${formatarData(dataInicio)}</td>
+                        <td>${formatarData(dataFim)}</td>
+                        <td>${s.dias_solicitados || s.dias || calcularDias(dataInicio, dataFim)}</td>
+                        <td>${formatarData(dataSolicitacao)}</td>
+                        <td>${statusBadge}</td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function formatarData(data) {
+            if (!data || isNaN(data.getTime())) return '--/--/----';
+            return `${String(data.getDate()).padStart(2, '0')}/${String(data.getMonth() + 1).padStart(2, '0')}/${data.getFullYear()}`;
+        }
+
+        function calcularDias(inicio, fim) {
+            return Math.ceil((fim - inicio) / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            // Ativar o botão da tab - buscar pelo onclick ou pelo event
+            const btn = (typeof event !== 'undefined' && event && event.target) 
+                ? event.target.closest('.tab-btn') 
+                : null;
+            if (btn) {
+                btn.classList.add('active');
+            } else {
+                // Fallback: encontrar o botão pela referência ao tabId no onclick
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    if (b.getAttribute('onclick') && b.getAttribute('onclick').includes(tabId)) {
+                        b.classList.add('active');
+                    }
+                });
+            }
+        }
+
+        async function solicitarFerias() {
+            const dataInicio = document.getElementById('dataInicio').value;
+            const dataFim = document.getElementById('dataFim').value;
+            const dias = document.getElementById('diasSolicitados').value;
+            const observacoes = document.getElementById('observacoes')?.value || '';
+            const periodoSelect = document.getElementById('periodo');
+            const periodoAquisitivo = periodoSelect?.value || '2024-2025';
+
+            if (!dataInicio || !dataFim) {
+                mostrarPopupConfirmacao({
+                    titulo: 'Campos Obrigatórios',
+                    mensagem: 'Por favor, preencha as datas de início e término.',
+                    icone: 'fa-calendar-times',
+                    tipoIcone: 'warning',
+                    textoBtnConfirmar: 'Entendi',
+                    tipoBtnConfirmar: 'confirm',
+                    iconeBtnConfirmar: 'fa-check',
+                    textoBtnCancelar: 'Fechar',
+                    onConfirmar: function() {},
+                    onCancelar: function() {}
+                });
+                return;
+            }
+
+            // Validar dias solicitados (1 a 31)
+            const diasNum = parseInt(dias);
+            if (!dias || isNaN(diasNum) || diasNum < 1 || diasNum > 31) {
+                mostrarPopupConfirmacao({
+                    titulo: 'Valor Inválido',
+                    mensagem: 'O número de dias solicitados deve ser entre 1 e 31.',
+                    icone: 'fa-exclamation-circle',
+                    tipoIcone: 'warning',
+                    textoBtnConfirmar: 'Entendi',
+                    tipoBtnConfirmar: 'confirm',
+                    iconeBtnConfirmar: 'fa-check',
+                    textoBtnCancelar: 'Fechar',
+                    onConfirmar: function() { document.getElementById('diasSolicitados').focus(); },
+                    onCancelar: function() {}
+                });
+                return;
+            }
+
+            // Validar se data início é menor que data fim
+            if (new Date(dataInicio) >= new Date(dataFim)) {
+                mostrarPopupConfirmacao({
+                    titulo: 'Datas Inválidas',
+                    mensagem: 'A data de início deve ser anterior à data de término.',
+                    icone: 'fa-calendar-times',
+                    tipoIcone: 'warning',
+                    textoBtnConfirmar: 'Entendi',
+                    tipoBtnConfirmar: 'confirm',
+                    iconeBtnConfirmar: 'fa-check',
+                    textoBtnCancelar: 'Fechar',
+                    onConfirmar: function() {},
+                    onCancelar: function() {}
+                });
+                return;
+            }
+
+            // Validar se data início é futura
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            if (new Date(dataInicio) < hoje) {
+                mostrarPopupConfirmacao({
+                    titulo: 'Data Inválida',
+                    mensagem: 'A data de início deve ser uma data futura.',
+                    icone: 'fa-calendar-times',
+                    tipoIcone: 'warning',
+                    textoBtnConfirmar: 'Entendi',
+                    tipoBtnConfirmar: 'confirm',
+                    iconeBtnConfirmar: 'fa-check',
+                    textoBtnCancelar: 'Fechar',
+                    onConfirmar: function() {},
+                    onCancelar: function() {}
+                });
+                return;
+            }
+
+            const btn = event.target;
+            const btnText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+            btn.disabled = true;
+
+            try {
+                const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+                const userData = JSON.parse(localStorage.getItem('user') || '{}');
+
+                // Formatar datas para exibição
+                const dataInicioFormatada = new Date(dataInicio + 'T00:00:00').toLocaleDateString('pt-BR');
+                const dataFimFormatada = new Date(dataFim + 'T00:00:00').toLocaleDateString('pt-BR');
+
+                // Usar FormData para enviar (compatível com a rota que usa upload.single)
+                const formData = new FormData();
+                formData.append('tipo', 'ferias');
+                formData.append('categoria', 'Férias');
+                formData.append('assunto', `Solicitação de Férias - ${dias} dias`);
+                formData.append('descricao', `📅 Período solicitado: ${dataInicioFormatada} a ${dataFimFormatada}\nðŸ“Š Dias: ${dias}\nðŸ“ Período Aquisitivo: ${periodoAquisitivo}\n\nðŸ“ Observações: ${observacoes || 'Nenhuma'}`);
+                formData.append('prioridade', 'normal');
+                formData.append('funcionario_id', userData.funcionario_id || userData.id || '');
+                formData.append('dados_extras', JSON.stringify({
+                    data_inicio: dataInicio,
+                    data_fim: dataFim,
+                    dias_solicitados: parseInt(dias),
+                    periodo_aquisitivo: periodoAquisitivo,
+                    observacoes: observacoes
+                }));
+
+                // Obter token CSRF atualizado antes do POST
+                let csrfToken = '';
+                try {
+                    const csrfResp = await fetch('/api/csrf-token', {
+                        headers: { 'Authorization': `Bearer ${token}` },
+                        credentials: 'include'
+                    });
+                    if (csrfResp.ok) {
+                        const csrfData = await csrfResp.json();
+                        csrfToken = csrfData.token || '';
+                    }
+                } catch(e) { console.warn('CSRF token fetch falhou:', e); }
+
+                const reqHeaders = { 'Authorization': `Bearer ${token}` };
+                if (csrfToken) reqHeaders['X-CSRF-Token'] = csrfToken;
+
+                const response = await fetch('/api/rh/solicitacoes', {
+                    method: 'POST',
+                    headers: reqHeaders,
+                    credentials: 'include',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Erro ao enviar solicitação');
+                }
+
+                mostrarPopupConfirmacao({
+                    titulo: 'Solicitação Enviada!',
+                    mensagem: `Solicitação de ${dias} dias de férias enviada com sucesso!`,
+                    icone: 'fa-check-circle',
+                    tipoIcone: 'success',
+                    textoBtnConfirmar: 'Ver Histórico',
+                    tipoBtnConfirmar: 'success',
+                    iconeBtnConfirmar: 'fa-history',
+                    textoBtnCancelar: 'Fechar',
+                    itemNome: `${dataInicioFormatada} a ${dataFimFormatada}`,
+                    avisoExtra: 'Aguarde a aprovação do RH. Acompanhe o status em "Solicitações".',
+                    onConfirmar: function() { showTab('historico'); },
+                    onCancelar: function() {}
+                });
+                limparFormulario();
+
+            } catch (error) {
+                console.error('Erro ao solicitar férias:', error);
+                mostrarPopupConfirmacao({
+                    titulo: 'Erro ao Enviar',
+                    mensagem: error.message || 'Ocorreu um erro ao enviar a solicitação.',
+                    icone: 'fa-times-circle',
+                    tipoIcone: 'danger',
+                    textoBtnConfirmar: 'Tentar Novamente',
+                    tipoBtnConfirmar: 'confirm',
+                    iconeBtnConfirmar: 'fa-redo',
+                    textoBtnCancelar: 'Fechar',
+                    avisoExtra: 'Verifique sua conexão e tente novamente.',
+                    onConfirmar: function() {},
+                    onCancelar: function() {}
+                });
+            } finally {
+                btn.innerHTML = btnText;
+                btn.disabled = false;
+            }
+        }
+
+        function limparFormulario() {
+            document.getElementById('dataInicio').value = '';
+            document.getElementById('dataFim').value = '';
+            document.getElementById('diasSolicitados').value = '30';
+            document.getElementById('observacoes').value = '';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { carregarUsuarioLogado(); });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+        <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+

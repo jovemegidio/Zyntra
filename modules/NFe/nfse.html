@@ -1,0 +1,908 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <title>Aluforce: NFSe Serviços</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <style>
+        /* ============================================
+           VARIÁVEIS CSS — NFSe SERVIÇOS
+           ============================================ */
+        :root {
+            --fat-primary: #10b981;
+            --fat-secondary: #059669;
+            --fat-accent: #047857;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --bg-page: #f9fafb;
+            --bg-card: #ffffff;
+        }
+
+        /* ============================================
+           RESET E BASE
+           ============================================ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; height: 100%; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            line-height: 1.5;
+            height: 100%;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           PAGE CONTENT
+           ============================================ */
+        .page-content {
+            padding: 24px;
+            max-width: 100%;
+            margin: 0;
+            flex: 1;
+        }
+
+        /* ============================================
+           ALERT CONTAINER
+           ============================================ */
+        .alert {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            animation: alertSlideIn 0.3s ease;
+            position: relative;
+        }
+        @keyframes alertSlideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .alert.success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .alert.error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .alert.warning {
+            background: #fffbeb;
+            color: #92400e;
+            border: 1px solid #fde68a;
+        }
+        .alert.info {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+        .alert .alert-close {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 16px;
+            opacity: 0.6;
+        }
+        .alert .alert-close:hover { opacity: 1; }
+
+        /* ============================================
+           CARDS
+           ============================================ */
+        .card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .card-header i {
+            color: var(--fat-primary);
+            font-size: 16px;
+        }
+        .card-body {
+            padding: 20px;
+        }
+
+        /* ============================================
+           FORM GRID
+           ============================================ */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .form-grid:last-child {
+            margin-bottom: 0;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 6px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            height: 36px;
+            padding: 0 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: #fff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-group textarea {
+            height: auto;
+            padding: 8px 10px;
+            resize: vertical;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--fat-primary);
+            box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
+        }
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: #c0c5cc;
+        }
+        .form-group select {
+            cursor: pointer;
+            appearance: auto;
+        }
+
+        /* ============================================
+           SUMMARY CARD
+           ============================================ */
+        .summary-card {
+            background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+            border: 1px solid #a7f3d0;
+        }
+        .summary-card .card-header {
+            border-bottom-color: #a7f3d0;
+        }
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 12px;
+            background: rgba(255,255,255,0.7);
+            border-radius: 8px;
+            border: 1px solid rgba(167,243,208,0.5);
+        }
+        .summary-item .summary-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+        .summary-item .summary-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .summary-item.total {
+            background: var(--fat-primary);
+            border-color: var(--fat-secondary);
+        }
+        .summary-item.total .summary-label {
+            color: rgba(255,255,255,0.8);
+        }
+        .summary-item.total .summary-value {
+            color: #fff;
+        }
+
+        /* ============================================
+           ACTION BUTTONS
+           ============================================ */
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--fat-primary), var(--fat-secondary));
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(16,185,129,0.4);
+        }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: #d1d5db;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 768px) {
+            .page-content { padding: 16px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .summary-grid { grid-template-columns: repeat(2, 1fr); }
+            .form-actions { flex-direction: column; }
+            .btn { justify-content: center; }
+        }
+        @media (max-width: 480px) {
+            .summary-grid { grid-template-columns: 1fr; }
+            .card-body { padding: 14px; }
+        }
+    </style>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR — PADRÃO PCP -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="emitir.html" class="sidebar-btn" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+                <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
+                <a href="nfse.html" class="sidebar-btn active" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+                <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+                <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
+                <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+                <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER — PADRÃO PCP -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">NFSe Serviços</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- MAIN CONTENT -->
+            <div class="main-content">
+                <div class="page-content">
+
+                    <!-- Alert Container -->
+                    <div id="alertContainer"></div>
+
+                    <!-- ========== CARD: DADOS DO TOMADOR ========== -->
+                    <form id="nfseForm" onsubmit="emitirNFSe(event)">
+
+                        <div class="card">
+                            <div class="card-header"><i class="fas fa-user-tie"></i> Dados do Tomador</div>
+                            <div class="card-body">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="tipoDocTomador">Tipo Documento</label>
+                                        <select id="tipoDocTomador" name="tipoDocTomador" required>
+                                            <option value="CNPJ">CNPJ</option>
+                                            <option value="CPF">CPF</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="docTomador">Documento</label>
+                                        <input type="text" id="docTomador" name="docTomador" placeholder="00.000.000/0000-00" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="razaoSocialTomador">Razão Social</label>
+                                        <input type="text" id="razaoSocialTomador" name="razaoSocialTomador" placeholder="Nome / Razão Social" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="emailTomador">E-mail</label>
+                                        <input type="email" id="emailTomador" name="emailTomador" placeholder="email@empresa.com.br">
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="enderecoTomador">Endereço</label>
+                                        <input type="text" id="enderecoTomador" name="enderecoTomador" placeholder="Rua, Avenida...">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="numeroTomador">Número</label>
+                                        <input type="text" id="numeroTomador" name="numeroTomador" placeholder="Nº">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="complementoTomador">Complemento</label>
+                                        <input type="text" id="complementoTomador" name="complementoTomador" placeholder="Sala, Andar...">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="bairroTomador">Bairro</label>
+                                        <input type="text" id="bairroTomador" name="bairroTomador" placeholder="Bairro">
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="municipioTomador">Município</label>
+                                        <input type="text" id="municipioTomador" name="municipioTomador" placeholder="Cidade">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ufTomador">UF</label>
+                                        <select id="ufTomador" name="ufTomador">
+                                            <option value="">Selecione</option>
+                                            <option value="AC">AC</option>
+                                            <option value="AL">AL</option>
+                                            <option value="AP">AP</option>
+                                            <option value="AM">AM</option>
+                                            <option value="BA">BA</option>
+                                            <option value="CE">CE</option>
+                                            <option value="DF">DF</option>
+                                            <option value="ES">ES</option>
+                                            <option value="GO">GO</option>
+                                            <option value="MA">MA</option>
+                                            <option value="MT">MT</option>
+                                            <option value="MS">MS</option>
+                                            <option value="MG">MG</option>
+                                            <option value="PA">PA</option>
+                                            <option value="PB">PB</option>
+                                            <option value="PR">PR</option>
+                                            <option value="PE">PE</option>
+                                            <option value="PI">PI</option>
+                                            <option value="RJ">RJ</option>
+                                            <option value="RN">RN</option>
+                                            <option value="RS">RS</option>
+                                            <option value="RO">RO</option>
+                                            <option value="RR">RR</option>
+                                            <option value="SC">SC</option>
+                                            <option value="SP">SP</option>
+                                            <option value="SE">SE</option>
+                                            <option value="TO">TO</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cepTomador">CEP</label>
+                                        <input type="text" id="cepTomador" name="cepTomador" placeholder="00000-000">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="telefoneTomador">Telefone</label>
+                                        <input type="text" id="telefoneTomador" name="telefoneTomador" placeholder="(00) 00000-0000">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== CARD: DADOS DO SERVIÇO ========== -->
+                        <div class="card">
+                            <div class="card-header"><i class="fas fa-clipboard-list"></i> Dados do Serviço</div>
+                            <div class="card-body">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="codigoServico">Código do Serviço</label>
+                                        <input type="text" id="codigoServico" name="codigoServico" placeholder="Ex: 01.01" required>
+                                    </div>
+                                    <div class="form-group" style="grid-column: span 2;">
+                                        <label for="descricaoServico">Descrição do Serviço</label>
+                                        <textarea id="descricaoServico" name="descricaoServico" rows="3" placeholder="Descreva detalhadamente o serviço prestado..." required></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="codigoCNAE">Código CNAE</label>
+                                        <input type="text" id="codigoCNAE" name="codigoCNAE" placeholder="0000-0/00">
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="aliquotaISS">Alíquota ISS (%)</label>
+                                        <input type="number" id="aliquotaISS" name="aliquotaISS" step="0.01" value="5.00" min="0" max="100" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="valorServico">Valor do Serviço (R$)</label>
+                                        <input type="number" id="valorServico" name="valorServico" step="0.01" min="0" placeholder="0,00" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="valorDeducao">Valor Dedução (R$)</label>
+                                        <input type="number" id="valorDeducao" name="valorDeducao" step="0.01" min="0" value="0" placeholder="0,00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="itemListaServico">Item Lista Serviço</label>
+                                        <input type="text" id="itemListaServico" name="itemListaServico" placeholder="Ex: 01.01">
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="codigoMunicipio">Código Município (IBGE)</label>
+                                        <input type="text" id="codigoMunicipio" name="codigoMunicipio" placeholder="Ex: 3550308">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== CARD: IMPOSTOS E RETENÇÕES ========== -->
+                        <div class="card">
+                            <div class="card-header"><i class="fas fa-calculator"></i> Impostos e Retenções</div>
+                            <div class="card-body">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="issRetido">ISS Retido</label>
+                                        <select id="issRetido" name="issRetido">
+                                            <option value="nao">Não</option>
+                                            <option value="sim">Sim</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="valorIR">IR (R$)</label>
+                                        <input type="number" id="valorIR" name="valorIR" step="0.01" min="0" value="0" placeholder="0,00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="valorPIS">PIS (R$)</label>
+                                        <input type="number" id="valorPIS" name="valorPIS" step="0.01" min="0" value="0" placeholder="0,00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="valorCOFINS">COFINS (R$)</label>
+                                        <input type="number" id="valorCOFINS" name="valorCOFINS" step="0.01" min="0" value="0" placeholder="0,00">
+                                    </div>
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="valorCSLL">CSLL (R$)</label>
+                                        <input type="number" id="valorCSLL" name="valorCSLL" step="0.01" min="0" value="0" placeholder="0,00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="valorINSS">INSS (R$)</label>
+                                        <input type="number" id="valorINSS" name="valorINSS" step="0.01" min="0" value="0" placeholder="0,00">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="outrasRetencoes">Outras Retenções (R$)</label>
+                                        <input type="number" id="outrasRetencoes" name="outrasRetencoes" step="0.01" min="0" value="0" placeholder="0,00">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== CARD: RESUMO DA NFSE ========== -->
+                        <div class="card summary-card">
+                            <div class="card-header"><i class="fas fa-receipt"></i> Resumo da NFSe</div>
+                            <div class="card-body">
+                                <div class="summary-grid">
+                                    <div class="summary-item">
+                                        <div class="summary-label">Valor do Serviço</div>
+                                        <div class="summary-value" id="resumoValor">R$ 0,00</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-label">Deduções</div>
+                                        <div class="summary-value" id="resumoDeducao">R$ 0,00</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-label">Base de Cálculo</div>
+                                        <div class="summary-value" id="resumoBase">R$ 0,00</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-label">ISS</div>
+                                        <div class="summary-value" id="resumoISS">R$ 0,00</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="summary-label">Retenções Federais</div>
+                                        <div class="summary-value" id="resumoRetencoes">R$ 0,00</div>
+                                    </div>
+                                    <div class="summary-item total">
+                                        <div class="summary-label">Total NFSe</div>
+                                        <div class="summary-value" id="resumoTotal">R$ 0,00</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== ACTIONS ========== -->
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="btnEmitir">
+                                <i class="fas fa-paper-plane"></i> Emitir NFSe
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="limparFormulario()">
+                                <i class="fas fa-eraser"></i> Limpar
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="salvarRascunho()">
+                                <i class="fas fa-save"></i> Salvar Rascunho
+                            </button>
+                        </div>
+
+                    </form>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ===== SIDEBAR/HEADER — FUNÇÕES PADRÃO =====
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        function toggleNotificacoes() {
+            const panel = document.getElementById('notification-panel');
+            if (panel) panel.classList.toggle('active');
+        }
+
+        // ===== MAPEAMENTO DE AVATARES =====
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp',
+            'marcia': '/avatars/Marcia.webp',
+            'augusto': '/avatars/Augusto.webp',
+            'renata': '/avatars/Renata.jpg',
+            'fabiano': '/avatars/Fabiano.webp',
+            'fabiola': '/avatars/Fabiola.webp'
+        };
+
+        // ===== CARREGAR USUÁRIO =====
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.apelido || user.nome || user.name || 'Usuário';
+                    const primeiroNome = user.apelido || (userName ? userName.split(' ')[0] : 'Usuário');
+
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    document.getElementById('user-name').textContent = primeiroNome;
+
+                    const initialsEl = document.getElementById('user-initials');
+                    const avatarImg = document.getElementById('user-photo');
+
+                    let avatarUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    if (!avatarUrl || avatarUrl === '/avatars/default.webp') {
+                        if (user.email) {
+                            const username = user.email.split('@')[0].split('.')[0].toLowerCase();
+                            avatarUrl = avatarNameMap[username];
+                        }
+                        if (!avatarUrl) avatarUrl = avatarNameMap[primeiroNome.toLowerCase()];
+                    }
+
+                    if (avatarUrl && avatarImg) {
+                        avatarImg.src = avatarUrl;
+                        avatarImg.onload = () => {
+                            avatarImg.style.display = 'block';
+                            if (initialsEl) initialsEl.style.display = 'none';
+                        };
+                        avatarImg.onerror = () => {
+                            avatarImg.style.display = 'none';
+                            if (initialsEl) {
+                                initialsEl.style.display = 'flex';
+                                const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                                initialsEl.textContent = initials;
+                            }
+                        };
+                    } else {
+                        if (avatarImg) avatarImg.style.display = 'none';
+                        if (initialsEl) {
+                            initialsEl.style.display = 'flex';
+                            const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                            initialsEl.textContent = initials;
+                        }
+                    }
+                }
+            } catch (error) { /* silently handled */ }
+        }
+
+        // ===== FORMATAÇÃO MONETÁRIA =====
+        function formatarMoeda(valor) {
+            return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        // ===== CALCULAR RESUMO =====
+        function calcularResumo() {
+            const valor = parseFloat(document.getElementById('valorServico').value) || 0;
+            const deducao = parseFloat(document.getElementById('valorDeducao').value) || 0;
+            const aliquota = parseFloat(document.getElementById('aliquotaISS').value) || 0;
+            const ir = parseFloat(document.getElementById('valorIR').value) || 0;
+            const pis = parseFloat(document.getElementById('valorPIS').value) || 0;
+            const cofins = parseFloat(document.getElementById('valorCOFINS').value) || 0;
+            const csll = parseFloat(document.getElementById('valorCSLL').value) || 0;
+            const inss = parseFloat(document.getElementById('valorINSS').value) || 0;
+            const outras = parseFloat(document.getElementById('outrasRetencoes').value) || 0;
+
+            const base = valor - deducao;
+            const iss = base * aliquota / 100;
+            const retencoes = ir + pis + cofins + csll + inss + outras;
+            const total = valor - retencoes;
+
+            document.getElementById('resumoValor').textContent = formatarMoeda(valor);
+            document.getElementById('resumoDeducao').textContent = formatarMoeda(deducao);
+            document.getElementById('resumoBase').textContent = formatarMoeda(base);
+            document.getElementById('resumoISS').textContent = formatarMoeda(iss);
+            document.getElementById('resumoRetencoes').textContent = formatarMoeda(retencoes);
+            document.getElementById('resumoTotal').textContent = formatarMoeda(total);
+        }
+
+        // ===== SHOW ALERT =====
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const iconMap = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+            const icon = iconMap[type] || iconMap.info;
+
+            const alertEl = document.createElement('div');
+            alertEl.className = 'alert ' + type;
+            alertEl.innerHTML = '<i class="fas ' + icon + '"></i> <span>' + message + '</span> <button class="alert-close" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>';
+            container.prepend(alertEl);
+
+            setTimeout(() => {
+                if (alertEl.parentElement) {
+                    alertEl.style.opacity = '0';
+                    alertEl.style.transform = 'translateY(-10px)';
+                    alertEl.style.transition = 'all 0.3s ease';
+                    setTimeout(() => alertEl.remove(), 300);
+                }
+            }, 5000);
+        }
+
+        // ===== EMITIR NFSe =====
+        async function emitirNFSe(event) {
+            event.preventDefault();
+
+            const btn = document.getElementById('btnEmitir');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Emitindo...';
+
+            const formData = {
+                tomador: {
+                    tipoDocumento: document.getElementById('tipoDocTomador').value,
+                    documento: document.getElementById('docTomador').value,
+                    razaoSocial: document.getElementById('razaoSocialTomador').value,
+                    email: document.getElementById('emailTomador').value,
+                    endereco: document.getElementById('enderecoTomador').value,
+                    numero: document.getElementById('numeroTomador').value,
+                    complemento: document.getElementById('complementoTomador').value,
+                    bairro: document.getElementById('bairroTomador').value,
+                    municipio: document.getElementById('municipioTomador').value,
+                    uf: document.getElementById('ufTomador').value,
+                    cep: document.getElementById('cepTomador').value,
+                    telefone: document.getElementById('telefoneTomador').value
+                },
+                servico: {
+                    codigoServico: document.getElementById('codigoServico').value,
+                    descricao: document.getElementById('descricaoServico').value,
+                    codigoCNAE: document.getElementById('codigoCNAE').value,
+                    aliquotaISS: parseFloat(document.getElementById('aliquotaISS').value) || 0,
+                    valorServico: parseFloat(document.getElementById('valorServico').value) || 0,
+                    valorDeducao: parseFloat(document.getElementById('valorDeducao').value) || 0,
+                    itemListaServico: document.getElementById('itemListaServico').value,
+                    codigoMunicipio: document.getElementById('codigoMunicipio').value
+                },
+                impostos: {
+                    issRetido: document.getElementById('issRetido').value,
+                    valorIR: parseFloat(document.getElementById('valorIR').value) || 0,
+                    valorPIS: parseFloat(document.getElementById('valorPIS').value) || 0,
+                    valorCOFINS: parseFloat(document.getElementById('valorCOFINS').value) || 0,
+                    valorCSLL: parseFloat(document.getElementById('valorCSLL').value) || 0,
+                    valorINSS: parseFloat(document.getElementById('valorINSS').value) || 0,
+                    outrasRetencoes: parseFloat(document.getElementById('outrasRetencoes').value) || 0
+                }
+            };
+
+            try {
+                const response = await fetch('/api/nfse/emitir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(formData)
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showAlert('NFSe emitida com sucesso! Número: ' + (result.numero || '-'), 'success');
+                    localStorage.removeItem('nfse_rascunho');
+                } else {
+                    showAlert(result.message || 'Erro ao emitir NFSe. Verifique os dados e tente novamente.', 'error');
+                }
+            } catch (error) {
+                console.error('[NFSe] Erro ao emitir:', error);
+                showAlert('Erro de conexão ao emitir NFSe. Tente novamente.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane"></i> Emitir NFSe';
+            }
+        }
+
+        // ===== LIMPAR FORMULÁRIO =====
+        function limparFormulario() {
+            document.getElementById('nfseForm').reset();
+            document.getElementById('aliquotaISS').value = '5.00';
+            document.getElementById('valorDeducao').value = '0';
+            document.getElementById('valorIR').value = '0';
+            document.getElementById('valorPIS').value = '0';
+            document.getElementById('valorCOFINS').value = '0';
+            document.getElementById('valorCSLL').value = '0';
+            document.getElementById('valorINSS').value = '0';
+            document.getElementById('outrasRetencoes').value = '0';
+            calcularResumo();
+            showAlert('Formulário limpo com sucesso.', 'info');
+        }
+
+        // ===== SALVAR RASCUNHO =====
+        function salvarRascunho() {
+            const form = document.getElementById('nfseForm');
+            const inputs = form.querySelectorAll('input, select, textarea');
+            const rascunho = {};
+            inputs.forEach(input => {
+                if (input.id) {
+                    rascunho[input.id] = input.value;
+                }
+            });
+            localStorage.setItem('nfse_rascunho', JSON.stringify(rascunho));
+            showAlert('Rascunho salvo com sucesso!', 'success');
+        }
+
+        // ===== CARREGAR RASCUNHO =====
+        function carregarRascunho() {
+            const saved = localStorage.getItem('nfse_rascunho');
+            if (!saved) return;
+            try {
+                const rascunho = JSON.parse(saved);
+                Object.keys(rascunho).forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.value = rascunho[id];
+                    }
+                });
+                calcularResumo();
+                showAlert('Rascunho anterior carregado automaticamente.', 'info');
+            } catch (e) {
+                console.warn('[NFSe] Erro ao carregar rascunho:', e);
+            }
+        }
+
+        // ===== MODAL CONFIGURAÇÕES (PLACEHOLDER) =====
+        function abrirModalConfiguracoes() {
+            showAlert('Configurações NFSe — em breve disponível.', 'info');
+        }
+
+        // ===== INICIALIZAÇÃO =====
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            carregarRascunho();
+
+            // Listeners para cálculo automático do resumo
+            const camposCalculo = [
+                'valorServico', 'valorDeducao', 'aliquotaISS',
+                'valorIR', 'valorPIS', 'valorCOFINS',
+                'valorCSLL', 'valorINSS', 'outrasRetencoes'
+            ];
+            camposCalculo.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', calcularResumo);
+                    el.addEventListener('change', calcularResumo);
+                }
+            });
+        });
+    </script>
+
+    <!-- External Scripts -->
+    <script src="/js/notification-manager.js?v=20260119"></script>
+    <script src="../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

@@ -1,0 +1,784 @@
+/* ============================================================
+   GLOBAL HEADER & SIDEBAR — Design Institucional ALUFORCE
+   Padrão unificado para todos os módulos
+   Sidebar 48px cinza + Header 42px com logos ALUFORCE | Zyntra
+   v2.1 — 2026-02-16 — Fix content offset + Professional Tooltips
+   ============================================================ */
+
+/* ============================================================
+   1. DESIGN TOKENS
+   ============================================================ */
+:root {
+    /* Sidebar */
+    --sidebar-w: 48px;
+    --sidebar-bg: #1e1e1e;
+    --sidebar-hover: rgba(255,255,255,0.08);
+    --sidebar-active-bg: #3b3b3b;
+    --sidebar-active-text: #fff;
+    --sidebar-icon-color: #8b8b8b;
+    --sidebar-icon-hover: #d4d4d4;
+
+    /* Header */
+    --header-h: 42px;
+    --header-bg: #1e1e1e;
+    --header-text: #a1a1a1;
+    --header-text-bold: #f1f5f9;
+    --header-border: rgba(255,255,255,0.08);
+
+    /* Accent (neutral white) */
+    --accent: #ffffff;
+    --accent-hover: #d4d4d4;
+    --accent-soft: rgba(255,255,255,0.10);
+
+    /* Tooltip — Professional */
+    --tooltip-bg: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    --tooltip-bg-solid: #1e293b;
+    --tooltip-text: #ffffff;
+    --tooltip-shadow: 0 10px 25px -5px rgba(0,0,0,0.25), 0 8px 10px -6px rgba(0,0,0,0.1);
+    --tooltip-border: 1px solid rgba(255,255,255,0.1);
+
+    /* Override legacy variables — !important garante precedência sobre inline <style> */
+    --sidebar-width: 48px !important;
+    --header-height: 42px !important;
+    --primary-dark: #1e1e1e !important;
+}
+
+/* ============================================================
+   2. SIDEBAR
+   ============================================================ */
+.sidebar {
+    position: fixed !important;
+    left: 0;
+    top: 0;
+    width: var(--sidebar-w) !important;
+    height: 100vh;
+    background: var(--sidebar-bg) !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0 10px;
+    z-index: 1000;
+    border-right: 1px solid var(--header-border);
+    overflow: visible !important;
+}
+
+.sidebar-logo {
+    width: 30px !important;
+    height: 30px !important;
+    background: #3b3b3b !important;
+    border-radius: 7px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.sidebar-logo:hover {
+    transform: scale(1.08);
+    box-shadow: 0 2px 10px rgba(255,255,255,0.15);
+}
+
+.sidebar-logo i {
+    color: #fff;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    width: 100%;
+    padding: 0 6px;
+    overflow: visible !important;
+    scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar { display: none; }
+
+.sidebar-btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    border: none;
+    background: transparent;
+    color: var(--sidebar-icon-color);
+    border-radius: 8px !important;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px !important;
+    transition: all 0.15s ease;
+    position: relative;
+    margin: 0 auto;
+    text-decoration: none;
+    outline: none;
+    padding: 0;
+}
+
+.sidebar-btn:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-icon-hover);
+}
+
+/* Click/press animation — pulse visual feedback */
+.sidebar-btn:active {
+    transform: scale(0.90);
+    transition: transform 0.08s ease;
+}
+
+.sidebar-btn.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+/* Transição animada do indicador ativo */
+.sidebar-btn.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+    animation: sidebarIndicatorIn 0.2s ease forwards;
+}
+
+@keyframes sidebarIndicatorIn {
+    from { height: 0%; opacity: 0; }
+    to   { height: 60%; opacity: 1; }
+}
+
+/* Click ripple effect */
+@keyframes sidebarClickPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.25); }
+    100% { box-shadow: 0 0 0 10px rgba(255,255,255,0); }
+}
+
+.sidebar-btn.click-pulse {
+    animation: sidebarClickPulse 0.35s ease-out;
+}
+
+/* Override: no botão ativo, ::before mostra o indicador (barra lateral), NÃO a seta do tooltip.
+   No hover, a seta do tooltip aparece normalmente via as regras de hover abaixo. */
+.sidebar-btn.active[data-title]::before,
+.sidebar-btn.active[title]::before {
+    content: '' !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 3px !important;
+    height: 60% !important;
+    background: var(--accent) !important;
+    border-radius: 0 3px 3px 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    border: none !important;
+    filter: none !important;
+    border-color: transparent !important;
+    pointer-events: none !important;
+    z-index: 1 !important;
+}
+
+/* No hover do botão ativo, ::before vira a seta do tooltip (restaura comportamento de tooltip) */
+.sidebar-btn.active[data-title]:hover::before,
+.sidebar-btn.active[title]:hover::before {
+    left: calc(100% + 5px) !important;
+    width: auto !important;
+    height: auto !important;
+    background: none !important;
+    border: 6px solid transparent !important;
+    border-right-color: var(--tooltip-bg-solid, #1e293b) !important;
+    border-radius: 0 !important;
+    z-index: 10001 !important;
+}
+
+/* ============================================================
+   2.1 SIDEBAR — PROFESSIONAL TOOLTIP
+   Tooltip profissional com seta, gradiente e animação suave.
+   Funciona com title OU data-title (JS converte title→data-title).
+   ============================================================ */
+
+/* Seta (triângulo) do tooltip — ::before */
+.sidebar-btn[data-title]::before,
+.sidebar-btn[title]::before {
+    content: '' !important;
+    position: absolute !important;
+    left: calc(100% + 5px) !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    border: 6px solid transparent !important;
+    border-right-color: var(--tooltip-bg-solid) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1), visibility 0.2s !important;
+    z-index: 10001 !important;
+    /* filter: drop-shadow removido — causa erro GpuShader quando GPU compositing está desabilitado */
+    background: none !important;
+    width: auto !important;
+    height: auto !important;
+    border-radius: 0 !important;
+}
+
+/* Corpo do tooltip — ::after */
+.sidebar-btn[data-title]::after {
+    content: attr(data-title) !important;
+}
+.sidebar-btn:not([data-title])[title]::after {
+    content: attr(title) !important;
+}
+
+.sidebar-btn[data-title]::after,
+.sidebar-btn[title]::after {
+    position: absolute !important;
+    left: calc(100% + 16px) !important;
+    top: 50% !important;
+    transform: translateY(-50%) translateX(-6px) !important;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+    color: #fff !important;
+    padding: 7px 13px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+    letter-spacing: 0.01em !important;
+    white-space: nowrap !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1),
+                visibility 0.2s,
+                transform 0.2s cubic-bezier(0.4,0,0.2,1) !important;
+    z-index: 10000 !important;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25),
+                0 8px 10px -6px rgba(0,0,0,0.1) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    line-height: 1.3 !important;
+}
+
+/* Hover — mostra seta + tooltip com slide-in */
+.sidebar-btn[data-title]:hover::before,
+.sidebar-btn[title]:hover::before {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+.sidebar-btn[data-title]:hover::after,
+.sidebar-btn[title]:hover::after {
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: translateY(-50%) translateX(0) !important;
+}
+
+/* Tooltip permanece funcional no botão ativo */
+
+.sidebar-divider {
+    width: 24px;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+    margin: 6px auto;
+    flex-shrink: 0;
+}
+
+.sidebar-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 6px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ============================================================
+   3. HEADER
+   ============================================================ */
+.header {
+    position: fixed !important;
+    top: 0;
+    left: var(--sidebar-w) !important;
+    right: 0;
+    height: var(--header-h) !important;
+    background: var(--header-bg) !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 999;
+    border-bottom: 1px solid var(--header-border);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Quando user-greeting está dentro de header-left (HTML legado),
+   empurra para a direita automaticamente */
+.header-left > .user-greeting {
+    margin-left: auto;
+}
+
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header-brand img {
+    height: 22px;
+    object-fit: contain;
+}
+
+.header-brand .page-title {
+    color: rgba(255,255,255,0.85);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.header-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--header-text);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.header-btn:hover {
+    background: rgba(255,255,255,0.07);
+    color: var(--header-text-bold);
+}
+
+.header-btn .notification-badge {
+    position: absolute;
+    top: 3px; right: 3px;
+    min-width: 14px; height: 14px;
+    background: #ef4444; color: #fff;
+    font-size: 9px; font-weight: 700;
+    border-radius: 99px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 3px; line-height: 1;
+}
+
+.user-greeting {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--header-text);
+    margin-left: 8px;
+    padding-left: 10px;
+    border-left: 1px solid rgba(255,255,255,0.08);
+}
+
+.user-greeting strong {
+    color: var(--header-text-bold);
+    font-weight: 600;
+}
+
+.user-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #3b3b3b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.user-avatar img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+}
+
+.user-avatar span {
+    color: #fff;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+}
+
+/* ============================================================
+   4. MAIN AREA — Content Offset Fix
+   Garante que o conteúdo nunca fique atrás do header fixo.
+   ============================================================ */
+
+/* Container raiz — permitir que .main-area preencha corretamente */
+.app-container {
+    display: flex !important;
+    min-height: 100vh !important;
+}
+
+.main-area {
+    flex: 1;
+    display: flex !important;
+    flex-direction: column !important;
+    margin-left: var(--sidebar-w) !important;
+    min-height: 100vh !important;
+    padding-top: var(--header-h) !important;
+    /* Forçar overflow correto — impede que inline `overflow: hidden` corte scroll vertical */
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overflow: hidden auto !important; /* shorthand: x=hidden, y=auto — vence qualquer inline */
+}
+
+/* Reset margin-top em todos os wrappers de conteúdo —
+   o padding-top do .main-area já posiciona abaixo do header fixo */
+.main-content,
+.content-area,
+.page-content,
+.dashboard-content {
+    margin-top: 0 !important;
+}
+
+/* Wrappers de conteúdo devem preencher o espaço restante e rolar */
+.main-area > .content-area,
+.main-area > .page-content,
+.main-area > .main-content,
+.main-area > .dashboard-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    min-height: 0 !important; /* Essencial para flex-child shrink */
+}
+
+/* Quando há conteúdo direto sem wrapper dedicado
+   (e.g. kanban-container, filters-bar), garantir que .main-area rola */
+.main-area:not(:has(> .content-area)):not(:has(> .page-content)):not(:has(> .main-content)) {
+    overflow-y: auto !important;
+}
+
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--gray-50, #f9fafb);
+    min-height: 0; /* flex-child shrink fix */
+}
+
+/* Fix para .content-area dentro de .main-area que usa overflow: hidden inline */
+.content-area {
+    flex: 1;
+    min-height: 0;
+}
+
+/* Fix height calc para elementos que usam calc(100vh - var(--header-height) ...) —
+   Como o --header-height agora é 42px via !important, os cálculos se ajustam automaticamente */
+
+/* ============================================================
+   5. MOBILE RESPONSIVE
+   ============================================================ */
+.mobile-menu-btn,
+.mobile-menu-toggle {
+    display: none;
+    width: 34px; height: 34px;
+    border: none; background: transparent;
+    color: #fff; border-radius: 6px;
+    cursor: pointer;
+    align-items: center; justify-content: center;
+    font-size: 16px;
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+.sidebar-overlay.active { display: block; }
+
+@media (max-width: 768px) {
+    .mobile-menu-btn,
+    .mobile-menu-toggle { display: flex; }
+
+    .sidebar {
+        width: 210px !important;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 1001;
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    .sidebar-btn {
+        width: 100% !important;
+        justify-content: flex-start !important;
+        padding-left: 14px !important;
+        gap: 10px;
+        font-size: 13px !important;
+    }
+    /* No mobile expandido, mostra label ao lado do ícone */
+    .sidebar-btn[data-title]::after,
+    .sidebar-btn[title]::after {
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        transform: none !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        background: none !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        font-size: 12px !important;
+        color: inherit !important;
+        pointer-events: auto !important;
+    }
+    .sidebar-btn[data-title]::before,
+    .sidebar-btn[title]::before {
+        display: none !important; /* Esconde seta no mobile */
+    }
+    /* Active indicator no mobile — via ::before */
+    .sidebar-btn.active::before {
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 60%;
+        background: var(--accent);
+        border-radius: 0 3px 3px 0;
+        opacity: 1 !important;
+        visibility: visible !important;
+        border: none !important;
+        filter: none !important;
+        display: block !important;
+    }
+    .sidebar-nav { padding: 0 8px; }
+
+    .header { left: 0 !important; }
+    .main-area { margin-left: 0 !important; padding-top: var(--header-h) !important; }
+    .user-greeting { display: none; }
+    .header-right { gap: 2px; }
+    .header-brand .page-title { display: none; }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .user-greeting span:first-child { display: none; }
+}
+
+/* ============================================================
+   6. PRINT
+   ============================================================ */
+@media print {
+    .sidebar, .header, .sidebar-overlay,
+    .mobile-menu-btn, .mobile-menu-toggle { display: none !important; }
+    .main-area { margin-left: 0 !important; padding-top: 0 !important; }
+    .main-content, .content-area, .page-content { margin-top: 0 !important; }
+}
+
+/* ============================================================
+   7. HEADER-BTN TOOLTIP (botões do header)
+   ============================================================ */
+
+/* ============================================================
+   7.1 COMPAT — Layout sem .app-container / .main-area
+   Para páginas que usam: body > .sidebar + .header + main.page-content
+   ============================================================ */
+body > main.page-content,
+body > main:not(.main-area) {
+    margin-left: var(--sidebar-w, 48px);
+    padding-top: calc(var(--header-h, 42px) + 2rem);
+    min-height: 100vh;
+}
+
+/* Sidebar botões SEM classe .sidebar-btn */
+.sidebar-nav > button:not(.sidebar-btn),
+.sidebar-bottom > button:not(.sidebar-btn) {
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    border: none;
+    background: transparent;
+    color: var(--sidebar-icon-color);
+    border-radius: 8px !important;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px !important;
+    transition: all 0.15s ease;
+    position: relative;
+    margin: 0 auto;
+    text-decoration: none;
+    outline: none;
+    padding: 0;
+}
+
+.sidebar-nav > button:not(.sidebar-btn):hover,
+.sidebar-bottom > button:not(.sidebar-btn):hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-icon-hover);
+}
+
+.sidebar-nav > button:not(.sidebar-btn).active,
+.sidebar-bottom > button:not(.sidebar-btn).active {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.sidebar-nav > button:not(.sidebar-btn).active::before,
+.sidebar-bottom > button:not(.sidebar-btn).active::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+}
+
+/* Tooltip para sidebar buttons sem .sidebar-btn */
+.sidebar-nav > button:not(.sidebar-btn)[title]::after,
+.sidebar-bottom > button:not(.sidebar-btn)[title]::after {
+    content: attr(title);
+    position: absolute;
+    left: calc(100% + 16px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-6px);
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #fff;
+    padding: 7px 13px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Inter', system-ui, sans-serif;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s ease, visibility 0.2s, transform 0.2s ease;
+    z-index: 10000;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.sidebar-nav > button:not(.sidebar-btn)[title]:hover::after,
+.sidebar-bottom > button:not(.sidebar-btn)[title]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(-50%) translateX(0);
+}
+
+/* Header .header-logo structure (alternativa a .header-brand) */
+.header-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header-logo img {
+    height: 22px;
+    object-fit: contain;
+}
+
+.header-divider {
+    color: rgba(255,255,255,0.2);
+    font-weight: 300;
+    font-size: 18px;
+    user-select: none;
+}
+
+.header-module {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.3px;
+}
+
+/* Notification indicator simples */
+.notification-indicator {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--header-text);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: all 0.15s ease;
+}
+
+.notification-indicator:hover {
+    background: rgba(255,255,255,0.07);
+    color: var(--header-text-bold);
+}
+
+/* Mobile fix para layout sem wrapper */
+@media (max-width: 768px) {
+    body > main.page-content,
+    body > main:not(.main-area) {
+        margin-left: 0;
+        padding-top: calc(var(--header-h, 42px) + 1rem);
+    }
+    .sidebar-nav > button:not(.sidebar-btn)[title]::after,
+    .sidebar-bottom > button:not(.sidebar-btn)[title]::after {
+        display: none;
+    }
+}
+
+.header-btn[data-title]::after,
+.header-btn[title]::after {
+    content: attr(data-title);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: 'Inter', system-ui, sans-serif;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.2s cubic-bezier(0.4,0,0.2,1),
+                visibility 0.2s,
+                transform 0.2s cubic-bezier(0.4,0,0.2,1);
+    z-index: 10000;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.header-btn:not([data-title])[title]::after {
+    content: attr(title);
+}
+.header-btn[data-title]:hover::after,
+.header-btn[title]:hover::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}

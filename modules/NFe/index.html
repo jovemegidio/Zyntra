@@ -1,0 +1,1190 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Faturamento</title>
+
+    <!-- Sistema de Autenticação Unificado -->
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- CSP Fix -->
+    <script src="/js/csp-fix.js" defer></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- Global Header & Sidebar — Padrão Institucional -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260226">
+
+    <!-- Garantir que ícones Font Awesome apareçam -->
+    <style>
+        .fas, .far, .fab, .fa {
+            font-family: 'Font Awesome 6 Free', 'Font Awesome 6 Brands', FontAwesome !important;
+            font-style: normal;
+            display: inline-block !important;
+            visibility: visible !important;
+        }
+        .fas { font-weight: 900; }
+        .far { font-weight: 400; }
+    </style>
+
+    <style>
+        /* ============================================
+           VARIÁVEIS CSS — FATURAMENTO & LOGÍSTICA
+           ============================================ */
+        :root {
+            --fat-primary: #10b981;
+            --fat-secondary: #059669;
+            --fat-accent: #047857;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --bg-page: #f9fafb;
+            --bg-card: #ffffff;
+        }
+
+        /* ============================================
+           RESET E BASE
+           ============================================ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { font-size: 16px; scroll-behavior: smooth; height: 100%; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            line-height: 1.5;
+            height: 100%;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           NOTIFICATION PANEL
+           ============================================ */
+        .notification-container { position: relative; }
+
+        .notification-panel {
+            position: absolute;
+            top: calc(100% + 12px);
+            right: 0;
+            width: 360px;
+            max-height: 480px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 10000;
+            display: none;
+            overflow: hidden;
+        }
+        .notification-panel.active { display: block; }
+
+        .notification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, var(--fat-primary), var(--fat-secondary));
+            color: white;
+        }
+        .notification-header h3 {
+            margin: 0; font-size: 16px; font-weight: 600;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .notification-actions { display: flex; gap: 8px; }
+        .notification-actions button {
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .notification-actions button:hover { background: rgba(255,255,255,0.3); }
+
+        .notification-list { max-height: 340px; overflow-y: auto; }
+
+        .notification-empty {
+            padding: 40px 20px; text-align: center; color: #888;
+        }
+        .notification-empty i { font-size: 40px; margin-bottom: 12px; color: var(--fat-primary); }
+        .notification-empty p { margin: 0; font-size: 14px; }
+
+        /* ============================================
+           PAGE CONTENT
+           ============================================ */
+        .page-content {
+            padding: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+            flex: 1;
+        }
+
+        /* ============================================
+           KPI CARDS
+           ============================================ */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            border-left: 4px solid var(--fat-primary);
+            transition: all 0.2s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .kpi-card.green { border-left-color: var(--success-green); }
+        .kpi-card.blue { border-left-color: var(--info-blue); }
+        .kpi-card.orange { border-left-color: #f59e0b; }
+        .kpi-card.purple { border-left-color: var(--fat-primary); }
+
+        .kpi-card .kpi-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; margin-bottom: 12px;
+        }
+        .kpi-card.purple .kpi-icon { background: rgba(16,185,129,0.1); color: var(--fat-primary); }
+        .kpi-card.green .kpi-icon { background: rgba(34,197,94,0.1); color: var(--success-green); }
+        .kpi-card.blue .kpi-icon { background: rgba(59,130,246,0.1); color: var(--info-blue); }
+        .kpi-card.orange .kpi-icon { background: rgba(245,158,11,0.1); color: #f59e0b; }
+
+        .kpi-card .kpi-value { font-size: 26px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .kpi-card .kpi-label { font-size: 13px; color: var(--text-secondary); }
+        .kpi-card .kpi-trend { display: flex; align-items: center; gap: 4px; font-size: 12px; margin-top: 8px; }
+        .kpi-card .kpi-trend.up { color: var(--success-green); }
+        .kpi-card .kpi-trend.down { color: var(--danger-red); }
+
+        /* ============================================
+           QUICK ACTIONS
+           ============================================ */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .action-btn {
+            display: flex; align-items: center; gap: 12px;
+            padding: 16px; background: var(--bg-card); border: none; border-radius: 12px;
+            cursor: pointer; transition: all 0.2s; text-decoration: none; color: var(--text-primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .action-btn .action-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: white; flex-shrink: 0;
+        }
+        .action-btn.green .action-icon { background: linear-gradient(135deg, #10b981, #059669); }
+        .action-btn.blue .action-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .action-btn.emerald .action-icon { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .action-btn.orange .action-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
+
+        .action-btn .action-text { display: flex; flex-direction: column; align-items: flex-start; }
+        .action-btn .action-title { font-size: 14px; font-weight: 600; }
+        .action-btn .action-desc { font-size: 12px; color: var(--text-secondary); }
+
+        /* ============================================
+           CONTENT GRID
+           ============================================ */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        /* Table Card */
+        .table-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+        .table-card-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; border-bottom: 1px solid var(--border-color);
+        }
+        .table-card-header h3 {
+            font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+        }
+        .table-card-header h3 i { color: var(--fat-primary); }
+        .table-card-header a { color: var(--fat-primary); font-size: 13px; font-weight: 500; text-decoration: none; }
+        .table-card-header a:hover { text-decoration: underline; }
+
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th {
+            text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 600;
+            color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;
+            background: #fafafa; border-bottom: 1px solid var(--border-color);
+        }
+        .data-table td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid #f3f4f6; }
+        .data-table tr:hover td { background: #fafafa; }
+
+        .status-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 600;
+        }
+        .status-badge.emitida { background: rgba(16,185,129,0.1); color: #059669; }
+        .status-badge.pendente { background: rgba(245,158,11,0.1); color: #d97706; }
+        .status-badge.cancelada { background: rgba(239,68,68,0.1); color: #dc2626; }
+
+        /* Sidebar Activity Card */
+        .sidebar-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+        .sidebar-card-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar-card-header h3 {
+            font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+        }
+        .sidebar-card-header h3 i { color: var(--fat-primary); }
+        .sidebar-card-body { padding: 0; }
+
+        .activity-item {
+            display: flex; gap: 12px; padding: 14px 20px;
+            border-bottom: 1px solid #f3f4f6; transition: background 0.15s;
+        }
+        .activity-item:hover { background: #fafafa; }
+        .activity-icon {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; flex-shrink: 0;
+        }
+        .activity-icon.success { background: rgba(16,185,129,0.1); color: #059669; }
+        .activity-icon.info { background: rgba(59,130,246,0.1); color: #3b82f6; }
+        .activity-icon.warning { background: rgba(245,158,11,0.1); color: #d97706; }
+        .activity-icon.error { background: rgba(239,68,68,0.1); color: #dc2626; }
+        .activity-content { flex: 1; }
+        .activity-title { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+        .activity-time { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* ============================================
+           MODAL CONFIGURAÇÕES NFe
+           ============================================ */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6); z-index: 9999;
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal-content-config {
+            background: white; border-radius: 16px; width: 100%; max-width: 700px;
+            max-height: 90vh; overflow: hidden;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+            animation: modalSlideIn 0.3s ease; display: flex; flex-direction: column;
+        }
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: scale(0.95) translateY(-20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header-config {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 24px;
+            background: linear-gradient(135deg, var(--fat-primary), var(--fat-secondary)); color: white;
+        }
+        .modal-header-config h2 {
+            font-size: 18px; font-weight: 600; margin: 0;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .modal-close {
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+        }
+        .modal-close:hover { background: rgba(255,255,255,0.3); transform: rotate(90deg); }
+
+        .modal-body-config { flex: 1; overflow-y: auto; padding: 0; }
+
+        .config-tabs {
+            display: flex; background: #f5f5f5; border-bottom: 1px solid #e5e5e5;
+        }
+        .config-tab {
+            flex: 1; padding: 14px 16px; background: none; border: none;
+            font-size: 13px; font-weight: 500; color: #666; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: all 0.2s; border-bottom: 3px solid transparent;
+        }
+        .config-tab:hover { background: #eee; color: #333; }
+        .config-tab.active { background: white; color: var(--fat-primary); border-bottom-color: var(--fat-primary); }
+
+        .config-content { display: none; padding: 24px; }
+        .config-content.active { display: block; }
+
+        .config-section h3 {
+            font-size: 16px; font-weight: 600; color: #333; margin: 0 0 8px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .config-desc { font-size: 13px; color: #666; margin: 0 0 20px; }
+
+        .cert-status {
+            display: flex; align-items: center; gap: 16px; padding: 16px;
+            background: #f8f9fa; border-radius: 12px; margin-bottom: 20px;
+        }
+        .cert-status-icon {
+            width: 48px; height: 48px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+        }
+        .cert-status-icon.warning { background: #fef3c7; color: #d97706; }
+        .cert-status-icon.success { background: #d1fae5; color: #059669; }
+        .cert-status-icon.error { background: #fee2e2; color: #dc2626; }
+        .cert-status-info { display: flex; flex-direction: column; }
+        .cert-status-label { font-weight: 600; color: #333; font-size: 14px; }
+        .cert-status-detail { font-size: 12px; color: #666; margin-top: 2px; }
+
+        .upload-zone {
+            border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px 20px;
+            text-align: center; cursor: pointer; transition: all 0.3s; background: #fafafa;
+        }
+        .upload-zone:hover { border-color: var(--fat-primary); background: #ecfdf5; }
+        .upload-zone i { font-size: 40px; color: #9ca3af; display: block; margin-bottom: 12px; }
+        .upload-zone span { display: block; color: #374151; font-weight: 500; margin-bottom: 4px; }
+        .upload-zone small { color: #9ca3af; font-size: 12px; }
+
+        .cert-file-selected {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; background: #ecfdf5; border: 1px solid var(--fat-primary);
+            border-radius: 8px; margin-bottom: 16px;
+        }
+        .file-info { display: flex; align-items: center; gap: 10px; color: #059669; font-weight: 500; }
+        .file-info i { font-size: 18px; }
+        .btn-remove-file { background: none; border: none; color: #dc2626; cursor: pointer; padding: 4px 8px; }
+
+        .cert-password-area { margin-bottom: 20px; }
+        .cert-password-area label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+        .password-input-wrapper {
+            display: flex; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden;
+        }
+        .password-input-wrapper input { flex: 1; padding: 12px; border: none; font-size: 14px; outline: none; }
+        .toggle-password { background: #f3f4f6; border: none; padding: 0 14px; cursor: pointer; color: #6b7280; }
+
+        .cert-actions { display: flex; gap: 12px; margin-top: 20px; }
+
+        .btn-config {
+            padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; border: none;
+        }
+        .btn-config:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: var(--fat-primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--fat-secondary); }
+        .btn-secondary { background: #e5e7eb; color: #374151; }
+        .btn-secondary:hover { background: #d1d5db; }
+        .btn-cancel { background: #f3f4f6; color: #6b7280; }
+        .btn-cancel:hover { background: #e5e7eb; }
+        .btn-save { background: var(--fat-primary); color: white; }
+        .btn-save:hover { background: var(--fat-secondary); }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group.full-width { grid-column: span 2; }
+        .form-group label { font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+        .form-group input {
+            padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+            font-size: 14px; transition: border-color 0.2s;
+        }
+        .form-group input:focus { outline: none; border-color: var(--fat-primary); }
+        .form-group input[readonly] { background: #f9fafb; color: #6b7280; }
+
+        .ambiente-options { display: flex; flex-direction: column; gap: 12px; }
+        .ambiente-option { cursor: pointer; }
+        .ambiente-option input { display: none; }
+        .ambiente-card {
+            display: flex; align-items: center; gap: 16px; padding: 16px;
+            border: 2px solid #e5e7eb; border-radius: 12px; transition: all 0.2s;
+        }
+        .ambiente-option input:checked + .ambiente-card { border-color: var(--fat-primary); background: #ecfdf5; }
+        .ambiente-icon {
+            width: 48px; height: 48px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+        }
+        .ambiente-icon.warning { background: #fef3c7; color: #d97706; }
+        .ambiente-icon.success { background: #d1fae5; color: #059669; }
+        .ambiente-info { display: flex; flex-direction: column; }
+        .ambiente-title { font-weight: 600; color: #333; }
+        .ambiente-desc { font-size: 12px; color: #666; }
+
+        .config-warning {
+            display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+            background: #fef3c7; border-radius: 8px; margin-top: 20px; font-size: 13px; color: #92400e;
+        }
+        .config-warning i { color: #d97706; }
+
+        .modal-footer-config {
+            display: flex; justify-content: flex-end; gap: 12px;
+            padding: 16px 24px; border-top: 1px solid #e5e5e5; background: #f9fafb;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 1200px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .quick-actions { grid-template-columns: repeat(2, 1fr); }
+            .content-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .quick-actions { grid-template-columns: 1fr; }
+            .page-content { padding: 16px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .form-group.full-width { grid-column: span 1; }
+        }
+
+        @media (max-width: 600px) {
+            .config-tabs { flex-wrap: wrap; }
+            .config-tab { flex: none; width: 100%; }
+            .modal-content-config { max-height: 95vh; border-radius: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR — PADRÃO PCP -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn active" title="Dashboard">
+                    <i class="fas fa-chart-pie"></i>
+                </a>
+                <a href="emitir.html" class="sidebar-btn" title="Emitir NFe">
+                    <i class="fas fa-file-invoice"></i>
+                </a>
+                <a href="consultar.html" class="sidebar-btn" title="Consultar NFe">
+                    <i class="fas fa-search"></i>
+                </a>
+                <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços">
+                    <i class="fas fa-file-contract"></i>
+                </a>
+                <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE">
+                    <i class="fas fa-print"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+                <a href="eventos.html" class="sidebar-btn" title="Eventos">
+                    <i class="fas fa-history"></i>
+                </a>
+                <a href="logistica.html" class="sidebar-btn" title="Logística">
+                    <i class="fas fa-truck"></i>
+                </a>
+                <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização">
+                    <i class="fas fa-ban"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="abrirModalConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER — PADRÃO PCP -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Faturamento</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display:none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas"><i class="fas fa-check-double"></i></button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas"><i class="fas fa-trash-alt"></i></button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- MAIN CONTENT -->
+            <div class="main-content">
+                <div class="page-content">
+                    <!-- KPI Cards -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card purple">
+                            <div class="kpi-icon"><i class="fas fa-file-invoice"></i></div>
+                            <div class="kpi-value" id="kpi-emitidas">-</div>
+                            <div class="kpi-label">NFes Emitidas Este Mês</div>
+                            <div class="kpi-trend up"><i class="fas fa-spinner fa-spin"></i> Carregando...</div>
+                        </div>
+                        <div class="kpi-card green">
+                            <div class="kpi-icon"><i class="fas fa-check-circle"></i></div>
+                            <div class="kpi-value" id="kpi-autorizadas">-</div>
+                            <div class="kpi-label">Autorizadas pela SEFAZ</div>
+                            <div class="kpi-trend up"><i class="fas fa-spinner fa-spin"></i> Carregando...</div>
+                        </div>
+                        <div class="kpi-card blue">
+                            <div class="kpi-icon"><i class="fas fa-dollar-sign"></i></div>
+                            <div class="kpi-value" id="kpi-valor">-</div>
+                            <div class="kpi-label">Valor Total Faturado</div>
+                            <div class="kpi-trend up"><i class="fas fa-spinner fa-spin"></i> Carregando...</div>
+                        </div>
+                        <div class="kpi-card orange">
+                            <div class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="kpi-value" id="kpi-pendentes">-</div>
+                            <div class="kpi-label">Pendências/Rejeições</div>
+                            <div class="kpi-trend down"><i class="fas fa-exclamation"></i> Requer atenção</div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <a href="emitir.html" class="action-btn green">
+                            <div class="action-icon"><i class="fas fa-plus"></i></div>
+                            <div class="action-text">
+                                <span class="action-title">Nova NFe</span>
+                                <span class="action-desc">Emitir nota fiscal</span>
+                            </div>
+                        </a>
+                        <a href="consultar.html" class="action-btn blue">
+                            <div class="action-icon"><i class="fas fa-search"></i></div>
+                            <div class="action-text">
+                                <span class="action-title">Consultar</span>
+                                <span class="action-desc">Buscar notas fiscais</span>
+                            </div>
+                        </a>
+                        <a href="danfe.html" class="action-btn emerald">
+                            <div class="action-icon"><i class="fas fa-print"></i></div>
+                            <div class="action-text">
+                                <span class="action-title">DANFE</span>
+                                <span class="action-desc">Gerar/imprimir DANFE</span>
+                            </div>
+                        </a>
+                        <a href="relatorios.html" class="action-btn orange">
+                            <div class="action-icon"><i class="fas fa-chart-bar"></i></div>
+                            <div class="action-text">
+                                <span class="action-title">Relatórios</span>
+                                <span class="action-desc">Análises e exportações</span>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Content Grid -->
+                    <div class="content-grid">
+                        <div class="table-card">
+                            <div class="table-card-header">
+                                <h3><i class="fas fa-file-invoice"></i> Notas Fiscais Recentes</h3>
+                                <a href="consultar.html">Ver todas</a>
+                            </div>
+                            <div class="table-card-body">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Número</th>
+                                            <th>Cliente</th>
+                                            <th>Data</th>
+                                            <th>Valor</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="nfe-table-body">
+                                        <tr>
+                                            <td colspan="5" style="text-align:center;padding:30px;color:#666;">
+                                                <i class="fas fa-spinner fa-spin" style="font-size:24px;color:var(--fat-primary);"></i>
+                                                <div style="margin-top:10px;">Carregando notas fiscais...</div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="sidebar-card">
+                            <div class="sidebar-card-header">
+                                <h3><i class="fas fa-history"></i> Atividades Recentes</h3>
+                            </div>
+                            <div class="sidebar-card-body">
+                                <div style="text-align:center;padding:30px;color:#666;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size:24px;color:var(--fat-primary);"></i>
+                                    <div style="margin-top:10px;">Carregando atividades...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Configurações do Sistema NFe -->
+    <div class="modal-overlay" id="modal-configuracoes-nfe">
+        <div class="modal-content-config">
+            <div class="modal-header-config">
+                <h2><i class="fas fa-cog"></i> Configurações NFe</h2>
+                <button class="modal-close" onclick="fecharModalConfiguracoes()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-config">
+                <div class="config-tabs">
+                    <button class="config-tab active" onclick="trocarAbaConfig('certificado')" data-tab="certificado">
+                        <i class="fas fa-certificate"></i> Certificado Digital
+                    </button>
+                    <button class="config-tab" onclick="trocarAbaConfig('empresa')" data-tab="empresa">
+                        <i class="fas fa-building"></i> Dados da Empresa
+                    </button>
+                    <button class="config-tab" onclick="trocarAbaConfig('ambiente')" data-tab="ambiente">
+                        <i class="fas fa-server"></i> Ambiente
+                    </button>
+                </div>
+
+                <div class="config-content active" id="config-certificado">
+                    <div class="config-section">
+                        <h3><i class="fas fa-certificate"></i> Certificado Digital A1</h3>
+                        <p class="config-desc">Importe seu certificado digital para emissão de NFe/NFSe. Formatos aceitos: .pfx, .p12</p>
+                        <div class="cert-status" id="cert-status">
+                            <div class="cert-status-icon warning"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="cert-status-info">
+                                <span class="cert-status-label">Nenhum certificado configurado</span>
+                                <span class="cert-status-detail">Importe um certificado para começar a emitir notas</span>
+                            </div>
+                        </div>
+                        <div class="cert-upload-area" id="cert-upload-area">
+                            <input type="file" id="cert-file-input" accept=".pfx,.p12" style="display:none;" onchange="handleCertFileSelect(event)">
+                            <div class="upload-zone" onclick="document.getElementById('cert-file-input').click()">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>Clique para selecionar ou arraste o certificado</span>
+                                <small>Arquivos .pfx ou .p12 até 5MB</small>
+                            </div>
+                        </div>
+                        <div class="cert-file-selected" id="cert-file-selected" style="display:none;">
+                            <div class="file-info"><i class="fas fa-file-signature"></i><span id="cert-file-name">certificado.pfx</span></div>
+                            <button class="btn-remove-file" onclick="removerCertificadoSelecionado()"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="cert-password-area" id="cert-password-area" style="display:none;">
+                            <label for="cert-password">Senha do Certificado</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="cert-password" placeholder="Digite a senha do certificado">
+                                <button type="button" class="toggle-password" onclick="toggleCertPassword()"><i class="fas fa-eye"></i></button>
+                            </div>
+                        </div>
+                        <div class="cert-actions">
+                            <button class="btn-config btn-primary" onclick="importarCertificado()" id="btn-importar-cert" disabled>
+                                <i class="fas fa-upload"></i> Importar Certificado
+                            </button>
+                            <button class="btn-config btn-secondary" onclick="verificarCertificado()" id="btn-verificar-cert" style="display:none;">
+                                <i class="fas fa-check-circle"></i> Verificar Validade
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-content" id="config-empresa">
+                    <div class="config-section">
+                        <h3><i class="fas fa-building"></i> Dados do Emitente</h3>
+                        <p class="config-desc">Configure os dados da empresa que aparecerão nas notas fiscais</p>
+                        <div class="form-grid">
+                            <div class="form-group"><label>CNPJ</label><input type="text" id="config-cnpj" placeholder="00.000.000/0000-00" readonly></div>
+                            <div class="form-group"><label>Inscrição Estadual</label><input type="text" id="config-ie" placeholder="000.000.000.000"></div>
+                            <div class="form-group full-width"><label>Razão Social</label><input type="text" id="config-razao" placeholder="Razão Social da Empresa"></div>
+                            <div class="form-group full-width"><label>Nome Fantasia</label><input type="text" id="config-fantasia" placeholder="Nome Fantasia"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-content" id="config-ambiente">
+                    <div class="config-section">
+                        <h3><i class="fas fa-server"></i> Ambiente de Emissão</h3>
+                        <p class="config-desc">Selecione o ambiente para emissão das notas fiscais</p>
+                        <div class="ambiente-options">
+                            <label class="ambiente-option">
+                                <input type="radio" name="ambiente" value="2" checked>
+                                <div class="ambiente-card">
+                                    <div class="ambiente-icon warning"><i class="fas fa-flask"></i></div>
+                                    <div class="ambiente-info"><span class="ambiente-title">Homologação</span><span class="ambiente-desc">Ambiente de testes (notas sem valor fiscal)</span></div>
+                                </div>
+                            </label>
+                            <label class="ambiente-option">
+                                <input type="radio" name="ambiente" value="1">
+                                <div class="ambiente-card">
+                                    <div class="ambiente-icon success"><i class="fas fa-check-circle"></i></div>
+                                    <div class="ambiente-info"><span class="ambiente-title">Produção</span><span class="ambiente-desc">Ambiente real (notas com valor fiscal)</span></div>
+                                </div>
+                            </label>
+                        </div>
+                        <div class="config-warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>Atenção: Alterar para Produção fará com que as notas tenham valor fiscal real.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer-config">
+                <button class="btn-config btn-cancel" onclick="fecharModalConfiguracoes()"><i class="fas fa-times"></i> Cancelar</button>
+                <button class="btn-config btn-save" onclick="salvarConfiguracoes()"><i class="fas fa-save"></i> Salvar Configurações</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== SIDEBAR/HEADER — FUNÇÕES PADRÃO =====
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        function toggleNotificacoes() {
+            const panel = document.getElementById('notification-panel');
+            panel.classList.toggle('active');
+        }
+        function marcarTodasLidas() {}
+        function limparNotificacoes() {}
+
+        // ===== MAPEAMENTO DE AVATARES =====
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp',
+            'marcia': '/avatars/Marcia.webp',
+            'augusto': '/avatars/Augusto.webp',
+            'renata': '/avatars/Renata.webp',
+            'fabiano': '/avatars/Fabiano.webp',
+            'fabiola': '/avatars/Fabiola.webp'
+        };
+
+        // ===== CARREGAR USUÁRIO =====
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.apelido || user.nome || user.name || 'Usuário';
+                    const primeiroNome = user.apelido || (userName ? userName.split(' ')[0] : 'Usuário');
+
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    document.getElementById('user-name').textContent = primeiroNome;
+
+                    const initialsEl = document.getElementById('user-initials');
+                    const avatarImg = document.getElementById('user-photo');
+
+                    let avatarUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    if (!avatarUrl || avatarUrl === '/avatars/default.webp') {
+                        if (user.email) {
+                            const username = user.email.split('@')[0].split('.')[0].toLowerCase();
+                            avatarUrl = avatarNameMap[username];
+                        }
+                        if (!avatarUrl) avatarUrl = avatarNameMap[primeiroNome.toLowerCase()];
+                    }
+
+                    if (avatarUrl && avatarImg) {
+                        avatarImg.src = avatarUrl;
+                        avatarImg.onload = () => {
+                            avatarImg.style.display = 'block';
+                            if (initialsEl) initialsEl.style.display = 'none';
+                        };
+                        avatarImg.onerror = () => {
+                            avatarImg.style.display = 'none';
+                            if (initialsEl) {
+                                initialsEl.style.display = 'flex';
+                                const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                                initialsEl.textContent = initials;
+                            }
+                        };
+                    } else {
+                        if (avatarImg) avatarImg.style.display = 'none';
+                        if (initialsEl) {
+                            initialsEl.style.display = 'flex';
+                            const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                            initialsEl.textContent = initials;
+                        }
+                    }
+                }
+            } catch (error) { /* silently handled */ }
+        }
+
+        // ===== MODAL DE CONFIGURAÇÕES =====
+        let certFileData = null;
+
+        function abrirModalConfiguracoes() {
+            document.getElementById('modal-configuracoes-nfe').classList.add('active');
+            carregarConfiguracoes();
+        }
+
+        function fecharModalConfiguracoes() {
+            document.getElementById('modal-configuracoes-nfe').classList.remove('active');
+            limparFormCertificado();
+        }
+
+        function trocarAbaConfig(aba) {
+            document.querySelectorAll('.config-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.config-content').forEach(content => content.classList.remove('active'));
+            document.querySelector(`.config-tab[data-tab="${aba}"]`).classList.add('active');
+            document.getElementById(`config-${aba}`).classList.add('active');
+        }
+
+        function handleCertFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!['pfx', 'p12'].includes(ext)) { alert('Formato inválido. Use arquivos .pfx ou .p12'); return; }
+            if (file.size > 5 * 1024 * 1024) { alert('Arquivo muito grande. Máximo 5MB.'); return; }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                certFileData = { name: file.name, data: e.target.result.split(',')[1], size: file.size };
+                document.getElementById('cert-upload-area').style.display = 'none';
+                document.getElementById('cert-file-selected').style.display = 'flex';
+                document.getElementById('cert-file-name').textContent = file.name;
+                document.getElementById('cert-password-area').style.display = 'block';
+                document.getElementById('btn-importar-cert').disabled = false;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removerCertificadoSelecionado() {
+            certFileData = null;
+            document.getElementById('cert-upload-area').style.display = 'block';
+            document.getElementById('cert-file-selected').style.display = 'none';
+            document.getElementById('cert-password-area').style.display = 'none';
+            document.getElementById('btn-importar-cert').disabled = true;
+            document.getElementById('cert-file-input').value = '';
+            document.getElementById('cert-password').value = '';
+        }
+
+        function limparFormCertificado() { removerCertificadoSelecionado(); }
+
+        function toggleCertPassword() {
+            const input = document.getElementById('cert-password');
+            const icon = document.querySelector('.toggle-password i');
+            if (input.type === 'password') { input.type = 'text'; icon.className = 'fas fa-eye-slash'; }
+            else { input.type = 'password'; icon.className = 'fas fa-eye'; }
+        }
+
+        async function importarCertificado() {
+            if (!certFileData) { alert('Selecione um certificado primeiro.'); return; }
+            const senha = document.getElementById('cert-password').value;
+            if (!senha) { alert('Digite a senha do certificado.'); return; }
+            const btn = document.getElementById('btn-importar-cert');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
+            try {
+                const response = await fetch('/api/nfe/certificado/importar', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ arquivo: certFileData.data, nome: certFileData.name, senha })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    atualizarStatusCertificado(result.certificado);
+                    limparFormCertificado();
+                    alert('Certificado importado com sucesso!');
+                } else { alert(result.message || 'Erro ao importar certificado. Verifique a senha.'); }
+            } catch (error) { console.error('Erro ao importar certificado:', error); alert('Erro ao importar certificado.'); }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-upload"></i> Importar Certificado'; }
+        }
+
+        function atualizarStatusCertificado(cert) {
+            const statusEl = document.getElementById('cert-status');
+            if (!cert || !cert.valido) {
+                statusEl.innerHTML = '<div class="cert-status-icon warning"><i class="fas fa-exclamation-triangle"></i></div><div class="cert-status-info"><span class="cert-status-label">Nenhum certificado configurado</span><span class="cert-status-detail">Importe um certificado para começar a emitir notas</span></div>';
+                document.getElementById('btn-verificar-cert').style.display = 'none';
+            } else {
+                const validade = new Date(cert.validade);
+                const diasRestantes = Math.ceil((validade - new Date()) / 86400000);
+                const iconClass = diasRestantes > 30 ? 'success' : diasRestantes > 0 ? 'warning' : 'error';
+                const iconName = diasRestantes > 30 ? 'fa-check-circle' : diasRestantes > 0 ? 'fa-exclamation-circle' : 'fa-times-circle';
+                statusEl.innerHTML = '<div class="cert-status-icon ' + iconClass + '"><i class="fas ' + iconName + '"></i></div><div class="cert-status-info"><span class="cert-status-label">' + (cert.nome || 'Certificado Configurado') + '</span><span class="cert-status-detail">Válido até ' + validade.toLocaleDateString('pt-BR') + ' (' + (diasRestantes > 0 ? diasRestantes + ' dias restantes' : 'EXPIRADO') + ')</span></div>';
+                document.getElementById('btn-verificar-cert').style.display = 'inline-flex';
+            }
+        }
+
+        async function verificarCertificado() {
+            try {
+                const response = await fetch('/api/nfe/certificado/verificar', { credentials: 'include' });
+                const result = await response.json();
+                if (result.success) { atualizarStatusCertificado(result.certificado); alert('Certificado válido!\n\nTitular: ' + result.certificado.nome + '\nVálido até: ' + new Date(result.certificado.validade).toLocaleDateString('pt-BR')); }
+                else { alert(result.message || 'Erro ao verificar certificado.'); }
+            } catch (error) { alert('Erro ao verificar certificado.'); }
+        }
+
+        async function carregarConfiguracoes() {
+            try {
+                const certResponse = await fetch('/api/nfe/certificado/status', { credentials: 'include' });
+                if (certResponse.ok) { const certData = await certResponse.json(); if (certData.certificado) atualizarStatusCertificado(certData.certificado); }
+                const empresaResponse = await fetch('/api/nfe/configuracoes', { credentials: 'include' });
+                if (empresaResponse.ok) {
+                    const config = await empresaResponse.json();
+                    if (config.emitente) {
+                        document.getElementById('config-cnpj').value = config.emitente.cnpj || '';
+                        document.getElementById('config-ie').value = config.emitente.inscricaoEstadual || '';
+                        document.getElementById('config-razao').value = config.emitente.razaoSocial || '';
+                        document.getElementById('config-fantasia').value = config.emitente.nomeFantasia || '';
+                    }
+                    const ambiente = config.ambiente || 2;
+                    document.querySelector('input[name="ambiente"][value="' + ambiente + '"]').checked = true;
+                }
+            } catch (error) { console.log('Erro ao carregar configurações:', error); }
+        }
+
+        async function salvarConfiguracoes() {
+            const btn = document.querySelector('.btn-save');
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+            try {
+                const config = {
+                    emitente: { inscricaoEstadual: document.getElementById('config-ie').value, razaoSocial: document.getElementById('config-razao').value, nomeFantasia: document.getElementById('config-fantasia').value },
+                    ambiente: parseInt(document.querySelector('input[name="ambiente"]:checked').value)
+                };
+                const response = await fetch('/api/nfe/configuracoes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(config) });
+                const result = await response.json();
+                if (response.ok && result.success) { alert('Configurações salvas com sucesso!'); fecharModalConfiguracoes(); }
+                else { alert(result.message || 'Erro ao salvar configurações.'); }
+            } catch (error) { alert('Erro ao salvar configurações.'); }
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Salvar Configurações'; }
+        }
+
+        document.getElementById('modal-configuracoes-nfe')?.addEventListener('click', (e) => {
+            if (e.target.id === 'modal-configuracoes-nfe') fecharModalConfiguracoes();
+        });
+
+        // Drag and drop para certificado
+        document.addEventListener('DOMContentLoaded', () => {
+            const uploadZone = document.querySelector('.upload-zone');
+            if (uploadZone) {
+                uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.style.borderColor = '#10b981'; uploadZone.style.background = '#ecfdf5'; });
+                uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = '#d1d5db'; uploadZone.style.background = '#fafafa'; });
+                uploadZone.addEventListener('drop', (e) => {
+                    e.preventDefault(); uploadZone.style.borderColor = '#d1d5db'; uploadZone.style.background = '#fafafa';
+                    const file = e.dataTransfer.files[0];
+                    if (file) { document.getElementById('cert-file-input').files = e.dataTransfer.files; handleCertFileSelect({ target: { files: [file] } }); }
+                });
+            }
+        });
+
+        // ===== DASHBOARD DATA =====
+        async function carregarDados() {
+            try {
+                const response = await fetch('/api/nfe/dashboard', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    // Extrair valores numéricos (defensivo: aceita tanto número quanto objeto {qtd,total})
+                    const getQtd = (v) => typeof v === 'object' && v !== null ? (Number(v.qtd) || 0) : (Number(v) || 0);
+                    const getTotal = (v) => typeof v === 'object' && v !== null ? (Number(v.total) || 0) : (Number(v) || 0);
+                    const qtdAutorizadas = getQtd(data.autorizadas);
+                    const qtdPendentes = getQtd(data.pendentes);
+                    const qtdCanceladas = getQtd(data.canceladas);
+                    const qtdEmitidas = data.emitidas ? getQtd(data.emitidas) : (qtdAutorizadas + qtdPendentes + qtdCanceladas);
+                    const valorTotal = data.valor !== undefined ? (Number(data.valor) || 0) : getTotal(data.autorizadas);
+
+                    document.getElementById('kpi-emitidas').textContent = qtdEmitidas;
+                    document.getElementById('kpi-autorizadas').textContent = qtdAutorizadas;
+                    document.getElementById('kpi-pendentes').textContent = qtdPendentes;
+                    const valorFormatado = valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                    document.getElementById('kpi-valor').textContent = 'R$ ' + valorFormatado;
+
+                    const trendEmitidas = document.querySelector('.kpi-card.purple .kpi-trend');
+                    const trendValor = document.querySelector('.kpi-card.blue .kpi-trend');
+                    const trendAutorizadas = document.querySelector('.kpi-card.green .kpi-trend');
+
+                    if (trendEmitidas) {
+                        if (data.variacaoEmitidas !== undefined) {
+                            const sinal = data.variacaoEmitidas >= 0 ? '+' : '';
+                            const icone = data.variacaoEmitidas >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+                            trendEmitidas.className = 'kpi-trend ' + (data.variacaoEmitidas >= 0 ? 'up' : 'down');
+                            trendEmitidas.innerHTML = '<i class="fas ' + icone + '"></i> ' + sinal + data.variacaoEmitidas + '% vs mês anterior';
+                        } else {
+                            trendEmitidas.className = 'kpi-trend up';
+                            trendEmitidas.innerHTML = '<i class="fas fa-calendar-alt"></i> Mês atual';
+                        }
+                    }
+                    if (trendAutorizadas) {
+                        if (data.taxaAprovacao !== undefined) {
+                            trendAutorizadas.innerHTML = '<i class="fas fa-check"></i> ' + data.taxaAprovacao + '% de aprovação';
+                        } else {
+                            const taxa = qtdEmitidas > 0 ? Math.round((qtdAutorizadas / qtdEmitidas) * 100) : 0;
+                            trendAutorizadas.className = 'kpi-trend up';
+                            trendAutorizadas.innerHTML = '<i class="fas fa-check"></i> ' + taxa + '% de aprovação';
+                        }
+                    }
+                    if (trendValor) {
+                        if (data.variacaoValor !== undefined) {
+                            const sinal = data.variacaoValor >= 0 ? '+' : '';
+                            const icone = data.variacaoValor >= 0 ? 'fa-arrow-up' : 'fa-arrow-down';
+                            trendValor.className = 'kpi-trend ' + (data.variacaoValor >= 0 ? 'up' : 'down');
+                            trendValor.innerHTML = '<i class="fas ' + icone + '"></i> ' + sinal + data.variacaoValor + '% vs mês anterior';
+                        } else {
+                            trendValor.className = 'kpi-trend up';
+                            trendValor.innerHTML = '<i class="fas fa-calendar-alt"></i> Mês atual';
+                        }
+                    }
+                    // Trend do card de pendências (orange)
+                    const trendPendentes = document.querySelector('.kpi-card.orange .kpi-trend');
+                    if (trendPendentes) {
+                        if (qtdPendentes > 0) {
+                            trendPendentes.className = 'kpi-trend down';
+                            trendPendentes.innerHTML = '<i class="fas fa-exclamation"></i> Requer atenção';
+                        } else {
+                            trendPendentes.className = 'kpi-trend up';
+                            trendPendentes.innerHTML = '<i class="fas fa-check-circle"></i> Tudo em dia';
+                        }
+                    }
+                }
+                await carregarNFesRecentes();
+                await carregarAtividades();
+            } catch (error) { console.log('[NFe Dashboard] Erro ao carregar dados:', error); }
+        }
+
+        async function carregarNFesRecentes() {
+            try {
+                const response = await fetch('/api/nfe/listar?limite=5', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    const tbody = document.getElementById('nfe-table-body');
+                    if (data.notas && data.notas.length > 0) {
+                        tbody.innerHTML = data.notas.map(nfe => {
+                            const statusClass = nfe.status === 'autorizada' || nfe.status === 'emitida' ? 'emitida' : nfe.status === 'pendente' || nfe.status === 'rejeitada' ? 'pendente' : nfe.status === 'cancelada' ? 'cancelada' : 'pendente';
+                            const statusText = nfe.status.charAt(0).toUpperCase() + nfe.status.slice(1);
+                            const dataFormatada = nfe.data ? new Date(nfe.data).toLocaleDateString('pt-BR') : '-';
+                            const valorFormatado = (nfe.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                            return '<tr><td><strong>' + (nfe.numero || '-') + '</strong></td><td>' + (nfe.cliente || '-') + '</td><td>' + dataFormatada + '</td><td>' + valorFormatado + '</td><td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td></tr>';
+                        }).join('');
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:#666;"><i class="fas fa-file-invoice" style="font-size:32px;color:#ddd;margin-bottom:20px;display:block;"></i>Nenhuma nota fiscal encontrada.<br><small style="margin-top:8px;display:inline-block;">Clique em "Nova NFe" para emitir sua primeira nota.</small></td></tr>';
+                    }
+                }
+            } catch (error) { console.log('[NFe] Erro ao carregar notas recentes:', error); }
+        }
+
+        async function carregarAtividades() {
+            try {
+                const response = await fetch('/api/nfe/atividades?limite=5', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    const container = document.querySelector('.sidebar-card-body');
+                    if (data.atividades && data.atividades.length > 0) {
+                        container.innerHTML = data.atividades.map(ativ => {
+                            const iconClass = ativ.tipo === 'autorizacao' ? 'success' : ativ.tipo === 'emissao' ? 'info' : ativ.tipo === 'rejeicao' ? 'warning' : ativ.tipo === 'cancelamento' ? 'error' : ativ.tipo === 'entrega' ? 'success' : 'info';
+                            const icon = ativ.tipo === 'autorizacao' ? 'fa-check' : ativ.tipo === 'emissao' ? 'fa-file-invoice' : ativ.tipo === 'rejeicao' ? 'fa-exclamation' : ativ.tipo === 'cancelamento' ? 'fa-times' : ativ.tipo === 'entrega' ? 'fa-truck' : 'fa-info';
+                            const dataAtiv = new Date(ativ.data);
+                            const diffMs = Date.now() - dataAtiv;
+                            const diffMin = Math.floor(diffMs / 60000);
+                            const diffHoras = Math.floor(diffMs / 3600000);
+                            const diffDias = Math.floor(diffMs / 86400000);
+                            let tempoTexto = diffMin < 60 ? 'Há ' + diffMin + ' minuto' + (diffMin !== 1 ? 's' : '') : diffHoras < 24 ? 'Há ' + diffHoras + ' hora' + (diffHoras !== 1 ? 's' : '') : diffDias < 7 ? 'Há ' + diffDias + ' dia' + (diffDias !== 1 ? 's' : '') : dataAtiv.toLocaleDateString('pt-BR');
+                            return '<div class="activity-item"><div class="activity-icon ' + iconClass + '"><i class="fas ' + icon + '"></i></div><div class="activity-content"><div class="activity-title">' + (ativ.descricao || 'NFe ' + ativ.numero) + '</div><div class="activity-time">' + tempoTexto + '</div></div></div>';
+                        }).join('');
+                    } else {
+                        container.innerHTML = '<div style="text-align:center;padding:30px;color:#666;"><i class="fas fa-history" style="font-size:28px;color:#ddd;margin-bottom:10px;display:block;"></i>Nenhuma atividade recente</div>';
+                    }
+                }
+            } catch (error) { console.log('[NFe] Erro ao carregar atividades:', error); }
+        }
+
+        // ===== INICIALIZAÇÃO =====
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            carregarDados();
+        });
+    </script>
+
+    <!-- Sistema de Notificações Global -->
+    <script src="/js/notification-manager.js?v=20260119"></script>
+    <script src="../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/unsaved-changes.js?v=20260108"></script>
+    <script src="/js/modal-integration.js?v=20260108"></script>
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+

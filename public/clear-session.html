@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Limpar Sessão</title>    <!-- Mobile Enterprise Design System -->
+    <link rel="stylesheet" href="/css/design-system-mobile.css?v=20260202">
+    <link rel="stylesheet" href="/css/responsive-global.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-master-2026.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-enterprise-enhancements.css?v=20260202">
+
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 6px;
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            color: #0c4a6e;
+        }
+        .success {
+            background: #f0fdf4;
+            border-color: #22c55e;
+            color: #166534;
+        }
+        .log {
+            text-align: left;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+        .log-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>    <link rel="stylesheet" href="/css/popup-confirmacao.css">    <link rel="stylesheet" href="/css/responsive-global.css?v=20260107">
+    <link rel="stylesheet" href="/css/responsive-complete.css?v=20260109">
+    <script src="/js/responsive-mobile.js?v=20260109" defer></script>
+    <script src="/js/mobile-orientation.js?v=20260109" defer></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🧹</div>
+        <h1>Limpar Sessão</h1>
+        <div id="status" class="status">
+            Pronto para limpar dados de autenticação...
+        </div>
+        <div id="log" class="log"></div>
+        <button onclick="clearSession()">Limpar e Ir para Login</button>
+    </div>
+
+    <script>
+        const logEl = document.getElementById('log');
+        const statusEl = document.getElementById('status');
+
+        function addLog(message, icon = '📝') {
+            const div = document.createElement('div');
+            div.className = 'log-item';
+            div.textContent = icon + ' ' + message;
+            logEl.appendChild(div);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearSession() {
+            addLog('Iniciando limpeza de dados...', '🔄');
+
+            // Verificar authToken
+            const authToken = localStorage.getItem('authToken');
+            if (authToken) {
+                addLog('authToken encontrado: ' + authToken.substring(0, 20) + '...', '📦');
+                localStorage.removeItem('authToken');
+                addLog('authToken removido', '✅');
+            } else {
+                addLog('authToken não encontrado', 'ℹ️');
+            }
+
+            // Verificar userData
+            const userData = localStorage.getItem('userData');
+            if (userData) {
+                try {
+                    const user = JSON.parse(userData);
+                    addLog('userData encontrado: ' + (user.nome || user.email || 'Usuário'), '👤');
+                } catch (e) {
+                    addLog('userData encontrado (malformado)', '⚠️');
+                }
+                localStorage.removeItem('userData');
+                addLog('userData removido', '✅');
+            } else {
+                addLog('userData não encontrado', 'ℹ️');
+            }
+
+            // Limpar sessionStorage
+            sessionStorage.removeItem('userData');
+            sessionStorage.removeItem('authToken');
+            addLog('sessionStorage limpo', '✅');
+
+            // Limpar configurações
+            const appSettings = localStorage.getItem('appSettings');
+            if (appSettings) {
+                localStorage.removeItem('appSettings');
+                addLog('appSettings removido', '✅');
+            }
+
+            const headerDark = localStorage.getItem('headerDark');
+            if (headerDark) {
+                localStorage.removeItem('headerDark');
+                addLog('headerDark removido', '✅');
+            }
+
+            addLog('Limpeza concluída com sucesso!', '✨');
+            statusEl.textContent = '✅ Sessão limpa! Redirecionando...';
+            statusEl.className = 'status success';
+
+            setTimeout(() => {
+                addLog('Redirecionando para login...', '🔄');
+                window.location.href = '/login.html';
+            }, 2000);
+        }
+
+        // Auto-executar na carga da página se houver parmetro ?auto=true
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auto') === 'true') {
+            setTimeout(() => clearSession(), 500);
+        }
+    </script>
+    <script src="/js/popup-confirmacao.js"></script>    <script src="/js/mobile-menu.js?v=20260107"></script>
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+</body>
+</html>
+

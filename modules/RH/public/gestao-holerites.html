@@ -1,0 +1,1590 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Gestão de Holerites</title>
+    
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --success-green: #10b981;
+            --warning-yellow: #f59e0b;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
+        
+        .app-container { display: flex; height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+        }
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            text-decoration: none;
+        }
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s;
+            text-decoration: none;
+        }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+        
+        /* Main */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ margin-top: 0; padding: 0; }
+        
+        /* Header */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-btn {
+            width: 32px; height: 32px;
+            border: none; background: rgba(255,255,255,0.1);
+            color: white; border-radius: 8px;
+            cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .user-greeting { display: flex; align-items: center; gap: 8px; color: white; font-size: 14px; }
+        .user-avatar {
+            width: 32px; height: 32px;
+            background: var(--primary-pink);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 600;
+            overflow: hidden;
+        }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        
+        /* Content */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; }
+        
+        .page-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 24px;
+        }
+        .page-title { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-pink); }
+        
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex; align-items: center; gap: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+        .stat-icon.purple { background: rgba(236, 72, 153,0.1); color: var(--primary-pink); }
+        .stat-icon.green { background: rgba(16,185,129,0.1); color: var(--success-green); }
+        .stat-icon.yellow { background: rgba(245,158,11,0.1); color: var(--warning-yellow); }
+        .stat-icon.red { background: rgba(239,68,68,0.1); color: var(--danger-red); }
+        .stat-info h3 { font-size: 1.5rem; font-weight: 700; }
+        .stat-info p { font-size: 0.875rem; color: #64748b; }
+        
+        /* Controls Bar */
+        .controls-bar {
+            display: flex; gap: 16px; align-items: flex-end;
+            margin-bottom: 24px; flex-wrap: wrap;
+            background: white; padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
+        .form-input, .form-select {
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            min-width: 180px;
+        }
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153,0.1);
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none; border-radius: 8px;
+            font-size: 0.875rem; font-weight: 600;
+            cursor: pointer; display: inline-flex;
+            align-items: center; gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: #db2777; }
+        .btn-success { background: var(--success-green); color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; }
+        .btn-sm { padding: 6px 12px; font-size: 0.75rem; }
+        
+        /* Table */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th, .data-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .data-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+        .data-table tr:hover { background: #fafafa; }
+        
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .status-badge.publicado { background: rgba(16,185,129,0.1); color: var(--success-green); }
+        .status-badge.rascunho { background: rgba(245,158,11,0.1); color: var(--warning-yellow); }
+        .status-badge.cancelado { background: rgba(239,68,68,0.1); color: var(--danger-red); }
+        
+        .view-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 500;
+        }
+        .view-badge.visualizado { background: rgba(16,185,129,0.1); color: var(--success-green); }
+        .view-badge.nao-visualizado { background: rgba(239,68,68,0.1); color: var(--danger-red); }
+        .view-badge.confirmado { background: rgba(59,130,246,0.1); color: var(--info-blue); }
+        
+        .actions-cell { display: flex; gap: 8px; }
+        .action-btn {
+            width: 32px; height: 32px;
+            border: none; border-radius: 6px;
+            cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 14px; transition: all 0.2s;
+        }
+        .action-btn.view { background: rgba(59,130,246,0.1); color: var(--info-blue); }
+        .action-btn.edit { background: rgba(236, 72, 153,0.1); color: var(--primary-pink); }
+        .action-btn.delete { background: rgba(239,68,68,0.1); color: var(--danger-red); }
+        .action-btn:hover { transform: scale(1.1); }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            max-width: 900px;
+            width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            padding: 20px 24px;
+            background: linear-gradient(135deg, var(--primary-pink) 0%, #7c3aed 100%);
+            color: white;
+            display: flex; justify-content: space-between; align-items: center;
+            border-radius: 16px 16px 0 0;
+        }
+        .modal-header h2 { font-size: 1.25rem; display: flex; align-items: center; gap: 10px; }
+        .modal-close {
+            width: 32px; height: 32px;
+            border: none; background: rgba(255,255,255,0.2);
+            color: white; border-radius: 8px;
+            cursor: pointer; font-size: 16px;
+        }
+        .modal-body { padding: 24px; }
+        .modal-footer {
+            padding: 16px 24px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex; justify-content: flex-end; gap: 12px;
+            border-radius: 0 0 16px 16px;
+        }
+        
+        /* Form Grid */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px; margin-bottom: 24px;
+        }
+        .form-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+        .form-group.full-width { grid-column: span 3; }
+        
+        .section-title {
+            font-size: 1rem; font-weight: 600;
+            margin-bottom: 16px; padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary-pink);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .section-title i { color: var(--primary-pink); }
+        
+        /* Items List */
+        .items-container { margin-bottom: 24px; }
+        .items-header {
+            display: flex; justify-content: space-between;
+            align-items: center; margin-bottom: 12px;
+        }
+        .item-row {
+            display: grid;
+            grid-template-columns: 80px 1fr 100px 120px 40px;
+            gap: 12px; margin-bottom: 8px;
+            align-items: center;
+        }
+        .item-row input { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.875rem; }
+        .remove-item-btn {
+            width: 32px; height: 32px;
+            border: none; background: rgba(239,68,68,0.1);
+            color: var(--danger-red); border-radius: 6px;
+            cursor: pointer;
+        }
+        
+        /* Totais */
+        .totais-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px; margin-top: 24px;
+            padding: 20px; background: #f8fafc;
+            border-radius: 12px;
+        }
+        .total-box {
+            text-align: center;
+            padding: 16px;
+            background: white;
+            border-radius: 8px;
+        }
+        .total-box.proventos { border-left: 4px solid var(--success-green); }
+        .total-box.descontos { border-left: 4px solid var(--danger-red); }
+        .total-box.liquido { border-left: 4px solid var(--primary-pink); }
+        .total-label { font-size: 0.75rem; color: #64748b; margin-bottom: 4px; }
+        .total-value { font-size: 1.5rem; font-weight: 700; }
+        .total-value.green { color: var(--success-green); }
+        .total-value.red { color: var(--danger-red); }
+        .total-value.purple { color: var(--primary-pink); }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: #64748b;
+        }
+        .empty-state i { font-size: 3rem; color: #e2e8f0; margin-bottom: 16px; }
+        .empty-state h3 { color: #1e293b; margin-bottom: 8px; }
+        
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 20px; right: 20px;
+            z-index: 9999;
+        }
+        .toast {
+            background: white;
+            padding: 16px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-bottom: 10px;
+            display: flex; align-items: center; gap: 12px;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .toast.success { border-left: 4px solid var(--success-green); }
+        .toast.error { border-left: 4px solid var(--danger-red); }
+        .toast i { font-size: 20px; }
+        .toast.success i { color: var(--success-green); }
+        .toast.error i { color: var(--danger-red); }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="pages/funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="gestao-holerites.html" class="sidebar-btn active" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="pages/ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="pages/beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Holerites</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content-area">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        Gestão de Holerites
+                    </h1>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-success" onclick="abrirModalImportarPDF()">
+                            <i class="fas fa-file-upload"></i> Importar PDF
+                        </button>
+                        <button class="btn btn-primary" onclick="abrirModalNovo()">
+                            <i class="fas fa-plus"></i> Novo Holerite
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-file-invoice"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-total">0</h3>
+                            <p>Total de Holerites</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-publicados">0</h3>
+                            <p>Publicados</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow"><i class="fas fa-eye"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-visualizados">0</h3>
+                            <p>Visualizados</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red"><i class="fas fa-eye-slash"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-pendentes">0</h3>
+                            <p>Não Visualizados</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="controls-bar">
+                    <div class="form-group">
+                        <label class="form-label">Funcionário</label>
+                        <select class="form-select" id="filtro-funcionario">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mês</label>
+                        <select class="form-select" id="filtro-mes">
+                            <option value="">Todos</option>
+                            <option value="1">Janeiro</option>
+                            <option value="2">Fevereiro</option>
+                            <option value="3">Março</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Maio</option>
+                            <option value="6">Junho</option>
+                            <option value="7">Julho</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Setembro</option>
+                            <option value="10">Outubro</option>
+                            <option value="11">Novembro</option>
+                            <option value="12">Dezembro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Ano</label>
+                        <select class="form-select" id="filtro-ano">
+                            <option value="2026">2026</option>
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="filtro-status">
+                            <option value="">Todos</option>
+                            <option value="publicado">Publicado</option>
+                            <option value="rascunho">Rascunho</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="carregarHolerites()">
+                        <i class="fas fa-search"></i> Filtrar
+                    </button>
+                    <button class="btn btn-outline" onclick="exportarRelatorio()">
+                        <i class="fas fa-download"></i> Relatório
+                    </button>
+                </div>
+
+                <!-- Table -->
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Funcionário</th>
+                                <th>Competência</th>
+                                <th>Salário Líquido</th>
+                                <th>Status</th>
+                                <th>Visualização</th>
+                                <th>Confirmação</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-holerites">
+                            <!-- Preenchido via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Novo/Editar Holerite -->
+    <div class="modal" id="modal-holerite">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-file-invoice-dollar"></i> <span id="modal-titulo">Novo Holerite</span></h2>
+                <button class="modal-close" onclick="fecharModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-holerite">
+                    <input type="hidden" id="holerite-id">
+                    
+                    <!-- Dados Básicos -->
+                    <div class="section-title"><i class="fas fa-info-circle"></i> Informações Básicas</div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Funcionário *</label>
+                            <select class="form-select" id="holerite-funcionario" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mês *</label>
+                            <select class="form-select" id="holerite-mes" required>
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Ano *</label>
+                            <input type="number" class="form-input" id="holerite-ano" value="2026" min="2020" max="2030" required>
+                        </div>
+                    </div>
+
+                    <!-- Proventos -->
+                    <div class="items-container">
+                        <div class="items-header">
+                            <div class="section-title" style="margin-bottom: 0;"><i class="fas fa-plus-circle" style="color: var(--success-green);"></i> Proventos</div>
+                            <button type="button" class="btn btn-sm btn-success" onclick="adicionarItem('provento')">
+                                <i class="fas fa-plus"></i> Adicionar
+                            </button>
+                        </div>
+                        <div class="item-row" style="font-weight: 600; font-size: 0.75rem; color: #64748b;">
+                            <span>Código</span>
+                            <span>Descrição</span>
+                            <span>Referência</span>
+                            <span>Valor (R$)</span>
+                            <span></span>
+                        </div>
+                        <div id="lista-proventos">
+                            <!-- Itens adicionados via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Descontos -->
+                    <div class="items-container">
+                        <div class="items-header">
+                            <div class="section-title" style="margin-bottom: 0;"><i class="fas fa-minus-circle" style="color: var(--danger-red);"></i> Descontos</div>
+                            <button type="button" class="btn btn-sm btn-outline" style="border-color: var(--danger-red); color: var(--danger-red);" onclick="adicionarItem('desconto')">
+                                <i class="fas fa-plus"></i> Adicionar
+                            </button>
+                        </div>
+                        <div class="item-row" style="font-weight: 600; font-size: 0.75rem; color: #64748b;">
+                            <span>Código</span>
+                            <span>Descrição</span>
+                            <span>Referência</span>
+                            <span>Valor (R$)</span>
+                            <span></span>
+                        </div>
+                        <div id="lista-descontos">
+                            <!-- Itens adicionados via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Totais -->
+                    <div class="totais-grid">
+                        <div class="total-box proventos">
+                            <div class="total-label">Total Proventos</div>
+                            <div class="total-value green" id="total-proventos">R$ 0,00</div>
+                        </div>
+                        <div class="total-box descontos">
+                            <div class="total-label">Total Descontos</div>
+                            <div class="total-value red" id="total-descontos">R$ 0,00</div>
+                        </div>
+                        <div class="total-box liquido">
+                            <div class="total-label">Salário Líquido</div>
+                            <div class="total-value purple" id="total-liquido">R$ 0,00</div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="fecharModal()">Cancelar</button>
+                <button type="button" class="btn btn-outline" onclick="salvarRascunho()">
+                    <i class="fas fa-save"></i> Salvar Rascunho
+                </button>
+                <button type="button" class="btn btn-primary" onclick="publicarHolerite()">
+                    <i class="fas fa-paper-plane"></i> Publicar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Visualizar -->
+    <div class="modal" id="modal-visualizar">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-eye"></i> Detalhes do Holerite</h2>
+                <button class="modal-close" onclick="fecharModalVisualizar()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="visualizar-content">
+                <!-- Conteúdo via JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="fecharModalVisualizar()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Importar PDF -->
+    <div class="modal" id="modal-importar">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <h2><i class="fas fa-file-upload"></i> Importar Holerites (PDF Consolidado)</h2>
+                <button class="modal-close" onclick="fecharModalImportar()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                    <h4 style="color: #166534; margin-bottom: 8px;"><i class="fas fa-info-circle"></i> Como funciona</h4>
+                    <ul style="color: #15803d; font-size: 0.875rem; margin: 0; padding-left: 20px; line-height: 1.8;">
+                        <li>Faça upload do <strong>PDF consolidado</strong> da contabilidade com os holerites de todos os funcionários</li>
+                        <li>O sistema identifica automaticamente cada funcionário pelo <strong>nome ou CPF</strong> presente no documento</li>
+                        <li>O PDF é separado automaticamente, gerando um <strong>arquivo individual por funcionário</strong></li>
+                        <li>Cada holerite é registrado no sistema e pode ser publicado para o funcionário acessar</li>
+                    </ul>
+                </div>
+
+                <form id="form-importar" enctype="multipart/form-data">
+                    <div class="form-grid cols-2" style="gap: 16px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Mês de Referência *</label>
+                            <select class="form-select" id="import-mes" required>
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Ano *</label>
+                            <input type="number" class="form-input" id="import-ano" value="2026" min="2020" max="2030" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label class="form-label">Arquivo PDF Consolidado *</label>
+                        <div id="drop-zone" style="border: 2px dashed #d1d5db; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.3s; background: #fafafa;">
+                            <input type="file" id="import-pdf" accept="application/pdf" style="display: none;" onchange="atualizarDropZone(this)">
+                            <div id="drop-zone-content">
+                                <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: #9ca3af; margin-bottom: 12px;"></i>
+                                <p style="font-weight: 600; color: #374151; margin-bottom: 4px;">Clique ou arraste o PDF aqui</p>
+                                <p style="font-size: 0.75rem; color: #9ca3af;">Formato aceito: PDF (máximo 20MB)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <input type="checkbox" id="import-publicar" style="width: 18px; height: 18px; accent-color: var(--primary-pink);">
+                        <label for="import-publicar" style="font-size: 0.875rem; color: #374151; cursor: pointer;">
+                            <strong>Publicar automaticamente</strong> — os funcionários poderão ver imediatamente
+                        </label>
+                    </div>
+                </form>
+
+                <!-- Resultado da importação -->
+                <div id="import-resultado" style="display: none;"></div>
+
+                <!-- Progress bar -->
+                <div id="import-progress" style="display: none; margin-top: 16px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                        <div class="spinner" style="width: 20px; height: 20px; border: 3px solid #e2e8f0; border-top: 3px solid var(--primary-pink); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                        <span id="import-progress-text" style="font-size: 0.875rem; color: #64748b;">Processando PDF...</span>
+                    </div>
+                    <div style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                        <div id="import-progress-bar" style="height: 100%; background: linear-gradient(90deg, var(--primary-pink), #7c3aed); width: 0%; transition: width 0.5s ease; border-radius: 3px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="fecharModalImportar()">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btn-importar" onclick="executarImportacao()">
+                    <i class="fas fa-upload"></i> Importar e Processar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        #drop-zone.dragover { border-color: var(--primary-pink); background: #f5f3ff; }
+        #drop-zone.has-file { border-color: var(--success-green); background: #f0fdf4; }
+    </style>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // Helpers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                'Content-Type': 'application/json'
+            };
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+        }
+
+        function showToast(type, message) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        let funcionarios = [];
+        let eventosPadrao = { proventos: [], descontos: [] };
+
+        // Carregar dados iniciais
+        async function init() {
+            await carregarFuncionarios();
+            await carregarEventosPadrao();
+            await carregarHolerites();
+            carregarUsuario();
+        }
+
+        async function carregarUsuario() {
+            try {
+                const resp = await fetch('/api/me', { headers: getAuthHeaders() });
+                if (resp.ok) {
+                    const user = await resp.json();
+                    document.getElementById('user-name').textContent = user.apelido || user.nome?.split(' ')[0] || 'Admin';
+                    
+                    // Atualizar avatar/foto
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    const fotoUrl = user.foto_perfil_url || user.avatar || user.foto;
+                    
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp' && userPhotoEl) {
+                        userPhotoEl.src = fotoUrl;
+                        userPhotoEl.style.display = 'block';
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.onerror = function() {
+                            this.style.display = 'none';
+                            this.classList.remove('visible');
+                            if (userInitialEl) {
+                                userInitialEl.style.display = 'flex';
+                                userInitialEl.textContent = (user.nome || 'A').charAt(0).toUpperCase();
+                            }
+                        };
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else {
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                        if (userInitialEl) {
+                            userInitialEl.style.display = 'flex';
+                            userInitialEl.textContent = (user.nome || 'A').charAt(0).toUpperCase();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao carregar usuário:', e);
+            }
+        }
+
+        async function carregarFuncionarios() {
+            try {
+                const resp = await fetch('/api/rh/funcionarios', { headers: getAuthHeaders() });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    funcionarios = data.funcionarios || data;
+                    
+                    // Preencher selects
+                    const selects = ['filtro-funcionario', 'holerite-funcionario'];
+                    selects.forEach(id => {
+                        const select = document.getElementById(id);
+                        if (select && id !== 'filtro-funcionario') select.innerHTML = '<option value="">Selecione...</option>';
+                        funcionarios.forEach(f => {
+                            const opt = document.createElement('option');
+                            opt.value = f.id;
+                            opt.textContent = f.nome_completo;
+                            select.appendChild(opt);
+                        });
+                    });
+                }
+            } catch (e) {
+                console.error('Erro ao carregar funcionários:', e);
+            }
+        }
+
+        async function carregarEventosPadrao() {
+            try {
+                const resp = await fetch('/api/rh/holerites/eventos/padrao', { headers: getAuthHeaders() });
+                if (resp.ok) {
+                    eventosPadrao = await resp.json();
+                }
+            } catch (e) {
+                console.error('Erro ao carregar eventos padrão:', e);
+            }
+        }
+
+        async function carregarHolerites() {
+            try {
+                const funcionario = document.getElementById('filtro-funcionario').value;
+                const mes = document.getElementById('filtro-mes').value;
+                const ano = document.getElementById('filtro-ano').value;
+                const status = document.getElementById('filtro-status').value;
+
+                let url = '/api/rh/holerites?';
+                if (funcionario) url += `funcionario_id=${funcionario}&`;
+                if (mes) url += `mes=${mes}&`;
+                if (ano) url += `ano=${ano}&`;
+                if (status) url += `status=${status}&`;
+
+                const resp = await fetch(url, { headers: getAuthHeaders() });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    renderizarHolerites(data.holerites);
+                    atualizarStats(data.stats);
+                }
+            } catch (e) {
+                console.error('Erro ao carregar holerites:', e);
+            }
+        }
+
+        function renderizarHolerites(holerites) {
+            const tbody = document.getElementById('tabela-holerites');
+            
+            if (!holerites || holerites.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <i class="fas fa-file-invoice"></i>
+                                <h3>Nenhum holerite encontrado</h3>
+                                <p>Clique em "Novo Holerite" para começar</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = holerites.map(h => `
+                <tr>
+                    <td>
+                        <div style="font-weight: 600;">${h.funcionario_nome || 'N/A'}</div>
+                        <div style="font-size: 0.75rem; color: #64748b;">${h.cargo || ''} - ${h.departamento || ''}</div>
+                    </td>
+                    <td>${meses[h.mes]}/${h.ano}</td>
+                    <td style="font-weight: 600; color: var(--primary-pink);">${formatCurrency(h.salario_liquido)}</td>
+                    <td><span class="status-badge ${h.status}">${h.status.charAt(0).toUpperCase() + h.status.slice(1)}</span></td>
+                    <td>
+                        ${h.visualizado ? 
+                            `<span class="view-badge visualizado"><i class="fas fa-eye"></i> ${h.total_visualizacoes}x</span>` :
+                            `<span class="view-badge nao-visualizado"><i class="fas fa-eye-slash"></i> Não visto</span>`
+                        }
+                    </td>
+                    <td>
+                        ${h.confirmado_recebimento ? 
+                            `<span class="view-badge confirmado"><i class="fas fa-check-double"></i> Confirmado</span>` :
+                            `<span style="color: #94a3b8; font-size: 0.75rem;">Pendente</span>`
+                        }
+                    </td>
+                    <td>
+                        <div class="actions-cell">
+                            <button class="action-btn view" onclick="visualizarHolerite(${h.id})" title="Ver detalhes">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ${h.arquivo_pdf ? `
+                                <button class="action-btn" style="background: rgba(16,185,129,0.1); color: var(--success-green);" onclick="downloadPDF(${h.id})" title="Baixar PDF">
+                                    <i class="fas fa-file-pdf"></i>
+                                </button>
+                            ` : ''}
+                            <button class="action-btn edit" onclick="editarHolerite(${h.id})" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            ${h.status === 'rascunho' ? `
+                                <button class="action-btn" style="background: rgba(16,185,129,0.1); color: var(--success-green);" onclick="publicarDireto(${h.id})" title="Publicar">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            ` : ''}
+                            <button class="action-btn delete" onclick="excluirHolerite(${h.id})" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function atualizarStats(stats) {
+            if (stats) {
+                document.getElementById('stat-total').textContent = stats.total || 0;
+                document.getElementById('stat-publicados').textContent = stats.publicados || 0;
+                document.getElementById('stat-visualizados').textContent = stats.visualizados || 0;
+                document.getElementById('stat-pendentes').textContent = stats.nao_visualizados || 0;
+            }
+        }
+
+        // Modal Novo
+        function abrirModalNovo() {
+            document.getElementById('modal-titulo').textContent = 'Novo Holerite';
+            document.getElementById('holerite-id').value = '';
+            document.getElementById('form-holerite').reset();
+            document.getElementById('holerite-ano').value = new Date().getFullYear();
+            document.getElementById('holerite-mes').value = new Date().getMonth() + 1;
+            document.getElementById('lista-proventos').innerHTML = '';
+            document.getElementById('lista-descontos').innerHTML = '';
+            
+            // Adicionar salário base por padrão
+            adicionarItem('provento', '001', 'Salário Base', '220h', 0);
+            adicionarItem('desconto', '101', 'INSS', '', 0);
+            adicionarItem('desconto', '102', 'IRRF', '', 0);
+            
+            calcularTotais();
+            document.getElementById('modal-holerite').classList.add('active');
+        }
+
+        function fecharModal() {
+            document.getElementById('modal-holerite').classList.remove('active');
+        }
+
+        // Adicionar item
+        function adicionarItem(tipo, codigo = '', descricao = '', referencia = '', valor = 0) {
+            const lista = document.getElementById(`lista-${tipo === 'provento' ? 'proventos' : 'descontos'}`);
+            const id = Date.now();
+            
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.id = `item-${id}`;
+            row.innerHTML = `
+                <input type="text" placeholder="001" value="${codigo}" data-field="codigo">
+                <input type="text" placeholder="Descrição" value="${descricao}" data-field="descricao" required>
+                <input type="text" placeholder="220h" value="${referencia}" data-field="referencia">
+                <input type="number" step="0.01" placeholder="0,00" value="${valor}" data-field="valor" onchange="calcularTotais()">
+                <button type="button" class="remove-item-btn" onclick="removerItem('${id}')"><i class="fas fa-times"></i></button>
+            `;
+            lista.appendChild(row);
+        }
+
+        function removerItem(id) {
+            document.getElementById(`item-${id}`)?.remove();
+            calcularTotais();
+        }
+
+        function calcularTotais() {
+            let totalProventos = 0;
+            let totalDescontos = 0;
+
+            document.querySelectorAll('#lista-proventos .item-row').forEach(row => {
+                const valor = parseFloat(row.querySelector('[data-field="valor"]').value) || 0;
+                totalProventos += valor;
+            });
+
+            document.querySelectorAll('#lista-descontos .item-row').forEach(row => {
+                const valor = parseFloat(row.querySelector('[data-field="valor"]').value) || 0;
+                totalDescontos += valor;
+            });
+
+            const liquido = totalProventos - totalDescontos;
+
+            document.getElementById('total-proventos').textContent = formatCurrency(totalProventos);
+            document.getElementById('total-descontos').textContent = formatCurrency(totalDescontos);
+            document.getElementById('total-liquido').textContent = formatCurrency(liquido);
+        }
+
+        function coletarDados() {
+            const proventos = [];
+            const descontos = [];
+
+            document.querySelectorAll('#lista-proventos .item-row').forEach(row => {
+                proventos.push({
+                    codigo: row.querySelector('[data-field="codigo"]').value,
+                    descricao: row.querySelector('[data-field="descricao"]').value,
+                    referencia: row.querySelector('[data-field="referencia"]').value,
+                    valor: parseFloat(row.querySelector('[data-field="valor"]').value) || 0
+                });
+            });
+
+            document.querySelectorAll('#lista-descontos .item-row').forEach(row => {
+                descontos.push({
+                    codigo: row.querySelector('[data-field="codigo"]').value,
+                    descricao: row.querySelector('[data-field="descricao"]').value,
+                    referencia: row.querySelector('[data-field="referencia"]').value,
+                    valor: parseFloat(row.querySelector('[data-field="valor"]').value) || 0
+                });
+            });
+
+            const totalProventos = proventos.reduce((sum, p) => sum + p.valor, 0);
+            const totalDescontos = descontos.reduce((sum, d) => sum + d.valor, 0);
+
+            return {
+                funcionario_id: document.getElementById('holerite-funcionario').value,
+                mes: parseInt(document.getElementById('holerite-mes').value),
+                ano: parseInt(document.getElementById('holerite-ano').value),
+                salario_base: proventos[0]?.valor || 0,
+                total_proventos: totalProventos,
+                total_descontos: totalDescontos,
+                salario_liquido: totalProventos - totalDescontos,
+                proventos,
+                descontos
+            };
+        }
+
+        async function salvarRascunho() {
+            const dados = coletarDados();
+            dados.status = 'rascunho';
+            await salvarHolerite(dados);
+        }
+
+        async function publicarHolerite() {
+            const dados = coletarDados();
+            dados.status = 'publicado';
+            await salvarHolerite(dados);
+        }
+
+        async function salvarHolerite(dados) {
+            if (!dados.funcionario_id || !dados.mes || !dados.ano) {
+                showToast('error', 'Preencha funcionário, mês e ano');
+                return;
+            }
+
+            try {
+                const id = document.getElementById('holerite-id').value;
+                const url = id ? `/api/rh/holerites/${id}` : '/api/rh/holerites';
+                const method = id ? 'PUT' : 'POST';
+
+                const resp = await fetch(url, {
+                    method,
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(dados)
+                });
+
+                const result = await resp.json();
+
+                if (resp.ok) {
+                    showToast('success', result.message || 'Holerite salvo com sucesso!');
+                    fecharModal();
+                    carregarHolerites();
+                } else {
+                    showToast('error', result.message || 'Erro ao salvar holerite');
+                }
+            } catch (e) {
+                console.error('Erro:', e);
+                showToast('error', 'Erro ao salvar holerite');
+            }
+        }
+
+        async function editarHolerite(id) {
+            try {
+                const resp = await fetch(`/api/rh/holerites/${id}`, { headers: getAuthHeaders() });
+                if (resp.ok) {
+                    const h = await resp.json();
+                    
+                    document.getElementById('modal-titulo').textContent = 'Editar Holerite';
+                    document.getElementById('holerite-id').value = h.id;
+                    document.getElementById('holerite-funcionario').value = h.funcionario_id;
+                    document.getElementById('holerite-mes').value = h.mes;
+                    document.getElementById('holerite-ano').value = h.ano;
+                    
+                    // Limpar e preencher itens
+                    document.getElementById('lista-proventos').innerHTML = '';
+                    document.getElementById('lista-descontos').innerHTML = '';
+                    
+                    (h.proventos || []).forEach(p => {
+                        adicionarItem('provento', p.codigo, p.descricao, p.referencia, p.valor);
+                    });
+                    (h.descontos || []).forEach(d => {
+                        adicionarItem('desconto', d.codigo, d.descricao, d.referencia, d.valor);
+                    });
+                    
+                    calcularTotais();
+                    document.getElementById('modal-holerite').classList.add('active');
+                }
+            } catch (e) {
+                console.error('Erro:', e);
+                showToast('error', 'Erro ao carregar holerite');
+            }
+        }
+
+        async function visualizarHolerite(id) {
+            try {
+                const resp = await fetch(`/api/rh/holerites/${id}`, { headers: getAuthHeaders() });
+                if (resp.ok) {
+                    const h = await resp.json();
+                    
+                    const content = document.getElementById('visualizar-content');
+                    content.innerHTML = `
+                        <div style="background: linear-gradient(135deg, var(--primary-pink) 0%, #7c3aed 100%); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                            <h3 style="margin-bottom: 8px;">ALUFORCE INDÚSTRIA E COMÉRCIO LTDA</h3>
+                            <p style="opacity: 0.9;">Demonstrativo de Pagamento - ${meses[h.mes]}/${h.ano}</p>
+                        </div>
+                        
+                        <div style="background: #f8fafc; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                            <p><strong>Funcionário:</strong> ${h.funcionario_nome}</p>
+                            <p><strong>CPF:</strong> ${h.cpf || 'N/A'}</p>
+                            <p><strong>Cargo:</strong> ${h.cargo || 'N/A'}</p>
+                            <p><strong>Departamento:</strong> ${h.departamento || 'N/A'}</p>
+                        </div>
+                        
+                        <h4 style="color: var(--success-green); margin-bottom: 12px;"><i class="fas fa-plus-circle"></i> Proventos</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                            <thead>
+                                <tr style="background: #f1f5f9;">
+                                    <th style="padding: 8px; text-align: left; font-size: 0.75rem;">Código</th>
+                                    <th style="padding: 8px; text-align: left; font-size: 0.75rem;">Descrição</th>
+                                    <th style="padding: 8px; text-align: left; font-size: 0.75rem;">Ref.</th>
+                                    <th style="padding: 8px; text-align: right; font-size: 0.75rem;">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${(h.proventos || []).map(p => `
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 8px; font-size: 0.875rem;">${p.codigo}</td>
+                                        <td style="padding: 8px; font-size: 0.875rem;">${p.descricao}</td>
+                                        <td style="padding: 8px; font-size: 0.875rem;">${p.referencia || '-'}</td>
+                                        <td style="padding: 8px; text-align: right; font-size: 0.875rem; color: var(--success-green);">${formatCurrency(p.valor)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        
+                        <h4 style="color: var(--danger-red); margin-bottom: 12px;"><i class="fas fa-minus-circle"></i> Descontos</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                            <thead>
+                                <tr style="background: #f1f5f9;">
+                                    <th style="padding: 8px; text-align: left; font-size: 0.75rem;">Código</th>
+                                    <th style="padding: 8px; text-align: left; font-size: 0.75rem;">Descrição</th>
+                                    <th style="padding: 8px; text-align: left; font-size: 0.75rem;">Ref.</th>
+                                    <th style="padding: 8px; text-align: right; font-size: 0.75rem;">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${(h.descontos || []).map(d => `
+                                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                                        <td style="padding: 8px; font-size: 0.875rem;">${d.codigo}</td>
+                                        <td style="padding: 8px; font-size: 0.875rem;">${d.descricao}</td>
+                                        <td style="padding: 8px; font-size: 0.875rem;">${d.referencia || '-'}</td>
+                                        <td style="padding: 8px; text-align: right; font-size: 0.875rem; color: var(--danger-red);">${formatCurrency(d.valor)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        
+                        <div class="totais-grid" style="margin-top: 20px;">
+                            <div class="total-box proventos">
+                                <div class="total-label">Total Proventos</div>
+                                <div class="total-value green">${formatCurrency(h.total_proventos)}</div>
+                            </div>
+                            <div class="total-box descontos">
+                                <div class="total-label">Total Descontos</div>
+                                <div class="total-value red">${formatCurrency(h.total_descontos)}</div>
+                            </div>
+                            <div class="total-box liquido">
+                                <div class="total-label">Salário Líquido</div>
+                                <div class="total-value purple">${formatCurrency(h.salario_liquido)}</div>
+                            </div>
+                        </div>
+                        
+                        ${h.visualizado ? `
+                            <div style="margin-top: 24px; padding: 16px; background: rgba(16,185,129,0.1); border-radius: 8px;">
+                                <h4 style="color: var(--success-green); margin-bottom: 8px;"><i class="fas fa-eye"></i> Informações de Visualização</h4>
+                                <p style="font-size: 0.875rem;"><strong>Primeira visualização:</strong> ${h.data_primeira_visualizacao ? new Date(h.data_primeira_visualizacao).toLocaleString('pt-BR') : 'N/A'}</p>
+                                <p style="font-size: 0.875rem;"><strong>Última visualização:</strong> ${h.data_ultima_visualizacao ? new Date(h.data_ultima_visualizacao).toLocaleString('pt-BR') : 'N/A'}</p>
+                                <p style="font-size: 0.875rem;"><strong>Total de visualizações:</strong> ${h.total_visualizacoes}</p>
+                                <p style="font-size: 0.875rem;"><strong>IP:</strong> ${h.ip_visualizacao || 'N/A'}</p>
+                                ${h.confirmado_recebimento ? `<p style="font-size: 0.875rem; color: var(--info-blue);"><strong><i class="fas fa-check-double"></i> Recebimento confirmado em:</strong> ${new Date(h.data_confirmacao).toLocaleString('pt-BR')}</p>` : ''}
+                            </div>
+                        ` : `
+                            <div style="margin-top: 24px; padding: 16px; background: rgba(239,68,68,0.1); border-radius: 8px;">
+                                <p style="color: var(--danger-red);"><i class="fas fa-eye-slash"></i> Este holerite ainda não foi visualizado pelo funcionário.</p>
+                            </div>
+                        `}
+                    `;
+                    
+                    document.getElementById('modal-visualizar').classList.add('active');
+                }
+            } catch (e) {
+                console.error('Erro:', e);
+                showToast('error', 'Erro ao carregar detalhes');
+            }
+        }
+
+        function fecharModalVisualizar() {
+            document.getElementById('modal-visualizar').classList.remove('active');
+        }
+
+        async function publicarDireto(id) {
+            if (!confirm('Deseja publicar este holerite? O funcionário será notificado.')) return;
+            
+            try {
+                const resp = await fetch(`/api/rh/holerites/${id}/publicar`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+                
+                if (resp.ok) {
+                    showToast('success', 'Holerite publicado com sucesso!');
+                    carregarHolerites();
+                } else {
+                    const result = await resp.json();
+                    showToast('error', result.message || 'Erro ao publicar');
+                }
+            } catch (e) {
+                showToast('error', 'Erro ao publicar holerite');
+            }
+        }
+
+        async function excluirHolerite(id) {
+            if (!confirm('Tem certeza que deseja excluir este holerite? Esta ação não pode ser desfeita.')) return;
+            
+            try {
+                const resp = await fetch(`/api/rh/holerites/${id}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                
+                if (resp.ok) {
+                    showToast('success', 'Holerite excluído com sucesso!');
+                    carregarHolerites();
+                } else {
+                    showToast('error', 'Erro ao excluir holerite');
+                }
+            } catch (e) {
+                showToast('error', 'Erro ao excluir holerite');
+            }
+        }
+
+        async function exportarRelatorio() {
+            window.open('/api/rh/holerites/relatorio/visualizacoes?' + new URLSearchParams({
+                mes: document.getElementById('filtro-mes').value,
+                ano: document.getElementById('filtro-ano').value
+            }), '_blank');
+        }
+
+        function downloadPDF(id) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            window.open(`/api/rh/holerites/${id}/download-pdf?token=${token}`, '_blank');
+        }
+
+        // ====== IMPORTAÇÃO DE PDF ======
+        function abrirModalImportarPDF() {
+            document.getElementById('import-mes').value = new Date().getMonth() + 1;
+            document.getElementById('import-ano').value = new Date().getFullYear();
+            document.getElementById('import-pdf').value = '';
+            document.getElementById('import-publicar').checked = false;
+            document.getElementById('import-resultado').style.display = 'none';
+            document.getElementById('import-resultado').innerHTML = '';
+            document.getElementById('import-progress').style.display = 'none';
+            document.getElementById('btn-importar').disabled = false;
+            document.getElementById('drop-zone').classList.remove('has-file');
+            document.getElementById('drop-zone-content').innerHTML = `
+                <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: #9ca3af; margin-bottom: 12px;"></i>
+                <p style="font-weight: 600; color: #374151; margin-bottom: 4px;">Clique ou arraste o PDF aqui</p>
+                <p style="font-size: 0.75rem; color: #9ca3af;">Formato aceito: PDF (máximo 20MB)</p>
+            `;
+            document.getElementById('modal-importar').classList.add('active');
+        }
+
+        function fecharModalImportar() {
+            document.getElementById('modal-importar').classList.remove('active');
+        }
+
+        // Drop zone interatividade
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('import-pdf');
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type === 'application/pdf') {
+                    fileInput.files = files;
+                    atualizarDropZone(fileInput);
+                } else {
+                    showToast('error', 'Apenas arquivos PDF são aceitos');
+                }
+            });
+
+            // Modal importar - fechar ao clicar fora
+            document.getElementById('modal-importar').addEventListener('click', (e) => {
+                if (e.target.id === 'modal-importar') fecharModalImportar();
+            });
+        });
+
+        function atualizarDropZone(input) {
+            const dropZone = document.getElementById('drop-zone');
+            const content = document.getElementById('drop-zone-content');
+            if (input.files && input.files[0]) {
+                const file = input.files[0];
+                const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+                dropZone.classList.add('has-file');
+                content.innerHTML = `
+                    <i class="fas fa-file-pdf" style="font-size: 2.5rem; color: var(--success-green); margin-bottom: 12px;"></i>
+                    <p style="font-weight: 600; color: #166534; margin-bottom: 4px;">${file.name}</p>
+                    <p style="font-size: 0.75rem; color: #15803d;">${sizeMB} MB — Pronto para importar</p>
+                `;
+            }
+        }
+
+        async function executarImportacao() {
+            const fileInput = document.getElementById('import-pdf');
+            const mes = document.getElementById('import-mes').value;
+            const ano = document.getElementById('import-ano').value;
+            const publicar = document.getElementById('import-publicar').checked;
+
+            if (!fileInput.files || !fileInput.files[0]) {
+                showToast('error', 'Selecione um arquivo PDF');
+                return;
+            }
+            if (!mes || !ano) {
+                showToast('error', 'Selecione mês e ano');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (file.size > 20 * 1024 * 1024) {
+                showToast('error', 'Arquivo muito grande (máximo 20MB)');
+                return;
+            }
+
+            // Mostrar progress
+            const progressDiv = document.getElementById('import-progress');
+            const progressBar = document.getElementById('import-progress-bar');
+            const progressText = document.getElementById('import-progress-text');
+            const btnImportar = document.getElementById('btn-importar');
+
+            progressDiv.style.display = 'block';
+            progressBar.style.width = '10%';
+            progressText.textContent = 'Enviando PDF para o servidor...';
+            btnImportar.disabled = true;
+            document.getElementById('import-resultado').style.display = 'none';
+
+            try {
+                const formData = new FormData();
+                formData.append('pdf', file);
+                formData.append('mes', mes);
+                formData.append('ano', ano);
+                formData.append('publicar_automaticamente', publicar);
+
+                progressBar.style.width = '30%';
+                progressText.textContent = 'Processando e separando por funcionário...';
+
+                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+                const resp = await fetch('/api/rh/holerites/importar-pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : ''
+                    },
+                    body: formData
+                });
+
+                progressBar.style.width = '90%';
+                progressText.textContent = 'Finalizando...';
+
+                const data = await resp.json();
+
+                progressBar.style.width = '100%';
+
+                if (resp.ok) {
+                    progressText.textContent = 'Importação concluída!';
+                    showToast('success', data.message);
+                    exibirResultadoImportacao(data.resultados);
+                    carregarHolerites(); // Atualizar tabela
+                } else {
+                    progressText.textContent = 'Erro na importação';
+                    showToast('error', data.message || 'Erro ao importar PDF');
+                }
+            } catch (e) {
+                console.error('Erro:', e);
+                progressText.textContent = 'Erro na importação';
+                showToast('error', 'Erro ao importar PDF: ' + e.message);
+            } finally {
+                btnImportar.disabled = false;
+                setTimeout(() => { progressDiv.style.display = 'none'; }, 3000);
+            }
+        }
+
+        function exibirResultadoImportacao(resultados) {
+            const div = document.getElementById('import-resultado');
+            if (!resultados) { div.style.display = 'none'; return; }
+
+            div.style.display = 'block';
+            div.innerHTML = `
+                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-top: 16px;">
+                    <div style="padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                        <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-chart-bar" style="color: var(--primary-pink);"></i>
+                            Resultado da Importação
+                        </h4>
+                    </div>
+                    <div style="padding: 20px;">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+                            <div style="text-align: center; padding: 12px; background: #f5f3ff; border-radius: 8px;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-pink);">${resultados.total_paginas}</div>
+                                <div style="font-size: 0.75rem; color: #64748b;">Páginas no PDF</div>
+                            </div>
+                            <div style="text-align: center; padding: 12px; background: #f0fdf4; border-radius: 8px;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-green);">${resultados.importados}</div>
+                                <div style="font-size: 0.75rem; color: #64748b;">Importados</div>
+                            </div>
+                            <div style="text-align: center; padding: 12px; background: #fffbeb; border-radius: 8px;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning-yellow);">${resultados.nao_identificados}</div>
+                                <div style="font-size: 0.75rem; color: #64748b;">Não Identificados</div>
+                            </div>
+                            <div style="text-align: center; padding: 12px; background: #fef2f2; border-radius: 8px;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--danger-red);">${(resultados.erros || []).length}</div>
+                                <div style="font-size: 0.75rem; color: #64748b;">Erros</div>
+                            </div>
+                        </div>
+
+                        ${resultados.detalhes && resultados.detalhes.length > 0 ? `
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                                <thead>
+                                    <tr style="background: #f8fafc;">
+                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Páginas</th>
+                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Funcionário</th>
+                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Identificação</th>
+                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${resultados.detalhes.map(d => `
+                                        <tr style="border-bottom: 1px solid #f1f5f9;">
+                                            <td style="padding: 8px 12px;">${d.paginas ? d.paginas.join(', ') : '-'}</td>
+                                            <td style="padding: 8px 12px; font-weight: 500;">${d.funcionario || '<em style="color: #ef4444;">Não identificado</em>'}</td>
+                                            <td style="padding: 8px 12px; color: #64748b;">${d.matchedBy || '-'}</td>
+                                            <td style="padding: 8px 12px;">
+                                                <span style="padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 500;
+                                                    ${d.status === 'importado' ? 'background: #dcfce7; color: #166534;' :
+                                                      d.status === 'atualizado' ? 'background: #dbeafe; color: #1e40af;' :
+                                                      'background: #fef3c7; color: #92400e;'}">
+                                                    ${d.status === 'importado' ? '? Importado' :
+                                                      d.status === 'atualizado' ? '?? Atualizado' :
+                                                      '?? Não identificado'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Fechar modais ao clicar fora
+        document.getElementById('modal-holerite').addEventListener('click', (e) => {
+            if (e.target.id === 'modal-holerite') fecharModal();
+        });
+        document.getElementById('modal-visualizar').addEventListener('click', (e) => {
+            if (e.target.id === 'modal-visualizar') fecharModalVisualizar();
+        });
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+

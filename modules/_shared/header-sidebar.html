@@ -1,0 +1,173 @@
+<!-- Header e Sidebar Padrão ALUFORCE -->
+<!-- Este arquivo é incluído nos módulos para manter consistência visual -->
+
+<!-- Sidebar Lateral -->
+<aside class="sidebar">
+    <nav class="sidebar-nav" role="navigation" aria-label="Navegação principal">
+        <ul>
+            <li>
+                <a href="#dashboard" class="nav-link active" title="Dashboard">
+                    <span class="nav-icon"><i class="fas fa-tachometer-alt" aria-hidden="true"></i></span>
+                    <span class="nav-tooltip">Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="/dashboard" class="nav-link" title="Voltar ao Painel">
+                    <span class="nav-icon"><i class="fas fa-home" aria-hidden="true"></i></span>
+                    <span class="nav-tooltip">Painel</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" id="logout-btn" class="nav-link logout" title="Sair do Sistema">
+                    <span class="nav-icon"><i class="fas fa-sign-out-alt" aria-hidden="true"></i></span>
+                    <span class="nav-tooltip">Sair</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</aside>
+
+<!-- Header Superior -->
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="logo-section">
+            <img src="/modules/PCP/Logo Monocromatico - Azul - Aluforce.webp" alt="Aluforce" class="header-logo" 
+                 onerror="this.src='/public/Logo Monocromatico - Azul - Aluforce.webp'" />
+        </div>
+    </div>
+    
+    <div class="topbar-center">
+        <div class="nav-icons">
+            <button class="nav-icon-btn" title="Atualizar Dados" id="btn-refresh-header">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button class="nav-icon-btn" title="Alternar Modo Escuro" id="theme-toggle">
+                <i class="fas fa-moon" id="dark-mode-icon"></i>
+            </button>
+        </div>
+        
+        <div class="search-wrapper" role="search" aria-label="Pesquisar">
+            <i class="fas fa-search search-icon" aria-hidden="true"></i>
+            <input id="main-search" type="search" placeholder="Buscar..." 
+                   class="search-input" autocomplete="off" 
+                   aria-label="Campo de pesquisa" />
+        </div>
+        
+        <button class="menu-toggle-btn" title="Menu" id="header-menu-btn">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+    
+    <div class="topbar-right">
+        <div class="notification-icons">
+            <button class="notification-btn" title="Notificações" id="notification-bell">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notification-count">0</span>
+            </button>
+            <button class="notification-btn" title="Mensagens">
+                <i class="fas fa-envelope"></i>
+            </button>
+            <button class="notification-btn" title="Configurações">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+        
+        <div class="user-menu" id="user-menu-trigger">
+            <span class="user-text" id="user-name-display">Usuário</span>
+            <div class="avatar-circle">
+                <img src="/avatars/default.webp" alt="Usuário" id="user-avatar" / onerror="this.onerror=null; this.src='/avatars/default.webp';">
+            </div>
+        </div>
+        
+        <div class="user-menu-dropdown" id="user-menu-dropdown" style="display: none;">
+            <div style="padding: 12px 0;">
+                <a href="/" style="display: block; padding: 8px 16px; color: #374151; text-decoration: none; font-size: 14px;">
+                    <i class="fas fa-home" style="margin-right: 8px; color: #9ca3af;"></i>Painel de Controle
+                </a>
+                <a href="#" style="display: block; padding: 8px 16px; color: #374151; text-decoration: none; font-size: 14px;">
+                    <i class="fas fa-user" style="margin-right: 8px; color: #9ca3af;"></i>Meu Perfil
+                </a>
+                <div style="border-top: 1px solid #e5e7eb; margin: 8px 0;"></div>
+                <a href="#" id="user-menu-logout" style="display: block; padding: 8px 16px; color: #ef4444; text-decoration: none; font-size: 14px;">
+                    <i class="fas fa-sign-out-alt" style="margin-right: 8px;"></i>Sair
+                </a>
+            </div>
+        </div>
+    </div>
+</header>
+
+<script>
+// Script para carregar dados do usuário no header
+(function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        try {
+            const userData = localStorage.getItem('userData');
+            if (!userData) return;
+            
+            const user = JSON.parse(userData);
+            const nome = (user.nome || 'Usuário').trim();
+            
+            // Extrair primeiro nome
+            const primeiroNome = nome.split(/\s+/)[0];
+            
+            // Atualizar nome do usuário
+            const userNameDisplay = document.getElementById('user-name-display');
+            if (userNameDisplay) {
+                userNameDisplay.textContent = primeiroNome;
+            }
+            
+            // Atualizar avatar
+            const avatarImg = document.getElementById('user-avatar');
+            if (avatarImg) {
+                const avatarPath = `/avatars/${primeiroNome}.webp`;
+                
+                const img = new Image();
+                img.onload = function() {
+                    avatarImg.src = avatarPath;
+                };
+                img.onerror = function() {
+                    avatarImg.src = '/avatars/default.webp';
+                };
+                img.src = avatarPath;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar dados do usuário:', error);
+        }
+        
+        // Menu dropdown do usuário
+        const userMenuTrigger = document.getElementById('user-menu-trigger');
+        const userMenuDropdown = document.getElementById('user-menu-dropdown');
+        
+        if (userMenuTrigger && userMenuDropdown) {
+            userMenuTrigger.addEventListener('click', function(e) {
+                e.stopPropagation();
+                userMenuDropdown.style.display = userMenuDropdown.style.display === 'none' ? 'block' : 'none';
+            });
+            
+            document.addEventListener('click', function() {
+                userMenuDropdown.style.display = 'none';
+            });
+        }
+        
+        // Logout
+        const logoutButtons = document.querySelectorAll('#logout-btn, #user-menu-logout');
+        logoutButtons.forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.href = '/public/login.html';
+            });
+        });
+        
+        // Botão home
+        const homeLinks = document.querySelectorAll('.nav-link[title="Voltar ao Painel"]');
+        homeLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = '/dashboard';
+            });
+        });
+    });
+})();
+</script>

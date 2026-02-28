@@ -1,0 +1,1104 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Importar Ponto</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-pink: #ec4899;
+            --primary-pink-dark: #db2777;
+            --primary-dark: #1a1a2e;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-title i { color: var(--primary-pink); }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: var(--primary-pink-dark); }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; color: #1e293b; }
+        .btn-success { background: var(--success-green); color: white; }
+        .btn-success:hover { background: #16a34a; }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title i { color: var(--primary-pink); }
+        .card-body { padding: 24px; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #64748b;
+        }
+
+        .form-input, .form-select {
+            padding: 12px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            color: #1e293b;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .connection-status.offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+
+        .connection-status.online {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        .connection-status.testing {
+            background: rgba(234, 179, 8, 0.1);
+            color: #eab308;
+        }
+
+        .device-info {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 16px;
+        }
+
+        .device-info h4 {
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+
+        .device-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+        }
+
+        .device-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .device-info-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        .device-info-value {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        /* Table */
+        .table-container { overflow-x: auto; }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th, .data-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.875rem;
+        }
+
+        .data-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .data-table tr:hover { background: #f8fafc; }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-badge.success { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+        .status-badge.pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .status-badge.error { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary-pink);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .import-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 10px;
+        }
+
+        .summary-item .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .summary-item .label {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .summary-item.success .value { color: var(--success-green); }
+        .summary-item.warning .value { color: var(--warning-yellow); }
+        .summary-item.error .value { color: var(--danger-red); }
+
+        .alert {
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .alert-warning {
+            background: rgba(234, 179, 8, 0.1);
+            color: #b45309;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #16a34a;
+        }
+
+        .alert i { font-size: 1.25rem; margin-top: 2px; }
+
+        .log-container {
+            background: #1e293b;
+            border-radius: 10px;
+            padding: 16px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            color: #94a3b8;
+        }
+
+        .log-entry.success { color: #22c55e; }
+        .log-entry.error { color: #ef4444; }
+        .log-entry.warning { color: #eab308; }
+        .log-entry .timestamp { color: #64748b; margin-right: 8px; }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: #f1f5f9;
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: var(--primary-pink);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .help-text {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+</head>
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">
+                <i class="fas fa-clock"></i>
+                Importar Ponto - Control iD
+            </h1>
+            <a href="../areaadm.html" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i>
+                Voltar
+            </a>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showTab('config')">
+                <i class="fas fa-cog"></i> Configuração
+            </button>
+            <button class="tab-btn" onclick="showTab('import')">
+                <i class="fas fa-download"></i> Importar
+            </button>
+            <button class="tab-btn" onclick="showTab('history')">
+                <i class="fas fa-history"></i> Histórico
+            </button>
+        </div>
+
+        <!-- Tab: Configuração -->
+        <div id="tab-config" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-server"></i>
+                        Conexão com Control iD
+                    </h3>
+                    <div class="connection-status offline" id="connection-status">
+                        <i class="fas fa-circle"></i>
+                        <span>Desconectado</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <strong>Como encontrar o IP do Control iD:</strong><br>
+                            No equipamento, acesse Menu â†’ Comunicação â†’ Ethernet/Wi-Fi para ver o IP configurado.
+                            O equipamento deve estar na mesma rede que este servidor.
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">IP do Equipamento *</label>
+                            <input type="text" class="form-input" id="device-ip" placeholder="192.168.1.100" value="">
+                            <span class="help-text">Ex: 192.168.1.100 ou 10.0.0.50</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Porta</label>
+                            <input type="number" class="form-input" id="device-port" value="80">
+                            <span class="help-text">Padrão: 80 (HTTP) ou 443 (HTTPS)</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Usuário</label>
+                            <input type="text" class="form-input" id="device-user" value="admin">
+                            <span class="help-text">Usuário de acesso ao equipamento</span>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Senha</label>
+                            <input type="password" class="form-input" id="device-password" value="">
+                            <span class="help-text">Senha de acesso ao equipamento</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px; display: flex; gap: 12px;">
+                        <button class="btn btn-primary" onclick="testConnection()">
+                            <i class="fas fa-plug"></i>
+                            Testar Conexão
+                        </button>
+                        <button class="btn btn-success" onclick="saveConfig()" id="btn-save-config" disabled>
+                            <i class="fas fa-save"></i>
+                            Salvar Configuração
+                        </button>
+                    </div>
+
+                    <div class="device-info" id="device-info" style="display: none;">
+                        <h4>Informações do Equipamento</h4>
+                        <div class="device-info-grid">
+                            <div class="device-info-item">
+                                <span class="device-info-label">Modelo</span>
+                                <span class="device-info-value" id="info-model">-</span>
+                            </div>
+                            <div class="device-info-item">
+                                <span class="device-info-label">Serial</span>
+                                <span class="device-info-value" id="info-serial">-</span>
+                            </div>
+                            <div class="device-info-item">
+                                <span class="device-info-label">Firmware</span>
+                                <span class="device-info-value" id="info-firmware">-</span>
+                            </div>
+                            <div class="device-info-item">
+                                <span class="device-info-label">Usuários</span>
+                                <span class="device-info-value" id="info-users">-</span>
+                            </div>
+                            <div class="device-info-item">
+                                <span class="device-info-label">Registros</span>
+                                <span class="device-info-value" id="info-records">-</span>
+                            </div>
+                            <div class="device-info-item">
+                                <span class="device-info-label">Último Registro</span>
+                                <span class="device-info-value" id="info-last-record">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Importar -->
+        <div id="tab-import" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-file-import"></i>
+                        Importar Marcações
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Data Início *</label>
+                            <input type="date" class="form-input" id="import-date-start">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data Fim *</label>
+                            <input type="date" class="form-input" id="import-date-end">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="import-employee">
+                                <option value="">Todos os funcionários</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipo de Importação</label>
+                            <select class="form-select" id="import-type">
+                                <option value="api">Via API (Control iD)</option>
+                                <option value="afd">Arquivo AFD</option>
+                                <option value="csv">Arquivo CSV</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Upload para AFD/CSV -->
+                    <div id="file-upload-section" style="display: none; margin-top: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Arquivo</label>
+                            <input type="file" class="form-input" id="import-file" accept=".txt,.afd,.csv">
+                            <span class="help-text">Selecione o arquivo AFD ou CSV exportado do Control iD</span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px;">
+                        <button class="btn btn-primary" onclick="startImport()">
+                            <i class="fas fa-play"></i>
+                            Iniciar Importação
+                        </button>
+                    </div>
+
+                    <!-- Progress -->
+                    <div id="import-progress" style="display: none; margin-top: 24px;">
+                        <h4 style="font-size: 0.875rem; color: #64748b; margin-bottom: 8px;">Progresso da Importação</h4>
+                        <div class="progress-bar">
+                            <div class="progress-bar-fill" id="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <p id="progress-text" style="font-size: 0.875rem; color: #64748b;">Preparando...</p>
+
+                        <div class="import-summary" id="import-summary" style="display: none;">
+                            <div class="summary-item">
+                                <div class="value" id="summary-total">0</div>
+                                <div class="label">Total</div>
+                            </div>
+                            <div class="summary-item success">
+                                <div class="value" id="summary-success">0</div>
+                                <div class="label">Importados</div>
+                            </div>
+                            <div class="summary-item warning">
+                                <div class="value" id="summary-duplicates">0</div>
+                                <div class="label">Duplicados</div>
+                            </div>
+                            <div class="summary-item error">
+                                <div class="value" id="summary-errors">0</div>
+                                <div class="label">Erros</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Log -->
+                    <div id="import-log-section" style="display: none; margin-top: 24px;">
+                        <h4 style="font-size: 0.875rem; color: #64748b; margin-bottom: 8px;">Log de Importação</h4>
+                        <div class="log-container" id="import-log"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="card" id="preview-card" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-eye"></i>
+                        Pré-visualização
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="data-table" id="preview-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Hora</th>
+                                    <th>Funcionário</th>
+                                    <th>PIS</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Histórico -->
+        <div id="tab-history" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-history"></i>
+                        Histórico de Importações
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Data/Hora</th>
+                                    <th>Período</th>
+                                    <th>Registros</th>
+                                    <th>Sucesso</th>
+                                    <th>Erros</th>
+                                    <th>Usuário</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: #94a3b8; padding: 40px;">
+                                        Nenhuma importação realizada ainda
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Estado
+        let isConnected = false;
+        let deviceInfo = null;
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            loadConfig();
+            loadEmployees();
+            setDefaultDates();
+            setupImportTypeChange();
+            loadImportHistory();
+        });
+
+        // Tabs
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.closest('.tab-btn').classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+
+            if (tabId === 'history') loadImportHistory();
+        }
+
+        // Configuração - carrega do servidor (Bug #4 fix)
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/rh/controlid/config', {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                if (data.success && data.config) {
+                    const c = data.config;
+                    if (c.ip) document.getElementById('device-ip').value = c.ip;
+                    if (c.porta) document.getElementById('device-port').value = c.porta;
+                    if (c.usuario) document.getElementById('device-user').value = c.usuario;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar config do servidor:', error);
+                // Fallback localStorage
+                const config = JSON.parse(localStorage.getItem('controlid_config') || '{}');
+                if (config.ip) document.getElementById('device-ip').value = config.ip;
+                if (config.port) document.getElementById('device-port').value = config.port;
+                if (config.user) document.getElementById('device-user').value = config.user;
+            }
+        }
+
+        async function saveConfig() {
+            const ip = document.getElementById('device-ip').value;
+            const porta = document.getElementById('device-port').value;
+            const usuario = document.getElementById('device-user').value;
+            const senha = document.getElementById('device-password').value;
+
+            if (!ip) {
+                alert('Informe o IP do equipamento');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/rh/controlid/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({ ip, porta, usuario, senha })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('Configuração salva no servidor com sucesso!');
+                } else {
+                    alert('Erro ao salvar: ' + (result.message || 'Tente novamente'));
+                }
+            } catch (error) {
+                console.error('Erro ao salvar config:', error);
+                // Fallback localStorage
+                localStorage.setItem('controlid_config', JSON.stringify({ ip, port: porta, user: usuario }));
+                alert('Configuração salva localmente (servidor indisponível)');
+            }
+        }
+
+        // Testar Conexão
+        async function testConnection() {
+            const ip = document.getElementById('device-ip').value;
+            const port = document.getElementById('device-port').value;
+            const user = document.getElementById('device-user').value;
+            const password = document.getElementById('device-password').value;
+
+            if (!ip) {
+                alert('Informe o IP do equipamento');
+                return;
+            }
+
+            updateConnectionStatus('testing', 'Testando conexão...');
+
+            try {
+                const response = await fetch('/api/rh/controlid/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({ ip, port, user, password })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    isConnected = true;
+                    deviceInfo = result.device;
+                    updateConnectionStatus('online', 'Conectado');
+                    showDeviceInfo(result.device);
+                    document.getElementById('btn-save-config').disabled = false;
+                } else {
+                    updateConnectionStatus('offline', 'Falha na conexão');
+                    alert('Erro: ' + (result.message || 'Não foi possível conectar ao equipamento'));
+                }
+            } catch (error) {
+                console.error('Erro ao testar conexão:', error);
+                updateConnectionStatus('offline', 'Erro de conexão');
+                alert('Erro ao conectar. Verifique se o servidor está configurado para acessar o Control iD.');
+            }
+        }
+
+        function updateConnectionStatus(status, text) {
+            const el = document.getElementById('connection-status');
+            el.className = 'connection-status ' + status;
+            el.querySelector('span').textContent = text;
+        }
+
+        function showDeviceInfo(device) {
+            document.getElementById('device-info').style.display = 'block';
+            document.getElementById('info-model').textContent = device.model || '-';
+            document.getElementById('info-serial').textContent = device.serial || '-';
+            document.getElementById('info-firmware').textContent = device.firmware || '-';
+            document.getElementById('info-users').textContent = device.users || '-';
+            document.getElementById('info-records').textContent = device.records || '-';
+            document.getElementById('info-last-record').textContent = device.lastRecord || '-';
+        }
+
+        // Funcionários
+        async function loadEmployees() {
+            try {
+                const response = await fetch('/api/rh/funcionarios', {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+                const funcionarios = Array.isArray(data) ? data : (data.funcionarios || []);
+                
+                const select = document.getElementById('import-employee');
+                funcionarios.filter(f => f.status === 'Ativo' || f.ativo == 1 || f.ativo === true).forEach(f => {
+                    const option = document.createElement('option');
+                    option.value = f.id;
+                    option.textContent = f.nome_completo || f.nome;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Erro ao carregar funcionários:', error);
+            }
+        }
+
+        // Datas padrão
+        function setDefaultDates() {
+            const today = new Date();
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            
+            document.getElementById('import-date-start').value = firstDay.toISOString().split('T')[0];
+            document.getElementById('import-date-end').value = today.toISOString().split('T')[0];
+        }
+
+        // Tipo de importação
+        function setupImportTypeChange() {
+            document.getElementById('import-type').addEventListener('change', (e) => {
+                const fileSection = document.getElementById('file-upload-section');
+                fileSection.style.display = e.target.value === 'api' ? 'none' : 'block';
+            });
+        }
+
+        // Importação
+        async function startImport() {
+            const importType = document.getElementById('import-type').value;
+            const dateStart = document.getElementById('import-date-start').value;
+            const dateEnd = document.getElementById('import-date-end').value;
+            const employeeId = document.getElementById('import-employee').value;
+
+            if (!dateStart || !dateEnd) {
+                alert('Informe o período de importação');
+                return;
+            }
+
+            if (importType === 'api' && !isConnected) {
+                alert('Configure e teste a conexão com o Control iD primeiro');
+                showTab('config');
+                return;
+            }
+
+            if (importType !== 'api') {
+                const file = document.getElementById('import-file').files[0];
+                if (!file) {
+                    alert('Selecione o arquivo para importar');
+                    return;
+                }
+                await importFromFile(file, importType, dateStart, dateEnd, employeeId);
+            } else {
+                await importFromApi(dateStart, dateEnd, employeeId);
+            }
+        }
+
+        // Importar via API
+        async function importFromApi(dateStart, dateEnd, employeeId) {
+            showProgress();
+            clearLog();
+            addLog('Iniciando importação via API Control iD...', 'info');
+
+            // Pegar config dos campos (já carregados do servidor)
+            const ip = document.getElementById('device-ip').value;
+            const port = document.getElementById('device-port').value;
+            const user = document.getElementById('device-user').value;
+            const password = document.getElementById('device-password').value;
+
+            if (!ip) {
+                addLog('Erro: IP do equipamento não configurado', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/rh/controlid/import', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        ip: ip,
+                        port: port,
+                        user: user,
+                        password: password,
+                        dateStart,
+                        dateEnd,
+                        employeeId
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    updateProgress(100);
+                    showSummary(result.summary);
+                    addLog(`Importação concluída! ${result.summary.success} registros importados.`, 'success');
+                    
+                    if (result.records && result.records.length > 0) {
+                        showPreview(result.records);
+                    }
+                } else {
+                    addLog('Erro na importação: ' + result.message, 'error');
+                }
+            } catch (error) {
+                console.error('Erro na importação:', error);
+                addLog('Erro: ' + error.message, 'error');
+            }
+        }
+
+        // Importar de arquivo
+        async function importFromFile(file, type, dateStart, dateEnd, employeeId) {
+            showProgress();
+            clearLog();
+            addLog(`Lendo arquivo ${file.name}...`, 'info');
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                let records = [];
+
+                try {
+                    if (type === 'afd') {
+                        records = parseAFD(content);
+                    } else if (type === 'csv') {
+                        records = parseCSV(content);
+                    }
+
+                    addLog(`${records.length} registros encontrados no arquivo`, 'info');
+
+                    // Enviar para o servidor
+                    const response = await fetch('/api/rh/controlid/ponto/import', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...getAuthHeaders()
+                        },
+                        body: JSON.stringify({
+                            records,
+                            dateStart,
+                            dateEnd,
+                            employeeId
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        updateProgress(100);
+                        showSummary(result.summary);
+                        addLog(`Importação concluída! ${result.summary.success} registros importados.`, 'success');
+                        
+                        if (result.records && result.records.length > 0) {
+                            showPreview(result.records);
+                        }
+                    } else {
+                        addLog('Erro na importação: ' + result.message, 'error');
+                    }
+                } catch (error) {
+                    console.error('Erro ao processar arquivo:', error);
+                    addLog('Erro ao processar arquivo: ' + error.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Parser AFD (Portaria 1.510/2009)
+        function parseAFD(content) {
+            const lines = content.split('\n');
+            const records = [];
+
+            lines.forEach(line => {
+                // Tipo 3 = Marcação de ponto
+                if (line.length >= 34 && line.charAt(9) === '3') {
+                    const nsr = line.substring(0, 9);
+                    const data = line.substring(10, 18); // DDMMAAAA
+                    const hora = line.substring(18, 22); // HHMM
+                    const pis = line.substring(22, 34);
+
+                    const dataFormatada = `${data.substring(4, 8)}-${data.substring(2, 4)}-${data.substring(0, 2)}`;
+                    const horaFormatada = `${hora.substring(0, 2)}:${hora.substring(2, 4)}`;
+
+                    records.push({
+                        nsr,
+                        data: dataFormatada,
+                        hora: horaFormatada,
+                        pis: pis.trim()
+                    });
+                }
+            });
+
+            return records;
+        }
+
+        // Parser CSV
+        function parseCSV(content) {
+            const lines = content.split('\n');
+            const records = [];
+            
+            // Pular cabeçalho
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(';');
+                if (cols.length >= 4) {
+                    records.push({
+                        data: cols[0],
+                        hora: cols[1],
+                        pis: cols[2],
+                        nome: cols[3]
+                    });
+                }
+            }
+
+            return records;
+        }
+
+        // Progress
+        function showProgress() {
+            document.getElementById('import-progress').style.display = 'block';
+            document.getElementById('import-log-section').style.display = 'block';
+            updateProgress(0);
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progress-fill').style.width = percent + '%';
+            document.getElementById('progress-text').textContent = percent < 100 ? `Processando... ${percent}%` : 'Concluído!';
+        }
+
+        function showSummary(summary) {
+            document.getElementById('import-summary').style.display = 'grid';
+            document.getElementById('summary-total').textContent = summary.total || 0;
+            document.getElementById('summary-success').textContent = summary.success || 0;
+            document.getElementById('summary-duplicates').textContent = summary.duplicates || 0;
+            document.getElementById('summary-errors').textContent = summary.errors || 0;
+        }
+
+        // Log
+        function clearLog() {
+            document.getElementById('import-log').innerHTML = '';
+        }
+
+        function addLog(message, type = '') {
+            const log = document.getElementById('import-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Preview
+        function showPreview(records) {
+            document.getElementById('preview-card').style.display = 'block';
+            const tbody = document.getElementById('preview-tbody');
+            tbody.innerHTML = records.slice(0, 50).map(r => `
+                <tr>
+                    <td>${r.data}</td>
+                    <td>${r.hora}</td>
+                    <td>${r.nome || '-'}</td>
+                    <td>${r.pis || '-'}</td>
+                    <td><span class="status-badge ${r.status || 'success'}">${r.statusText || 'Importado'}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Auth headers
+        function getAuthHeaders() {
+            const token = sessionStorage.getItem('authToken') || localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
+        // Bug #5 fix: Carregar histórico de importações do servidor
+        async function loadImportHistory() {
+            try {
+                const response = await fetch('/api/rh/controlid/importacoes?limite=50', {
+                    headers: getAuthHeaders()
+                });
+                const data = await response.json();
+
+                const tbody = document.getElementById('history-tbody');
+                if (!data.success || !data.importacoes || data.importacoes.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 40px;">Nenhuma importação realizada ainda</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = data.importacoes.map(imp => {
+                    const dataHora = imp.criado_em ? new Date(imp.criado_em).toLocaleString('pt-BR') : '-';
+                    const periodo = (imp.periodo_inicio && imp.periodo_fim) 
+                        ? `${new Date(imp.periodo_inicio).toLocaleDateString('pt-BR')} a ${new Date(imp.periodo_fim).toLocaleDateString('pt-BR')}`
+                        : '-';
+                    const statusClass = imp.status === 'concluido' ? 'success' : (imp.status === 'erro' ? 'error' : 'pending');
+                    const statusText = imp.status === 'concluido' ? 'Concluído' : (imp.status === 'erro' ? 'Erro' : 'Pendente');
+                    const tipoLabel = imp.tipo === 'api_controlid' ? 'API' : (imp.tipo === 'arquivo' ? 'Arquivo' : imp.tipo);
+
+                    return `<tr>
+                        <td>${dataHora}</td>
+                        <td>${periodo}</td>
+                        <td>${imp.total_registros || 0}</td>
+                        <td style="color: #22c55e; font-weight: 600;">${imp.importados || 0}</td>
+                        <td style="color: ${(imp.erros || 0) > 0 ? '#ef4444' : '#64748b'}; font-weight: 600;">${imp.erros || 0}</td>
+                        <td>${imp.usuario_nome || 'Sistema'} <span style="color:#94a3b8; font-size:0.75rem;">(${tipoLabel})</span></td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                    </tr>`;
+                }).join('');
+            } catch (error) {
+                console.error('Erro ao carregar histórico:', error);
+            }
+        }
+    </script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    </body>
+</html>
+
+

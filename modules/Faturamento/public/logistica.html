@@ -1,0 +1,640 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — Logística</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
+    <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn active" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon cyan"><i class="fas fa-truck"></i></div>
+                        <div>
+                            <h1 class="page-title">Logística & Expedição</h1>
+                            <p class="page-subtitle">Gerenciamento de entregas, expedição e transportadoras</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" onclick="openModal('modal-nova-expedicao')"><i class="fas fa-plus"></i> Nova Expedição</button>
+                        <button class="btn btn-secondary" onclick="openModal('modal-transportadoras')"><i class="fas fa-truck-moving"></i> Transportadoras</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="stats-grid" style="grid-template-columns:repeat(5,1fr);">
+                <div class="stat-card yellow fade-in-delay-1">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-clock"></i></div></div>
+                    <div class="stat-value" id="count-aguardando">0</div>
+                    <div class="stat-label">Aguardando</div>
+                </div>
+                <div class="stat-card fade-in-delay-2">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-box-open"></i></div></div>
+                    <div class="stat-value" id="count-separacao">0</div>
+                    <div class="stat-label">Separação</div>
+                </div>
+                <div class="stat-card cyan fade-in-delay-3">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-dolly"></i></div></div>
+                    <div class="stat-value" id="count-expedicao">0</div>
+                    <div class="stat-label">Expedição</div>
+                </div>
+                <div class="stat-card purple fade-in-delay-4">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-truck"></i></div></div>
+                    <div class="stat-value" id="count-transporte">0</div>
+                    <div class="stat-label">Em Transporte</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-check-circle"></i></div></div>
+                    <div class="stat-value" id="count-entregues">0</div>
+                    <div class="stat-label">Entregues</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs-bar">
+                <button class="tab-btn active" onclick="mostrarTab('pedidos',this)"><i class="fas fa-list"></i> Pedidos</button>
+                <button class="tab-btn" onclick="mostrarTab('transportadoras',this)"><i class="fas fa-truck-moving"></i> Transportadoras</button>
+            </div>
+
+            <!-- Tab Pedidos -->
+            <div class="tab-content active" id="tab-pedidos">
+                <div class="filters-bar">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Buscar NF-e, pedido, cliente..." id="filtro-nfe" onkeyup="aplicarFiltros()">
+                    </div>
+                    <select class="filter-btn" id="filtro-status" onchange="aplicarFiltros()">
+                        <option value="">Todos os Status</option>
+                        <option value="pendente">Aguardando</option>
+                        <option value="em_separacao">Em Separação</option>
+                        <option value="em_expedicao">Expedição</option>
+                        <option value="em_transporte">Em Transporte</option>
+                        <option value="entregue">Entregue</option>
+                    </select>
+                    <select class="filter-btn" id="filtro-transportadora" onchange="aplicarFiltros()">
+                        <option value="">Todas Transportadoras</option>
+                    </select>
+                    <input type="date" class="filter-btn" id="filtro-data-inicio" onchange="aplicarFiltros()">
+                    <input type="date" class="filter-btn" id="filtro-data-fim" onchange="aplicarFiltros()">
+                    <button class="btn btn-outline btn-sm" onclick="exportarExcel()"><i class="fas fa-file-excel"></i> Exportar</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body" style="padding:0;">
+                        <div style="overflow-x:auto;">
+                            <table class="data-table" id="tabela-logistica">
+                                <thead>
+                                    <tr>
+                                        <th>NF-e</th>
+                                        <th>Pedido</th>
+                                        <th>Cliente</th>
+                                        <th>Transportadora</th>
+                                        <th>Previsão</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="7"><div class="empty-state"><i class="fas fa-truck"></i><p>Carregando pedidos...</p></div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab Transportadoras -->
+            <div class="tab-content" id="tab-transportadoras">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-truck-moving"></i> Transportadoras Cadastradas</h3>
+                        <button class="btn btn-primary btn-sm" onclick="adicionarTransportadora()"><i class="fas fa-plus"></i> Nova</button>
+                    </div>
+                    <div class="card-body" style="padding:0;">
+                        <div style="overflow-x:auto;">
+                            <table class="data-table" id="tabela-transportadoras">
+                                <thead>
+                                    <tr>
+                                        <th>Razão Social</th>
+                                        <th>Fantasia</th>
+                                        <th>CNPJ</th>
+                                        <th>Telefone</th>
+                                        <th>E-mail</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="6"><div class="empty-state"><i class="fas fa-truck-moving"></i><p>Carregando transportadoras...</p></div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal Nova Expedição -->
+<div class="modal-overlay" id="modal-nova-expedicao">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3><i class="fas fa-dolly"></i> Nova Expedição</h3>
+            <button class="modal-close" onclick="closeModal('modal-nova-expedicao')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <form id="form-nova-expedicao">
+                <div class="form-row">
+                    <div class="form-group"><label>NF-e</label><input type="text" class="form-control" id="exp-nfe" placeholder="Número da NF-e"></div>
+                    <div class="form-group"><label>Pedido</label><input type="text" class="form-control" id="exp-pedido" placeholder="ID do pedido"></div>
+                </div>
+                <div class="form-group"><label>Cliente</label><input type="text" class="form-control" id="exp-cliente" placeholder="Nome do cliente"></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Transportadora</label><select class="form-control" id="exp-transportadora"><option value="">Selecione</option></select></div>
+                    <div class="form-group"><label>Status</label><select class="form-control" id="exp-status"><option value="aguardando">Aguardando</option><option value="separacao">Em Separação</option><option value="expedicao">Expedição</option><option value="transporte">Em Transporte</option></select></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Previsão de Entrega</label><input type="date" class="form-control" id="exp-previsao"></div>
+                    <div class="form-group"><label>Prioridade</label><select class="form-control" id="exp-prioridade"><option value="normal">Normal</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
+                </div>
+                <div class="form-group"><label>Observações</label><textarea class="form-control" id="exp-observacoes" rows="2" placeholder="Observações..."></textarea></div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modal-nova-expedicao')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarExpedicao()"><i class="fas fa-save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Transportadoras -->
+<div class="modal-overlay" id="modal-transportadoras">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3><i class="fas fa-truck-moving"></i> Nova Transportadora</h3>
+            <button class="modal-close" onclick="closeModal('modal-transportadoras')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group"><label>Razão Social *</label><input type="text" class="form-control" id="transp-razao"></div>
+                <div class="form-group"><label>Nome Fantasia</label><input type="text" class="form-control" id="transp-fantasia"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>CNPJ</label><input type="text" class="form-control" id="transp-cnpj" placeholder="00.000.000/0000-00"></div>
+                <div class="form-group"><label>Telefone</label><input type="text" class="form-control" id="transp-telefone"></div>
+            </div>
+            <div class="form-group"><label>E-mail</label><input type="email" class="form-control" id="transp-email"></div>
+            <div class="form-group"><label>Endereço</label><input type="text" class="form-control" id="transp-endereco"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modal-transportadoras')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarTransportadora()"><i class="fas fa-save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Atualizar Status -->
+<div class="modal-overlay" id="modal-status">
+    <div class="modal" style="max-width:480px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-exchange-alt"></i> Atualizar Status Logística</h3>
+            <button class="modal-close" onclick="closeModal('modal-status')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom:12px;color:var(--text-secondary);">Pedido: <strong id="modal-status-pedido">#</strong> — Status atual: <span id="modal-status-atual" class="badge info">-</span></p>
+            <div class="form-group">
+                <label>Novo Status</label>
+                <select class="form-control" id="modal-status-novo">
+                    <option value="pendente">⏳ Aguardando Separação</option>
+                    <option value="em_separacao">📦 Em Separação</option>
+                    <option value="em_expedicao">🚛 Em Expedição</option>
+                    <option value="em_transporte">🚚 Em Transporte</option>
+                    <option value="entregue">✅ Entregue</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Observação (opcional)</label>
+                <textarea class="form-control" id="modal-status-obs" rows="2" placeholder="Motivo da mudança..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modal-status')">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarMudancaStatus()"><i class="fas fa-check"></i> Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Detalhes Pedido -->
+<div class="modal-overlay" id="modal-detalhes">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3><i class="fas fa-info-circle"></i> Detalhes do Pedido</h3>
+            <button class="modal-close" onclick="closeModal('modal-detalhes')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="modal-detalhes-body">
+            <p>Carregando...</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modal-detalhes')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+function mostrarTab(tab, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+tab).classList.add('active');
+    btn.classList.add('active');
+}
+
+function getStatusBadge(status) {
+    const m = { pendente:'pending', aguardando_separacao:'pending', aguardando:'pending', separacao:'processing', em_separacao:'processing', expedicao:'in-progress', em_expedicao:'in-progress', transporte:'em-transito', em_transporte:'em-transito', entregue:'entregue' };
+    const l = { pendente:'Aguardando', aguardando_separacao:'Aguardando', aguardando:'Aguardando', separacao:'Separação', em_separacao:'Separação', expedicao:'Expedição', em_expedicao:'Expedição', transporte:'Transporte', em_transporte:'Transporte', entregue:'Entregue' };
+    return `<span class="badge ${m[status]||'info'}">${l[status]||status}</span>`;
+}
+
+function formatarMoeda(v) { return (parseFloat(v) || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' }); }
+
+let pedidos = [], transportadoras = [];
+let _statusPedidoId = null;
+
+async function carregarDashboard() {
+    try {
+        const r = await fetch('/api/logistica/dashboard', { credentials: 'include' });
+        if (r.ok) {
+            const d = await r.json();
+            document.getElementById('count-aguardando').textContent = d.aguardando_separacao || d.aguardando || 0;
+            document.getElementById('count-separacao').textContent = d.em_separacao || d.separacao || 0;
+            document.getElementById('count-expedicao').textContent = d.em_expedicao || d.expedicao || 0;
+            document.getElementById('count-transporte').textContent = d.em_transporte || d.transporte || 0;
+            document.getElementById('count-entregues').textContent = d.entregues || 0;
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function carregarPedidos() {
+    try {
+        const r = await fetch('/api/logistica/pedidos', { credentials: 'include' });
+        if (r.ok) { pedidos = await r.json(); pedidos = Array.isArray(pedidos) ? pedidos : pedidos.data || []; renderizarPedidos(pedidos); }
+    } catch(e) { console.error(e); }
+}
+
+function renderizarPedidos(lista) {
+    const tbody = document.querySelector('#tabela-logistica tbody');
+    if (!lista.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-truck"></i><p>Nenhum pedido encontrado</p></div></td></tr>'; return; }
+    tbody.innerHTML = lista.map(p => `
+        <tr>
+            <td><span class="code">${p.nfe_numero || p.nfe || '-'}</span></td>
+            <td>#${p.pedido_id || p.id}</td>
+            <td>${p.cliente || '-'}</td>
+            <td>${p.transportadora || '-'}</td>
+            <td>${p.previsao && p.previsao !== '-' ? new Date(p.previsao).toLocaleDateString('pt-BR') : '-'}</td>
+            <td>${getStatusBadge(p.status)}</td>
+            <td>
+                <div style="display:flex;gap:4px;">
+                    <button class="action-btn view" onclick="verDetalhes(${p.id})" title="Detalhes"><i class="fas fa-eye"></i></button>
+                    <button class="action-btn edit" onclick="abrirModalStatus(${p.id},'${p.status}')" title="Atualizar Status"><i class="fas fa-exchange-alt"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function aplicarFiltros() {
+    const texto = document.getElementById('filtro-nfe').value.toLowerCase();
+    const status = document.getElementById('filtro-status').value;
+    const transp = document.getElementById('filtro-transportadora').value;
+    let filtrados = pedidos;
+    if (texto) filtrados = filtrados.filter(p => JSON.stringify(p).toLowerCase().includes(texto));
+    if (status) filtrados = filtrados.filter(p => p.status === status);
+    if (transp) filtrados = filtrados.filter(p => (p.transportadora || '').includes(transp));
+    renderizarPedidos(filtrados);
+}
+
+// ========== Modal Status Profissional ==========
+function abrirModalStatus(pedidoId, statusAtual) {
+    _statusPedidoId = pedidoId;
+    document.getElementById('modal-status-pedido').textContent = '#' + pedidoId;
+    document.getElementById('modal-status-atual').innerHTML = getStatusBadge(statusAtual);
+    document.getElementById('modal-status-novo').value = statusAtual || 'pendente';
+    document.getElementById('modal-status-obs').value = '';
+    openModal('modal-status');
+}
+
+async function confirmarMudancaStatus() {
+    if (!_statusPedidoId) return;
+    const novoStatus = document.getElementById('modal-status-novo').value;
+    const obs = document.getElementById('modal-status-obs').value;
+    try {
+        const r = await fetch(`/api/logistica/pedidos/${_statusPedidoId}/status`, {
+            method: 'PUT',
+            headers: {'Content-Type':'application/json'},
+            credentials: 'include',
+            body: JSON.stringify({ status_logistica: novoStatus, observacao: obs })
+        });
+        if (r.ok) {
+            closeModal('modal-status');
+            carregarPedidos();
+            carregarDashboard();
+        } else {
+            const err = await r.json().catch(() => ({}));
+            alert(err.message || 'Erro ao atualizar status');
+        }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+// ========== Modal Detalhes Pedido ==========
+function verDetalhes(id) {
+    const p = pedidos.find(x => x.id === id);
+    if (!p) { alert('Pedido não encontrado'); return; }
+    const statusLabel = { pendente:'Aguardando', em_separacao:'Em Separação', em_expedicao:'Em Expedição', em_transporte:'Em Transporte', entregue:'Entregue' };
+    document.getElementById('modal-detalhes-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Pedido</label>
+                <p style="font-size:16px;font-weight:700;color:var(--primary);">#${p.pedido_id || p.id}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">NF-e</label>
+                <p style="font-size:16px;font-weight:600;"><span class="code">${p.nfe_numero || p.nfe || '-'}</span></p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Cliente</label>
+                <p style="font-size:14px;">${p.cliente || '-'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Cidade/UF</label>
+                <p style="font-size:14px;">${p.cidade_uf || '-'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Valor</label>
+                <p style="font-size:16px;font-weight:700;color:var(--success);">${formatarMoeda(p.valor)}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Status Logística</label>
+                <p>${getStatusBadge(p.status)}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Transportadora</label>
+                <p style="font-size:14px;">${p.transportadora || 'Não definida'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Previsão de Entrega</label>
+                <p style="font-size:14px;">${p.previsao && p.previsao !== '-' ? new Date(p.previsao).toLocaleDateString('pt-BR') : 'Não definida'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Prioridade</label>
+                <p><span class="badge ${p.prioridade === 'urgente' ? 'danger' : p.prioridade === 'alta' ? 'warning' : 'info'}" style="text-transform:capitalize;">${p.prioridade || 'Normal'}</span></p>
+            </div>
+            <div class="form-group" style="grid-column:span 2;">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Observações</label>
+                <p style="font-size:13px;white-space:pre-wrap;background:var(--bg-secondary);padding:8px 12px;border-radius:8px;min-height:40px;">${p.observacao || 'Nenhuma observação'}</p>
+            </div>
+        </div>
+    `;
+    openModal('modal-detalhes');
+}
+
+// ========== Exportar Excel ==========
+function exportarExcel() {
+    if (!pedidos.length) { alert('Nenhum pedido para exportar'); return; }
+    const statusLabel = { pendente:'Aguardando', em_separacao:'Em Separação', em_expedicao:'Em Expedição', em_transporte:'Em Transporte', entregue:'Entregue' };
+    const headers = ['Pedido', 'NF-e', 'Cliente', 'Cidade/UF', 'Transportadora', 'Previsão', 'Status', 'Prioridade', 'Valor'];
+    const rows = pedidos.map(p => [
+        p.pedido_id || p.id,
+        p.nfe_numero || p.nfe || '-',
+        p.cliente || '-',
+        p.cidade_uf || '-',
+        p.transportadora || '-',
+        p.previsao && p.previsao !== '-' ? new Date(p.previsao).toLocaleDateString('pt-BR') : '-',
+        statusLabel[p.status] || p.status,
+        p.prioridade || 'normal',
+        (parseFloat(p.valor) || 0).toFixed(2).replace('.', ',')
+    ]);
+    let csv = '\uFEFF' + headers.join(';') + '\n';
+    rows.forEach(r => { csv += r.map(c => `"${c}"`).join(';') + '\n'; });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `logistica_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+async function salvarExpedicao() {
+    try {
+        const r = await fetch('/api/logistica/expedicao', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({
+            nfe: document.getElementById('exp-nfe').value,
+            pedido_id: document.getElementById('exp-pedido').value,
+            cliente: document.getElementById('exp-cliente').value,
+            transportadora_id: document.getElementById('exp-transportadora').value,
+            status: document.getElementById('exp-status').value,
+            previsao: document.getElementById('exp-previsao').value,
+            prioridade: document.getElementById('exp-prioridade').value,
+            observacoes: document.getElementById('exp-observacoes').value
+        })});
+        if (r.ok) {
+            closeModal('modal-nova-expedicao');
+            document.getElementById('form-nova-expedicao').reset();
+            carregarPedidos();
+            carregarDashboard();
+        } else {
+            const err = await r.json().catch(() => ({}));
+            alert(err.message || err.error || 'Erro ao salvar expedição');
+        }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+async function carregarTransportadoras() {
+    try {
+        const r = await fetch('/api/logistica/transportadoras', { credentials: 'include' });
+        if (r.ok) {
+            transportadoras = await r.json();
+            transportadoras = Array.isArray(transportadoras) ? transportadoras : transportadoras.data || [];
+            atualizarLista();
+            // Populate selects (limpar antes)
+            const sel1 = document.getElementById('filtro-transportadora');
+            const sel2 = document.getElementById('exp-transportadora');
+            // Manter apenas a primeira opção
+            while (sel1.options.length > 1) sel1.remove(1);
+            while (sel2.options.length > 1) sel2.remove(1);
+            transportadoras.forEach(t => {
+                const nome = t.nome_fantasia || t.fantasia || t.razao_social;
+                sel1.appendChild(new Option(nome, nome));
+                sel2.appendChild(new Option(nome, t.id));
+            });
+        }
+    } catch(e) { console.error('[LOGISTICA] Erro ao carregar transportadoras:', e); }
+}
+
+function atualizarLista() {
+    const tbody = document.querySelector('#tabela-transportadoras tbody');
+    if (!transportadoras.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><i class="fas fa-truck-moving"></i><p>Nenhuma transportadora cadastrada</p></div></td></tr>'; return; }
+    tbody.innerHTML = transportadoras.map(t => `
+        <tr>
+            <td><strong>${t.razao_social || '-'}</strong></td>
+            <td>${t.nome_fantasia || t.fantasia || '-'}</td>
+            <td><span class="code">${t.cnpj_cpf || t.cnpj || '-'}</span></td>
+            <td>${t.telefone || '-'}</td>
+            <td>${t.email || '-'}</td>
+            <td>
+                <div style="display:flex;gap:4px;">
+                    <button class="action-btn view" onclick="verTransportadora(${t.id})" title="Ver detalhes"><i class="fas fa-eye"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function salvarTransportadora() {
+    const razao = document.getElementById('transp-razao').value.trim();
+    if (!razao) { alert('Razão Social é obrigatória'); return; }
+    try {
+        const r = await fetch('/api/logistica/transportadoras', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({
+            razao_social: razao,
+            fantasia: document.getElementById('transp-fantasia').value,
+            cnpj: document.getElementById('transp-cnpj').value,
+            telefone: document.getElementById('transp-telefone').value,
+            email: document.getElementById('transp-email').value,
+            endereco: document.getElementById('transp-endereco').value
+        })});
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) {
+            closeModal('modal-transportadoras');
+            // Limpar campos
+            ['transp-razao','transp-fantasia','transp-cnpj','transp-telefone','transp-email','transp-endereco'].forEach(id => document.getElementById(id).value = '');
+            carregarTransportadoras();
+        } else {
+            alert(data.error || 'Erro ao salvar transportadora');
+        }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+function adicionarTransportadora() { openModal('modal-transportadoras'); }
+
+function verTransportadora(id) {
+    const t = transportadoras.find(tr => tr.id === id);
+    if (!t) { alert('Transportadora não encontrada'); return; }
+    document.getElementById('modal-detalhes-body').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Razão Social</label>
+                <p style="font-size:14px;font-weight:600;">${t.razao_social || '-'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Nome Fantasia</label>
+                <p style="font-size:14px;">${t.nome_fantasia || t.fantasia || '-'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">CNPJ</label>
+                <p><span class="code">${t.cnpj_cpf || t.cnpj || '-'}</span></p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Inscrição Estadual</label>
+                <p>${t.inscricao_estadual || '-'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Telefone</label>
+                <p>${t.telefone || '-'}</p>
+            </div>
+            <div class="form-group">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">E-mail</label>
+                <p>${t.email || '-'}</p>
+            </div>
+            <div class="form-group" style="grid-column:span 2;">
+                <label style="font-weight:600;color:var(--text-secondary);font-size:11px;text-transform:uppercase;margin-bottom:4px;">Localização</label>
+                <p>${[t.endereco, t.cidade, t.estado].filter(Boolean).join(', ') || '-'} ${t.cep ? '— CEP: ' + t.cep : ''}</p>
+            </div>
+        </div>
+    `;
+    openModal('modal-detalhes');
+}
+
+function carregarDadosUsuario() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(u => {
+        document.getElementById('user-name').textContent = (u.nome||u.name||'Usuário').split(' ')[0];
+        document.getElementById('user-initials').textContent = (u.nome||u.name||'U').substring(0,2).toUpperCase();
+        if (u.foto||u.avatar) { document.getElementById('user-photo').src=u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarDadosUsuario();
+    carregarDashboard();
+    carregarPedidos();
+    carregarTransportadoras();
+});
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

@@ -1,0 +1,287 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — Consultar NF-e</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn active" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon cyan"><i class="fas fa-search"></i></div>
+                        <div>
+                            <h1 class="page-title">Consultar NF-e</h1>
+                            <p class="page-subtitle">Busque e visualize notas fiscais emitidas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-filter"></i> Filtros de Consulta</h3>
+                </div>
+                <div class="card-body">
+                    <form id="form-consulta" onsubmit="event.preventDefault(); carregarNFes();">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Número da NF-e</label>
+                                <input type="text" class="form-control" id="filtro-numero" placeholder="Nº da nota">
+                            </div>
+                            <div class="form-group">
+                                <label>Série</label>
+                                <input type="text" class="form-control" id="filtro-serie" placeholder="Série">
+                            </div>
+                            <div class="form-group">
+                                <label>Chave de Acesso</label>
+                                <input type="text" class="form-control" id="filtro-chave" placeholder="44 dígitos">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Cliente / Destinatário</label>
+                                <input type="text" class="form-control" id="filtro-cliente" placeholder="Nome ou CNPJ">
+                            </div>
+                            <div class="form-group">
+                                <label>Data Início</label>
+                                <input type="date" class="form-control" id="filtro-data-inicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Data Fim</label>
+                                <input type="date" class="form-control" id="filtro-data-fim">
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select class="form-control" id="filtro-status">
+                                    <option value="">Todos</option>
+                                    <option value="autorizada">Autorizada</option>
+                                    <option value="pendente">Pendente</option>
+                                    <option value="cancelada">Cancelada</option>
+                                    <option value="denegada">Denegada</option>
+                                    <option value="rejeitada">Rejeitada</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('form-consulta').reset()"><i class="fas fa-eraser"></i> Limpar</button>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Consultar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card" id="resultados-consulta">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-list"></i> Resultados</h3>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <div style="overflow-x:auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Série</th>
+                                    <th>Chave de Acesso</th>
+                                    <th>Destinatário</th>
+                                    <th>Valor</th>
+                                    <th>Data</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-resultados">
+                                <tr id="sem-resultados"><td colspan="8"><div class="empty-state"><i class="fas fa-search"></i><h3>Utilize os filtros acima</h3><p>Preencha os campos e clique em Consultar</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
+
+function getStatusIcon(status) {
+    const m = { autorizada: 'check-circle', pendente: 'clock', cancelada: 'times-circle', denegada: 'exclamation-triangle', rejeitada: 'ban' };
+    return m[status?.toLowerCase()] || 'question-circle';
+}
+
+async function carregarNFes() {
+    try {
+        // Coletar filtros
+        const params = new URLSearchParams();
+        const numero = document.getElementById('filtro-numero').value.trim();
+        const serie = document.getElementById('filtro-serie').value.trim();
+        const chave = document.getElementById('filtro-chave').value.trim();
+        const cliente = document.getElementById('filtro-cliente').value.trim();
+        const dataInicio = document.getElementById('filtro-data-inicio').value;
+        const dataFim = document.getElementById('filtro-data-fim').value;
+        const status = document.getElementById('filtro-status').value;
+
+        if (numero) params.set('numero', numero);
+        if (serie) params.set('serie', serie);
+        if (cliente) params.set('cliente', cliente);
+        if (status) params.set('status', status);
+        if (dataInicio) params.set('data_inicio', dataInicio);
+        if (dataFim) params.set('data_fim', dataFim);
+        params.set('limite', '200');
+
+        const tbody = document.getElementById('tbody-resultados');
+        tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Consultando...</p></div></td></tr>';
+
+        const r = await fetch('/api/nfe/listar?' + params.toString(), { credentials: 'include' });
+        if (r.ok) {
+            const nfes = await r.json();
+            let lista = Array.isArray(nfes) ? nfes : nfes.data || [];
+
+            // Filtro local para chave de acesso (caso backend não suporte)
+            if (chave) lista = lista.filter(n => (n.chave_acesso || '').includes(chave));
+
+            const tbody = document.getElementById('tbody-resultados');
+            if (!lista.length) {
+                tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="fas fa-inbox"></i><h3>Nenhuma NF-e encontrada</h3><p>Tente ajustar os filtros</p></div></td></tr>';
+                return;
+            }
+            tbody.innerHTML = lista.map(n => `
+                <tr>
+                    <td><span class="code">${n.numero || '-'}</span></td>
+                    <td>${n.serie || '1'}</td>
+                    <td><span class="code" style="font-size:10px;">${(n.chave_acesso||'').substring(0,20)}...</span></td>
+                    <td>${n.destinatario || n.cliente || '-'}</td>
+                    <td><strong>${(n.valor||n.valor_total||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong></td>
+                    <td>${n.data_emissao ? new Date(n.data_emissao).toLocaleDateString('pt-BR') : '-'}</td>
+                    <td><span class="badge ${(n.status||'pendente').toLowerCase()}">${n.status || 'Pendente'}</span></td>
+                    <td>
+                        <div style="display:flex;gap:4px;">
+                            <button class="action-btn view" onclick="visualizarNFe(${n.id})" title="Visualizar"><i class="fas fa-eye"></i></button>
+                            <button class="action-btn" onclick="baixarXML(${n.id})" title="Download XML"><i class="fas fa-download"></i></button>
+                            <button class="action-btn success" onclick="gerarDANFE(${n.id})" title="DANFE"><i class="fas fa-file-pdf"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch(e) { console.error('Erro:', e); }
+}
+
+function visualizarNFe(id) {
+    if (!id) { alert('ID não disponível'); return; }
+    fetch(`/api/nfe/${id}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(nfe => {
+            const info = [
+                'NF-e #' + (nfe.numero || id),
+                'Série: ' + (nfe.serie || '1'),
+                'Status: ' + (nfe.status || '-'),
+                'Chave: ' + (nfe.chave_acesso || '-'),
+                'Destinatário: ' + (nfe.destinatario || nfe.cliente || '-'),
+                'Valor: ' + (nfe.valor || nfe.valor_total || 0).toLocaleString('pt-BR', {style:'currency',currency:'BRL'}),
+                'Data: ' + (nfe.data_emissao ? new Date(nfe.data_emissao).toLocaleString('pt-BR') : '-'),
+                'Protocolo: ' + (nfe.protocolo || '-')
+            ].join('\n');
+            alert(info);
+        })
+        .catch(e => alert('Erro ao carregar detalhes'));
+}
+
+async function baixarXML(id) {
+    if (!id) { alert('ID não disponível'); return; }
+    try {
+        const r = await fetch(`/api/nfe/${id}/xml`, { credentials: 'include' });
+        if (r.ok) { const b = await r.blob(); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `nfe_${id}.xml`; a.click(); URL.revokeObjectURL(u); }
+        else { alert('XML não disponível para esta NF-e'); }
+    } catch(e) { alert('Erro ao baixar XML'); }
+}
+
+function gerarDANFE(id) { window.open(`/api/nfe/${id}/danfe`, '_blank'); }
+
+function carregarUsuarioLogado() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' })
+        .then(r => r.json())
+        .then(u => {
+            const nome = u.nome || u.name || 'Usuário';
+            document.getElementById('user-name').textContent = nome.split(' ')[0];
+            document.getElementById('user-initials').textContent = nome.substring(0,2).toUpperCase();
+            if (u.foto || u.avatar) { document.getElementById('user-photo').src = u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+        }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => { carregarUsuarioLogado(); });
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="../../_shared/connection-monitor.js?v=20251223"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

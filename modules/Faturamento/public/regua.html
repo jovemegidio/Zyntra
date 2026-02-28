@@ -1,0 +1,402 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — Régua de Cobrança</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn active" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon yellow"><i class="fas fa-bell"></i></div>
+                        <div>
+                            <h1 class="page-title">Régua de Cobrança</h1>
+                            <p class="page-subtitle">Automação de lembretes e notificações de cobrança</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" onclick="executarReguaManual()"><i class="fas fa-play"></i> Executar Agora</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config Section -->
+            <div class="card fade-in-delay-1">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-cog"></i> Configurações</h3>
+                    <div class="toggle-switch-wrapper">
+                        <span style="font-size:13px;color:#64748b;margin-right:8px;">Régua Ativa</span>
+                        <label class="toggle-switch"><input type="checkbox" id="regua-ativa" onchange="toggleRegua()"><span class="toggle-slider"></span></label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Horário de Execução</label>
+                            <input type="time" class="form-control" id="config-horario" value="09:00">
+                        </div>
+                        <div class="form-group">
+                            <label>PIX Automático</label>
+                            <select class="form-control" id="config-pix-auto">
+                                <option value="0">Desativado</option>
+                                <option value="1">Ativado</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Dias Antes do Vencimento</label>
+                            <input type="number" class="form-control" id="config-dias-antes" value="3" min="1" max="30">
+                        </div>
+                        <div class="form-group">
+                            <label>Dias Após Vencimento</label>
+                            <input type="number" class="form-control" id="config-dias-apos" value="5" min="1" max="90">
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <h4 class="config-section-title"><i class="fas fa-envelope"></i> Configuração SMTP</h4>
+                        <div class="form-row">
+                            <div class="form-group"><label>Servidor SMTP</label><input type="text" class="form-control" id="smtp-host" placeholder="smtp.gmail.com"></div>
+                            <div class="form-group"><label>Porta</label><input type="number" class="form-control" id="smtp-porta" value="587"></div>
+                            <div class="form-group"><label>Segurança</label><select class="form-control" id="smtp-seguranca"><option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">Nenhuma</option></select></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>E-mail</label><input type="email" class="form-control" id="smtp-email" placeholder="seu@email.com"></div>
+                            <div class="form-group"><label>Senha</label><input type="password" class="form-control" id="smtp-senha" placeholder="••••••••"></div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+                        <button class="btn btn-secondary" onclick="testarSMTP()"><i class="fas fa-envelope"></i> Testar SMTP</button>
+                        <button class="btn btn-primary" onclick="salvarConfig()"><i class="fas fa-save"></i> Salvar Configuração</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Templates -->
+            <div class="card fade-in-delay-2">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-file-alt"></i> Templates de Mensagem</h3>
+                    <button class="btn btn-primary btn-sm" onclick="abrirModalTemplate()"><i class="fas fa-plus"></i> Novo Template</button>
+                </div>
+                <div class="card-body">
+                    <div class="template-grid" id="template-grid">
+                        <!-- Templates carregados via JS -->
+                        <div class="template-card" onclick="abrirModalTemplate('antes_vencimento')">
+                            <div class="template-card-header">
+                                <i class="fas fa-clock" style="color:#f59e0b;"></i>
+                                <h4>Antes do Vencimento</h4>
+                            </div>
+                            <p class="template-card-desc">Lembrete amigável enviado antes do vencimento do título</p>
+                            <div class="template-card-footer">
+                                <span class="badge info">Ativo</span>
+                                <span style="font-size:11px;color:#94a3b8;">3 dias antes</span>
+                            </div>
+                        </div>
+                        <div class="template-card" onclick="abrirModalTemplate('dia_vencimento')">
+                            <div class="template-card-header">
+                                <i class="fas fa-calendar-day" style="color:#3b82f6;"></i>
+                                <h4>Dia do Vencimento</h4>
+                            </div>
+                            <p class="template-card-desc">Notificação no dia exato do vencimento</p>
+                            <div class="template-card-footer">
+                                <span class="badge info">Ativo</span>
+                                <span style="font-size:11px;color:#94a3b8;">No dia</span>
+                            </div>
+                        </div>
+                        <div class="template-card" onclick="abrirModalTemplate('apos_vencimento')">
+                            <div class="template-card-header">
+                                <i class="fas fa-exclamation-circle" style="color:#ef4444;"></i>
+                                <h4>Após Vencimento</h4>
+                            </div>
+                            <p class="template-card-desc">Cobrança enviada quando o título está vencido</p>
+                            <div class="template-card-footer">
+                                <span class="badge pending">Ativo</span>
+                                <span style="font-size:11px;color:#94a3b8;">5 dias após</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Stats -->
+            <div class="stats-grid fade-in-delay-3" style="grid-template-columns:repeat(4,1fr);">
+                <div class="stat-card">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-paper-plane"></i></div></div>
+                    <div class="stat-value" id="stat-enviados">0</div>
+                    <div class="stat-label">Enviados Hoje</div>
+                </div>
+                <div class="stat-card green">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-check-double"></i></div></div>
+                    <div class="stat-value" id="stat-lidos">0</div>
+                    <div class="stat-label">Lidos</div>
+                </div>
+                <div class="stat-card yellow">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-clock"></i></div></div>
+                    <div class="stat-value" id="stat-pendentes">0</div>
+                    <div class="stat-label">Pendentes</div>
+                </div>
+                <div class="stat-card" style="--stat-accent:#ef4444;">
+                    <div class="stat-header"><div class="stat-icon" style="background:#fef2f2;color:#ef4444;"><i class="fas fa-times-circle"></i></div></div>
+                    <div class="stat-value" id="stat-falhas">0</div>
+                    <div class="stat-label">Falhas</div>
+                </div>
+            </div>
+
+            <!-- Histórico -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-history"></i> Histórico de Envios</h3>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <div class="activity-list" id="listaHistorico">
+                        <div class="empty-state" style="padding:32px;"><i class="fas fa-inbox"></i><p>Nenhum envio registrado</p></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal Template Editor -->
+<div class="modal-overlay" id="modal-template">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3><i class="fas fa-edit"></i> Editor de Template</h3>
+            <button class="modal-close" onclick="closeModal('modal-template')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="template-id">
+            <div class="form-group">
+                <label>Nome do Template</label>
+                <input type="text" class="form-control" id="template-nome" placeholder="Ex: Lembrete antes do vencimento">
+            </div>
+            <div class="form-group">
+                <label>Assunto do E-mail</label>
+                <input type="text" class="form-control" id="template-assunto" placeholder="Ex: Lembrete de pagamento - {empresa}">
+            </div>
+            <div class="form-group">
+                <label>Corpo da Mensagem</label>
+                <textarea class="form-control" id="template-corpo" rows="8" placeholder="Use variáveis: {cliente}, {valor}, {vencimento}, {empresa}, {link_pix}"></textarea>
+                <small style="color:#64748b;font-size:11px;">Variáveis disponíveis: {cliente}, {valor}, {vencimento}, {empresa}, {link_pix}, {numero_nfe}</small>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Gatilho</label>
+                    <select class="form-control" id="template-gatilho">
+                        <option value="antes">Antes do vencimento</option>
+                        <option value="no_dia">No dia do vencimento</option>
+                        <option value="apos">Após vencimento</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Dias</label>
+                    <input type="number" class="form-control" id="template-dias" value="3" min="0" max="90">
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modal-template')">Cancelar</button>
+            <button class="btn btn-primary" onclick="salvarTemplate()"><i class="fas fa-save"></i> Salvar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+async function carregarConfig() {
+    try {
+        const r = await fetch('/api/faturamento/regua/config', { credentials: 'include' });
+        if (r.ok) {
+            const c = await r.json();
+            document.getElementById('regua-ativa').checked = c.ativa || false;
+            document.getElementById('config-horario').value = c.horario || '09:00';
+            document.getElementById('config-pix-auto').value = c.pix_auto ? '1' : '0';
+            document.getElementById('config-dias-antes').value = c.dias_antes || 3;
+            document.getElementById('config-dias-apos').value = c.dias_apos || 5;
+            if (c.smtp) {
+                document.getElementById('smtp-host').value = c.smtp.host || '';
+                document.getElementById('smtp-porta').value = c.smtp.porta || 587;
+                document.getElementById('smtp-seguranca').value = c.smtp.seguranca || 'tls';
+                document.getElementById('smtp-email').value = c.smtp.email || '';
+            }
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function salvarConfig() {
+    try {
+        const r = await fetch('/api/faturamento/regua/config', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({
+            ativa: document.getElementById('regua-ativa').checked,
+            horario: document.getElementById('config-horario').value,
+            pix_auto: document.getElementById('config-pix-auto').value === '1',
+            dias_antes: parseInt(document.getElementById('config-dias-antes').value),
+            dias_apos: parseInt(document.getElementById('config-dias-apos').value),
+            smtp: {
+                host: document.getElementById('smtp-host').value,
+                porta: parseInt(document.getElementById('smtp-porta').value),
+                seguranca: document.getElementById('smtp-seguranca').value,
+                email: document.getElementById('smtp-email').value,
+                senha: document.getElementById('smtp-senha').value
+            }
+        })});
+        alert(r.ok ? 'Configuração salva!' : 'Erro ao salvar');
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+function toggleRegua() { salvarConfig(); }
+function testarSMTP() { alert('Enviando e-mail de teste...'); }
+
+async function carregarDashboard() {
+    try {
+        const r = await fetch('/api/faturamento/regua/dashboard', { credentials: 'include' });
+        if (r.ok) {
+            const d = await r.json();
+            document.getElementById('stat-enviados').textContent = d.enviados || 0;
+            document.getElementById('stat-lidos').textContent = d.lidos || 0;
+            document.getElementById('stat-pendentes').textContent = d.pendentes || 0;
+            document.getElementById('stat-falhas').textContent = d.falhas || 0;
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function carregarHistorico() {
+    try {
+        const r = await fetch('/api/faturamento/regua/historico', { credentials: 'include' });
+        if (r.ok) {
+            const list = await r.json();
+            const el = document.getElementById('listaHistorico');
+            if (!Array.isArray(list) || !list.length) { el.innerHTML = '<div class="empty-state" style="padding:32px;"><i class="fas fa-inbox"></i><p>Nenhum envio registrado</p></div>'; return; }
+            el.innerHTML = list.slice(0,30).map(h => `
+                <div class="activity-item">
+                    <div class="activity-icon ${h.status === 'enviado' ? 'green' : h.status === 'falha' ? 'red' : ''}">
+                        <i class="fas ${h.status === 'enviado' ? 'fa-check' : h.status === 'falha' ? 'fa-times' : 'fa-clock'}"></i>
+                    </div>
+                    <div class="activity-info">
+                        <strong>${h.cliente || 'Cliente'}</strong> — ${h.template || 'Template'}<br>
+                        <small style="color:#94a3b8;">${h.data ? new Date(h.data).toLocaleString('pt-BR') : '-'}</small>
+                    </div>
+                    <span class="badge ${h.status === 'enviado' ? 'autorizada' : h.status === 'falha' ? 'cancelada' : 'pendente'}">${h.status || '-'}</span>
+                </div>
+            `).join('');
+        }
+    } catch(e) { console.error(e); }
+}
+
+function abrirModalTemplate(tipo) {
+    document.getElementById('template-id').value = tipo || '';
+    document.getElementById('template-nome').value = '';
+    document.getElementById('template-assunto').value = '';
+    document.getElementById('template-corpo').value = '';
+    openModal('modal-template');
+}
+
+async function salvarTemplate() {
+    try {
+        const r = await fetch('/api/faturamento/regua/templates', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({
+            id: document.getElementById('template-id').value,
+            nome: document.getElementById('template-nome').value,
+            assunto: document.getElementById('template-assunto').value,
+            corpo: document.getElementById('template-corpo').value,
+            gatilho: document.getElementById('template-gatilho').value,
+            dias: parseInt(document.getElementById('template-dias').value)
+        })});
+        if (r.ok) { closeModal('modal-template'); alert('Template salvo!'); }
+        else { alert('Erro ao salvar'); }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+async function executarReguaManual() {
+    if (!confirm('Executar régua de cobrança agora?')) return;
+    try {
+        const r = await fetch('/api/faturamento/regua/executar', { method: 'POST', credentials: 'include' });
+        alert(r.ok ? 'Régua executada com sucesso!' : 'Erro na execução');
+        carregarDashboard(); carregarHistorico();
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+function carregarDadosUsuario() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(u => {
+        document.getElementById('user-name').textContent = (u.nome||u.name||'Usuário').split(' ')[0];
+        document.getElementById('user-initials').textContent = (u.nome||u.name||'U').substring(0,2).toUpperCase();
+        if (u.foto||u.avatar) { document.getElementById('user-photo').src=u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarDadosUsuario();
+    carregarConfig();
+    carregarDashboard();
+    carregarHistorico();
+});
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

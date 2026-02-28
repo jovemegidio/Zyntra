@@ -1,0 +1,939 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Fluxo de Caixa</title>
+
+    <!-- Autenticacao -->
+    <script src="/js/auth-unified.js?v=20260211" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Financeiro Design System -->
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+
+    <!-- XLSX Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+    :root {
+        --primary-orange: #225cfa;
+        --primary-dark: #1a1a2e;
+        --bg-gray: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+        /* Botão Importar */
+        .btn-importar {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        }
+        .btn-importar:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+        }
+/* SIDEBAR */
+.sidebar-logo i { color: white; font-size: 18px; }
+.sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; position: relative; text-decoration: none; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-blue); color: white; }
+        .sidebar-btn .tooltip { position: absolute; left: 100%; top: 50%; transform: translateY(-50%); background: var(--primary-dark); color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; white-space: nowrap; opacity: 0; visibility: hidden; transition: all 0.2s; margin-left: 8px; }
+        .sidebar-btn:hover .tooltip { opacity: 1; visibility: visible; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN */
+/* HEADER */
+.header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+.header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-greeting { display: flex; align-items: center; gap: 10px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-avatar .user-initial { display: block; }
+        .user-avatar img.visible + .user-initial { display: none; }
+
+        /* CONTENT */
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+        /* PAGE HEADER */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .page-title h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 12px; }
+        .page-title h1 i { color: var(--primary-blue); }
+        .page-title p { font-size: 14px; color: var(--text-secondary); }
+        .page-actions { display: flex; gap: 12px; }
+
+        /* BUTTONS */
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--primary-blue); color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: white; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--bg-gray); }
+
+        /* STATS */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
+        .stat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; overflow: hidden; }
+        .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+        .stat-card.entradas::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+        .stat-card.saidas::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .stat-card.saldo::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .stat-card.projecao::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .stat-card h3 { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .stat-card h3 i { font-size: 14px; }
+        .stat-card h3 i.green { color: var(--success); }
+        .stat-card h3 i.red { color: var(--danger); }
+        .stat-card h3 i.blue { color: var(--info); }
+        .stat-card h3 i.purple { color: #8b5cf6; }
+        .stat-card .value { font-size: 28px; font-weight: 700; }
+        .stat-card .value.green { color: var(--success); }
+        .stat-card .value.red { color: var(--danger); }
+        .stat-card .value.blue { color: var(--info); }
+        .stat-card .value.purple { color: #8b5cf6; }
+        .stat-card .change { font-size: 12px; color: var(--text-secondary); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+        .stat-card .change.up { color: var(--success); }
+        .stat-card .change.down { color: var(--danger); }
+
+        /* Period Selector */
+        .period-selector { display: flex; gap: 8px; }
+        .period-btn { padding: 8px 16px; border: 2px solid var(--border-color); background: white; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .period-btn:hover, .period-btn.active { background: var(--primary-blue); border-color: var(--primary-blue); color: white; }
+
+        /* CARDS */
+        .card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; margin-bottom: 24px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .card-header h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .card-header h3 i { color: var(--primary-blue); }
+        .card-body { padding: 24px; }
+
+        /* Chart Grid */
+        .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+        @media (max-width: 1200px) { .chart-grid { grid-template-columns: 1fr; } }
+        .chart-container { height: 300px; }
+
+        /* List Items */
+        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
+        .list-item:last-child { border-bottom: none; }
+        .list-item-info { display: flex; align-items: center; gap: 12px; }
+        .list-item-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+        .list-item-icon.entrada { background: #dcfce7; color: #16a34a; }
+        .list-item-icon.saida { background: #fee2e2; color: #dc2626; }
+        .list-item-title { font-weight: 600; color: var(--text-primary); }
+        .list-item-desc { font-size: 12px; color: var(--text-secondary); }
+        .list-item-value { font-weight: 700; font-family: 'Inter', monospace; }
+        .list-item-value.entrada { color: var(--success); }
+        .list-item-value.saida { color: var(--danger); }
+
+        /* TABLE */
+        .table-container { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: #f8fafc; padding: 14px 16px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; border-bottom: 2px solid var(--border-color); }
+        .data-table td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .data-table tr:hover { background: #f8fafc; }
+        .data-table .data { font-weight: 600; color: #374151; }
+        .data-table .valor { font-weight: 700; font-family: 'Inter', monospace; }
+        .data-table .entrada { color: var(--success); }
+        .data-table .saida { color: var(--danger); }
+        .badge-saldo { display: inline-block; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 13px; }
+        .badge-saldo.positivo { background: #dcfce7; color: #16a34a; }
+        .badge-saldo.negativo { background: #fee2e2; color: #dc2626; }
+
+        /* Empty State */
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+        .empty-state h4 { font-size: 18px; color: var(--text-primary); margin-bottom: 8px; }
+    </style>
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Header & Sidebar refinado -->
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260215">
+    <!-- Global Header & Sidebar - override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="fluxo-caixa.html" class="sidebar-btn active" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="plano-contas.html" class="sidebar-btn" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="orcamentos.html" class="sidebar-btn" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn" title="Centros de Custo">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <!-- Botao Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Fluxo de Caixa</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="main-content">
+
+            <!-- Content Area -->
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div class="period-selector">
+                        <button class="period-btn" onclick="setPeriod('semana', this)">Semana</button>
+                        <button class="period-btn active" onclick="setPeriod('mes', this)">Mês</button>
+                        <button class="period-btn" onclick="setPeriod('trimestre', this)">Trimestre</button>
+                        <button class="period-btn" onclick="setPeriod('ano', this)">Ano</button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card entradas">
+                        <h3><i class="fas fa-arrow-down green"></i> Total de Entradas</h3>
+                        <div class="value green" id="total-entradas">R$ 0,00</div>
+                        <div class="change up" id="change-entradas"><i class="fas fa-arrow-up"></i> 0% vs período anterior</div>
+                    </div>
+                    <div class="stat-card saidas">
+                        <h3><i class="fas fa-arrow-up red"></i> Total de Saídas</h3>
+                        <div class="value red" id="total-saidas">R$ 0,00</div>
+                        <div class="change down" id="change-saidas"><i class="fas fa-arrow-up"></i> 0% vs período anterior</div>
+                    </div>
+                    <div class="stat-card saldo">
+                        <h3><i class="fas fa-wallet blue"></i> Saldo do Período</h3>
+                        <div class="value blue" id="saldo-periodo">R$ 0,00</div>
+                        <div class="change up" id="change-saldo"><i class="fas fa-arrow-up"></i> 0% vs período anterior</div>
+                    </div>
+                    <div class="stat-card projecao">
+                        <h3><i class="fas fa-chart-line purple"></i> Projeção 30 dias</h3>
+                        <div class="value purple" id="projecao-30d">R$ 0,00</div>
+                        <div class="change" id="change-projecao">Baseado nas previsões</div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="chart-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-bar"></i> Movimentação Diária</h3>
+                            <div class="page-actions">
+                                <button class="btn btn-secondary" onclick="exportarGrafico()"><i class="fas fa-download"></i> Exportar</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="chart-fluxo"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-list"></i> Próximas Movimentações</h3>
+                        </div>
+                        <div class="card-body" style="padding: 0 24px;">
+                            <div id="lista-movimentacoes">
+                                <div class="empty-state" style="padding: 40px;">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Carregando...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-table"></i> Fluxo de Caixa Detalhado</h3>
+                        <div class="page-actions">
+                            <button class="btn-importar" onclick="abrirModalImportar('fluxo-caixa')"><i class="fas fa-file-excel"></i> Importar</button>
+                            <button class="btn btn-secondary" onclick="exportarExcel()"><i class="fas fa-file-excel"></i> Excel</button>
+                            <button class="btn btn-secondary" onclick="exportarPDF()"><i class="fas fa-file-pdf"></i> PDF</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Descrição</th>
+                                    <th>Categoria</th>
+                                    <th>Entradas</th>
+                                    <th>Saídas</th>
+                                    <th>Saldo Dia</th>
+                                    <th>Saldo Acumulado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fluxo-body">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                                        <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                                        Carregando dados...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        
+            </div> <!-- /main-content -->
+</main>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // ========================================
+        // VARIAVEIS GLOBAIS
+        // ========================================
+        let chartFluxo = null;
+        let periodoAtual = 'mes';
+        let dadosFluxo = { entradas: [], saidas: [] };
+
+        // ========================================
+        // HELPERS
+        // ========================================
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            return new Date(data).toLocaleDateString('pt-BR');
+        }
+
+        function getAuthToken() {
+            return localStorage.getItem('token') || getCookie('token');
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function getAuthHeaders() {
+            const token = getAuthToken();
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            return headers;
+        }
+
+        // ========================================
+        // CARREGAR DADOS
+        // ========================================
+        async function carregarDados() {
+            try {
+                // Buscar contas a receber
+                const respReceber = await fetch('/api/financeiro/contas-receber', {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+                
+                // Buscar contas a pagar
+                const respPagar = await fetch('/api/financeiro/contas-pagar', {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+
+                let contasReceber = [];
+                let contasPagar = [];
+
+                if (respReceber.ok) {
+                    const dataReceber = await respReceber.json();
+                    const rawReceber = Array.isArray(dataReceber) ? dataReceber : (dataReceber.data || []);
+                    contasReceber = Array.isArray(rawReceber) ? rawReceber : [];
+                }
+
+                if (respPagar.ok) {
+                    const dataPagar = await respPagar.json();
+                    const rawPagar = Array.isArray(dataPagar) ? dataPagar : (dataPagar.data || []);
+                    contasPagar = Array.isArray(rawPagar) ? rawPagar : [];
+                }
+
+                // Calcular totais
+                const totalEntradas = contasReceber.reduce((sum, c) => sum + (parseFloat(c.valor) || 0), 0);
+                const totalSaidas = contasPagar.reduce((sum, c) => sum + (parseFloat(c.valor) || 0), 0);
+                const saldo = totalEntradas - totalSaidas;
+
+                // Atualizar KPIs
+                document.getElementById('total-entradas').textContent = formatarMoeda(totalEntradas);
+                document.getElementById('total-saidas').textContent = formatarMoeda(totalSaidas);
+                document.getElementById('saldo-periodo').textContent = formatarMoeda(saldo);
+                
+                // Projecao baseada em media
+                const projecao = saldo * 1.1; // simplificado
+                document.getElementById('projecao-30d').textContent = formatarMoeda(projecao);
+
+                // Armazenar dados globalmente para exportacao
+                dadosFluxo.entradas = contasReceber;
+                dadosFluxo.saidas = contasPagar;
+
+                // Carregar grafico
+                carregarGrafico(contasReceber, contasPagar);
+
+                // Carregar proximas movimentacoes
+                carregarProximasMovimentacoes(contasReceber, contasPagar);
+
+                // Carregar tabela de fluxo
+                carregarTabelaFluxo(contasReceber, contasPagar);
+
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+            }
+        }
+
+        // ========================================
+        // GRAFICO
+        // ========================================
+        function carregarGrafico(entradas, saidas) {
+            const ctx = document.getElementById('chart-fluxo');
+            if (!ctx) return;
+
+            // Agrupar por data (ultimos 10 dias)
+            const hoje = new Date();
+            const labels = [];
+            const dataEntradas = [];
+            const dataSaidas = [];
+
+            for (let i = 9; i >= 0; i--) {
+                const data = new Date(hoje);
+                data.setDate(data.getDate() - i);
+                const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                labels.push(dataStr);
+
+                const dataISO = data.toISOString().split('T')[0];
+                
+                const totalEntrada = entradas
+                    .filter(e => e.data_vencimento && e.data_vencimento.startsWith(dataISO))
+                    .reduce((sum, e) => sum + (parseFloat(e.valor) || 0), 0);
+                    
+                const totalSaida = saidas
+                    .filter(s => s.data_vencimento && s.data_vencimento.startsWith(dataISO))
+                    .reduce((sum, s) => sum + (parseFloat(s.valor) || 0), 0);
+
+                dataEntradas.push(totalEntrada);
+                dataSaidas.push(totalSaida);
+            }
+
+            if (chartFluxo) {
+                chartFluxo.destroy();
+            }
+
+            chartFluxo = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Entradas',
+                            data: dataEntradas,
+                            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Saídas',
+                            data: dataSaidas,
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatarMoeda(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ========================================
+        // PROXIMAS MOVIMENTACOES
+        // ========================================
+        function carregarProximasMovimentacoes(entradas, saidas) {
+            const container = document.getElementById('lista-movimentacoes');
+            if (!container) return;
+
+            const hoje = new Date();
+            
+            // Filtrar proximos vencimentos (7 dias)
+            const proximasEntradas = entradas
+                .filter(e => {
+                    const venc = new Date(e.data_vencimento);
+                    const diff = (venc - hoje) / (1000 * 60 * 60 * 24);
+                    return diff >= 0 && diff <= 7 && e.status !== 'Pago';
+                })
+                .slice(0, 3)
+                .map(e => ({ ...e, tipo: 'entrada' }));
+
+            const proximasSaidas = saidas
+                .filter(s => {
+                    const venc = new Date(s.data_vencimento);
+                    const diff = (venc - hoje) / (1000 * 60 * 60 * 24);
+                    return diff >= 0 && diff <= 7 && s.status !== 'Pago';
+                })
+                .slice(0, 3)
+                .map(s => ({ ...s, tipo: 'saida' }));
+
+            const proximas = [...proximasEntradas, ...proximasSaidas]
+                .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))
+                .slice(0, 5);
+
+            if (proximas.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="padding: 40px;">
+                        <i class="fas fa-calendar-check"></i>
+                        <h4>Tudo em dia!</h4>
+                        <p>Nenhuma movimentação pendente nos próximos 7 dias</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = proximas.map(m => {
+                const venc = new Date(m.data_vencimento);
+                const diff = Math.ceil((venc - hoje) / (1000 * 60 * 60 * 24));
+                const descVenc = diff === 0 ? 'Vence hoje' : diff === 1 ? 'Vence amanhã' : `Vence em ${diff} dias`;
+                
+                return `
+                    <div class="list-item">
+                        <div class="list-item-info">
+                            <div class="list-item-icon ${m.tipo}">
+                                <i class="fas fa-arrow-${m.tipo === 'entrada' ? 'down' : 'up'}"></i>
+                            </div>
+                            <div>
+                                <div class="list-item-title">${m.descricao || m.cliente || m.fornecedor || 'Sem descrição'}</div>
+                                <div class="list-item-desc">${descVenc}</div>
+                            </div>
+                        </div>
+                        <div class="list-item-value ${m.tipo}">${m.tipo === 'entrada' ? '+' : '-'} ${formatarMoeda(m.valor)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ========================================
+        // TABELA DE FLUXO
+        // ========================================
+        function carregarTabelaFluxo(entradas, saidas) {
+            const tbody = document.getElementById('fluxo-body');
+            if (!tbody) return;
+
+            // Combinar e ordenar por data
+            const movimentacoes = [
+                ...entradas.map(e => ({ ...e, tipo: 'entrada', data: e.data_vencimento })),
+                ...saidas.map(s => ({ ...s, tipo: 'saida', data: s.data_vencimento }))
+            ].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+            if (movimentacoes.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                            <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 10px; display: block; opacity: 0.5;"></i>
+                            Nenhuma movimentação encontrada
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            let saldoAcumulado = 0;
+            tbody.innerHTML = movimentacoes.slice(0, 20).map(m => {
+                const valor = parseFloat(m.valor) || 0;
+                const saldoDia = m.tipo === 'entrada' ? valor : -valor;
+                saldoAcumulado += saldoDia;
+
+                return `
+                    <tr>
+                        <td class="data">${formatarData(m.data)}</td>
+                        <td>${m.descricao || m.cliente || m.fornecedor || '-'}</td>
+                        <td>${m.categoria || '-'}</td>
+                        <td class="valor ${m.tipo === 'entrada' ? 'entrada' : ''}">${m.tipo === 'entrada' ? formatarMoeda(valor) : '-'}</td>
+                        <td class="valor ${m.tipo === 'saida' ? 'saida' : ''}">${m.tipo === 'saida' ? formatarMoeda(valor) : '-'}</td>
+                        <td class="valor ${saldoDia >= 0 ? 'entrada' : 'saida'}">${saldoDia >= 0 ? '+' : ''}${formatarMoeda(saldoDia)}</td>
+                        <td><span class="badge-saldo ${saldoAcumulado >= 0 ? 'positivo' : 'negativo'}">${formatarMoeda(saldoAcumulado)}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ========================================
+        // PERIODO
+        // ========================================
+        function setPeriod(periodo, btnEl) {
+            periodoAtual = periodo;
+            document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
+            if (btnEl) btnEl.classList.add('active');
+            carregarDados();
+        }
+
+        // ========================================
+        // EXPORTAR
+        // ========================================
+        function exportarGrafico() {
+            if (chartFluxo) {
+                const link = document.createElement('a');
+                link.download = 'fluxo-caixa.png';
+                link.href = chartFluxo.toBase64Image();
+                link.click();
+            }
+        }
+
+        function exportarExcel() {
+            const entradas = dadosFluxo.entradas || [];
+            const saidas = dadosFluxo.saidas || [];
+
+            if (entradas.length === 0 && saidas.length === 0) {
+                mostrarToastFinanceiro('Nenhum dado para exportar', 'warning');
+                return;
+            }
+
+            // Combinar e ordenar por data
+            const movimentacoes = [
+                ...entradas.map(e => ({
+                    data: e.data_vencimento,
+                    descricao: e.descricao || e.cliente || '-',
+                    categoria: e.categoria || '-',
+                    tipo: 'Entrada',
+                    valor: parseFloat(e.valor) || 0
+                })),
+                ...saidas.map(s => ({
+                    data: s.data_vencimento,
+                    descricao: s.descricao || s.fornecedor || '-',
+                    categoria: s.categoria || '-',
+                    tipo: 'Sa\u00edda',
+                    valor: parseFloat(s.valor) || 0
+                }))
+            ].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+            // Gerar CSV com BOM para Excel reconhecer acentos
+            const sep = ';';
+            const linhas = [
+                ['Data', 'Descri\u00e7\u00e3o', 'Categoria', 'Tipo', 'Valor (R$)'].join(sep)
+            ];
+
+            let saldoAcumulado = 0;
+            movimentacoes.forEach(m => {
+                const saldoDia = m.tipo === 'Entrada' ? m.valor : -m.valor;
+                saldoAcumulado += saldoDia;
+                linhas.push([
+                    formatarData(m.data),
+                    '"' + m.descricao.replace(/"/g, '""') + '"',
+                    '"' + m.categoria.replace(/"/g, '""') + '"',
+                    m.tipo,
+                    m.valor.toFixed(2).replace('.', ',')
+                ].join(sep));
+            });
+
+            // Linha de totais
+            const totalEnt = entradas.reduce((s, e) => s + (parseFloat(e.valor) || 0), 0);
+            const totalSai = saidas.reduce((s, e) => s + (parseFloat(e.valor) || 0), 0);
+            linhas.push('');
+            linhas.push(['', '', '', 'Total Entradas', totalEnt.toFixed(2).replace('.', ',')].join(sep));
+            linhas.push(['', '', '', 'Total Sa\u00eddas', totalSai.toFixed(2).replace('.', ',')].join(sep));
+            linhas.push(['', '', '', 'Saldo', (totalEnt - totalSai).toFixed(2).replace('.', ',')].join(sep));
+
+            const bom = '\uFEFF';
+            const blob = new Blob([bom + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'fluxo-caixa-' + new Date().toISOString().split('T')[0] + '.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+            mostrarToastFinanceiro('Relat\u00f3rio CSV exportado com sucesso!', 'success');
+        }
+
+        function exportarPDF() {
+            const entradas = dadosFluxo.entradas || [];
+            const saidas = dadosFluxo.saidas || [];
+
+            if (entradas.length === 0 && saidas.length === 0) {
+                mostrarToastFinanceiro('Nenhum dado para exportar', 'warning');
+                return;
+            }
+
+            // Combinar e ordenar
+            const movimentacoes = [
+                ...entradas.map(e => ({ data: e.data_vencimento, descricao: e.descricao || e.cliente || '-', categoria: e.categoria || '-', tipo: 'entrada', valor: parseFloat(e.valor) || 0 })),
+                ...saidas.map(s => ({ data: s.data_vencimento, descricao: s.descricao || s.fornecedor || '-', categoria: s.categoria || '-', tipo: 'saida', valor: parseFloat(s.valor) || 0 }))
+            ].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+            const totalEnt = entradas.reduce((s, e) => s + (parseFloat(e.valor) || 0), 0);
+            const totalSai = saidas.reduce((s, e) => s + (parseFloat(e.valor) || 0), 0);
+            const saldo = totalEnt - totalSai;
+
+            let saldoAcumulado = 0;
+            const linhasHTML = movimentacoes.map(m => {
+                const saldoDia = m.tipo === 'entrada' ? m.valor : -m.valor;
+                saldoAcumulado += saldoDia;
+                return `<tr>
+                    <td>${formatarData(m.data)}</td>
+                    <td>${m.descricao}</td>
+                    <td>${m.categoria}</td>
+                    <td style="color:${m.tipo === 'entrada' ? '#16a34a' : '#999'}">${m.tipo === 'entrada' ? formatarMoeda(m.valor) : '-'}</td>
+                    <td style="color:${m.tipo === 'saida' ? '#dc2626' : '#999'}">${m.tipo === 'saida' ? formatarMoeda(m.valor) : '-'}</td>
+                    <td style="color:${saldoDia >= 0 ? '#16a34a' : '#dc2626'}">${saldoDia >= 0 ? '+' : ''}${formatarMoeda(saldoDia)}</td>
+                    <td style="font-weight:600;color:${saldoAcumulado >= 0 ? '#16a34a' : '#dc2626'}">${formatarMoeda(saldoAcumulado)}</td>
+                </tr>`;
+            }).join('');
+
+            const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Aluforce: Fluxo de Caixa</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; color: #333; }
+        h1 { font-size: 20px; margin-bottom: 5px; color: #1e3a5f; }
+        .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+        .kpis { display: flex; gap: 20px; margin-bottom: 25px; }
+        .kpi { flex: 1; padding: 15px; border-radius: 8px; text-align: center; }
+        .kpi.entradas { background: #dcfce7; }
+        .kpi.saidas { background: #fee2e2; }
+        .kpi.saldo { background: #dbeafe; }
+        .kpi .label { font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+        .kpi .value { font-size: 20px; font-weight: 700; }
+        .kpi.entradas .value { color: #16a34a; }
+        .kpi.saidas .value { color: #dc2626; }
+        .kpi.saldo .value { color: #2563eb; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th { background: #f1f5f9; padding: 10px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 8px; border-bottom: 1px solid #f1f5f9; }
+        tr:hover { background: #f8fafc; }
+        .footer { margin-top: 20px; font-size: 11px; color: #999; text-align: center; }
+        @media print { body { margin: 10px; } }
+    </style>
+</head>
+<body>
+    <h1>&#128202; Fluxo de Caixa</h1>
+    <div class="subtitle">Gerado em ${new Date().toLocaleDateString('pt-BR')} \u00e0s ${new Date().toLocaleTimeString('pt-BR')} | Per\u00edodo: ${periodoAtual}</div>
+    <div class="kpis">
+        <div class="kpi entradas"><div class="label">Total Entradas</div><div class="value">${formatarMoeda(totalEnt)}</div></div>
+        <div class="kpi saidas"><div class="label">Total Sa\u00eddas</div><div class="value">${formatarMoeda(totalSai)}</div></div>
+        <div class="kpi saldo"><div class="label">Saldo</div><div class="value">${formatarMoeda(saldo)}</div></div>
+    </div>
+    <table>
+        <thead><tr><th>Data</th><th>Descri\u00e7\u00e3o</th><th>Categoria</th><th>Entradas</th><th>Sa\u00eddas</th><th>Saldo Dia</th><th>Saldo Acumulado</th></tr></thead>
+        <tbody>${linhasHTML}</tbody>
+    </table>
+    <div class="footer">ALUFORCE ERP - Relat\u00f3rio gerado automaticamente</div>
+    <script>window.onload = function() { window.print(); }<\/script>
+</body>
+</html>`;
+
+            const janela = window.open('', '_blank');
+            if (janela) {
+                janela.document.write(html);
+                janela.document.close();
+            } else {
+                mostrarToastFinanceiro('Permita popups para gerar o PDF', 'warning');
+            }
+        }
+
+        // ========================================
+        // USUARIO LOGADO
+        // ========================================
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { 
+                    headers: getAuthHeaders(),
+                    credentials: 'include' 
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.apelido || user.nome || 'Usuario';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuario');
+                    
+                    document.getElementById('user-name').textContent = primeiroNome;
+                    
+                    const greetingEl = document.getElementById('greeting-text');
+                    if (greetingEl) {
+                        const h = new Date().getHours();
+                        greetingEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia';
+                    }
+                    
+                    const userPhoto = document.getElementById('user-photo');
+                    const userInitial = document.getElementById('user-initials');
+                    
+                    if (user.foto_perfil_url || user.avatar || user.foto) {
+                        userPhoto.src = user.avatar || user.foto || user.foto_perfil_url;
+                        userPhoto.onload = () => {
+                            userPhoto.classList.add('visible');
+                            userPhoto.style.display = 'block';
+                            if (userInitial) userInitial.style.display = 'none';
+                        };
+                        userPhoto.onerror = () => {
+                            userPhoto.style.display = 'none';
+                            if (userInitial) {
+                                userInitial.textContent = userName.charAt(0).toUpperCase();
+                                userInitial.style.display = 'flex';
+                            }
+                        };
+                    } else if (userInitial) {
+                        userInitial.textContent = userName.charAt(0).toUpperCase();
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuario:', error);
+            }
+        }
+
+        // ========================================
+        // INIT
+        // ========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            carregarDados();
+        });
+    </script>
+
+    <script src="/js/chat-suporte-widgets.js?v=20251217"></script>
+    
+    <!-- Sistema de Importação XLSX -->
+    <script src="public/js/importar-xlsx.js?v=20260131"></script>
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

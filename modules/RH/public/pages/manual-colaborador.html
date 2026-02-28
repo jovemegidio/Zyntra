@@ -1,0 +1,1003 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Manual do Colaborador</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-pink: #ec4899;
+            --primary-pink-dark: #db2777;
+            --primary-dark: #1a1a2e;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: #1e293b;
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */ }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area {
+            flex: 1; overflow-y: auto; padding: 24px; background: #f8fafc;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-title {
+            font-size: 1.75rem; font-weight: 700; color: #1e293b;
+            display: flex; align-items: center; gap: 12px;
+        }
+
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* Manual Layout */
+        .manual-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 24px;
+            max-width: 1400px;
+        }
+
+        @media (max-width: 1024px) {
+            .manual-container {
+                grid-template-columns: 1fr;
+            }
+            .manual-nav { display: none; }
+        }
+
+        /* Sidebar do Manual */
+        .manual-nav {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            position: sticky;
+            top: 0;
+            max-height: calc(100vh - 150px);
+            overflow-y: auto;
+        }
+
+        .manual-nav h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+
+        .manual-nav-list {
+            list-style: none;
+        }
+
+        .manual-nav-item {
+            margin-bottom: 4px;
+        }
+
+        .manual-nav-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            color: #64748b;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .manual-nav-link:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        .manual-nav-link.active {
+            background: rgba(236, 72, 153, 0.1);
+            color: var(--primary-pink);
+            font-weight: 500;
+        }
+
+        .manual-nav-link i {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Conteúdo do Manual */
+        .manual-content {
+            background: white;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            padding: 32px;
+        }
+
+        .manual-section {
+            margin-bottom: 48px;
+            scroll-margin-top: 24px;
+        }
+
+        .manual-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .section-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .section-icon.purple { background: rgba(236, 72, 153, 0.1); color: #8b5cf6; }
+        .section-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .section-icon.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .section-icon.yellow { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .section-icon.red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .section-icon.cyan { background: rgba(6, 182, 212, 0.1); color: #06b6d4; }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .section-content {
+            color: #475569;
+            line-height: 1.7;
+        }
+
+        .section-content h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 24px 0 12px 0;
+        }
+
+        .section-content p {
+            margin-bottom: 16px;
+        }
+
+        .section-content ul, .section-content ol {
+            margin: 16px 0;
+            padding-left: 24px;
+        }
+
+        .section-content li {
+            margin-bottom: 8px;
+        }
+
+        .info-box {
+            background: #f8fafc;
+            border-left: 4px solid var(--primary-pink);
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin: 20px 0;
+        }
+
+        .info-box.warning {
+            background: rgba(234, 179, 8, 0.1);
+            border-left-color: #eab308;
+        }
+
+        .info-box.danger {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: #ef4444;
+        }
+
+        .info-box.success {
+            background: rgba(16, 185, 129, 0.1);
+            border-left-color: #10b981;
+        }
+
+        .info-box-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .contact-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .contact-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: rgba(236, 72, 153, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-pink);
+            font-size: 1.25rem;
+        }
+
+        .contact-info h5 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .contact-info p {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin: 0;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-outline {
+            background: white;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn-outline:hover {
+            background: #f8fafc;
+            color: #1e293b;
+        }
+
+        .btn-primary {
+            background: var(--primary-pink);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-pink-dark);
+        }
+
+        /* Search */
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px 12px 44px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        .search-box i {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+        }
+
+        /* Print styles */
+        @media print {
+            .sidebar, .header, .manual-nav, .page-header .btn {
+                display: none !important;
+            }
+            .content-area {
+                padding: 0;
+            }
+            .manual-container {
+                grid-template-columns: 1fr;
+            }
+            .manual-content {
+                border: none;
+                box-shadow: none;
+            }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar - Portal do Funcionário -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-home"></i></a>
+                <a href="meus-holerites.html" class="sidebar-btn" title="Meus Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="dados-cadastrais.html" class="sidebar-btn" title="Dados Cadastrais"><i class="fas fa-id-card"></i></a>
+                <a href="manual-colaborador.html" class="sidebar-btn active" title="Manual do Colaborador"><i class="fas fa-book"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="/ajuda/index.html" class="sidebar-btn" title="Ajuda"><i class="fas fa-question-circle"></i></a>
+                <a href="../areaadm.html" class="sidebar-btn" id="btn-voltar-admin" title="Voltar à Área Admin" style="display:none;"><i class="fas fa-shield-alt"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Manual do Colaborador</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">
+                            <i class="fas fa-book"></i>
+                            Manual do Colaborador
+                        </h1>
+                        <p class="page-subtitle">Guia completo de informações e procedimentos</p>
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-outline" onclick="window.print()">
+                            <i class="fas fa-print"></i>
+                            Imprimir
+                        </button>
+                        <a href="../funcionario.html" class="btn btn-outline">
+                            <i class="fas fa-arrow-left"></i>
+                            Voltar
+                        </a>
+                    </div>
+                </div>
+
+                <div class="manual-container">
+                    <!-- Navegação lateral -->
+                    <nav class="manual-nav">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" placeholder="Buscar no manual..." id="search-manual">
+                        </div>
+                        <h3>Índice</h3>
+                        <ul class="manual-nav-list">
+                            <li class="manual-nav-item">
+                                <a href="#boas-vindas" class="manual-nav-link active">
+                                    <i class="fas fa-hand-wave"></i>
+                                    Boas-vindas
+                                </a>
+                            </li>
+                            <li class="manual-nav-item">
+                                <a href="#empresa" class="manual-nav-link">
+                                    <i class="fas fa-building"></i>
+                                    Sobre a Empresa
+                                </a>
+                            </li>
+                            <li class="manual-nav-item">
+                                <a href="#horarios" class="manual-nav-link">
+                                    <i class="fas fa-clock"></i>
+                                    Horários e Jornada
+                                </a>
+                            </li>
+                            <li class="manual-nav-item">
+                                <a href="#beneficios" class="manual-nav-link">
+                                    <i class="fas fa-gift"></i>
+                                    Benefícios
+                                </a>
+                            </li>
+                            <li class="manual-nav-item">
+                                <a href="#ferias" class="manual-nav-link">
+                                    <i class="fas fa-umbrella-beach"></i>
+                                    Férias e Licenças
+                                </a>
+                            </li>
+                            <li class="manual-nav-item">
+                                <a href="#conduta" class="manual-nav-link">
+                                    <i class="fas fa-balance-scale"></i>
+                                    Código de Conduta
+                                </a>
+                            </li>
+                            <li class="manual-nav-item">
+                                <a href="#seguranca" class="manual-nav-link">
+                                    <i class="fas fa-hard-hat"></i>
+                                    Segurança do Trabalho
+                                </a>
+                            </li>
+                            <li class="manual-nav-item">
+                                <a href="#contatos" class="manual-nav-link">
+                                    <i class="fas fa-phone-alt"></i>
+                                    Contatos Úteis
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <!-- Conteúdo do Manual -->
+                    <div class="manual-content">
+                        <!-- Boas-vindas -->
+                        <section id="boas-vindas" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon purple">
+                                    <i class="fas fa-hand-wave"></i>
+                                </div>
+                                <h2 class="section-title">Boas-vindas à Aluforce</h2>
+                            </div>
+                            <div class="section-content">
+                                <p>Seja bem-vindo(a) à família Aluforce! Este manual foi elaborado para auxiliá-lo(a) em sua integração e fornecer informações importantes sobre nossa empresa, políticas e procedimentos.</p>
+
+                                <p>Aqui você encontrará orientações sobre seus direitos e deveres, benefícios oferecidos, procedimentos internos e muito mais. Mantenha este manual sempre à mão para consultas rápidas.</p>
+
+                                <div class="info-box success">
+                                    <div class="info-box-title">
+                                        <i class="fas fa-lightbulb"></i>
+                                        Dica importante
+                                    </div>
+                                    <p style="margin: 0;">Em caso de dúvidas, não hesite em procurar o departamento de Recursos Humanos. Estamos aqui para ajudá-lo(a)!</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Sobre a Empresa -->
+                        <section id="empresa" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon blue">
+                                    <i class="fas fa-building"></i>
+                                </div>
+                                <h2 class="section-title">Sobre a Empresa</h2>
+                            </div>
+                            <div class="section-content">
+                                <h4>Nossa História</h4>
+                                <p>A Aluforce é uma empresa especializada em soluções em alumínio, comprometida com a qualidade e inovação. Desde nossa fundação, buscamos excelência em tudo que fazemos.</p>
+
+                                <h4>Missão</h4>
+                                <p>Fornecer soluções em alumínio de alta qualidade, contribuindo para o sucesso de nossos clientes e parceiros.</p>
+
+                                <h4>Visão</h4>
+                                <p>Ser referência no mercado de alumínio, reconhecida pela qualidade, inovação e compromisso com nossos colaboradores.</p>
+
+                                <h4>Valores</h4>
+                                <ul>
+                                    <li><strong>Qualidade:</strong> Compromisso com a excelência em todos os processos</li>
+                                    <li><strong>Integridade:</strong> Ética e transparência em todas as relações</li>
+                                    <li><strong>Inovação:</strong> Busca constante por melhorias e novas soluções</li>
+                                    <li><strong>Respeito:</strong> Valorização das pessoas e do meio ambiente</li>
+                                    <li><strong>Trabalho em equipe:</strong> Colaboração para alcançar objetivos comuns</li>
+                                </ul>
+                            </div>
+                        </section>
+
+                        <!-- Horários e Jornada -->
+                        <section id="horarios" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon green">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <h2 class="section-title">Horários e Jornada de Trabalho</h2>
+                            </div>
+                            <div class="section-content">
+                                <h4>Jornada Padrão</h4>
+                                <p>A jornada de trabalho padrão é de 44 horas semanais, distribuídas de segunda a sexta-feira:</p>
+                                <ul>
+                                    <li><strong>Entrada:</strong> 08:00</li>
+                                    <li><strong>Intervalo para almoço:</strong> 12:00 às 13:00 (1 hora)</li>
+                                    <li><strong>Saída:</strong> 18:00</li>
+                                </ul>
+
+                                <h4>Registro de Ponto</h4>
+                                <p>O registro de ponto é obrigatório e deve ser feito nos horários de entrada, saída para almoço, retorno do almoço e saída.</p>
+
+                                <div class="info-box warning">
+                                    <div class="info-box-title">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        Atenção
+                                    </div>
+                                    <p style="margin: 0;">Atrasos frequentes ou não justificados podem resultar em advertências e descontos. Em caso de imprevistos, comunique seu gestor imediatamente.</p>
+                                </div>
+
+                                <h4>Horas Extras</h4>
+                                <p>As horas extras devem ser previamente autorizadas pelo gestor imediato. O pagamento segue as regras da CLT:</p>
+                                <ul>
+                                    <li>Dias úteis: adicional de 50%</li>
+                                    <li>Domingos e feriados: adicional de 100%</li>
+                                </ul>
+                            </div>
+                        </section>
+
+                        <!-- Benefícios -->
+                        <section id="beneficios" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon yellow">
+                                    <i class="fas fa-gift"></i>
+                                </div>
+                                <h2 class="section-title">Benefícios</h2>
+                            </div>
+                            <div class="section-content">
+                                <p>A Aluforce oferece diversos benefícios aos seus colaboradores:</p>
+
+                                <h4>Vale Transporte</h4>
+                                <p>Concedido a todos os colaboradores que necessitam de transporte público para ir e voltar do trabalho. O desconto é de 6% do salário base, conforme legislação.</p>
+
+                                <h4>Vale Refeição/Alimentação</h4>
+                                <p>Cartão alimentação ou refeição fornecido mensalmente para auxiliar nas despesas com alimentação.</p>
+
+                                <h4>Assistência Médica</h4>
+                                <p>Plano de saúde disponível para o colaborador e dependentes (cônjuge e filhos), com coparticipação.</p>
+
+                                <h4>Assistência Odontológica</h4>
+                                <p>Plano odontológico para o colaborador, com possibilidade de inclusão de dependentes.</p>
+
+                                <h4>Seguro de Vida</h4>
+                                <p>Seguro de vida em grupo, oferecendo proteção ao colaborador e sua família.</p>
+
+                                <div class="info-box">
+                                    <div class="info-box-title">
+                                        <i class="fas fa-info-circle"></i>
+                                        Informação
+                                    </div>
+                                    <p style="margin: 0;">Para mais detalhes sobre os benefícios, acesse a seção "Benefícios" no seu portal ou procure o RH.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Férias e Licenças -->
+                        <section id="ferias" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon cyan">
+                                    <i class="fas fa-umbrella-beach"></i>
+                                </div>
+                                <h2 class="section-title">Férias e Licenças</h2>
+                            </div>
+                            <div class="section-content">
+                                <h4>Férias</h4>
+                                <p>Após 12 meses de trabalho, você tem direito a 30 dias de férias remuneradas. As férias devem ser programadas com antecedência junto ao seu gestor.</p>
+                                <ul>
+                                    <li>Possibilidade de fracionamento em até 3 períodos</li>
+                                    <li>Um período deve ter no mínimo 14 dias</li>
+                                    <li>Os demais não podem ser inferiores a 5 dias cada</li>
+                                    <li>Abono pecuniário: conversão de até 1/3 em dinheiro</li>
+                                </ul>
+
+                                <h4>Licenças Previstas em Lei</h4>
+                                <ul>
+                                    <li><strong>Licença maternidade:</strong> 120 dias (pode ser estendida para 180)</li>
+                                    <li><strong>Licença paternidade:</strong> 5 dias corridos</li>
+                                    <li><strong>Casamento:</strong> 3 dias consecutivos</li>
+                                    <li><strong>Falecimento de familiar:</strong> 2 dias consecutivos</li>
+                                    <li><strong>Doação de sangue:</strong> 1 dia por ano</li>
+                                    <li><strong>Alistamento militar:</strong> período necessário</li>
+                                </ul>
+
+                                <h4>Atestados Médicos</h4>
+                                <p>Em caso de afastamento por motivo de saúde, apresente o atestado médico ao RH em até 48 horas. Atestados acima de 15 dias são encaminhados ao INSS.</p>
+                            </div>
+                        </section>
+
+                        <!-- Código de Conduta -->
+                        <section id="conduta" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon purple">
+                                    <i class="fas fa-balance-scale"></i>
+                                </div>
+                                <h2 class="section-title">Código de Conduta</h2>
+                            </div>
+                            <div class="section-content">
+                                <h4>Comportamento Esperado</h4>
+                                <ul>
+                                    <li>Tratar todos com respeito e cordialidade</li>
+                                    <li>Manter a pontualidade e assiduidade</li>
+                                    <li>Zelar pelos equipamentos e materiais da empresa</li>
+                                    <li>Manter sigilo sobre informações confidenciais</li>
+                                    <li>Utilizar adequadamente os recursos da empresa</li>
+                                </ul>
+
+                                <h4>Condutas Proibidas</h4>
+                                <ul>
+                                    <li>Qualquer forma de discriminação ou assédio</li>
+                                    <li>Uso de álcool ou substâncias ilícitas no trabalho</li>
+                                    <li>Uso indevido dos recursos da empresa</li>
+                                    <li>Divulgação de informações confidenciais</li>
+                                    <li>Falsificação de documentos ou registros</li>
+                                </ul>
+
+                                <div class="info-box danger">
+                                    <div class="info-box-title">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        Importante
+                                    </div>
+                                    <p style="margin: 0;">O descumprimento das normas pode resultar em advertência, suspensão ou demissão por justa causa, conforme a gravidade da infração.</p>
+                                </div>
+
+                                <h4>Canal de Denúncias</h4>
+                                <p>Caso presencie ou seja vítima de qualquer conduta inadequada, você pode reportar de forma anônima através do canal de denúncias ou diretamente ao RH.</p>
+                            </div>
+                        </section>
+
+                        <!-- Segurança do Trabalho -->
+                        <section id="seguranca" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon red">
+                                    <i class="fas fa-hard-hat"></i>
+                                </div>
+                                <h2 class="section-title">Segurança do Trabalho</h2>
+                            </div>
+                            <div class="section-content">
+                                <h4>Equipamentos de Proteção Individual (EPIs)</h4>
+                                <p>O uso dos EPIs é obrigatório nas áreas de produção. Os equipamentos são fornecidos pela empresa e devem ser utilizados corretamente.</p>
+
+                                <h4>Normas de Segurança</h4>
+                                <ul>
+                                    <li>Use sempre os EPIs fornecidos</li>
+                                    <li>Mantenha as áreas de trabalho organizadas</li>
+                                    <li>Conheça os procedimentos de emergência</li>
+                                    <li>Comunique imediatamente qualquer acidente</li>
+                                    <li>Participe dos treinamentos de segurança</li>
+                                </ul>
+
+                                <h4>Em Caso de Acidente</h4>
+                                <ol>
+                                    <li>Mantenha a calma e afaste-se do perigo</li>
+                                    <li>Comunique imediatamente seu superior</li>
+                                    <li>Acione o SESMT ou brigada de emergência</li>
+                                    <li>Não tente remover vítimas sem orientação</li>
+                                    <li>Aguarde o atendimento especializado</li>
+                                </ol>
+
+                                <div class="info-box warning">
+                                    <div class="info-box-title">
+                                        <i class="fas fa-phone-alt"></i>
+                                        Emergência
+                                    </div>
+                                    <p style="margin: 0;">Em caso de emergência, ligue para o ramal de segurança ou acione o alarme de emergência mais próximo.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Contatos Úteis -->
+                        <section id="contatos" class="manual-section">
+                            <div class="section-header">
+                                <div class="section-icon green">
+                                    <i class="fas fa-phone-alt"></i>
+                                </div>
+                                <h2 class="section-title">Contatos Úteis</h2>
+                            </div>
+                            <div class="section-content">
+                                <div class="contact-card">
+                                    <div class="contact-icon">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                    <div class="contact-info">
+                                        <h5>Recursos Humanos / Departamento Pessoal</h5>
+                                        <p>rh@aluforce.ind.br • Ramal 4208 (Isabela)</p>
+                                    </div>
+                                </div>
+
+                                <div class="contact-card">
+                                    <div class="contact-icon">
+                                        <i class="fas fa-laptop"></i>
+                                    </div>
+                                    <div class="contact-info">
+                                        <h5>TI - Suporte</h5>
+                                        <p>ti@aluforce.ind.br • Ramal 300</p>
+                                    </div>
+                                </div>
+
+                                <div class="contact-card">
+                                    <div class="contact-icon">
+                                        <i class="fas fa-dollar-sign"></i>
+                                    </div>
+                                    <div class="contact-info">
+                                        <h5>Financeiro</h5>
+                                        <p>financeiro@aluforce.ind.br • Ramal 4210</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Mapa de avatares
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Carregamento do usuário
+        async function carregarUsuario() {
+            try {
+                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+                const response = await fetch('/api/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+
+                    // Atualizar greeting
+                    const hour = new Date().getHours();
+                    let greeting = 'Bom dia';
+                    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                    else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                    document.getElementById('greeting-text').textContent = greeting;
+
+                    // Nome
+                    const nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    document.getElementById('user-name').textContent = nome;
+
+                    // Buscar avatar corretamente
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, user.nome);
+
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = nome.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+
+                    // Admin
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    if (adminEmails.includes(user.email?.toLowerCase())) {
+                        const btnAdmin = document.getElementById('btn-admin');
+                        if (btnAdmin) btnAdmin.style.display = 'flex';
+                        const btnVoltarAdmin = document.getElementById('btn-voltar-admin');
+                        if (btnVoltarAdmin) btnVoltarAdmin.style.display = 'flex';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Navegação suave
+        document.querySelectorAll('.manual-nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                const target = document.getElementById(targetId);
+
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+
+                    // Atualizar link ativo
+                    document.querySelectorAll('.manual-nav-link').forEach(l => l.classList.remove('active'));
+                    this.classList.add('active');
+                }
+            });
+        });
+
+        // Busca no manual
+        document.getElementById('search-manual').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+
+            document.querySelectorAll('.manual-section').forEach(section => {
+                const text = section.textContent.toLowerCase();
+                section.style.display = text.includes(searchTerm) ? 'block' : 'none';
+            });
+        });
+
+        // Scroll spy para navegação
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    document.querySelectorAll('.manual-nav-link').forEach(link => {
+                        link.classList.remove('active');
+                        if (link.getAttribute('href') === '#' + id) {
+                            link.classList.add('active');
+                        }
+                    });
+                }
+            });
+        }, { threshold: 0.3 });
+
+        document.querySelectorAll('.manual-section').forEach(section => {
+            observer.observe(section);
+        });
+
+        // Init
+        document.addEventListener('DOMContentLoaded', carregarUsuario);
+    </script>
+<script src="/js/auth-unified.js?v=20260211"></script>
+<script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+        <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

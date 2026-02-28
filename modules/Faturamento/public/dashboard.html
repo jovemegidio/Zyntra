@@ -1,0 +1,543 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — Dashboard</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <style>
+        /* ── Dashboard Pro Overrides ─────────────────────── */
+        .dash-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .dash-stat {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,.06);
+            border: 1px solid #e2e8f0;
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .dash-stat:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+        .dash-stat-icon {
+            width: 48px; height: 48px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .dash-stat-icon.blue   { background: #eff6ff; color: #3b82f6; }
+        .dash-stat-icon.green  { background: #f0fdf4; color: #22c55e; }
+        .dash-stat-icon.amber  { background: #fffbeb; color: #f59e0b; }
+        .dash-stat-icon.red    { background: #fef2f2; color: #ef4444; }
+        .dash-stat-icon.cyan   { background: #ecfeff; color: #06b6d4; }
+        .dash-stat-info { flex: 1; min-width: 0; }
+        .dash-stat-label { font-size: 12px; color: #64748b; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+        .dash-stat-value { font-size: 24px; font-weight: 700; color: #0f172a; line-height: 1.1; }
+        .dash-stat-sub { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+
+        .dash-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .dash-card {
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,.06);
+            overflow: hidden;
+        }
+        .dash-card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .dash-card-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 14px; font-weight: 600; color: #1e293b; margin: 0;
+        }
+        .dash-card-title i { color: #3b82f6; font-size: 14px; }
+        .dash-card-link {
+            font-size: 12px; color: #3b82f6; text-decoration: none; font-weight: 500;
+            transition: color .15s;
+        }
+        .dash-card-link:hover { color: #1d4ed8; }
+        .dash-card-body { padding: 16px 20px; }
+        .dash-card-body.no-pad { padding: 0; }
+
+        /* Ações Rápidas */
+        .dash-actions {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .dash-action-btn {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 8px;
+            padding: 16px 8px;
+            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            text-decoration: none;
+            color: #334155;
+            font-size: 12px; font-weight: 500;
+            transition: all .2s ease;
+        }
+        .dash-action-btn:hover { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+        .dash-action-btn i { font-size: 20px; color: #3b82f6; }
+        .dash-action-btn:hover i { color: #1d4ed8; }
+
+        /* Status Ring */
+        .dash-status-list { display: flex; flex-direction: column; gap: 10px; }
+        .dash-status-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .dash-status-row:last-child { border-bottom: none; }
+        .dash-status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%; flex-shrink: 0;
+        }
+        .dash-status-dot.green  { background: #22c55e; }
+        .dash-status-dot.amber  { background: #f59e0b; }
+        .dash-status-dot.red    { background: #ef4444; }
+        .dash-status-dot.gray   { background: #94a3b8; }
+        .dash-status-name { flex: 1; font-size: 13px; color: #334155; font-weight: 500; }
+        .dash-status-count { font-size: 14px; font-weight: 700; color: #0f172a; min-width: 32px; text-align: right; }
+        .dash-status-pct {
+            font-size: 11px; color: #94a3b8; min-width: 40px; text-align: right;
+        }
+
+        /* Tabela NF-e */
+        .dash-nfe-table { width: 100%; border-collapse: collapse; }
+        .dash-nfe-table th {
+            text-align: left; padding: 10px 16px;
+            font-size: 11px; font-weight: 600; color: #64748b;
+            text-transform: uppercase; letter-spacing: .5px;
+            background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+        }
+        .dash-nfe-table td {
+            padding: 12px 16px; font-size: 13px; color: #334155;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .dash-nfe-table tbody tr:hover { background: #f8fafc; }
+        .dash-nfe-table .nfe-num { font-weight: 600; color: #1e293b; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+        .dash-nfe-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px;
+        }
+        .dash-nfe-badge.autorizada { background: #f0fdf4; color: #16a34a; }
+        .dash-nfe-badge.pendente   { background: #fffbeb; color: #d97706; }
+        .dash-nfe-badge.cancelada  { background: #fef2f2; color: #dc2626; }
+        .dash-nfe-badge.denegada   { background: #f1f5f9; color: #64748b; }
+        .dash-nfe-valor { font-weight: 600; color: #0f172a; white-space: nowrap; }
+        .dash-nfe-actions { display: flex; gap: 4px; }
+        .dash-nfe-actions button {
+            width: 28px; height: 28px;
+            border: 1px solid #e2e8f0; border-radius: 6px;
+            background: #fff; color: #64748b;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all .15s;
+            font-size: 12px;
+        }
+        .dash-nfe-actions button:hover { background: #eff6ff; color: #3b82f6; border-color: #bfdbfe; }
+
+        /* Empty */
+        .dash-empty {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 40px 20px; color: #94a3b8;
+        }
+        .dash-empty i { font-size: 32px; margin-bottom: 12px; opacity: .5; }
+        .dash-empty p { font-size: 13px; margin: 0; }
+
+        /* Skeleton */
+        .dash-skeleton {
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: dash-shimmer 1.5s infinite;
+            border-radius: 6px;
+        }
+        @keyframes dash-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .dash-stats { grid-template-columns: repeat(2, 1fr); }
+            .dash-grid-2 { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .dash-stats { grid-template-columns: 1fr; }
+            .dash-actions { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn active" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon"><i class="fas fa-tachometer-alt"></i></div>
+                        <div>
+                            <h1 class="page-title">Dashboard Faturamento</h1>
+                            <p class="page-subtitle">Visão geral de notas fiscais e faturamento</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <a href="emitir.html" class="btn btn-primary"><i class="fas fa-plus"></i> Nova NF-e</a>
+                        <button class="btn btn-secondary" onclick="location.reload()"><i class="fas fa-sync-alt"></i> Atualizar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Cards de Estatísticas ──────────────── -->
+            <div class="dash-stats">
+                <div class="dash-stat">
+                    <div class="dash-stat-icon blue"><i class="fas fa-file-invoice"></i></div>
+                    <div class="dash-stat-info">
+                        <div class="dash-stat-label">Total NF-e</div>
+                        <div class="dash-stat-value" id="stat-total">—</div>
+                        <div class="dash-stat-sub">Notas emitidas</div>
+                    </div>
+                </div>
+                <div class="dash-stat">
+                    <div class="dash-stat-icon green"><i class="fas fa-check-circle"></i></div>
+                    <div class="dash-stat-info">
+                        <div class="dash-stat-label">Autorizadas</div>
+                        <div class="dash-stat-value" id="stat-autorizadas">—</div>
+                        <div class="dash-stat-sub">Aprovadas pela SEFAZ</div>
+                    </div>
+                </div>
+                <div class="dash-stat">
+                    <div class="dash-stat-icon amber"><i class="fas fa-clock"></i></div>
+                    <div class="dash-stat-info">
+                        <div class="dash-stat-label">Pendentes</div>
+                        <div class="dash-stat-value" id="stat-pendentes">—</div>
+                        <div class="dash-stat-sub">Aguardando processamento</div>
+                    </div>
+                </div>
+                <div class="dash-stat">
+                    <div class="dash-stat-icon cyan"><i class="fas fa-dollar-sign"></i></div>
+                    <div class="dash-stat-info">
+                        <div class="dash-stat-label">Valor Faturado</div>
+                        <div class="dash-stat-value" id="stat-valor">—</div>
+                        <div class="dash-stat-sub" id="stat-valor-mes">Autorizadas no período</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Ações Rápidas + Distribuição Status ── -->
+            <div class="dash-grid-2">
+                <div class="dash-card">
+                    <div class="dash-card-header">
+                        <h3 class="dash-card-title"><i class="fas fa-bolt"></i> Ações Rápidas</h3>
+                    </div>
+                    <div class="dash-card-body">
+                        <div class="dash-actions">
+                            <a href="emitir.html" class="dash-action-btn">
+                                <i class="fas fa-plus-circle"></i>
+                                <span>Emitir NF-e</span>
+                            </a>
+                            <a href="consultar.html" class="dash-action-btn">
+                                <i class="fas fa-search"></i>
+                                <span>Consultar</span>
+                            </a>
+                            <a href="danfe.html" class="dash-action-btn">
+                                <i class="fas fa-file-pdf"></i>
+                                <span>DANFE</span>
+                            </a>
+                            <a href="nfse.html" class="dash-action-btn">
+                                <i class="fas fa-file-contract"></i>
+                                <span>NFS-e</span>
+                            </a>
+                            <a href="logistica.html" class="dash-action-btn">
+                                <i class="fas fa-truck"></i>
+                                <span>Logística</span>
+                            </a>
+                            <a href="relatorios.html" class="dash-action-btn">
+                                <i class="fas fa-chart-bar"></i>
+                                <span>Relatórios</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-card-header">
+                        <h3 class="dash-card-title"><i class="fas fa-chart-pie"></i> Distribuição por Status</h3>
+                    </div>
+                    <div class="dash-card-body">
+                        <div class="dash-status-list" id="status-distribuicao">
+                            <div class="dash-status-row">
+                                <span class="dash-status-dot green"></span>
+                                <span class="dash-status-name">Autorizadas</span>
+                                <span class="dash-status-count" id="dist-autorizadas">—</span>
+                                <span class="dash-status-pct" id="dist-autorizadas-pct"></span>
+                            </div>
+                            <div class="dash-status-row">
+                                <span class="dash-status-dot amber"></span>
+                                <span class="dash-status-name">Pendentes</span>
+                                <span class="dash-status-count" id="dist-pendentes">—</span>
+                                <span class="dash-status-pct" id="dist-pendentes-pct"></span>
+                            </div>
+                            <div class="dash-status-row">
+                                <span class="dash-status-dot red"></span>
+                                <span class="dash-status-name">Canceladas</span>
+                                <span class="dash-status-count" id="dist-canceladas">—</span>
+                                <span class="dash-status-pct" id="dist-canceladas-pct"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Últimas NF-e ───────────────────────── -->
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <h3 class="dash-card-title"><i class="fas fa-list"></i> Últimas Notas Fiscais</h3>
+                    <a href="index.html" class="dash-card-link">Ver todas →</a>
+                </div>
+                <div class="dash-card-body no-pad">
+                    <div style="overflow-x:auto;">
+                        <table class="dash-nfe-table">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Série</th>
+                                    <th>Destinatário</th>
+                                    <th>Valor</th>
+                                    <th>Data</th>
+                                    <th>Status</th>
+                                    <th style="width:120px;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nfes-recentes">
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="dash-empty">
+                                            <i class="fas fa-file-invoice"></i>
+                                            <p>Carregando notas fiscais...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
+
+function formatarMoeda(valor) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+}
+
+function formatarData(data) {
+    if (!data) return '—';
+    return new Date(data).toLocaleDateString('pt-BR');
+}
+
+/* ── Carregar Estatísticas ───────────────── */
+async function carregarEstatisticas() {
+    try {
+        const r = await fetch('/api/faturamento/estatisticas', { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const res = await r.json();
+        const d = res.data || res;
+
+        const total     = Number(d.total_nfes)          || 0;
+        const autorz    = Number(d.autorizadas)          || 0;
+        const pend      = Number(d.pendentes)            || 0;
+        const cancel    = Number(d.canceladas)           || 0;
+        const valorFat  = Number(d.valor_total_faturado) || 0;
+        const valorMes  = Number(d.valor_mes_atual)      || 0;
+
+        document.getElementById('stat-total').textContent      = total;
+        document.getElementById('stat-autorizadas').textContent = autorz;
+        document.getElementById('stat-pendentes').textContent   = pend;
+        document.getElementById('stat-valor').textContent       = formatarMoeda(valorFat);
+
+        if (valorMes > 0) {
+            document.getElementById('stat-valor-mes').textContent = 'Mês atual: ' + formatarMoeda(valorMes);
+        }
+
+        // Distribuição
+        document.getElementById('dist-autorizadas').textContent = autorz;
+        document.getElementById('dist-pendentes').textContent   = pend;
+        document.getElementById('dist-canceladas').textContent  = cancel;
+
+        if (total > 0) {
+            document.getElementById('dist-autorizadas-pct').textContent = ((autorz / total) * 100).toFixed(1) + '%';
+            document.getElementById('dist-pendentes-pct').textContent   = ((pend / total) * 100).toFixed(1) + '%';
+            document.getElementById('dist-canceladas-pct').textContent  = ((cancel / total) * 100).toFixed(1) + '%';
+        }
+    } catch(e) {
+        console.error('[Dashboard] Erro ao carregar estatísticas:', e);
+        ['stat-total','stat-autorizadas','stat-pendentes'].forEach(id => {
+            document.getElementById(id).textContent = '0';
+        });
+        document.getElementById('stat-valor').textContent = 'R$ 0,00';
+    }
+}
+
+/* ── Carregar Últimas NF-e ───────────────── */
+async function carregarNFesRecentes() {
+    try {
+        const r = await fetch('/api/faturamento/nfes?limit=10', { credentials: 'include' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const res = await r.json();
+        const nfes = Array.isArray(res) ? res : (res.data || []);
+        renderizarNFes(nfes);
+    } catch(e) {
+        console.error('[Dashboard] Erro ao carregar NF-e:', e);
+        document.getElementById('nfes-recentes').innerHTML = `
+            <tr><td colspan="7">
+                <div class="dash-empty">
+                    <i class="fas fa-file-invoice"></i>
+                    <p>Nenhuma nota fiscal encontrada</p>
+                </div>
+            </td></tr>`;
+    }
+}
+
+function renderizarNFes(nfes) {
+    const tbody = document.getElementById('nfes-recentes');
+    if (!nfes || !nfes.length) {
+        tbody.innerHTML = `
+            <tr><td colspan="7">
+                <div class="dash-empty">
+                    <i class="fas fa-file-invoice"></i>
+                    <p>Nenhuma nota fiscal emitida</p>
+                </div>
+            </td></tr>`;
+        return;
+    }
+    tbody.innerHTML = nfes.map(n => {
+        const status = (n.status || 'pendente').toLowerCase();
+        return `<tr>
+            <td><span class="nfe-num">${n.numero || '—'}</span></td>
+            <td>${n.serie || '1'}</td>
+            <td>${n.destinatario || n.cliente || '—'}</td>
+            <td><span class="dash-nfe-valor">${formatarMoeda(n.valor || n.valor_total)}</span></td>
+            <td>${formatarData(n.data_emissao)}</td>
+            <td><span class="dash-nfe-badge ${status}">${status.charAt(0).toUpperCase() + status.slice(1)}</span></td>
+            <td>
+                <div class="dash-nfe-actions">
+                    <button onclick="window.open('consultar.html?id=${n.id}','_self')" title="Detalhes"><i class="fas fa-eye"></i></button>
+                    <button onclick="window.open('/api/nfe/${n.id}/danfe','_blank')" title="DANFE"><i class="fas fa-file-pdf"></i></button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+/* ── Carregar Usuário ────────────────────── */
+function carregarUsuarioLogado() {
+    const avatarNameMap = {'admin':'AD','Admin':'AD','usuario':'US','João':'JO','Maria':'MA','Pedro':'PE','Ana':'AN','Carlos':'CA','Lucas':'LU','Mariana':'MN','Fernanda':'FE','Rafael':'RA','Juliana':'JU','Gabriel':'GA','Beatriz':'BE','Diego':'DI','Camila':'CM'};
+    const h = new Date().getHours();
+    const g = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    document.getElementById('greeting-text').textContent = g;
+    fetch('/api/me', { credentials: 'include' })
+        .then(r => r.json())
+        .then(u => {
+            const nome = u.nome || u.name || 'Usuário';
+            document.getElementById('user-name').textContent = nome.split(' ')[0];
+            const initials = avatarNameMap[nome.split(' ')[0]] || nome.substring(0,2).toUpperCase();
+            document.getElementById('user-initials').textContent = initials;
+            if (u.foto || u.avatar) {
+                const img = document.getElementById('user-photo');
+                img.src = u.foto || u.avatar;
+                img.style.display = 'block';
+                document.getElementById('user-initials').style.display = 'none';
+            }
+        }).catch(() => {});
+}
+
+/* ── Init ────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+    carregarUsuarioLogado();
+    carregarEstatisticas();
+    carregarNFesRecentes();
+});
+</script>
+<script src="../../_shared/connection-monitor.js?v=20251223"></script>
+<script src="/js/tooltips-professional.js?v=20260216"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

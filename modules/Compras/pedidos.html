@@ -1,0 +1,332 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Pedidos de Compra</title>
+
+    <script src="/js/auth-unified.js?v=20260216" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="css/compras-layout.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260214">
+
+    <style>
+        .fas, .far, .fab, .fa { font-family: 'Font Awesome 6 Free', 'Font Awesome 6 Brands', FontAwesome !important; font-style: normal; display: inline-block !important; visibility: visible !important; }
+        .fas { font-weight: 900; } .far { font-weight: 400; }
+
+        /* Status badges específicos de pedidos */
+        .badge.aprovado { background: #dcfce7; color: #166534; }
+        .badge.aprovado::before { background: #22c55e; }
+        .badge.recebido { background: #dbeafe; color: #1e40af; }
+        .badge.recebido::before { background: #3b82f6; }
+        .badge.cancelado { background: #f3f4f6; color: #4b5563; }
+        .badge.cancelado::before { background: #9ca3af; }
+
+        /* Totals summary em modal */
+        .totals-summary { background: var(--gray-50); border-radius: var(--radius-lg); padding: 16px; margin-top: 16px; }
+        .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+        .totals-row.total { font-size: 16px; font-weight: 700; border-top: 1px solid var(--gray-200); padding-top: 12px; margin-top: 6px; }
+        .totals-row.total .value { color: var(--primary-600); }
+
+        /* Items table inside modal */
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        .items-table th { padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); }
+        .items-table td { padding: 8px 10px; font-size: 13px; border-bottom: 1px solid var(--gray-100); }
+        .items-table input, .items-table select { width: 100%; padding: 6px 8px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; font-family: inherit; }
+        .items-table input:focus, .items-table select:focus { outline: none; border-color: var(--primary-400); }
+        .btn-remove-item { width: 28px; height: 28px; border: none; background: #fef2f2; color: #ef4444; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+        .btn-remove-item:hover { background: #fee2e2; }
+    </style>
+
+    <script>
+        function toggleNotificacoes() { const p = document.getElementById('notification-panel'); if (p) p.classList.toggle('active'); }
+        function marcarTodasLidas() {}
+        function limparNotificacoes() {}
+    </script>
+    <script src="/js/anti-copy-protection.js"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn active" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Pedidos</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge hidden" id="notification-count">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header"><h3><i class="fas fa-bell"></i> Notificações</h3><div class="notification-actions"><button onclick="marcarTodasLidas()" title="Marcar todas como lidas"><i class="fas fa-check-double"></i></button><button onclick="limparNotificacoes()" title="Limpar todas"><i class="fas fa-trash-alt"></i></button></div></div>
+                            <div class="notification-tabs"><button class="notif-tab active" onclick="filtrarNotificacoes('todas', this)">Todas</button><button class="notif-tab" onclick="filtrarNotificacoes('nao-lidas', this)">Não lidas</button><button class="notif-tab" onclick="filtrarNotificacoes('importantes', this)">Importantes</button></div>
+                            <div class="notification-list" id="notification-list"></div>
+                            <div class="notification-footer"><a href="#" onclick="verTodasNotificacoes(); return false;">Ver histórico completo</a></div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar"><img src="" alt="" id="user-photo" style="display:none;"><span id="user-initial">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- PAGE CONTENT -->
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="exportarPedidos()"><i class="fas fa-download"></i> Exportar</button>
+                            <button class="btn btn-primary" onclick="abrirModalNovoPedido()"><i class="fas fa-plus"></i> Novo Pedido</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card purple">
+                        <div class="stat-header"><div class="stat-icon purple"><i class="fas fa-shopping-cart"></i></div></div>
+                        <div class="stat-value" id="totalPedidos">0</div>
+                        <div class="stat-label">Total Pedidos</div>
+                    </div>
+                    <div class="stat-card amber">
+                        <div class="stat-header"><div class="stat-icon amber"><i class="fas fa-clock"></i></div></div>
+                        <div class="stat-value" id="pedidosPendentes">0</div>
+                        <div class="stat-label">Pendentes</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-header"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div></div>
+                        <div class="stat-value" id="pedidosAprovados">0</div>
+                        <div class="stat-label">Aprovados</div>
+                    </div>
+                    <div class="stat-card blue">
+                        <div class="stat-header"><div class="stat-icon blue"><i class="fas fa-truck"></i></div></div>
+                        <div class="stat-value" id="pedidosRecebidos">0</div>
+                        <div class="stat-label">Recebidos</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="Buscar por número, fornecedor..." onkeyup="filtrarPedidos()"></div>
+                    <button class="filter-btn active" onclick="setFiltro('todos', this)"><i class="fas fa-list"></i> Todos</button>
+                    <button class="filter-btn" onclick="setFiltro('pendente', this)"><i class="fas fa-clock"></i> Pendentes</button>
+                    <button class="filter-btn" onclick="setFiltro('aprovado', this)"><i class="fas fa-check"></i> Aprovados</button>
+                    <button class="filter-btn" onclick="setFiltro('recebido', this)"><i class="fas fa-truck"></i> Recebidos</button>
+                    <div style="margin-left:auto;">
+                        <button class="btn btn-sm btn-secondary" onclick="excluirSelecionados()"><i class="fas fa-trash"></i> Excluir Selecionados</button>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-table"></i> Lista de Pedidos</h3>
+                    </div>
+                    <div class="card-body no-padding">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;"><input type="checkbox" id="selectAllPedidos" onchange="toggleSelectAll(this)"></th>
+                                    <th>Nº Pedido</th>
+                                    <th>Fornecedor</th>
+                                    <th>Data</th>
+                                    <th>Valor Total</th>
+                                    <th>Prazo Entrega</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pedidosTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pagination">
+                        <button onclick="paginaAnterior()"><i class="fas fa-chevron-left"></i></button>
+                        <button class="active" id="paginaAtualBtn">1</button>
+                        <button onclick="proximaPagina()"><i class="fas fa-chevron-right"></i></button>
+                        <span class="pagination-info">Mostrando <strong id="paginationInfo">0</strong> de <strong id="totalPedidosCount">0</strong></span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Novo/Editar Pedido -->
+    <div class="modal-overlay" id="modalPedido">
+        <div class="modal" style="max-width:900px;">
+            <div class="modal-header">
+                <h3 id="modalPedidoTitle"><i class="fas fa-shopping-cart"></i> Novo Pedido de Compra</h3>
+                <button class="modal-close" onclick="fecharModalPedido()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formPedido">
+                    <input type="hidden" id="pedidoId">
+                    <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
+                        <div class="form-group">
+                            <label>Número do Pedido</label>
+                            <input type="text" id="numeroPedido" class="form-control" readonly style="background:var(--gray-50);">
+                        </div>
+                        <div class="form-group">
+                            <label>Data do Pedido</label>
+                            <input type="date" id="dataPedido" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Previsão de Entrega</label>
+                            <input type="date" id="dataEntregaPrevista" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Fornecedor <span class="required">*</span></label>
+                            <select id="fornecedorId" class="form-control" required>
+                                <option value="">Selecione o fornecedor...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="statusPedido" class="form-control">
+                                <option value="pendente">Pendente</option>
+                                <option value="aprovado">Aprovado</option>
+                                <option value="recebido">Recebido</option>
+                                <option value="cancelado">Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Itens do Pedido -->
+                    <div style="margin-bottom:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                            <label style="font-size:14px;font-weight:600;">Itens do Pedido</label>
+                            <button type="button" class="btn btn-sm btn-success" onclick="adicionarItem()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                        </div>
+                        <table class="items-table" id="tabelaItens">
+                            <thead>
+                                <tr>
+                                    <th>Produto/Material</th>
+                                    <th style="width:80px;text-align:center;">Qtd</th>
+                                    <th style="width:80px;text-align:center;">Un.</th>
+                                    <th style="width:110px;text-align:center;">Preço Unit.</th>
+                                    <th style="width:110px;text-align:right;">Subtotal</th>
+                                    <th style="width:40px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="itensTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
+                        <div class="form-group">
+                            <label>Condições de Pagamento</label>
+                            <select id="condicoesPagamento" class="form-control">
+                                <option value="">Selecione...</option>
+                                <option value="avista">À Vista</option>
+                                <option value="30dias">30 dias</option>
+                                <option value="30-60">30/60 dias</option>
+                                <option value="30-60-90">30/60/90 dias</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Desconto (R$)</label>
+                            <input type="number" id="desconto" class="form-control" value="0" min="0" step="0.01" onchange="calcularTotais()">
+                        </div>
+                        <div class="form-group">
+                            <label>Frete (R$)</label>
+                            <input type="number" id="frete" class="form-control" value="0" min="0" step="0.01" onchange="calcularTotais()">
+                        </div>
+                    </div>
+
+                    <div class="totals-summary">
+                        <div class="totals-row"><span>Subtotal:</span><span id="subtotalPedido">R$ 0,00</span></div>
+                        <div class="totals-row" style="color:var(--success-500);"><span>Desconto:</span><span id="descontoValor">- R$ 0,00</span></div>
+                        <div class="totals-row"><span>Frete:</span><span id="freteValor">+ R$ 0,00</span></div>
+                        <div class="totals-row total"><span>TOTAL:</span><span class="value" id="totalPedido">R$ 0,00</span></div>
+                    </div>
+
+                    <div class="form-group mt-4">
+                        <label>Observações</label>
+                        <textarea id="observacoes" class="form-control" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalPedido()">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarPedido()"><i class="fas fa-save"></i> Salvar Pedido</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Visualizar Pedido -->
+    <div class="modal-overlay" id="modalVisualizarPedido">
+        <div class="modal" style="max-width:800px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye"></i> Detalhes do Pedido</h3>
+                <button class="modal-close" onclick="fecharModalVisualizar()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="detalhesContent"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalVisualizar()">Fechar</button>
+                <button class="btn btn-primary" onclick="imprimirPedido()"><i class="fas fa-print"></i> Imprimir</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar) sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('active');
+        }
+    </script>
+
+    <script src="/modules/Compras/js/compras-utils.js?v=20260216"></script>
+    <script src="/modules/Compras/notifications.js"></script>
+    <script src="/modules/Compras/pedidos.js"></script>
+    <script src="/modules/Compras/compras-user-loader.js?v=20260216"></script>
+    <script src="/js/compras-completo.js?v=20260107"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

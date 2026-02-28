@@ -1,0 +1,2654 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Contas a Pagar</title>
+
+    <!-- Autenticacao -->
+    <script src="/js/auth-unified.js?v=20260211" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Financeiro Design System -->
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+
+    <!-- XLSX Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+    :root {
+        --primary-orange: #225cfa;
+        --primary-dark: #1a1a2e;
+        --bg-gray: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+        /* Botão Importar */
+        .btn-importar {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        .btn-importar:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+        }
+/* SIDEBAR */
+.sidebar-logo i { color: white; font-size: 18px; }
+.sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--danger); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN */
+/* HEADER */
+.header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+.header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; position: relative; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-avatar .user-initial { display: block; }
+        .user-avatar img.visible + .user-initial { display: none; }
+
+        /* PAGE CONTENT - DESIGN PREMIUM */
+        .page-content { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 28px 32px; 
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+            animation: fadeInContent 0.4s ease-out;
+        }
+        @keyframes fadeInContent {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Animação escalonada para KPIs e Cards */
+        .kpi-grid .kpi-card { animation: slideInUp 0.5s ease-out backwards; }
+        .kpi-grid .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+        .kpi-grid .kpi-card:nth-child(2) { animation-delay: 0.1s; }
+        .kpi-grid .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+        .kpi-grid .kpi-card:nth-child(4) { animation-delay: 0.2s; }
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .filters-section { animation: slideInUp 0.5s ease-out backwards; animation-delay: 0.25s; }
+        .table-container { animation: slideInUp 0.5s ease-out backwards; animation-delay: 0.3s; }
+
+        /* PAGE HEADER */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+        .page-title-section h1 { font-size: 26px; font-weight: 700; display: flex; align-items: center; gap: 14px; margin-bottom: 6px; letter-spacing: -0.5px; }
+        .page-title-section h1 i { color: var(--danger); font-size: 28px; }
+        .page-title-section p { font-size: 14px; color: var(--text-secondary); font-weight: 400; }
+        .page-title h1 { font-size: 26px; font-weight: 700; display: flex; align-items: center; gap: 14px; margin-bottom: 6px; letter-spacing: -0.5px; }
+        .page-title p { font-size: 14px; color: var(--text-secondary); font-weight: 400; }
+        .page-actions { display: flex; gap: 14px; }
+        
+        /* BUTTONS PREMIUM */
+        .btn { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 10px; 
+            padding: 12px 24px; 
+            border-radius: 12px; 
+            font-size: 14px; 
+            font-weight: 600; 
+            border: none; 
+            cursor: pointer; 
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+            position: relative;
+            overflow: hidden;
+        }
+        .btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .btn:hover::before { opacity: 1; }
+        .btn-primary { background: linear-gradient(135deg, var(--danger), #dc2626); color: white; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.25); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4); }
+        .btn-secondary { 
+            background: white; 
+            color: var(--text-primary); 
+            border: 1px solid var(--border-color); 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .btn-secondary:hover { 
+            background: #f8fafc; 
+            border-color: #cbd5e1; 
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        /* KPI CARDS - DESIGN PREMIUM */
+        .stats-grid, .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .stat-card, .kpi-card { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 24px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.03); 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+        .stat-card::before, .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--danger), #dc2626);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .stat-card:hover, .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+        }
+        .stat-card:hover::before, .kpi-card:hover::before { opacity: 1; }
+        .stat-card h3 { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; letter-spacing: 0.3px; text-transform: uppercase; }
+        .stat-card .value, .kpi-value { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+        .stat-card .value.green, .kpi-value.green { color: var(--success); }
+        .stat-card .value.red, .kpi-value.red { color: var(--danger); }
+        .stat-card .value.blue, .kpi-value.blue { color: var(--info); }
+        .stat-card .value.yellow, .kpi-value.yellow { color: var(--warning); }
+        .kpi-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .kpi-icon { 
+            width: 52px; 
+            height: 52px; 
+            border-radius: 14px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 22px; 
+            transition: transform 0.3s ease;
+        }
+        .kpi-card:hover .kpi-icon { transform: scale(1.1); }
+        .kpi-icon.red { background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05)); color: var(--danger); }
+        .kpi-icon.green { background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05)); color: var(--success); }
+        .kpi-icon.orange { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); color: var(--warning); }
+        .kpi-icon.blue { background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05)); color: var(--info); }
+        .kpi-content h3 { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; letter-spacing: 0.3px; }
+
+        /* FILTERS - DESIGN PREMIUM */
+        .filters-bar, .filters-section { 
+            background: white; 
+            border-radius: 20px; 
+            padding: 24px; 
+            margin-bottom: 24px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.03); 
+            border: 1px solid rgba(0,0,0,0.04);
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 6px; }
+        .filter-group label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-group input, .filter-group select { 
+            padding: 12px 14px; 
+            border: 2px solid var(--border-color); 
+            border-radius: 10px; 
+            font-size: 13px; 
+            min-width: 150px;
+            transition: all 0.2s ease;
+        }
+        .filter-group input:focus, .filter-group select:focus { 
+            outline: none; 
+            border-color: var(--danger); 
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); 
+        }
+
+        /* TABLE - DESIGN PREMIUM */
+        .card, .table-container-wrapper { 
+            background: white; 
+            border-radius: 20px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 20px rgba(0,0,0,0.03); 
+            overflow: hidden; 
+            border: 1px solid rgba(0,0,0,0.04);
+        }
+        .card-header, .table-header { 
+            padding: 24px 28px; 
+            border-bottom: 1px solid var(--border-color); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background: linear-gradient(180deg, #fafafa 0%, white 100%);
+        }
+        .card-header h3, .table-header h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 12px; color: var(--text-primary); }
+        .card-header h3 i, .table-header h3 i { color: var(--danger); font-size: 18px; }
+        .table-container { overflow-x: auto; }
+        table, .data-table { width: 100%; border-collapse: collapse; }
+        th { 
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); 
+            padding: 16px 20px; 
+            text-align: left; 
+            font-size: 11px; 
+            font-weight: 600; 
+            color: var(--text-secondary); 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+        }
+        td { padding: 18px 20px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        tr { transition: all 0.15s ease; }
+        tr:hover { background: linear-gradient(90deg, rgba(239, 68, 68, 0.03), transparent); }
+        tr:last-child td { border-bottom: none; }
+        .valor { font-weight: 700; font-family: 'Inter', monospace; }
+        .valor.saida { color: var(--danger); }
+
+        /* STATUS BADGES - DESIGN PREMIUM */
+        .badge, .status-badge { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 6px; 
+            padding: 8px 14px; 
+            border-radius: 10px; 
+            font-size: 11px; 
+            font-weight: 600; 
+            letter-spacing: 0.3px;
+            transition: all 0.2s ease;
+        }
+        .badge-success, .status-badge.pago { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #166534; }
+        .badge-warning, .status-badge.pendente { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; }
+        .badge-danger, .status-badge.vencido { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #991b1b; }
+        .badge-info, .status-badge.parcial { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e40af; }
+        .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+        /* ACTIONS - DESIGN PREMIUM */
+        .btn-action { 
+            width: 38px; 
+            height: 38px; 
+            border: none; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center; 
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); 
+            margin-right: 6px; 
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-action::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: currentColor;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .btn-action:hover::before { opacity: 0.1; }
+        .btn-action.view { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
+        .btn-action.edit { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+        .btn-action.pagar { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+        .btn-action.delete { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; }
+        .btn-action:hover { transform: translateY(-2px) scale(1.08); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+        /* MODAL */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 20px; width: 90%; max-width: 720px; min-height: 580px; max-height: 90vh; overflow: hidden; box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .modal-header h3 { font-size: 18px; font-weight: 600; }
+        .modal-close { width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: var(--bg-gray); }
+        .modal-body { padding: 24px; overflow-y: auto; max-height: calc(90vh - 140px); }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* FORM */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 16px; border: 2px solid var(--border-color); border-radius: 10px; font-size: 14px; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--danger); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* RESPONSIVE */
+        @media (max-width: 1400px) { .stats-grid, .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { 
+            .stats-grid, .kpi-grid { grid-template-columns: 1fr; } 
+            .page-content { padding: 16px; }
+            .filters-bar, .filters-section { flex-direction: column; }
+            .filter-group { width: 100%; }
+            .filter-group input, .filter-group select { width: 100%; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Header & Sidebar refinado -->
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260215">
+    <!-- Global Header & Sidebar - override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="contas-pagar.html" class="sidebar-btn active" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="plano-contas.html" class="sidebar-btn" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="orcamentos.html" class="sidebar-btn" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn" title="Centros de Custo">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <!-- Botao Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Contas a Pagar</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="main-content">
+
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header" style="justify-content: flex-end;">
+                    <div class="page-actions">
+                        <button class="btn-importar" onclick="abrirModalImportar('contas-pagar')"><i class="fas fa-file-excel"></i> Importar XLSX</button>
+                        <button class="btn btn-secondary" onclick="exportarCSV()"><i class="fas fa-download"></i> Exportar</button>
+                        <button class="btn btn-primary" onclick="abrirModalNovaConta()"><i class="fas fa-plus"></i> Nova Despesa</button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total a Pagar</h3>
+                        <div class="value red" id="stat-total">R$ 0,00</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Vence Hoje</h3>
+                        <div class="value yellow" id="stat-hoje">R$ 0,00</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Vencidos</h3>
+                        <div class="value red" id="stat-vencido">R$ 0,00</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Pago no Mês</h3>
+                        <div class="value green" id="stat-pago">R$ 0,00</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label>Período</label>
+                        <select id="filter-periodo" onchange="filtrarDados()">
+                            <option value="30">Próximos 30 dias</option>
+                            <option value="60">Próximos 60 dias</option>
+                            <option value="90">Próximos 90 dias</option>
+                            <option value="all">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="filter-status" onchange="filtrarDados()">
+                            <option value="">Todos</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="pago">Pago</option>
+                            <option value="vencido">Vencido</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Fornecedor</label>
+                        <input type="text" id="filter-fornecedor" placeholder="Buscar fornecedor..." onkeyup="filtrarDados()">
+                    </div>
+                    <div class="filter-group">
+                        <label>Categoria</label>
+                        <select id="filter-categoria" onchange="filtrarDados()">
+                            <option value="">Todas</option>
+                            <option value="fornecedores">Fornecedores</option>
+                            <option value="despesas-fixas">Despesas Fixas</option>
+                            <option value="impostos">Impostos</option>
+                            <option value="folha">Folha de Pagamento</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list" style="color: var(--danger); margin-right: 8px;"></i> Lista de Contas a Pagar</h3>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <button class="btn btn-outline btn-sm" onclick="mostrarTodasContas()" title="Mostrar todas as contas">
+                                <i class="fas fa-list"></i> Todas
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="filtrarImpostos()" title="Filtrar DARF, IR, SIMPLES, FGTS, INSS">
+                                <i class="fas fa-file-invoice-dollar"></i> Impostos
+                            </button>
+                            <input type="text" id="searchInput" placeholder="Buscar..." style="padding: 8px 16px; border: 1px solid var(--border-color); border-radius: 8px; width: 250px;" onkeyup="filtrarTabela()">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Documento</th>
+                                    <th>Fornecedor</th>
+                                    <th>Categoria</th>
+                                    <th>Venc. Original</th>
+                                    <th>Venc. Atualizado</th>
+                                    <th>Valor</th>
+                                    <th>Pago</th>
+                                    <th>Saldo</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-contas">
+                                <tr>
+                                    <td colspan="10" style="text-align: center; padding: 40px;">
+                                        <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        
+            </div> <!-- /main-content -->
+</main>
+    </div>
+
+    <!-- ================================================================================
+         MODAL INICIAL - INCLUIR CONTA A PAGAR (ESCOLHA DO MÉTODO)
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalEscolhaMetodo" onclick="if(event.target === this) fecharModalEscolha()">
+        <div class="modal-omie modal-escolha">
+            <div class="modal-header-omie">
+                <h2>Incluir Conta a Pagar</h2>
+                <button class="btn-fechar-omie" onclick="fecharModalEscolha()">Fechar <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-omie">
+                <!-- Opção 1: Nota Fiscal Eletrônica -->
+                <div class="opcao-metodo" onclick="abrirModalNFe()">
+                    <div class="opcao-info">
+                        <div class="opcao-titulo">Nota Fiscal Eletrônica</div>
+                        <p>Importe o arquivo XML de uma Nota Fiscal Eletrônica (NF-e) com os movimentos de estoque e as informações para Contas a Pagar. Válido para a NF-e âmbito nacional.</p>
+                    </div>
+                    <div class="opcao-icone">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='80' fill='%2384cc16' opacity='0.3'%3E📄%3C/text%3E%3C/svg%3E" alt="NF-e" style="width: 80px; opacity: 0.5;">
+                    </div>
+                </div>
+                
+                <!-- Opção 2: Código de Barras -->
+                <div class="opcao-metodo" onclick="abrirModalCodigoBarras()">
+                    <div class="opcao-info">
+                        <div class="opcao-titulo">Código de Barras</div>
+                        <p>Informe boletos de cobrança de qualquer banco, conta de água, luz, telefone, gás e de outras empresas conveniadas, impostos, tributos e pagamentos do Detran.</p>
+                    </div>
+                    <div class="opcao-icone">
+                        <svg width="80" height="50" style="opacity: 0.3;">
+                            <rect x="0" y="0" width="3" height="50" fill="#84cc16"/>
+                            <rect x="5" y="0" width="1" height="50" fill="#84cc16"/>
+                            <rect x="8" y="0" width="4" height="50" fill="#84cc16"/>
+                            <rect x="14" y="0" width="2" height="50" fill="#84cc16"/>
+                            <rect x="18" y="0" width="1" height="50" fill="#84cc16"/>
+                            <rect x="22" y="0" width="3" height="50" fill="#84cc16"/>
+                            <rect x="28" y="0" width="1" height="50" fill="#84cc16"/>
+                            <rect x="32" y="0" width="2" height="50" fill="#84cc16"/>
+                            <rect x="36" y="0" width="4" height="50" fill="#84cc16"/>
+                            <rect x="42" y="0" width="1" height="50" fill="#84cc16"/>
+                            <rect x="46" y="0" width="2" height="50" fill="#84cc16"/>
+                            <rect x="50" y="0" width="3" height="50" fill="#84cc16"/>
+                            <rect x="56" y="0" width="1" height="50" fill="#84cc16"/>
+                            <rect x="60" y="0" width="2" height="50" fill="#84cc16"/>
+                            <rect x="65" y="0" width="4" height="50" fill="#84cc16"/>
+                            <rect x="72" y="0" width="1" height="50" fill="#84cc16"/>
+                            <rect x="76" y="0" width="3" height="50" fill="#84cc16"/>
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Opção 3: Inserção Manual -->
+                <div class="opcao-metodo" onclick="abrirModalManual()">
+                    <div class="opcao-info">
+                        <div class="opcao-titulo">Inserção Manual</div>
+                        <p>Digite manualmente a Conta a Pagar</p>
+                    </div>
+                    <div class="opcao-icone">
+                        <i class="fas fa-edit" style="font-size: 40px; color: #84cc16; opacity: 0.3;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================
+         MODAL IMPORTAR NF-e
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalNFe" onclick="if(event.target === this) fecharModalNFe()">
+        <div class="modal-omie modal-nfe">
+            <div class="modal-header-omie">
+                <h2>Importar Nota Fiscal Eletrônica</h2>
+                <button class="btn-fechar-omie" onclick="fecharModalNFe()">Fechar <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-omie" style="padding: 24px;">
+                <div class="nfe-input-section">
+                    <label>Digite aqui a chave de acesso da Nota Fiscal Eletrônica (NF-e)</label>
+                    <div class="nfe-input-row">
+                        <input type="text" id="chaveNFe" placeholder="Chave de 44 dígitos" maxlength="44">
+                        <button class="btn-pesquisar-nfe" onclick="pesquisarNFe()">
+                            <i class="fas fa-search"></i> Pesquisar NF-e
+                        </button>
+                    </div>
+                </div>
+                <div class="nfe-demo">
+                    <div class="nfe-demo-danfe">
+                        <div style="border: 1px dashed #ccc; padding: 20px; text-align: center; color: #999;">
+                            <i class="fas fa-file-alt" style="font-size: 48px; margin-bottom: 10px;"></i>
+                            <p>(Demonstrativo DANFE)</p>
+                        </div>
+                    </div>
+                    <div class="nfe-demo-info">
+                        <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+                            <svg width="100%" height="40">
+                                <rect x="0" y="0" width="100%" height="40" fill="url(#barcode)"/>
+                            </svg>
+                        </div>
+                        <div style="border: 2px solid #ef4444; padding: 10px; background: #fff5f5;">
+                            <small style="color: #ef4444; font-weight: bold;">CHAVE DE ACESSO</small>
+                            <p style="font-family: monospace; font-size: 11px; color: #ef4444;">0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000</p>
+                        </div>
+                        <p style="text-align: center; font-size: 11px; color: #666; margin-top: 10px;">(Identificação da chave de acesso no DANFE)</p>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <a href="#" class="link-upload-nfe" onclick="uploadArquivoNFe()">
+                        <i class="fas fa-upload"></i> Ou clique aqui para selecionar o arquivo da NF-e.
+                    </a>
+                    <input type="file" id="inputArquivoNFe" accept=".xml" style="display: none;" onchange="processarArquivoNFe(this)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================
+         MODAL CÓDIGO DE BARRAS
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalCodigoBarras" onclick="if(event.target === this) fecharModalCodigoBarras()">
+        <div class="modal-omie modal-codigo-barras">
+            <div class="modal-header-omie">
+                <h2>Informar o Código de Barras</h2>
+                <button class="btn-fechar-omie" onclick="fecharModalCodigoBarras()">Fechar <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-omie" style="padding: 40px; text-align: center;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; text-align: left; margin-bottom: 8px; color: #666;">Digite o código de barras aqui</label>
+                    <input type="text" id="codigoBarrasInput" style="width: 100%; max-width: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;" placeholder="">
+                </div>
+                <div style="margin-bottom: 30px;">
+                    <a href="#" class="link-upload-boleto" onclick="uploadBoleto()">
+                        <i class="fas fa-camera"></i> Ou clique aqui para fazer o <strong>upload do boleto bancário</strong>
+                    </a>
+                    <input type="file" id="inputBoleto" accept="image/*,.pdf" style="display: none;" onchange="processarBoleto(this)">
+                </div>
+                <button class="btn-continuar-omie" onclick="processarCodigoBarras()">
+                    <i class="fas fa-check"></i> Continuar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================================================================================
+         MODAL NOVA CONTA A PAGAR - INSERÇÃO MANUAL (ESTILO OMIE COM ABAS)
+         ================================================================================ -->
+    <div class="modal-overlay-omie" id="modalConta" onclick="if(event.target === this) fecharModal()">
+        <div class="modal-omie modal-conta-pagar">
+            <!-- HEADER -->
+            <div class="modal-header-conta">
+                <div class="modal-header-left-conta">
+                    <div class="modal-avatar-conta">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="modal-titulo-conta">
+                        <h2 id="modal-titulo">Nova Conta a Pagar</h2>
+                    </div>
+                </div>
+                <div class="modal-header-right-conta">
+                    <button class="btn-fechar-omie" type="button" onclick="fecharModal()">
+                        Fechar <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- BODY -->
+            <div class="modal-body-conta">
+                <form id="formConta">
+                    <input type="hidden" id="conta-id">
+                    
+                    <!-- SEÇÃO PRINCIPAL (SEMPRE VISÍVEL) -->
+                    <div class="form-principal-conta">
+                        <div class="form-row-conta">
+                            <div class="form-group-conta" style="flex: 2;">
+                                <label>Favorecido / Fornecedor <i class="fas fa-external-link-alt link-icon"></i></label>
+                                <div class="input-search-conta">
+                                    <input type="text" id="conta-fornecedor" placeholder="Digite para buscar..." required>
+                                    <i class="fas fa-search"></i>
+                                </div>
+                            </div>
+                            <div class="form-group-conta">
+                                <label>Vencimento</label>
+                                <div class="input-icon-conta">
+                                    <input type="date" id="conta-vencimento-original" required>
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                            </div>
+                            <div class="form-group-conta" style="max-width: 150px;">
+                                <label>Valor da Conta <span class="parcela-info">001/001</span></label>
+                                <input type="text" id="conta-valor" placeholder="0,00" oninput="formatarMoedaInput(this)" required style="text-align: right;">
+                            </div>
+                        </div>
+                        <div class="form-row-conta">
+                            <div class="form-group-conta">
+                                <label>Categoria <a href="#" class="link-adicionar"><i class="fas fa-plus"></i></a></label>
+                                <select id="conta-categoria">
+                                    <option value="">Selecione...</option>
+                                    <option value="fornecedores">Fornecedores</option>
+                                    <option value="despesas-fixas">Despesas Fixas</option>
+                                    <option value="impostos">Impostos e Tributos</option>
+                                    <option value="folha">Folha de Pagamento</option>
+                                    <option value="servicos">Serviços</option>
+                                    <option value="materiais">Materiais</option>
+                                    <option value="outros">Outros</option>
+                                </select>
+                            </div>
+                            <div class="form-group-conta">
+                                <label>Previsão de Pagamento</label>
+                                <div class="input-icon-conta">
+                                    <input type="date" id="conta-vencimento">
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                            </div>
+                            <div class="form-group-conta">
+                                <label>Conta Corrente</label>
+                                <select id="conta-banco">
+                                    <option value="">Selecione...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ABAS (TABS) -->
+                    <div class="tabs-conta">
+                        <button type="button" class="tab-conta active" data-tab="detalhes">Detalhes</button>
+                        <button type="button" class="tab-conta" data-tab="impostos">Impostos Retidos</button>
+                        <button type="button" class="tab-conta" data-tab="departamentos">Departamentos</button>
+                        <button type="button" class="tab-conta" data-tab="repeticao">Repetição</button>
+                        <button type="button" class="tab-conta" data-tab="pagamentos">Pagamentos</button>
+                        <button type="button" class="tab-conta" data-tab="integracao">
+                            <i class="fas fa-link" style="margin-right: 4px; opacity: 0.5;"></i> Integração Bancária e CNAB
+                        </button>
+                        <button type="button" class="tab-conta" data-tab="diversos">Diversos</button>
+                    </div>
+                    
+                    <!-- CONTEÚDO DAS ABAS -->
+                    <div class="tab-content-conta">
+                        <!-- ABA: DETALHES -->
+                        <div class="tab-pane-conta active" id="tab-detalhes">
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Nota Fiscal</label>
+                                    <input type="text" id="conta-documento" placeholder="">
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Data de Emissão</label>
+                                    <div class="input-icon-conta">
+                                        <input type="date" id="conta-emissao">
+                                        <i class="fas fa-calendar"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Data de Registro</label>
+                                    <div class="input-icon-conta">
+                                        <input type="date" id="conta-registro">
+                                        <i class="fas fa-calendar"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Projeto <a href="#" class="link-adicionar"><i class="fas fa-plus"></i></a></label>
+                                    <div class="input-search-conta">
+                                        <input type="text" id="conta-projeto" placeholder="">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="flex: 1;">
+                                    <label>Observações</label>
+                                    <textarea id="conta-observacoes" rows="4" placeholder=""></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ABA: IMPOSTOS RETIDOS -->
+                        <div class="tab-pane-conta" id="tab-impostos">
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor PIS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-pis" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-pis">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor COFINS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-cofins" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-cofins">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor CSLL</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-csll" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-csll">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor IR</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-ir" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-ir">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor ISS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-iss" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-iss">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Valor INSS</label>
+                                    <div class="input-valor-imposto">
+                                        <input type="text" id="valor-inss" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                    </div>
+                                </div>
+                                <div class="form-group-conta checkbox-conta">
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="reter-inss">
+                                        <span>Reter</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ABA: DEPARTAMENTOS -->
+                        <div class="tab-pane-conta" id="tab-departamentos">
+                            <div class="empty-state-conta">
+                                <span>=\(</span>
+                                <p>Ainda não foi informada nenhuma distribuição por departamentos para esta conta.</p>
+                                <a href="#" class="link-acao">Clique aqui para fazer a distribuição agora.</a>
+                            </div>
+                        </div>
+                        
+                        <!-- ABA: REPETIÇÃO -->
+                        <div class="tab-pane-conta" id="tab-repeticao">
+                            <div class="empty-state-conta">
+                                <span>=\(</span>
+                                <p>Ainda não foi informada nenhuma repetição para esta conta.</p>
+                                <a href="#" class="link-acao">Clique aqui para incluir repetições agora.</a>
+                            </div>
+                        </div>
+                        
+                        <!-- ABA: PAGAMENTOS -->
+                        <div class="tab-pane-conta" id="tab-pagamentos">
+                            <div class="pagamentos-layout">
+                                <div class="pagamentos-tabela">
+                                    <div class="pagamentos-header-info">Pagamentos Realizados</div>
+                                    <div class="drag-info">Arraste uma ou mais colunas aqui para agrupar</div>
+                                    <table class="tabela-pagamentos">
+                                        <thead>
+                                            <tr>
+                                                <th>Data do Pagam... <i class="fas fa-sort"></i></th>
+                                                <th>Valor Pago <i class="fas fa-sort"></i></th>
+                                                <th>Descon... <i class="fas fa-sort"></i></th>
+                                                <th>Juros <i class="fas fa-sort"></i></th>
+                                                <th>Multa <i class="fas fa-sort"></i></th>
+                                                <th>Banco <i class="fas fa-sort"></i></th>
+                                                <th>Data de Déb... <i class="fas fa-sort"></i></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="7" style="text-align: center; padding: 20px; color: #999;">
+                                                    Nenhum registro encontrado
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <div class="pagamentos-pagination" id="paginacaoPagamentos" style="display: none;">
+                                        <span>|&#9664;</span> <span>&#9664; anterior</span>
+                                        <span class="page-number">1</span>
+                                        <span>próxima &#9654;</span> <span>&#9654;|</span>
+                                    </div>
+                                    <div class="pagamentos-botoes">
+                                        <button type="button" class="btn-cancelar-pagamento">
+                                            <i class="fas fa-times"></i> Cancelar Pagamento
+                                        </button>
+                                        <button type="button" class="btn-registrar-pagamento" onclick="abrirModalPagamentoInterno()">
+                                            <i class="fas fa-dollar-sign"></i> Registrar Pagamento
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="pagamentos-resumo">
+                                    <div class="resumo-item">
+                                        <label>Total já Pago da Conta</label>
+                                        <input type="text" value="0,00" readonly>
+                                    </div>
+                                    <div class="resumo-item">
+                                        <label>Total de Descontos</label>
+                                        <input type="text" value="0,00" readonly>
+                                    </div>
+                                    <div class="resumo-item">
+                                        <label>Total de Juros e Multas</label>
+                                        <input type="text" value="0,00" readonly>
+                                    </div>
+                                    <div class="resumo-item destaque">
+                                        <label>$ A Pagar da Conta</label>
+                                        <input type="text" value="0,00" readonly class="valor-a-pagar">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- ABA: INTEGRAÇÃO BANCÁRIA E CNAB -->
+                        <div class="tab-pane-conta" id="tab-integracao">
+                            <div class="empty-state-conta">
+                                <span>😕</span>
+                                <p>Ainda não temos suporte para integração bancária CNAB para esta conta.</p>
+                            </div>
+                        </div>
+                        
+                        <!-- ABA: DIVERSOS -->
+                        <div class="tab-pane-conta" id="tab-diversos">
+                            <div class="form-row-conta">
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Número do Pedido</label>
+                                    <input type="text" id="conta-pedido">
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Tipo de Documento</label>
+                                    <select id="conta-tipo-doc">
+                                        <option value="outros">Outros</option>
+                                        <option value="nf">Nota Fiscal</option>
+                                        <option value="boleto">Boleto</option>
+                                        <option value="recibo">Recibo</option>
+                                        <option value="contrato">Contrato</option>
+                                    </select>
+                                </div>
+                                <div class="form-group-conta" style="max-width: 150px;">
+                                    <label>Número do Documento</label>
+                                    <input type="text" id="conta-num-doc">
+                                </div>
+                                <div class="form-group-conta" style="max-width: 120px;">
+                                    <label>Número da Parcela</label>
+                                    <input type="text" id="conta-parcela" value="001/001">
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta">
+                                    <label>Chave da NF-e</label>
+                                    <input type="text" id="conta-chave-nfe" placeholder="">
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Código de Barras</label>
+                                    <input type="text" id="conta-codigo-barras" placeholder="">
+                                </div>
+                            </div>
+                            <div class="form-row-conta">
+                                <div class="form-group-conta">
+                                    <label>Vendedor <a href="#" class="link-adicionar"><i class="fas fa-plus"></i></a></label>
+                                    <div class="input-search-conta">
+                                        <input type="text" id="conta-vendedor" placeholder="">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group-conta">
+                                    <label>Origem</label>
+                                    <div class="input-search-conta">
+                                        <input type="text" id="conta-origem" value="Conta a Pagar">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- PAINEL LATERAL SALVAR -->
+            <div class="painel-lateral-salvar">
+                <button type="button" class="btn-salvar-lateral" onclick="salvarConta()">
+                    <i class="fas fa-cloud-upload-alt"></i> Salvar
+                </button>
+                <button type="button" class="btn-avancar-lateral" onclick="salvarConta()">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSS PARA MODAIS ESTILO OMIE - VERSÃO 2 -->
+    <style>
+        /* ========== OVERLAY PADRÃO ========== */
+        .modal-overlay-omie {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15,23,42,0.65);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay-omie.active { display: flex; }
+        
+        /* ========== MODAL BASE OMIE ========== */
+        .modal-omie {
+            background: #fff;
+            border-radius: 12px;
+            max-height: 95vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25);
+            animation: cpSlideIn 0.25s ease-out;
+        }
+        @keyframes cpSlideIn {
+            from { opacity: 0; transform: translateY(-20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        /* ========== HEADER PADRÃO ========== */
+        .modal-header-omie {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 24px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .modal-header-omie-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .modal-avatar-omie {
+            width: 46px;
+            height: 46px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #84cc16;
+            font-size: 20px;
+            border: 2px solid #bbf7d0;
+        }
+        .modal-header-omie h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #84cc16;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }
+        .btn-fechar-omie {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .btn-fechar-omie:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+            color: #111827;
+        }
+        
+        /* ========== MODAL BODY ========== */
+        .modal-body-omie {
+            padding: 24px;
+            background: #fafafa;
+        }
+        
+        /* ========== MODAL ESCOLHA MÉTODO ========== */
+        .modal-escolha {
+            width: 640px;
+            max-width: 96vw;
+        }
+        .modal-escolha .modal-body-omie {
+            padding: 28px;
+        }
+        .opcao-metodo {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fff;
+        }
+        .opcao-metodo:hover {
+            border-color: #84cc16;
+            background: linear-gradient(135deg, #f8fff0 0%, #f0fdf4 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.15);
+        }
+        .opcao-metodo:last-child { margin-bottom: 0; }
+        .opcao-titulo {
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            padding: 10px 18px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: inline-block;
+            box-shadow: 0 2px 6px rgba(132, 204, 22, 0.3);
+        }
+        .opcao-info p {
+            font-size: 13px;
+            color: #6b7280;
+            margin: 0;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+        .opcao-icone {
+            width: 48px;
+            height: 48px;
+            background: #f3f4f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #9ca3af;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+        .opcao-metodo:hover .opcao-icone {
+            background: #84cc16;
+            color: #fff;
+        }
+        
+        /* ========== MODAL NF-e ========== */
+        .modal-nfe {
+            width: 720px;
+            max-width: 96vw;
+        }
+        .nfe-input-section {
+            margin-bottom: 24px;
+        }
+        .nfe-input-section label {
+            display: block;
+            font-size: 13px;
+            color: #374151;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .nfe-input-row {
+            display: flex;
+            gap: 12px;
+        }
+        .nfe-input-row input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .nfe-input-row input:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.15);
+        }
+        .btn-pesquisar-nfe {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .btn-pesquisar-nfe:hover {
+            background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%);
+            transform: translateY(-1px);
+        }
+        .nfe-demo {
+            display: flex;
+            gap: 24px;
+            padding: 24px;
+            background: #fff;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+        .nfe-demo-danfe { flex: 1; }
+        .nfe-demo-info { flex: 1; }
+        .link-upload-nfe {
+            color: #84cc16;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .link-upload-nfe:hover { text-decoration: underline; }
+        
+        /* ========== MODAL CÓDIGO DE BARRAS ========== */
+        .modal-codigo-barras {
+            width: 540px;
+            max-width: 96vw;
+        }
+        .link-upload-boleto {
+            color: #84cc16;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .link-upload-boleto:hover { text-decoration: underline; }
+        .btn-continuar-omie {
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .btn-continuar-omie:hover {
+            background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%);
+            transform: translateY(-1px);
+        }
+        
+        /* ========== MODAL CONTA A PAGAR (PRINCIPAL) ========== */
+        .modal-conta-pagar {
+            width: 96vw;
+            max-width: 1150px;
+            height: 92vh;
+            max-height: 800px;
+            display: flex;
+            flex-direction: row;
+            position: relative;
+            border-radius: 16px;
+        }
+        
+        /* Header da Conta */
+        .modal-header-conta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 24px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 100px;
+            z-index: 10;
+            border-radius: 16px 0 0 0;
+        }
+        .modal-header-left-conta {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .modal-avatar-conta {
+            width: 46px;
+            height: 46px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #84cc16;
+            font-size: 20px;
+            border: 2px solid #bbf7d0;
+        }
+        .modal-titulo-conta h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #84cc16;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }
+        
+        /* Body da Conta */
+        .modal-body-conta {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            padding-top: 82px;
+            padding-right: 100px;
+            background: #fafafa;
+            border-radius: 16px 0 0 16px;
+        }
+        
+        /* Seção Principal do Formulário */
+        .form-principal-conta {
+            padding: 24px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .form-row-conta {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 18px;
+            align-items: flex-end;
+        }
+        .form-row-conta:last-child { margin-bottom: 0; }
+        .form-group-conta {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .form-group-conta label {
+            font-size: 12px;
+            color: #374151;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .form-group-conta input,
+        .form-group-conta select,
+        .form-group-conta textarea {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #111827;
+            background: #fff;
+            transition: all 0.2s;
+        }
+        .form-group-conta input::placeholder { color: #9ca3af; }
+        .form-group-conta input:focus,
+        .form-group-conta select:focus,
+        .form-group-conta textarea:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.15);
+            background: #fefffe;
+        }
+        .form-group-conta textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        /* Input com ícone */
+        .input-icon-conta, .input-search-conta {
+            position: relative;
+        }
+        .input-icon-conta input, .input-search-conta input {
+            padding-right: 40px;
+            width: 100%;
+        }
+        .input-icon-conta i, .input-search-conta i {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        
+        /* Links */
+        .link-adicionar {
+            font-size: 12px;
+            color: #84cc16;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .link-adicionar:hover { text-decoration: underline; }
+        .link-icon {
+            color: #84cc16;
+            font-size: 11px;
+            margin-left: 4px;
+        }
+        .parcela-info {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-left: auto;
+        }
+        
+        /* ========== ABAS (TABS) ========== */
+        .tabs-conta {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            background: #fff;
+            padding: 0 24px;
+            gap: 4px;
+            overflow-x: auto;
+        }
+        .tab-conta {
+            padding: 14px 18px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            margin-bottom: -1px;
+        }
+        .tab-conta:hover {
+            color: #374151;
+            background: #f9fafb;
+            border-radius: 8px 8px 0 0;
+        }
+        .tab-conta.active {
+            color: #84cc16;
+            border-bottom-color: #84cc16;
+            background: #f0fdf4;
+            border-radius: 8px 8px 0 0;
+        }
+        
+        /* Conteúdo das abas */
+        .tab-content-conta {
+            padding: 24px;
+            min-height: 200px;
+            background: #fff;
+        }
+        .tab-pane-conta {
+            display: none;
+        }
+        .tab-pane-conta.active {
+            display: block;
+            animation: cpFadeIn 0.2s ease;
+        }
+        @keyframes cpFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Empty state */
+        .empty-state-conta {
+            text-align: center;
+            padding: 48px 24px;
+            color: #6b7280;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px dashed #e5e7eb;
+        }
+        .empty-state-conta span {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 12px;
+        }
+        .empty-state-conta p {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #6b7280;
+        }
+        .link-acao {
+            color: #84cc16;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .link-acao:hover { text-decoration: underline; }
+        
+        /* Checkbox */
+        .checkbox-conta {
+            justify-content: flex-end;
+            padding-bottom: 10px;
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #4b5563;
+            cursor: pointer;
+        }
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #84cc16;
+        }
+        
+        /* Input valor imposto */
+        .input-valor-imposto input {
+            text-align: right;
+            width: 100%;
+        }
+        
+        /* ========== PAGAMENTOS LAYOUT ========== */
+        .pagamentos-layout {
+            display: flex;
+            gap: 24px;
+        }
+        .pagamentos-tabela {
+            flex: 2;
+        }
+        .pagamentos-resumo {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .pagamentos-header-info {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        .drag-info {
+            font-size: 12px;
+            color: #9ca3af;
+            background: #f3f4f6;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 8px;
+            border-radius: 6px;
+        }
+        .tabela-pagamentos {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .tabela-pagamentos th {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .tabela-pagamentos th:first-child { border-radius: 8px 0 0 0; }
+        .tabela-pagamentos th:last-child { border-radius: 0 8px 0 0; }
+        .tabela-pagamentos td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .pagamentos-pagination {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 10px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .page-number {
+            background: #84cc16;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+        .pagamentos-botoes {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            justify-content: center;
+        }
+        .btn-cancelar-pagamento {
+            padding: 10px 20px;
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-cancelar-pagamento:hover {
+            background: #fecaca;
+        }
+        .btn-registrar-pagamento {
+            padding: 10px 20px;
+            background: #dcfce7;
+            color: #16a34a;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-registrar-pagamento:hover {
+            background: #bbf7d0;
+        }
+        .resumo-item {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .resumo-item label {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .resumo-item input {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            text-align: right;
+            font-size: 14px;
+            background: #f9fafb;
+        }
+        .resumo-item.destaque input {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            font-weight: 700;
+        }
+        
+        /* ========== PAINEL LATERAL SALVAR ========== */
+        .painel-lateral-salvar {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100%;
+            background: linear-gradient(to top, #f3f4f6, #f9fafb);
+            border-left: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 100px;
+            gap: 16px;
+            border-radius: 0 16px 16px 0;
+        }
+        .btn-salvar-lateral {
+            padding: 14px 18px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            border: none;
+            color: white;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .btn-salvar-lateral:hover {
+            background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.4);
+        }
+        .btn-avancar-lateral {
+            width: 44px;
+            height: 44px;
+            background: #fff;
+            border: 2px solid #84cc16;
+            color: #84cc16;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+        .btn-avancar-lateral:hover {
+            background: #84cc16;
+            color: white;
+        }
+        
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            .modal-conta-pagar {
+                width: 100%;
+                height: 100vh;
+                max-height: none;
+                border-radius: 0;
+            }
+            .modal-body-conta {
+                padding-right: 0;
+                border-radius: 0;
+            }
+            .painel-lateral-salvar {
+                display: none;
+            }
+            .modal-header-conta {
+                right: 0;
+                border-radius: 0;
+            }
+            .form-row-conta {
+                flex-direction: column;
+            }
+            .form-group-conta {
+                max-width: none !important;
+            }
+            .tabs-conta {
+                overflow-x: auto;
+                padding: 0 16px;
+            }
+            .pagamentos-layout {
+                flex-direction: column;
+            }
+            .modal-escolha, .modal-nfe, .modal-codigo-barras {
+                width: 100%;
+                max-width: none;
+                border-radius: 0;
+                height: 100vh;
+                max-height: none;
+            }
+        }
+    </style>
+
+    <!-- Script para controle das abas e modais -->
+    <script>
+        // Controle das abas do modal de conta
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab-conta');
+            const panes = document.querySelectorAll('.tab-pane-conta');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+                    
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panes.forEach(p => p.classList.remove('active'));
+                    
+                    this.classList.add('active');
+                    document.getElementById('tab-' + targetTab).classList.add('active');
+                });
+            });
+        });
+        
+        // Funções dos modais de escolha
+        function abrirModalEscolhaMetodo() {
+            document.getElementById('modalEscolhaMetodo').classList.add('active');
+        }
+        function fecharModalEscolha() {
+            document.getElementById('modalEscolhaMetodo').classList.remove('active');
+        }
+        function abrirModalNFe() {
+            fecharModalEscolha();
+            document.getElementById('modalNFe').classList.add('active');
+        }
+        function fecharModalNFe() {
+            document.getElementById('modalNFe').classList.remove('active');
+        }
+        function abrirModalCodigoBarras() {
+            fecharModalEscolha();
+            document.getElementById('modalCodigoBarras').classList.add('active');
+        }
+        function fecharModalCodigoBarras() {
+            document.getElementById('modalCodigoBarras').classList.remove('active');
+        }
+        function abrirModalManual() {
+            fecharModalEscolha();
+            abrirModal();
+        }
+        
+        // Funções auxiliares
+        function pesquisarNFe() {
+            const chave = document.getElementById('chaveNFe').value;
+            if (chave.length !== 44) {
+                alert('A chave de acesso deve ter 44 dígitos');
+                return;
+            }
+            alert('Pesquisando NF-e: ' + chave);
+        }
+        function uploadArquivoNFe() {
+            document.getElementById('inputArquivoNFe').click();
+        }
+        function processarArquivoNFe(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            const ext = file.name.split('.').pop().toLowerCase();
+            
+            if (ext === 'xml') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
+                        const ns = 'http://www.portalfiscal.inf.br/nfe';
+                        
+                        const getTag = (tag) => {
+                            const el = xmlDoc.getElementsByTagNameNS(ns, tag)[0] || xmlDoc.getElementsByTagName(tag)[0];
+                            return el ? el.textContent.trim() : '';
+                        };
+                        
+                        // Preencher dados da nota
+                        fecharModalNFe();
+                        abrirModal();
+                        
+                        document.getElementById('conta-fornecedor').value = getTag('xNome') || '';
+                        document.getElementById('conta-documento').value = getTag('nNF') || '';
+                        const vNF = getTag('vNF') || getTag('vLiq');
+                        if (vNF) document.getElementById('conta-valor').value = parseFloat(vNF).toFixed(2).replace('.', ',');
+                        const dhEmi = getTag('dhEmi') || getTag('dEmi');
+                        if (dhEmi) document.getElementById('conta-emissao').value = dhEmi.substring(0, 10);
+                        
+                        mostrarNotificacao('NF-e importada com sucesso! Verifique os dados.', 'success');
+                    } catch (err) {
+                        console.error('Erro ao parsear XML:', err);
+                        mostrarNotificacao('Erro ao ler o arquivo XML da NF-e.', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                mostrarNotificacao('Para importação automática, envie o arquivo XML da NF-e. PDFs precisam ser preenchidos manualmente.', 'warning');
+                fecharModalNFe();
+                abrirModal();
+            }
+            input.value = ''; // Reset input
+        }
+        function uploadBoleto() {
+            document.getElementById('inputBoleto').click();
+        }
+        function processarBoleto(input) {
+            if (!input.files || !input.files[0]) return;
+            const file = input.files[0];
+            mostrarNotificacao('Boleto "' + file.name + '" anexado. Preencha os dados manualmente ou use o código de barras.', 'info');
+            input.value = ''; // Reset input
+        }
+        function processarCodigoBarras() {
+            const codigo = document.getElementById('codigoBarrasInput').value;
+            if (!codigo) {
+                alert('Digite o código de barras');
+                return;
+            }
+            fecharModalCodigoBarras();
+            abrirModal();
+            document.getElementById('conta-codigo-barras').value = codigo;
+        }
+        function abrirModalPagamentoInterno() {
+            if (!editandoId) {
+                mostrarNotificacao('Salve a conta antes de registrar o pagamento', 'warning');
+                return;
+            }
+            abrirModalPagamento(editandoId);
+        }
+    </script>
+
+    <!-- Modal Pagamento - Padrão SaaS Empresarial -->
+    <div class="modal-overlay-saas" id="modalPagamento" onclick="if(event.target === this) fecharModalPagamento()">
+        <div class="modal-saas modal-sm">
+            <div class="modal-header-saas header-green">
+                <div class="modal-header-content-saas">
+                    <div class="modal-header-icon-saas">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="modal-header-text-saas">
+                        <h2>Registrar Pagamento</h2>
+                        <p>Confirme os dados do pagamento</p>
+                    </div>
+                    <button class="modal-close-saas" onclick="fecharModalPagamento()"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body-saas">
+                <input type="hidden" id="pagamento-conta-id">
+                
+                <div class="alert-saas alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div class="alert-saas-content">
+                        <strong id="pagamento-fornecedor">Fornecedor</strong>
+                        <p id="pagamento-descricao">Descrição da conta</p>
+                    </div>
+                </div>
+
+                <div class="form-section-saas">
+                    <div class="form-grid-saas cols-1">
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-dollar-sign"></i> Valor a Pagar</label>
+                            <div class="valor-destaque-saas">
+                                <span class="currency-symbol">R$</span>
+                                <input type="text" id="pagamento-valor" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                            </div>
+                        </div>
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-calendar"></i> Data do Pagamento</label>
+                            <input type="date" id="pagamento-data">
+                        </div>
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-university"></i> Conta Bancária</label>
+                            <select id="pagamento-banco">
+                                <option value="">Selecione a conta...</option>
+                            </select>
+                        </div>
+                        <div class="form-group-saas">
+                            <label><i class="fas fa-sticky-note"></i> Observação</label>
+                            <input type="text" id="pagamento-obs" placeholder="Observação do pagamento">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer-saas">
+                <div class="modal-footer-right-saas">
+                    <button class="btn-saas btn-saas-ghost" onclick="fecharModalPagamento()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn-saas btn-saas-success" onclick="confirmarPagamento()" id="btnConfirmarPagamento">
+                        <i class="fas fa-check"></i> Confirmar Pagamento
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSS dos Modais SaaS -->
+    <link rel="stylesheet" href="css/modais-saas.css">
+
+    <script>
+        let contasPagar = [];
+        let todasContas = []; // Todas as contas para filtros
+        let contasBancarias = [];
+        let editandoId = null;
+
+        // Carregar usuário
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+
+                    const hour = new Date().getHours();
+                    let greeting = 'Bom dia';
+                    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                    else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                    
+                    document.getElementById('greeting-text').textContent = greeting;
+                    document.getElementById('user-name').textContent = primeiroNome;
+                    document.getElementById('user-initials').textContent = primeiroNome.charAt(0).toUpperCase();
+                    
+                    const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    const fotoEl = document.getElementById('user-photo');
+                    const inicialEl = document.getElementById('user-initials');
+                    
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                        fotoEl.src = fotoUrl;
+                        fotoEl.onload = () => {
+                            fotoEl.style.display = 'block';
+                            fotoEl.classList.add('visible');
+                            if (inicialEl) inicialEl.style.display = 'none';
+                        };
+                        fotoEl.onerror = () => { fotoEl.style.display = 'none'; if (inicialEl) { inicialEl.textContent = primeiroNome.charAt(0).toUpperCase(); inicialEl.style.display = 'flex'; } };
+                    }
+                }
+            } catch (e) { console.error('Erro ao carregar usuário:', e); }
+        }
+
+        // Carregar contas bancárias
+        async function carregarContasBancarias() {
+            try {
+                const response = await fetch('/api/financeiro/contas-bancarias', { credentials: 'include' });
+                const data = await response.json();
+                const raw = data.data || data || [];
+                contasBancarias = Array.isArray(raw) ? raw : [];
+                
+                const selectConta = document.getElementById('conta-banco');
+                const selectPagamento = document.getElementById('pagamento-banco');
+                
+                const options = contasBancarias.map(c => 
+                    `<option value="${c.id}">${c.banco} - ${c.agencia}/${c.conta}</option>`
+                ).join('');
+                
+                if (selectConta) selectConta.innerHTML = '<option value="">Selecione a conta...</option>' + options;
+                if (selectPagamento) selectPagamento.innerHTML = '<option value="">Selecione a conta...</option>' + options;
+            } catch (e) {
+                console.error('Erro ao carregar contas bancárias:', e);
+            }
+        }
+
+        // Carregar contas a pagar
+        async function carregarContas() {
+            try {
+                const response = await fetch('/api/financeiro/contas-pagar', { credentials: 'include' });
+                const data = await response.json();
+                const raw = data.data || data || [];
+                contasPagar = Array.isArray(raw) ? raw : [];
+                todasContas = [...contasPagar]; // Guardar todas para filtros
+                renderizarTabela();
+                atualizarStats();
+            } catch (e) {
+                console.error('Erro ao carregar contas:', e);
+                contasPagar = [];
+                renderizarTabela();
+                atualizarStats();
+            }
+        }
+
+        function renderizarTabela() {
+            const tbody = document.getElementById('tabela-contas');
+            
+            if (contasPagar.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px;"><i class="fas fa-inbox" style="font-size:32px;color:#e2e8f0;display:block;margin-bottom:12px;"></i>Nenhuma conta a pagar cadastrada</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = contasPagar.map(c => {
+                const valorTotal = parseFloat(c.valor_total || c.valor || 0);
+                const valorPago = parseFloat(c.valor_pago || c.pago || 0);
+                const saldo = valorTotal - valorPago;
+                
+                let status = c.status || 'pendente';
+                const hoje = new Date().toISOString().split('T')[0];
+                const vencimento = c.data_vencimento || c.vencimento;
+                
+                if (status !== 'pago' && vencimento && vencimento < hoje) {
+                    status = 'vencido';
+                } else if (valorPago > 0 && valorPago < valorTotal) {
+                    status = 'parcial';
+                }
+                
+                const statusClass = {
+                    'pago': 'badge-success',
+                    'vencido': 'badge-danger',
+                    'parcial': 'badge-info',
+                    'pendente': 'badge-warning'
+                }[status] || 'badge-warning';
+                
+                const statusLabel = {
+                    'pendente': 'Pendente',
+                    'parcial': 'Parcial',
+                    'pago': 'Pago',
+                    'vencido': 'Vencido'
+                }[status] || status;
+                
+                const categoriaLabel = {
+                    'fornecedores': 'Fornecedores',
+                    'despesas-fixas': 'Despesas Fixas',
+                    'impostos': 'Impostos',
+                    'folha': 'Folha',
+                    'servicos': 'Serviços',
+                    'materiais': 'Materiais',
+                    'outros': 'Outros'
+                }[c.categoria] || c.categoria || '-';
+                
+                const fornecedor = c.fornecedor || c.fornecedor_nome || '-';
+                const documento = c.numero_documento || c.documento || '-';
+                
+                const vencimentoOriginal = c.data_vencimento_original || c.vencimento_original || vencimento;
+                const vencimentoAtualizado = c.data_vencimento_atualizado || c.vencimento_atualizado || vencimento;
+                
+                return `
+                    <tr data-id="${c.id}">
+                        <td><strong>${documento}</strong></td>
+                        <td>${fornecedor}</td>
+                        <td>${categoriaLabel}</td>
+                        <td>${formatarData(vencimentoOriginal)}</td>
+                        <td>${formatarData(vencimentoAtualizado)}</td>
+                        <td class="valor saida">${formatarMoeda(valorTotal)}</td>
+                        <td>${formatarMoeda(valorPago)}</td>
+                        <td class="valor">${formatarMoeda(saldo)}</td>
+                        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        <td>
+                            <button class="btn-action view" title="Ver detalhes" onclick="verConta(${c.id})"><i class="fas fa-eye"></i></button>
+                            ${status !== 'pago' ? `<button class="btn-action pagar" title="Registrar pagamento" onclick="abrirModalPagamento(${c.id})"><i class="fas fa-check"></i></button>` : ''}
+                            <button class="btn-action edit" title="Editar" onclick="editarConta(${c.id})"><i class="fas fa-edit"></i></button>
+                            ${status !== 'pago' ? `<button class="btn-action delete" title="Excluir" onclick="excluirConta(${c.id})"><i class="fas fa-trash"></i></button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function atualizarStats() {
+            const hoje = new Date().toISOString().split('T')[0];
+            
+            const pendentes = contasPagar.filter(c => c.status !== 'pago');
+            const totalPagar = pendentes.reduce((sum, c) => {
+                const valor = parseFloat(c.valor_total || c.valor || 0);
+                const pago = parseFloat(c.valor_pago || c.pago || 0);
+                return sum + (valor - pago);
+            }, 0);
+            
+            const venceHoje = contasPagar.filter(c => {
+                const venc = c.data_vencimento || c.vencimento;
+                return venc === hoje && c.status !== 'pago';
+            }).reduce((sum, c) => {
+                const valor = parseFloat(c.valor_total || c.valor || 0);
+                const pago = parseFloat(c.valor_pago || c.pago || 0);
+                return sum + (valor - pago);
+            }, 0);
+            
+            const vencidos = contasPagar.filter(c => {
+                const venc = c.data_vencimento || c.vencimento;
+                return venc < hoje && c.status !== 'pago';
+            }).reduce((sum, c) => {
+                const valor = parseFloat(c.valor_total || c.valor || 0);
+                const pago = parseFloat(c.valor_pago || c.pago || 0);
+                return sum + (valor - pago);
+            }, 0);
+            
+            const pagoMes = contasPagar.filter(c => c.status === 'pago').reduce((sum, c) => {
+                return sum + parseFloat(c.valor_pago || c.pago || c.valor_total || c.valor || 0);
+            }, 0);
+
+            document.getElementById('stat-total').textContent = formatarMoeda(totalPagar);
+            document.getElementById('stat-hoje').textContent = formatarMoeda(venceHoje);
+            document.getElementById('stat-vencido').textContent = formatarMoeda(vencidos);
+            document.getElementById('stat-pago').textContent = formatarMoeda(pagoMes);
+        }
+
+        function filtrarTabela() {
+            const busca = document.getElementById('searchInput').value.toLowerCase();
+            const linhas = document.querySelectorAll('#tabela-contas tr');
+            linhas.forEach(linha => {
+                const texto = linha.textContent.toLowerCase();
+                linha.style.display = texto.includes(busca) ? '' : 'none';
+            });
+        }
+
+        function filtrarDados() {
+            const status = document.getElementById('filter-status').value;
+            const categoria = document.getElementById('filter-categoria').value;
+            const fornecedor = document.getElementById('filter-fornecedor').value.toLowerCase();
+            const periodo = document.getElementById('filter-periodo').value;
+            
+            // Calcular data limite do período
+            let dataLimite = null;
+            if (periodo && periodo !== 'all') {
+                const dias = parseInt(periodo);
+                dataLimite = new Date();
+                dataLimite.setDate(dataLimite.getDate() + dias);
+            }
+            
+            const linhas = document.querySelectorAll('#tabela-contas tr');
+            linhas.forEach(linha => {
+                const texto = linha.textContent.toLowerCase();
+                let mostrar = true;
+                
+                if (status && !texto.includes(status)) mostrar = false;
+                if (categoria && !texto.includes(categoria)) mostrar = false;
+                if (fornecedor && !texto.includes(fornecedor)) mostrar = false;
+                
+                // Filtro por período - verifica a data de vencimento na coluna
+                if (dataLimite && mostrar) {
+                    const celulas = linha.querySelectorAll('td');
+                    // Procura por célula com formato de data (dd/mm/yyyy)
+                    let dentroPeríodo = false;
+                    celulas.forEach(cel => {
+                        const match = cel.textContent.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                        if (match) {
+                            const dataCell = new Date(match[3], match[2] - 1, match[1]);
+                            if (dataCell <= dataLimite) dentroPeríodo = true;
+                        }
+                    });
+                    // Se nenhuma data encontrada ou fora do período, ocultar
+                    if (!dentroPeríodo && celulas.length > 1) mostrar = false;
+                }
+                
+                linha.style.display = mostrar ? '' : 'none';
+            });
+        }
+
+        // Abre modal de escolha do método (NF-e, Código de Barras ou Manual)
+        function abrirModalNovaConta() {
+            document.getElementById('modalEscolhaMetodo').classList.add('active');
+        }
+
+        function abrirModal() {
+            editandoId = null;
+            document.getElementById('modal-titulo').textContent = 'Nova Conta a Pagar';
+            document.getElementById('formConta').reset();
+            document.getElementById('conta-id').value = '';
+            document.getElementById('conta-emissao').value = new Date().toISOString().split('T')[0];
+            document.getElementById('conta-registro').value = new Date().toISOString().split('T')[0];
+            document.getElementById('modalConta').classList.add('active');
+            
+            // Resetar para primeira aba
+            document.querySelectorAll('.tab-conta').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-pane-conta').forEach(p => p.classList.remove('active'));
+            document.querySelector('.tab-conta[data-tab="detalhes"]').classList.add('active');
+            document.getElementById('tab-detalhes').classList.add('active');
+        }
+
+        function fecharModal() {
+            document.getElementById('modalConta').classList.remove('active');
+        }
+
+        function editarConta(id) {
+            const conta = contasPagar.find(c => c.id === id);
+            if (!conta) return;
+
+            editandoId = id;
+            document.getElementById('modal-titulo').textContent = 'Editar Conta a Pagar';
+            
+            document.getElementById('conta-id').value = conta.id;
+            document.getElementById('conta-fornecedor').value = conta.fornecedor || conta.fornecedor_nome || '';
+            document.getElementById('conta-categoria').value = conta.categoria || '';
+            document.getElementById('conta-documento').value = conta.numero_documento || conta.documento || '';
+            document.getElementById('conta-codigo-barras').value = conta.codigo_barras || '';
+            document.getElementById('conta-valor').value = formatarMoedaInput2(conta.valor_total || conta.valor || 0);
+            document.getElementById('conta-emissao').value = conta.data_emissao || '';
+            document.getElementById('conta-vencimento-original').value = conta.data_vencimento_original || conta.vencimento_original || conta.data_vencimento || conta.vencimento || '';
+            document.getElementById('conta-vencimento').value = conta.data_vencimento || conta.data_vencimento_atualizado || conta.vencimento || '';
+            document.getElementById('conta-banco').value = conta.conta_bancaria_id || '';
+            document.getElementById('conta-observacoes').value = conta.observacoes || '';
+            
+            // Resetar para primeira aba
+            document.querySelectorAll('.tab-conta').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-pane-conta').forEach(p => p.classList.remove('active'));
+            document.querySelector('.tab-conta[data-tab="detalhes"]').classList.add('active');
+            document.getElementById('tab-detalhes').classList.add('active');
+            
+            document.getElementById('modalConta').classList.add('active');
+        }
+
+        async function salvarConta() {
+            const dados = {
+                fornecedor: document.getElementById('conta-fornecedor').value,
+                categoria: document.getElementById('conta-categoria').value,
+                numero_documento: document.getElementById('conta-documento').value,
+                codigo_barras: document.getElementById('conta-codigo-barras').value,
+                valor_total: parseMoeda(document.getElementById('conta-valor').value),
+                data_emissao: document.getElementById('conta-emissao').value || null,
+                data_vencimento_original: document.getElementById('conta-vencimento-original').value,
+                data_vencimento: document.getElementById('conta-vencimento').value || document.getElementById('conta-vencimento-original').value,
+                conta_bancaria_id: document.getElementById('conta-banco').value || null,
+                observacoes: document.getElementById('conta-observacoes').value
+            };
+
+            if (!dados.fornecedor || !dados.valor_total || !dados.data_vencimento_original) {
+                mostrarNotificacao('Preencha os campos obrigatórios', 'warning');
+                return;
+            }
+
+            const btn = document.querySelector('.btn-salvar-lateral');
+            const btnOriginal = btn ? btn.innerHTML : '';
+
+            try {
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+                    btn.disabled = true;
+                }
+                
+                const url = editandoId 
+                    ? `/api/financeiro/contas-pagar/${editandoId}`
+                    : '/api/financeiro/contas-pagar';
+                
+                const response = await fetch(url, {
+                    method: editandoId ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    fecharModal();
+                    await carregarContas();
+                    mostrarNotificacao(editandoId ? 'Conta atualizada com sucesso!' : 'Conta criada com sucesso!', 'success');
+                } else {
+                    const error = await response.json();
+                    mostrarNotificacao('Erro: ' + (error.message || 'Falha ao salvar'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao salvar:', e);
+                mostrarNotificacao('Erro ao salvar conta', 'error');
+            } finally {
+                if (btn) {
+                    btn.innerHTML = btnOriginal;
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        // Modal de Pagamento
+        function abrirModalPagamento(id) {
+            const conta = contasPagar.find(c => c.id === id);
+            if (!conta) return;
+
+            const valorTotal = parseFloat(conta.valor_total || conta.valor || 0);
+            const valorPago = parseFloat(conta.valor_pago || conta.pago || 0);
+            const saldo = valorTotal - valorPago;
+
+            document.getElementById('pagamento-conta-id').value = id;
+            document.getElementById('pagamento-fornecedor').textContent = conta.fornecedor || conta.fornecedor_nome || 'Fornecedor';
+            document.getElementById('pagamento-descricao').textContent = conta.descricao || `Valor: ${formatarMoeda(saldo)}`;
+            document.getElementById('pagamento-valor').value = formatarMoedaInput2(saldo);
+            document.getElementById('pagamento-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('pagamento-banco').value = conta.conta_bancaria_id || '';
+            document.getElementById('pagamento-obs').value = '';
+            
+            document.getElementById('modalPagamento').classList.add('active');
+        }
+
+        function fecharModalPagamento() {
+            document.getElementById('modalPagamento').classList.remove('active');
+        }
+
+        async function confirmarPagamento() {
+            const btn = document.getElementById('btnConfirmarPagamento');
+            const btnOriginal = btn.innerHTML;
+            
+            const id = document.getElementById('pagamento-conta-id').value;
+            const dados = {
+                valor_pago: parseMoeda(document.getElementById('pagamento-valor').value),
+                data_pagamento: document.getElementById('pagamento-data').value,
+                conta_bancaria_id: document.getElementById('pagamento-banco').value || null,
+                observacoes: document.getElementById('pagamento-obs').value
+            };
+
+            if (!dados.valor_pago || !dados.data_pagamento) {
+                mostrarNotificacao('Preencha o valor e a data do pagamento', 'warning');
+                return;
+            }
+
+            try {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
+                btn.disabled = true;
+
+                const response = await fetch(`/api/financeiro/contas-pagar/${id}/baixar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    fecharModalPagamento();
+                    await carregarContas();
+                    mostrarNotificacao('Pagamento registrado com sucesso!', 'success');
+                } else {
+                    const error = await response.json();
+                    mostrarNotificacao('Erro: ' + (error.message || 'Falha ao registrar pagamento'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao pagar:', e);
+                mostrarNotificacao('Erro ao registrar pagamento', 'error');
+            } finally {
+                btn.innerHTML = btnOriginal;
+                btn.disabled = false;
+            }
+        }
+
+        async function excluirConta(id) {
+            if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
+
+            try {
+                const response = await fetch(`/api/financeiro/contas-pagar/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    await carregarContas();
+                    mostrarNotificacao('Conta excluída com sucesso!', 'success');
+                } else {
+                    const error = await response.json();
+                    mostrarNotificacao('Erro: ' + (error.message || 'Falha ao excluir'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao excluir:', e);
+                mostrarNotificacao('Erro ao excluir conta', 'error');
+            }
+        }
+
+        function verConta(id) {
+            const conta = contasPagar.find(c => c.id === id);
+            if (!conta) return;
+
+            const valorTotal = parseFloat(conta.valor_total || conta.valor || 0);
+            const valorPago = parseFloat(conta.valor_pago || conta.pago || 0);
+            const saldo = valorTotal - valorPago;
+            
+            alert(`📄 Detalhes da Conta a Pagar\n\n` +
+                `Fornecedor: ${conta.fornecedor || conta.fornecedor_nome || '-'}\n` +
+                `Documento: ${conta.numero_documento || conta.documento || '-'}\n` +
+                `Categoria: ${conta.categoria || '-'}\n` +
+                `Descrição: ${conta.descricao || '-'}\n\n` +
+                `Vencimento: ${formatarData(conta.data_vencimento || conta.vencimento)}\n` +
+                `Valor Total: ${formatarMoeda(valorTotal)}\n` +
+                `Valor Pago: ${formatarMoeda(valorPago)}\n` +
+                `Saldo: ${formatarMoeda(saldo)}\n\n` +
+                `Status: ${conta.status || 'pendente'}`);
+        }
+
+        function exportarCSV() {
+            if (contasPagar.length === 0) {
+                mostrarNotificacao('Não há dados para exportar', 'warning');
+                return;
+            }
+
+            let csv = 'Documento,Fornecedor,Categoria,Vencimento,Valor Total,Valor Pago,Status\n';
+            contasPagar.forEach(c => {
+                csv += `"${c.numero_documento || c.documento || ''}","${c.fornecedor || c.fornecedor_nome || ''}","${c.categoria || ''}","${c.data_vencimento || c.vencimento || ''}","${c.valor_total || c.valor || 0}","${c.valor_pago || c.pago || 0}","${c.status || ''}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `contas-pagar-${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+            
+            mostrarNotificacao('Arquivo exportado com sucesso!', 'success');
+        }
+
+        // Funções de formatação
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function parseMoeda(valor) {
+            if (!valor) return 0;
+            return parseFloat(valor.toString().replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+        }
+
+        function formatarMoedaInput(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (!valor) { input.value = ''; return; }
+            valor = (parseInt(valor) / 100).toFixed(2);
+            input.value = valor.replace('.', ',');
+        }
+
+        function formatarMoedaInput2(valor) {
+            return parseFloat(valor || 0).toFixed(2).replace('.', ',');
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            return new Date(data + 'T00:00:00').toLocaleDateString('pt-BR');
+        }
+
+        // Notificações
+        function mostrarNotificacao(mensagem, tipo = 'info') {
+            const cores = {
+                'success': '#22c55e',
+                'error': '#ef4444',
+                'warning': '#f59e0b',
+                'info': '#3b82f6'
+            };
+            
+            const icones = {
+                'success': 'check-circle',
+                'error': 'times-circle',
+                'warning': 'exclamation-triangle',
+                'info': 'info-circle'
+            };
+
+            const notif = document.createElement('div');
+            notif.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: white;
+                padding: 16px 24px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                z-index: 999999;
+                animation: slideIn 0.3s ease;
+                border-left: 4px solid ${cores[tipo]};
+            `;
+            notif.innerHTML = `
+                <i class="fas fa-${icones[tipo]}" style="color: ${cores[tipo]}; font-size: 20px;"></i>
+                <span style="font-size: 14px; font-weight: 500;">${mensagem}</span>
+            `;
+            document.body.appendChild(notif);
+            
+            setTimeout(() => {
+                notif.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notif.remove(), 300);
+            }, 3000);
+        }
+
+        // Adicionar animações CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+            @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        `;
+        document.head.appendChild(style);
+
+        // Função para filtrar impostos (DARF, IR, SIMPLES NACIONAL, FGTS, INSS)
+        function filtrarImpostos() {
+            const termosImpostos = ['DARF', 'IR', 'IRRF', 'IRPJ', 'SIMPLES', 'SIMPLES NACIONAL', 'FGTS', 'INSS', 'IMPOSTO', 'TRIBUTO', 'GPS', 'DAS', 'ISS', 'ICMS', 'PIS', 'COFINS', 'CSLL'];
+            
+            // Filtrar por categoria impostos OU por termos no documento/fornecedor
+            const contasFiltradas = todasContas.filter(c => {
+                const categoria = (c.categoria || '').toLowerCase();
+                const documento = (c.numero_documento || c.documento || '').toUpperCase();
+                const fornecedor = (c.fornecedor || c.fornecedor_nome || '').toUpperCase();
+                const observacao = (c.observacao || c.obs || c.observacoes || '').toUpperCase();
+                const descricao = (c.descricao || '').toUpperCase();
+                
+                // Verifica se é categoria de impostos
+                if (categoria === 'impostos') return true;
+                
+                // Verifica se algum termo de imposto aparece no documento, fornecedor, observação ou descrição
+                return termosImpostos.some(termo => 
+                    documento.includes(termo) || 
+                    fornecedor.includes(termo) ||
+                    observacao.includes(termo) ||
+                    descricao.includes(termo)
+                );
+            });
+            
+            contasPagar = contasFiltradas;
+            renderizarTabela();
+            atualizarStats();
+            
+            // Feedback visual
+            mostrarNotificacao(`${contasFiltradas.length} conta(s) de impostos encontrada(s)`, contasFiltradas.length > 0 ? 'success' : 'warning');
+        }
+
+        // Função para mostrar todas as contas (limpar filtro)
+        function mostrarTodasContas() {
+            contasPagar = [...todasContas];
+            renderizarTabela();
+            atualizarStats();
+            mostrarNotificacao('Exibindo todas as contas', 'info');
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarUsuario();
+            carregarContasBancarias();
+            carregarContas();
+        });
+    </script>
+    
+    <!-- Sistema de Importação XLSX -->
+    <script src="public/js/importar-xlsx.js?v=20260131"></script>
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

@@ -1,0 +1,810 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Gestão de Treinamentos</title>
+    
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Mobile Enterprise Design System -->
+    <link rel="stylesheet" href="/css/design-system-mobile.css?v=20260202">
+    <link rel="stylesheet" href="/css/responsive-global.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-master-2026.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-enterprise-enhancements.css?v=20260202">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --sidebar-width: 48px; --header-height: 42px; --primary-pink: #ec4899; --primary-dark: #1a1a2e; --bg-gray: #f5f5f5; --border-color: #e5e5e5; --text-primary: #1a1a1a; --text-secondary: #666; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: var(--text-primary); }
+        .app-container { display: flex; height: 100vh; }
+        .sidebar { width: var(--sidebar-width); background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; z-index: 100; }
+        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-pink); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; text-decoration: none; }
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ margin-top: 0; padding: 0; }
+        .header { height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; overflow: hidden; }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-pink); }
+        .page-actions { display: flex; gap: 12px; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: #db2777; }
+        .btn-secondary { background: white; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: #f5f5f5; }
+        
+        /* Stats Cards */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); display: flex; align-items: center; gap: 16px; }
+        .stat-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+        .stat-icon.purple { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #8b5cf6; }
+        .stat-icon.blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #3b82f6; }
+        .stat-icon.green { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #22c55e; }
+        .stat-icon.orange { background: linear-gradient(135deg, #ffedd5, #fed7aa); color: #f97316; }
+        .stat-content h3 { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-value { font-size: 28px; font-weight: 700; }
+        .stat-trend { font-size: 12px; color: #22c55e; margin-top: 4px; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; background: white; padding: 6px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .tab { padding: 12px 20px; border: none; background: transparent; border-radius: 8px; font-size: 14px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; }
+        .tab:hover { background: #f5f5f5; }
+        .tab.active { background: var(--primary-pink); color: white; }
+        
+        /* Filters */
+        .filters-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
+        .search-box { display: flex; align-items: center; background: white; border-radius: 10px; padding: 0 14px; flex: 1; max-width: 350px; border: 1px solid var(--border-color); }
+        .search-box i { color: #999; font-size: 14px; }
+        .search-box input { border: none; background: transparent; padding: 12px; font-size: 14px; width: 100%; outline: none; }
+        .filter-select { padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; background: white; cursor: pointer; }
+        
+        /* Treinamento Cards */
+        .treinamentos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; }
+        .treinamento-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.03); transition: all 0.3s; }
+        .treinamento-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .treinamento-header { padding: 20px; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; position: relative; }
+        .treinamento-header.online { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+        .treinamento-header.hibrido { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); }
+        .treinamento-tipo { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .treinamento-titulo { font-size: 18px; font-weight: 700; margin-bottom: 8px; padding-right: 80px; }
+        .treinamento-categoria { font-size: 12px; opacity: 0.9; display: flex; align-items: center; gap: 6px; }
+        .treinamento-body { padding: 20px; }
+        .treinamento-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .treinamento-info-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+        .treinamento-info-item i { width: 16px; color: var(--primary-pink); }
+        .treinamento-info-item strong { color: var(--text-primary); }
+        .treinamento-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid #f1f5f9; }
+        .vagas-info { display: flex; align-items: center; gap: 8px; }
+        .vagas-bar { width: 80px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+        .vagas-bar-fill { height: 100%; background: var(--primary-pink); border-radius: 3px; transition: width 0.3s; }
+        .vagas-text { font-size: 12px; color: var(--text-secondary); }
+        .treinamento-actions { display: flex; gap: 8px; }
+        .btn-sm { padding: 8px 14px; font-size: 12px; border-radius: 8px; }
+        
+        /* Status Badges */
+        .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .status-agendado { background: #dbeafe; color: #1e40af; }
+        .status-em_andamento { background: #fef3c7; color: #92400e; }
+        .status-concluido { background: #dcfce7; color: #166534; }
+        .status-cancelado { background: #fee2e2; color: #991b1b; }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s; }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal { background: white; border-radius: 20px; width: 100%; max-width: 700px; max-height: 90vh; overflow: hidden; transform: scale(0.9); transition: all 0.3s; }
+        .modal-overlay.active .modal { transform: scale(1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-color); background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); }
+        .modal-header h2 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .modal-header h2 i { color: var(--primary-pink); }
+        .modal-close { width: 36px; height: 36px; border: none; background: white; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .modal-close:hover { background: #ef4444; color: white; }
+        .modal-body { padding: 24px; overflow-y: auto; max-height: calc(90vh - 180px); }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--border-color); background: #fafafa; }
+        
+        /* Form */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; transition: border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary-pink); box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1); }
+        .form-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .form-row.three { grid-template-columns: repeat(3, 1fr); }
+        .form-help { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        
+        /* Calendar Preview */
+        .calendar-preview { background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+        .calendar-preview h4 { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .calendar-preview h4 i { color: var(--primary-pink); }
+        .calendar-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: white; border-radius: 10px; margin-bottom: 8px; }
+        .calendar-date { width: 48px; height: 48px; background: linear-gradient(135deg, #ec4899, #db2777); border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
+        .calendar-date .day { font-size: 18px; font-weight: 700; }
+        .calendar-date .month { font-size: 10px; text-transform: uppercase; }
+        .calendar-info h5 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+        .calendar-info p { font-size: 12px; color: var(--text-secondary); }
+        
+        /* Inscritos List */
+        .inscritos-list { margin-top: 20px; }
+        .inscrito-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 10px; margin-bottom: 8px; }
+        .inscrito-avatar { width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; }
+        .inscrito-info { flex: 1; }
+        .inscrito-info h5 { font-size: 14px; font-weight: 600; }
+        .inscrito-info p { font-size: 12px; color: var(--text-secondary); }
+        
+        @media (max-width: 1200px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .stats-row { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } .treinamentos-grid { grid-template-columns: 1fr; } }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="pages/funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="pages/ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="pages/beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+        
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Treinamentos</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            
+            <div class="page-content">
+                <div class="page-header">
+                    <h1 class="page-title"><i class="fas fa-graduation-cap"></i> Gestão de Treinamentos</h1>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" onclick="carregarDados()"><i class="fas fa-sync-alt"></i> Atualizar</button>
+                        <button class="btn btn-primary" onclick="abrirModalNovo()"><i class="fas fa-plus"></i> Novo Treinamento</button>
+                    </div>
+                </div>
+                
+                <!-- Stats -->
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-calendar-alt"></i></div>
+                        <div class="stat-content">
+                            <h3>Total Treinamentos</h3>
+                            <div class="stat-value" id="statTotal">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-clock"></i></div>
+                        <div class="stat-content">
+                            <h3>Agendados</h3>
+                            <div class="stat-value" id="statAgendados">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-content">
+                            <h3>Concluídos</h3>
+                            <div class="stat-value" id="statConcluidos">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="fas fa-users"></i></div>
+                        <div class="stat-content">
+                            <h3>Total Inscrições</h3>
+                            <div class="stat-value" id="statInscricoes">0</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Próximos Treinamentos -->
+                <div class="calendar-preview" id="proximosContainer">
+                    <h4><i class="fas fa-calendar-check"></i> Próximos Treinamentos</h4>
+                    <div id="proximosLista"></div>
+                </div>
+                
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" onclick="filtrarPorStatus('todos')">Todos</button>
+                    <button class="tab" onclick="filtrarPorStatus('agendado')">Agendados</button>
+                    <button class="tab" onclick="filtrarPorStatus('em_andamento')">Em Andamento</button>
+                    <button class="tab" onclick="filtrarPorStatus('concluido')">Concluídos</button>
+                </div>
+                
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="Buscar treinamentos..." oninput="filtrarTreinamentos()">
+                    </div>
+                    <select class="filter-select" id="filtroTipo" onchange="filtrarTreinamentos()">
+                        <option value="">Todos os tipos</option>
+                        <option value="presencial">Presencial</option>
+                        <option value="online">Online</option>
+                        <option value="hibrido">Híbrido</option>
+                    </select>
+                    <select class="filter-select" id="filtroCategoria" onchange="filtrarTreinamentos()">
+                        <option value="">Todas as categorias</option>
+                    </select>
+                </div>
+                
+                <!-- Grid de Treinamentos -->
+                <div class="treinamentos-grid" id="treinamentosGrid"></div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Modal Novo/Editar Treinamento -->
+    <div class="modal-overlay" id="modalTreinamento">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-graduation-cap"></i> <span id="modalTitle">Novo Treinamento</span></h2>
+                <button class="modal-close" onclick="fecharModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formTreinamento">
+                    <input type="hidden" id="treinamentoId">
+                    
+                    <div class="form-group">
+                        <label for="titulo">Título do Treinamento *</label>
+                        <input type="text" id="titulo" placeholder="Ex: Treinamento de Segurança do Trabalho" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="descricao">Descrição</label>
+                        <textarea id="descricao" rows="3" placeholder="Descreva o objetivo e conteúdo do treinamento..."></textarea>
+                    </div>
+                    
+                    <div class="form-row three">
+                        <div class="form-group">
+                            <label for="tipo">Tipo</label>
+                            <select id="tipo">
+                                <option value="presencial">Presencial</option>
+                                <option value="online">Online</option>
+                                <option value="hibrido">Híbrido</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="categoria">Categoria</label>
+                            <input type="text" id="categoria" placeholder="Ex: Segurança">
+                        </div>
+                        <div class="form-group">
+                            <label for="cargaHoraria">Carga Horária (h)</label>
+                            <input type="number" id="cargaHoraria" min="0" value="8">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="instrutor">Instrutor</label>
+                            <input type="text" id="instrutor" placeholder="Nome do instrutor">
+                        </div>
+                        <div class="form-group">
+                            <label for="local">Local</label>
+                            <input type="text" id="local" placeholder="Sala de Reuniões / Link da Plataforma">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="dataInicio">Data Início *</label>
+                            <input type="date" id="dataInicio" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="dataFim">Data Fim</label>
+                            <input type="date" id="dataFim">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="horarioInicio">Horário Início</label>
+                            <input type="time" id="horarioInicio" value="08:00">
+                        </div>
+                        <div class="form-group">
+                            <label for="horarioFim">Horário Fim</label>
+                            <input type="time" id="horarioFim" value="17:00">
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="vagas">Número de Vagas</label>
+                            <input type="number" id="vagas" min="0" value="20">
+                            <span class="form-help">0 = ilimitado</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="obrigatorio">
+                                <input type="checkbox" id="obrigatorio" style="width: auto; margin-right: 8px;">
+                                Treinamento Obrigatório
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarTreinamento()"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Detalhes/Inscritos -->
+    <div class="modal-overlay" id="modalDetalhes">
+        <div class="modal" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-info-circle"></i> <span id="detalhesTitulo">Detalhes do Treinamento</span></h2>
+                <button class="modal-close" onclick="fecharModalDetalhes()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="detalhesConteudo"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalDetalhes()">Fechar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let treinamentos = [];
+        let categorias = [];
+        let filtroStatusAtual = 'todos';
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarDados();
+            carregarUsuarioLogado();
+        });
+        
+        // Função para carregar dados do usuário logado e exibir foto
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Atualizar nome
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Admin');
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    
+                    // Atualizar avatar/foto
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    const fotoUrl = user.foto_perfil_url || user.avatar || user.foto;
+                    
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp' && userPhotoEl) {
+                        userPhotoEl.src = fotoUrl;
+                        userPhotoEl.style.display = 'block';
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.onerror = function() {
+                            this.style.display = 'none';
+                            this.classList.remove('visible');
+                            if (userInitialEl) {
+                                userInitialEl.style.display = 'flex';
+                                userInitialEl.textContent = (user.nome || 'A').charAt(0).toUpperCase();
+                            }
+                        };
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else {
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                        if (userInitialEl) {
+                            userInitialEl.style.display = 'flex';
+                            userInitialEl.textContent = (user.nome || 'A').charAt(0).toUpperCase();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+        
+        async function carregarDados() {
+            await Promise.all([
+                carregarTreinamentos(),
+                carregarDashboard(),
+                carregarCategorias()
+            ]);
+        }
+        
+        async function carregarTreinamentos() {
+            try {
+                const response = await fetch('/api/rh/treinamentos');
+                if (response.ok) {
+                    treinamentos = await response.json();
+                    renderizarGrid();
+                }
+            } catch (error) {
+                console.error('Erro ao carregar treinamentos:', error);
+            }
+        }
+        
+        async function carregarDashboard() {
+            try {
+                const response = await fetch('/api/rh/treinamentos-dashboard');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('statTotal').textContent = data.stats?.total || 0;
+                    document.getElementById('statAgendados').textContent = data.stats?.agendados || 0;
+                    document.getElementById('statConcluidos').textContent = data.stats?.concluidos || 0;
+                    document.getElementById('statInscricoes').textContent = data.inscricoes?.total_inscricoes || 0;
+                    renderizarProximos(data.proximos || []);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar dashboard:', error);
+            }
+        }
+        
+        async function carregarCategorias() {
+            try {
+                const response = await fetch('/api/rh/treinamentos-categorias');
+                if (response.ok) {
+                    categorias = await response.json();
+                    const select = document.getElementById('filtroCategoria');
+                    select.innerHTML = '<option value="">Todas as categorias</option>';
+                    categorias.forEach(cat => {
+                        const option = document.createElement('option');
+                        option.value = cat;
+                        option.textContent = cat;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar categorias:', error);
+            }
+        }
+        
+        function renderizarProximos(proximos) {
+            const container = document.getElementById('proximosLista');
+            if (proximos.length === 0) {
+                container.innerHTML = '<p style="color: #64748b; font-size: 13px;">Nenhum treinamento agendado</p>';
+                return;
+            }
+            
+            container.innerHTML = proximos.slice(0, 3).map(t => {
+                const data = new Date(t.data_inicio);
+                return `
+                    <div class="calendar-item">
+                        <div class="calendar-date">
+                            <span class="day">${data.getDate()}</span>
+                            <span class="month">${data.toLocaleString('pt-BR', { month: 'short' })}</span>
+                        </div>
+                        <div class="calendar-info">
+                            <h5>${t.titulo}</h5>
+                            <p>${t.inscritos || 0}/${t.vagas_totais || '∞'} inscritos • ${t.carga_horaria || 0}h</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function renderizarGrid() {
+            const container = document.getElementById('treinamentosGrid');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const tipo = document.getElementById('filtroTipo').value;
+            const categoria = document.getElementById('filtroCategoria').value;
+            
+            let filtrados = treinamentos.filter(t => {
+                if (filtroStatusAtual !== 'todos' && t.status !== filtroStatusAtual) return false;
+                if (tipo && t.tipo !== tipo) return false;
+                if (categoria && t.categoria !== categoria) return false;
+                if (search && !t.titulo.toLowerCase().includes(search) && !t.descricao?.toLowerCase().includes(search)) return false;
+                return true;
+            });
+            
+            if (filtrados.length === 0) {
+                container.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #64748b;">
+                        <i class="fas fa-graduation-cap" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px;"></i>
+                        <p>Nenhum treinamento encontrado</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = filtrados.map(t => {
+                const dataInicio = t.data_inicio ? new Date(t.data_inicio).toLocaleDateString('pt-BR') : '-';
+                const vagasOcupadas = t.inscritos || 0;
+                const vagasTotal = t.vagas_totais || 0;
+                const percentVagas = vagasTotal > 0 ? (vagasOcupadas / vagasTotal) * 100 : 0;
+                
+                return `
+                    <div class="treinamento-card">
+                        <div class="treinamento-header ${t.tipo}">
+                            <span class="treinamento-tipo">${t.tipo}</span>
+                            <h3 class="treinamento-titulo">${t.titulo}</h3>
+                            <div class="treinamento-categoria"><i class="fas fa-tag"></i> ${t.categoria || 'Sem categoria'}</div>
+                        </div>
+                        <div class="treinamento-body">
+                            <div class="treinamento-info">
+                                <div class="treinamento-info-item">
+                                    <i class="fas fa-calendar"></i>
+                                    <span>${dataInicio}</span>
+                                </div>
+                                <div class="treinamento-info-item">
+                                    <i class="fas fa-clock"></i>
+                                    <span>${t.carga_horaria || 0}h</span>
+                                </div>
+                                <div class="treinamento-info-item">
+                                    <i class="fas fa-chalkboard-teacher"></i>
+                                    <span>${t.instrutor || '-'}</span>
+                                </div>
+                                <div class="treinamento-info-item">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <span>${t.local_treinamento || '-'}</span>
+                                </div>
+                            </div>
+                            <div class="treinamento-footer">
+                                <div class="vagas-info">
+                                    <div class="vagas-bar">
+                                        <div class="vagas-bar-fill" style="width: ${Math.min(percentVagas, 100)}%"></div>
+                                    </div>
+                                    <span class="vagas-text">${vagasOcupadas}/${vagasTotal || '∞'}</span>
+                                </div>
+                                <div class="treinamento-actions">
+                                    <span class="status-badge status-${t.status}">${formatarStatus(t.status)}</span>
+                                    <button class="btn btn-secondary btn-sm" onclick="verDetalhes(${t.id})"><i class="fas fa-eye"></i></button>
+                                    <button class="btn btn-secondary btn-sm" onclick="editarTreinamento(${t.id})"><i class="fas fa-edit"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function filtrarPorStatus(status) {
+            filtroStatusAtual = status;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            renderizarGrid();
+        }
+        
+        function filtrarTreinamentos() {
+            renderizarGrid();
+        }
+        
+        function formatarStatus(status) {
+            const map = {
+                'agendado': 'Agendado',
+                'em_andamento': 'Em Andamento',
+                'concluido': 'Concluído',
+                'cancelado': 'Cancelado'
+            };
+            return map[status] || status;
+        }
+        
+        function abrirModalNovo() {
+            document.getElementById('treinamentoId').value = '';
+            document.getElementById('formTreinamento').reset();
+            document.getElementById('modalTitle').textContent = 'Novo Treinamento';
+            document.getElementById('dataInicio').valueAsDate = new Date();
+            document.getElementById('modalTreinamento').classList.add('active');
+        }
+        
+        async function editarTreinamento(id) {
+            try {
+                const response = await fetch(`/api/rh/treinamentos/${id}`);
+                if (response.ok) {
+                    const t = await response.json();
+                    
+                    document.getElementById('treinamentoId').value = t.id;
+                    document.getElementById('titulo').value = t.titulo;
+                    document.getElementById('descricao').value = t.descricao || '';
+                    document.getElementById('tipo').value = t.tipo;
+                    document.getElementById('categoria').value = t.categoria || '';
+                    document.getElementById('cargaHoraria').value = t.carga_horaria || 0;
+                    document.getElementById('instrutor').value = t.instrutor || '';
+                    document.getElementById('local').value = t.local_treinamento || '';
+                    document.getElementById('dataInicio').value = t.data_inicio?.split('T')[0] || '';
+                    document.getElementById('dataFim').value = t.data_fim?.split('T')[0] || '';
+                    document.getElementById('horarioInicio').value = t.horario_inicio || '';
+                    document.getElementById('horarioFim').value = t.horario_fim || '';
+                    document.getElementById('vagas').value = t.vagas_totais || 0;
+                    document.getElementById('obrigatorio').checked = t.obrigatorio;
+                    
+                    document.getElementById('modalTitle').textContent = 'Editar Treinamento';
+                    document.getElementById('modalTreinamento').classList.add('active');
+                }
+            } catch (error) {
+                alert('Erro ao carregar treinamento');
+            }
+        }
+        
+        function fecharModal() {
+            document.getElementById('modalTreinamento').classList.remove('active');
+        }
+        
+        async function salvarTreinamento() {
+            const id = document.getElementById('treinamentoId').value;
+            
+            const dados = {
+                titulo: document.getElementById('titulo').value,
+                descricao: document.getElementById('descricao').value,
+                tipo: document.getElementById('tipo').value,
+                categoria: document.getElementById('categoria').value,
+                carga_horaria: parseInt(document.getElementById('cargaHoraria').value) || 0,
+                instrutor: document.getElementById('instrutor').value,
+                local_treinamento: document.getElementById('local').value,
+                data_inicio: document.getElementById('dataInicio').value,
+                data_fim: document.getElementById('dataFim').value || document.getElementById('dataInicio').value,
+                horario_inicio: document.getElementById('horarioInicio').value,
+                horario_fim: document.getElementById('horarioFim').value,
+                vagas_totais: parseInt(document.getElementById('vagas').value) || 0,
+                obrigatorio: document.getElementById('obrigatorio').checked
+            };
+            
+            if (!dados.titulo || !dados.data_inicio) {
+                alert('Preencha o título e data de início');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/rh/treinamentos${id ? '/' + id : ''}`, {
+                    method: id ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
+                });
+                
+                if (response.ok) {
+                    fecharModal();
+                    carregarDados();
+                    alert(id ? 'Treinamento atualizado!' : 'Treinamento criado!');
+                } else {
+                    const error = await response.json();
+                    alert('Erro: ' + error.error);
+                }
+            } catch (error) {
+                alert('Erro ao salvar treinamento');
+            }
+        }
+        
+        async function verDetalhes(id) {
+            try {
+                const response = await fetch(`/api/rh/treinamentos/${id}`);
+                if (response.ok) {
+                    const t = await response.json();
+                    
+                    document.getElementById('detalhesTitulo').textContent = t.titulo;
+                    
+                    const dataInicio = t.data_inicio ? new Date(t.data_inicio).toLocaleDateString('pt-BR') : '-';
+                    const dataFim = t.data_fim ? new Date(t.data_fim).toLocaleDateString('pt-BR') : '-';
+                    
+                    let inscritosHtml = '';
+                    if (t.inscritos && t.inscritos.length > 0) {
+                        inscritosHtml = `
+                            <h4 style="margin-top: 24px; margin-bottom: 12px;"><i class="fas fa-users"></i> Inscritos (${t.inscritos.length})</h4>
+                            <div class="inscritos-list">
+                                ${t.inscritos.map(i => `
+                                    <div class="inscrito-item">
+                                        <div class="inscrito-avatar">${i.nome_completo?.charAt(0) || 'F'}</div>
+                                        <div class="inscrito-info">
+                                            <h5>${i.nome_completo}</h5>
+                                            <p>${i.cargo || ''} - ${i.departamento || ''}</p>
+                                        </div>
+                                        <span class="status-badge status-${i.status}">${i.status}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    document.getElementById('detalhesConteudo').innerHTML = `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Tipo</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${t.tipo}</p>
+                            </div>
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Categoria</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${t.categoria || '-'}</p>
+                            </div>
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Data</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${dataInicio} a ${dataFim}</p>
+                            </div>
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Horário</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${t.horario_inicio || '-'} às ${t.horario_fim || '-'}</p>
+                            </div>
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Carga Horária</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${t.carga_horaria || 0} horas</p>
+                            </div>
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Vagas</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${t.inscritos?.length || 0}/${t.vagas_totais || '∞'}</p>
+                            </div>
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Instrutor</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${t.instrutor || '-'}</p>
+                            </div>
+                            <div>
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 4px;">Local</h4>
+                                <p style="font-size: 16px; font-weight: 600;">${t.local_treinamento || '-'}</p>
+                            </div>
+                        </div>
+                        ${t.descricao ? `
+                            <div style="margin-top: 20px;">
+                                <h4 style="font-size: 14px; color: #64748b; margin-bottom: 8px;">Descrição</h4>
+                                <p style="background: #f8fafc; padding: 16px; border-radius: 10px;">${t.descricao}</p>
+                            </div>
+                        ` : ''}
+                        ${inscritosHtml}
+                    `;
+                    
+                    document.getElementById('modalDetalhes').classList.add('active');
+                }
+            } catch (error) {
+                alert('Erro ao carregar detalhes');
+            }
+        }
+        
+        function fecharModalDetalhes() {
+            document.getElementById('modalDetalhes').classList.remove('active');
+        }
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+

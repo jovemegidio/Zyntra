@@ -1,0 +1,828 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Contas a Receber</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Design System Institucional Financeiro -->
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260216">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="js/importar-xlsx.js"></script>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <script src="/js/modal-title.js?v=20260210"></script>
+
+    <style>
+        /* ===== CONTAS A RECEBER — ESTILOS ESPECÍFICOS ===== */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border: 1px solid var(--gray-100);
+        }
+        .summary-value { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+        .summary-label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
+
+        .search-bar-global { margin-bottom: 16px; }
+        .search-input-wrapper { position: relative; display: flex; align-items: center; }
+        .search-input-wrapper > i { position: absolute; left: 14px; color: var(--gray-400); font-size: 14px; }
+        .search-input-global {
+            width: 100%; padding: 10px 40px; border: 1px solid var(--gray-200);
+            border-radius: 10px; font-size: 13px; font-family: 'Inter', sans-serif; background: white;
+        }
+        .search-input-global:focus { outline: none; border-color: var(--info-500); box-shadow: 0 0 0 3px rgba(6,182,212,0.1); }
+        .btn-clear-search { position: absolute; right: 10px; background: none; border: none; color: var(--gray-400); cursor: pointer; padding: 4px; display: none; }
+
+        .filters-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-group label { font-size: 11px; font-weight: 600; color: var(--gray-500); }
+        .filter-input {
+            padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: 8px;
+            font-size: 13px; font-family: 'Inter', sans-serif; min-width: 150px; background: white;
+        }
+        .filter-input:focus { outline: none; border-color: var(--info-500); }
+        .btn-limpar-filtros {
+            padding: 8px 14px; background: var(--gray-100); border: 1px solid var(--gray-200);
+            border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--gray-600); cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .btn-limpar-filtros:hover { background: var(--gray-200); }
+
+        .table-container {
+            background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border: 1px solid var(--gray-100); overflow: hidden;
+        }
+        .table-header {
+            padding: 16px 20px; border-bottom: 1px solid var(--gray-100);
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+        }
+        .table-title { font-size: 14px; font-weight: 700; color: var(--gray-800); margin: 0; }
+        .table-actions { display: flex; gap: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 700; color: var(--gray-500);
+            text-transform: uppercase; letter-spacing: 0.5px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200);
+        }
+        td { padding: 12px 16px; font-size: 13px; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); }
+        tr:hover td { background: var(--gray-50); }
+
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-paid { background: #dcfce7; color: #166534; }
+        .badge-overdue { background: #fee2e2; color: #991b1b; }
+        .badge-partial { background: #dbeafe; color: #1e40af; }
+
+        .action-btn {
+            width: 30px; height: 30px; border: none; border-radius: 6px; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; font-size: 12px; transition: all 0.2s; margin-right: 2px;
+        }
+        .action-btn.view { background: #dbeafe; color: #1e40af; }
+        .action-btn.view:hover { background: #bfdbfe; }
+        .action-btn.success { background: #dcfce7; color: #166534; }
+        .action-btn.success:hover { background: #bbf7d0; }
+        .action-btn.edit { background: #fef3c7; color: #92400e; }
+        .action-btn.edit:hover { background: #fde68a; }
+        .action-btn.danger { background: #fee2e2; color: #991b1b; }
+        .action-btn.danger:hover { background: #fecaca; }
+        .action-btn.info { background: #e0e7ff; color: #3730a3; }
+        .action-btn.info:hover { background: #c7d2fe; }
+
+        .btn-success, .btn-primary, .btn-secondary-outline {
+            padding: 8px 16px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-success { background: #059669; color: white; }
+        .btn-success:hover { background: #047857; }
+        .btn-primary { background: #2563eb; color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-secondary-outline { background: white; border: 1px solid var(--gray-200); color: var(--gray-600); }
+        .btn-secondary-outline:hover { background: var(--gray-50); }
+
+        .highlight { background: #fef9c3; padding: 0 2px; border-radius: 2px; }
+
+        /* ===== TOAST ===== */
+        .toast-container { position: fixed; top: 60px; right: 20px; z-index: 100000; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            display: flex; align-items: center; gap: 10px; padding: 12px 18px;
+            border-radius: 10px; background: white; box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+            border-left: 4px solid; font-size: 13px; font-weight: 500; opacity: 0;
+            transform: translateX(100%); transition: all 0.3s ease;
+        }
+        .toast.show { opacity: 1; transform: translateX(0); }
+        .toast.success { border-color: #10b981; }
+        .toast.error { border-color: #ef4444; }
+        .toast.warning { border-color: #f59e0b; }
+
+        /* ===== MODAIS ===== */
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 16px; width: 95%; max-height: 90vh; overflow-y: auto; }
+
+        .modal-institucional { max-width: 700px; }
+        .modal-header-institucional {
+            display: flex; align-items: center; gap: 14px; padding: 20px 24px;
+            background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px 16px 0 0; color: white;
+        }
+        .modal-header-icon { width: 42px; height: 42px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .modal-header-info { flex: 1; }
+        .modal-title { font-size: 17px; font-weight: 700; margin: 0; color: white; }
+        .modal-subtitle { font-size: 12px; opacity: 0.85; margin: 2px 0 0; }
+        .close-modal-inst { background: none; border: none; color: white; font-size: 24px; cursor: pointer; opacity: 0.8; }
+        .close-modal-inst:hover { opacity: 1; }
+
+        .form-section { border: 1px solid var(--gray-100); border-radius: 10px; margin: 16px 24px; overflow: hidden; }
+        .section-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: var(--gray-50); border-bottom: 1px solid var(--gray-100); font-size: 13px; font-weight: 700; color: var(--gray-700); }
+        .section-header i { color: var(--info-500); }
+        .section-header h4 { margin: 0; font-size: 13px; }
+        .section-content { padding: 16px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+        .form-group label i { color: var(--gray-400); font-size: 12px; }
+        .form-input, .form-select { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; color: var(--gray-800); }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--info-500); box-shadow: 0 0 0 3px rgba(6,182,212,0.1); }
+        .input-hint { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .input-with-prefix { display: flex; align-items: center; }
+        .input-prefix { padding: 10px 12px; background: var(--gray-100); border: 1px solid var(--gray-200); border-right: none; border-radius: 8px 0 0 8px; font-size: 13px; font-weight: 600; color: var(--gray-500); }
+        .form-input.with-prefix { border-radius: 0 8px 8px 0; }
+        .form-options { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+        .checkbox-option { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--gray-600); }
+        .checkbox-option input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--info-500); }
+
+        .modal-footer-institucional {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 24px; border-top: 1px solid var(--gray-100); background: var(--gray-50); border-radius: 0 0 16px 16px;
+        }
+        .footer-info { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--gray-400); }
+        .footer-actions { display: flex; gap: 10px; }
+        .btn-cancel { padding: 10px 20px; background: white; border: 1px solid var(--gray-200); border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--gray-600); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .btn-cancel:hover { background: var(--gray-50); }
+        .btn-save { padding: 10px 20px; background: linear-gradient(135deg, #1e40af, #3b82f6); border: none; border-radius: 8px; font-size: 13px; font-weight: 600; color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .btn-save:hover { opacity: 0.9; }
+
+        /* Modal Visualizar */
+        .modal-visualizar { max-width: 600px; }
+        .view-header { padding: 20px 24px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px 16px 0 0; color: white; }
+        .view-header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .view-id { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 20px; }
+        .close-view { background: none; border: none; font-size: 22px; color: rgba(255,255,255,0.8); cursor: pointer; }
+        .view-title { font-size: 18px; font-weight: 700; margin: 0 0 8px; color: white; }
+        .view-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .view-badge.pending { background: rgba(255,255,255,0.2); color: white; }
+        .view-badge.paid { background: rgba(16,185,129,0.3); color: white; }
+        .view-badge.overdue { background: rgba(239,68,68,0.3); color: white; }
+        .view-badge.partial { background: rgba(59,130,246,0.3); color: white; }
+        .view-body { padding: 20px 24px; }
+        .view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .view-item.full { grid-column: 1 / -1; }
+        .view-label { font-size: 11px; font-weight: 600; color: var(--gray-500); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+        .view-value { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+        .view-value.destaque { font-size: 20px; font-weight: 800; color: #1e40af; }
+        .view-recebimento-info { margin-top: 16px; padding: 16px; background: #dcfce7; border-radius: 10px; }
+        .view-recebimento-info h4 { font-size: 13px; font-weight: 700; color: #166534; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
+        .view-recebimento-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .view-footer { padding: 16px 24px; border-top: 1px solid var(--gray-100); display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-view-action { padding: 10px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-view-secondary { background: var(--gray-100); color: var(--gray-700); }
+        .btn-view-secondary:hover { background: var(--gray-200); }
+        .btn-view-primary { background: #059669; color: white; }
+        .btn-view-primary:hover { background: #047857; }
+
+        /* Modal Receber */
+        .modal-receber { max-width: 480px; }
+        .modal-receber-header {
+            display: flex; align-items: center; gap: 14px; padding: 20px 24px;
+            background: linear-gradient(135deg, #059669, #10b981); border-radius: 16px 16px 0 0; color: white;
+        }
+        .modal-receber-header .icon { width: 42px; height: 42px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .modal-receber-header .info { flex: 1; }
+        .modal-receber-header .info h3 { font-size: 17px; font-weight: 700; margin: 0; }
+        .modal-receber-header .info p { font-size: 12px; opacity: 0.85; margin: 2px 0 0; }
+        .modal-receber-body { padding: 20px 24px; }
+        .modal-receber-footer { padding: 16px 24px; border-top: 1px solid var(--gray-100); display: flex; gap: 10px; justify-content: flex-end; }
+
+        @media (max-width: 1024px) { .summary-cards { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 640px) { .summary-cards { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } .filters-bar { flex-direction: column; } }
+    </style>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="contas_pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="contas_receber.html" class="sidebar-btn active" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
+                <a href="contas_bancarias.html" class="sidebar-btn" title="Contas Bancárias"><i class="fas fa-university"></i></a>
+                <a href="fluxo_caixa.html" class="sidebar-btn" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="/dashboard" class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-area" data-page-name="Contas a Receber">
+            <header class="header" id="financeiro-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span class="header-separator">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span class="header-dash">—</span>
+                        <span class="page-title">Contas a Receber</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Nova Receita" onclick="abrirModal()"><i class="fas fa-plus"></i></button>
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display:none;">0</span>
+                        </button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo" style="display:none;">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Resumo -->
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="summary-value" style="color:#2563eb;" id="total-receber">R$ 0,00</div>
+                        <div class="summary-label">Total a Receber</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" style="color:#f59e0b;" id="total-vencendo">R$ 0,00</div>
+                        <div class="summary-label">Vencendo (7 dias)</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" style="color:#dc2626;" id="total-vencidas">R$ 0,00</div>
+                        <div class="summary-label">Inadimplentes</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-value" style="color:#16a34a;" id="total-recebidas">R$ 0,00</div>
+                        <div class="summary-label">Recebidas este Mês</div>
+                    </div>
+                </div>
+
+                <!-- Pesquisa Global -->
+                <div class="search-bar-global">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="pesquisa-global" class="search-input-global" placeholder="Pesquisar por descrição, cliente, valor, documento..." oninput="pesquisarGlobal()">
+                        <button class="btn-clear-search" onclick="limparPesquisa()" title="Limpar"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar"></i> Período</label>
+                        <select class="filter-input" id="filtro-periodo" onchange="filtrarContas()">
+                            <option value="todas">Todas</option>
+                            <option value="mes">Este Mês</option>
+                            <option value="proximos7">Próximos 7 dias</option>
+                            <option value="proximos30">Próximos 30 dias</option>
+                            <option value="vencidas">Vencidas</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-tag"></i> Status</label>
+                        <select class="filter-input" id="filtro-status" onchange="filtrarContas()">
+                            <option value="">Todos</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="recebido">Recebido</option>
+                            <option value="parcial">Parcial</option>
+                            <option value="vencido">Vencido</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-user"></i> Cliente</label>
+                        <select class="filter-input" id="filtro-cliente-select" onchange="filtrarContas()">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group" style="align-self:end;">
+                        <button class="btn-limpar-filtros" onclick="limparFiltros()"><i class="fas fa-eraser"></i> Limpar</button>
+                    </div>
+                </div>
+
+                <!-- Tabela -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3 class="table-title">Listagem de Contas a Receber</h3>
+                        <div class="table-actions">
+                            <button class="btn-primary" onclick="enviarCobrancas()" title="Enviar cobranças em lote"><i class="fas fa-paper-plane"></i> Cobranças</button>
+                            <button class="btn-success" onclick="exportarExcel()"><i class="fas fa-file-excel"></i> Exportar</button>
+                        </div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Descrição</th>
+                                <th>Cliente</th>
+                                <th>Vencimento</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-contas">
+                            <tr>
+                                <td colspan="7" style="text-align:center;padding:60px;color:var(--gray-400);">
+                                    <i class="fas fa-spinner fa-spin" style="font-size:48px;margin-bottom:16px;display:block;"></i>
+                                    Carregando contas...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Visualizar -->
+    <div id="modal-visualizar" class="modal">
+        <div class="modal-content modal-visualizar">
+            <div class="view-header">
+                <div class="view-header-top">
+                    <span class="view-id" id="view-id">#000</span>
+                    <button class="close-view" onclick="fecharModalVisualizar()">×</button>
+                </div>
+                <h3 class="view-title" id="view-descrição">Descrição</h3>
+                <div><span id="view-status-badge" class="view-badge pending"><i class="fas fa-clock"></i> Pendente</span></div>
+            </div>
+            <div class="view-body">
+                <div class="view-grid">
+                    <div class="view-item"><div class="view-label"><i class="fas fa-dollar-sign"></i> Valor</div><div class="view-value destaque" id="view-valor">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-calendar"></i> Vencimento</div><div class="view-value" id="view-vencimento">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-user"></i> Cliente</div><div class="view-value" id="view-cliente">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-tags"></i> Categoria</div><div class="view-value" id="view-categoria">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-credit-card"></i> Forma de Recebimento</div><div class="view-value" id="view-forma">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-file-alt"></i> Nº Documento</div><div class="view-value" id="view-documento">-</div></div>
+                    <div class="view-item full"><div class="view-label"><i class="fas fa-comment"></i> Observações</div><div class="view-value" id="view-observacoes" style="font-weight:normal;font-size:14px;">-</div></div>
+                </div>
+                <div class="view-recebimento-info" id="view-recebimento-info" style="display:none;">
+                    <h4><i class="fas fa-check-circle"></i> Informações do Recebimento</h4>
+                    <div class="view-recebimento-grid">
+                        <div><div class="view-label">Data Recebimento</div><div class="view-value" id="view-data-recebimento">-</div></div>
+                        <div><div class="view-label">Valor Recebido</div><div class="view-value" id="view-valor-recebido">-</div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="view-footer">
+                <button class="btn-view-action btn-view-secondary" onclick="editarContaFromView()"><i class="fas fa-edit"></i> Editar</button>
+                <button class="btn-view-action btn-view-primary" id="btn-receber-view" onclick="receberContaFromView()"><i class="fas fa-check-circle"></i> Receber</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nova/Editar Conta -->
+    <div id="modal-conta" class="modal">
+        <div class="modal-content modal-institucional">
+            <div class="modal-header-institucional">
+                <div class="modal-header-icon"><i class="fas fa-hand-holding-usd"></i></div>
+                <div class="modal-header-info">
+                    <h3 class="modal-title" id="modal-titulo">Nova Receita</h3>
+                    <p class="modal-subtitle">Preencha os dados da conta a receber</p>
+                </div>
+                <button class="close-modal-inst" onclick="fecharModal()">×</button>
+            </div>
+            <form id="form-conta" onsubmit="salvarConta(event)">
+                <input type="hidden" id="conta-id">
+                <div class="form-section">
+                    <div class="section-header"><i class="fas fa-info-circle"></i><h4>Informações Principais</h4></div>
+                    <div class="section-content">
+                        <div class="form-group full">
+                            <label><i class="fas fa-align-left"></i> Descrição *</label>
+                            <input type="text" class="form-input" id="descrição" required placeholder="Ex: Venda de produtos, Serviço prestado...">
+                            <span class="input-hint">Descreva brevemente o motivo da receita</span>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-user"></i> Cliente *</label>
+                                <select class="form-input" id="cliente-id" required><option value="">Selecione o cliente...</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-tags"></i> Categoria *</label>
+                                <select class="form-input" id="categoria-id" required><option value="">Selecione a categoria...</option></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="section-header"><i class="fas fa-dollar-sign"></i><h4>Valores e Datas</h4></div>
+                    <div class="section-content">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-money-bill-wave"></i> Valor Total *</label>
+                                <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0.01" class="form-input with-prefix" id="conta-valor" required placeholder="0,00"></div>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-calendar-alt"></i> Vencimento *</label>
+                                <input type="date" class="form-input" id="conta-vencimento" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-credit-card"></i> Forma de Recebimento</label>
+                                <select class="form-input" id="forma-pagamento">
+                                    <option value="pix">PIX</option>
+                                    <option value="transferencia">Transferência Bancária</option>
+                                    <option value="boleto">Boleto</option>
+                                    <option value="cartao">Cartão</option>
+                                    <option value="dinheiro">Dinheiro</option>
+                                    <option value="cheque">Cheque</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-layer-group"></i> Parcelas</label>
+                                <input type="number" min="1" max="48" value="1" class="form-input" id="num-parcelas">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <div class="section-header"><i class="fas fa-clipboard-list"></i><h4>Informações Adicionais</h4></div>
+                    <div class="section-content">
+                        <div class="form-row">
+                            <div class="form-group"><label><i class="fas fa-file-alt"></i> Nº Documento</label><input type="text" class="form-input" id="numero-documento" placeholder="NF, Boleto, etc..."></div>
+                            <div class="form-group"><label><i class="fas fa-building"></i> Centro de Custo</label><select class="form-input" id="centro-custo"><option value="">Selecione (opcional)</option></select></div>
+                        </div>
+                        <div class="form-group full"><label><i class="fas fa-comment"></i> Observações</label><textarea class="form-input" id="observacoes" rows="3" placeholder="Informações adicionais..."></textarea></div>
+                        <div class="form-options">
+                            <label class="checkbox-option"><input type="checkbox" id="enviar-notificacao"> <span><i class="fas fa-bell"></i> Enviar Notificação ao Cliente</span></label>
+                            <label class="checkbox-option"><input type="checkbox" id="gerar-boleto"> <span><i class="fas fa-barcode"></i> Gerar Boleto</span></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer-institucional">
+                    <div class="footer-info"><i class="fas fa-info-circle"></i><span>Campos com * são obrigatórios</span></div>
+                    <div class="footer-actions">
+                        <button type="button" class="btn-cancel" onclick="fecharModal()"><i class="fas fa-times"></i> Cancelar</button>
+                        <button type="submit" class="btn-save"><i class="fas fa-save"></i> Salvar Receita</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Receber -->
+    <div id="modal-receber" class="modal">
+        <div class="modal-content modal-receber">
+            <div class="modal-receber-header">
+                <div class="icon"><i class="fas fa-check-double"></i></div>
+                <div class="info"><h3>Confirmar Recebimento</h3><p>Registre os dados do recebimento</p></div>
+                <button onclick="fecharModalReceber()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;opacity:0.8;">×</button>
+            </div>
+            <form id="form-receber" onsubmit="confirmarRecebimento(event)">
+                <input type="hidden" id="receber-conta-id">
+                <div class="modal-receber-body">
+                    <div class="form-group">
+                        <label><i class="fas fa-money-bill-wave"></i> Valor Original</label>
+                        <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" class="form-input with-prefix" id="receber-valor-original" readonly></div>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-money-bill-wave"></i> Valor Recebido *</label>
+                        <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" class="form-input with-prefix" id="receber-valor" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label><i class="fas fa-calendar"></i> Data do Recebimento *</label><input type="date" class="form-input" id="receber-data" required></div>
+                        <div class="form-group">
+                            <label><i class="fas fa-credit-card"></i> Forma</label>
+                            <select class="form-input" id="receber-forma">
+                                <option value="pix">PIX</option>
+                                <option value="transferencia">Transferência</option>
+                                <option value="boleto">Boleto</option>
+                                <option value="cartao">Cartão</option>
+                                <option value="dinheiro">Dinheiro</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group"><label><i class="fas fa-comment"></i> Observações</label><textarea class="form-input" id="receber-obs" rows="2" placeholder="Observações sobre o recebimento..."></textarea></div>
+                </div>
+                <div class="modal-receber-footer">
+                    <button type="button" class="btn-cancel" onclick="fecharModalReceber()"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="submit" class="btn-save" style="background:linear-gradient(135deg,#10b981,#059669);"><i class="fas fa-check"></i> Confirmar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleMobileSidebar() {
+            document.getElementById('mobile-sidebar')?.classList.toggle('mobile-open');
+            document.getElementById('sidebar-overlay')?.classList.toggle('active');
+        }
+        function toggleNotificacoes() { if (typeof window.NotificationsManager !== 'undefined') window.NotificationsManager.togglePanel(); }
+
+        let contas = [];
+        let clientesList = [];
+
+        // ===== TOAST =====
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle' };
+            toast.innerHTML = `<i class="fas ${icons[type] || icons.success}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.add('show'));
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
+        }
+
+        // ===== CARREGAR USUÁRIO =====
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) { const h = new Date().getHours(); greetingTextEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia'; }
+                    document.getElementById('user-name').textContent = primeiroNome;
+
+                    const avatarNameMap = {'clemerson':'/avatars/Clemerson.webp','isabela':'/avatars/Isabela.webp','thaina':'/avatars/Thaina.webp','thiago':'/avatars/Thiago.webp','nicolas':'/avatars/NicolasDaniel.webp','nicolasdaniel':'/avatars/NicolasDaniel.webp','rh':'/avatars/Rh.webp','admin':'/avatars/admin.webp','ti':'/avatars/TI.webp','tialuforce':'/avatars/TI.webp','antonio':'/avatars/Antonio.webp','antônio':'/avatars/Antonio.webp','andreia':'/avatars/Andreia.webp','guilherme':'/avatars/Guilherme.webp','marcelo':'/avatars/Marcelo.webp','financeiro':'/avatars/Financeiro.webp','douglas':'/avatars/Douglas.webp','hellen':'/avatars/Hellen.webp','helen':'/avatars/Hellen.webp'};
+                    let avatarUrl = null;
+                    if (user.avatar && user.avatar !== '/avatars/default.webp') avatarUrl = user.avatar;
+                    else if (user.foto && user.foto !== '/avatars/default.webp') avatarUrl = user.foto;
+                    else if (user.email) { const u = user.email.split('@')[0].split('.')[0].toLowerCase(); avatarUrl = avatarNameMap[u]; }
+                    if (!avatarUrl && user.nome) avatarUrl = avatarNameMap[user.nome.split(' ')[0].toLowerCase()];
+                    const userPhotoEl = document.getElementById('user-photo'), userInitialEl = document.getElementById('user-initials');
+                    if (avatarUrl && userPhotoEl) { userPhotoEl.src = avatarUrl; userPhotoEl.style.display = 'block'; userPhotoEl.onerror = function() { this.style.display='none'; if(userInitialEl){userInitialEl.textContent=primeiroNome.charAt(0).toUpperCase();userInitialEl.style.display='flex';}}; if(userInitialEl) userInitialEl.style.display='none'; }
+                    else if (userInitialEl) { userInitialEl.textContent = primeiroNome.charAt(0).toUpperCase(); userInitialEl.style.display='flex'; if(userPhotoEl) userPhotoEl.style.display='none'; }
+                }
+            } catch (error) { console.error('Erro ao carregar usuário:', error); }
+        }
+
+        async function init() {
+            await Promise.all([carregarUsuarioLogado(), carregarResumo(), carregarContas(), carregarClientes(), carregarCategorias()]);
+        }
+
+        async function carregarResumo() {
+            try {
+                const response = await fetch('/api/financeiro/contas-receber/estatisticas', { credentials: 'include' });
+                if (response.ok) {
+                    const d = await response.json();
+                    document.getElementById('total-receber').textContent = `R$ ${(d.total_receber||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+                    document.getElementById('total-vencendo').textContent = `R$ ${(d.vencendo||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+                    document.getElementById('total-vencidas').textContent = `R$ ${(d.vencidas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+                    document.getElementById('total-recebidas').textContent = `R$ ${(d.recebidas_mes||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+                }
+            } catch(e) { console.error('Erro resumo:', e); }
+        }
+
+        async function carregarContas() {
+            try {
+                const response = await fetch('/api/financeiro/contas-receber', { credentials: 'include' });
+                if (response.ok) { const r = await response.json(); const raw = r.data || r || []; contas = Array.isArray(raw) ? raw : []; renderizarTabela(contas); }
+            } catch(e) { console.error('Erro contas:', e); document.getElementById('tabela-contas').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;padding:40px;"><i class="fas fa-exclamation-triangle" style="font-size:48px;margin-bottom:16px;display:block;"></i>Erro ao carregar</td></tr>'; }
+        }
+
+        function formatarDataSegura(data) { if (!data) return 'Sem data'; const d = new Date(data); if (isNaN(d.getTime())) return 'Data inválida'; return d.toLocaleDateString('pt-BR'); }
+
+        function renderizarTabela(dados, pesquisa = '') {
+            const tbody = document.getElementById('tabela-contas');
+            if (dados.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:60px;color:#9ca3af;"><i class="fas fa-inbox" style="font-size:48px;margin-bottom:16px;display:block;"></i>Nenhuma conta encontrada</td></tr>'; return; }
+            tbody.innerHTML = dados.map(c => {
+                const st = c.status || 'pendente';
+                const badges = { 'pendente':'<span class="badge badge-pending">Pendente</span>', 'recebido':'<span class="badge badge-paid">Recebido</span>', 'pago':'<span class="badge badge-paid">Recebido</span>', 'vencido':'<span class="badge badge-overdue">Vencido</span>', 'parcial':'<span class="badge badge-partial">Parcial</span>' };
+                const hl = (t) => { if(!pesquisa||!t) return t||'-'; try{const e=pesquisa.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(new RegExp(`(${e})`,'gi'),'<span class="highlight">$1</span>');}catch(e){return String(t);} };
+                return `<tr>
+                    <td>#${c.id}</td>
+                    <td><strong>${hl(c.descrição||'Sem Descrição')}</strong></td>
+                    <td>${hl(c.cliente_nome||'-')}</td>
+                    <td>${formatarDataSegura(c.data_vencimento||c.vencimento)}</td>
+                    <td><strong>R$ ${(parseFloat(c.valor_total||c.valor)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong></td>
+                    <td>${badges[st]||badges.pendente}</td>
+                    <td>
+                        <button class="action-btn view" onclick="visualizarConta(${c.id})" title="Visualizar"><i class="fas fa-eye"></i></button>
+                        ${st!=='recebido'&&st!=='pago'?`<button class="action-btn success" onclick="abrirModalReceber(${c.id},${parseFloat(c.valor_total||c.valor)||0})" title="Receber"><i class="fas fa-check-circle"></i></button>`:''}
+                        ${st!=='recebido'&&st!=='pago'?`<button class="action-btn info" onclick="enviarCobranca(${c.id})" title="Cobrar"><i class="fas fa-paper-plane"></i></button>`:''}
+                        <button class="action-btn edit" onclick="editarConta(${c.id})" title="Editar"><i class="fas fa-edit"></i></button>
+                        <button class="action-btn danger" onclick="excluirConta(${c.id})" title="Excluir"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        async function carregarClientes() {
+            try {
+                const response = await fetch('/api/clientes', { credentials: 'include' });
+                if (response.ok) {
+                    const rawClientes = await response.json();
+                    clientesList = Array.isArray(rawClientes) ? rawClientes : (Array.isArray(rawClientes?.data) ? rawClientes.data : []);
+                    const opts = clientesList.map(c => `<option value="${c.id}">${c.razao_social||c.nome}</option>`).join('');
+                    document.getElementById('cliente-id').innerHTML = '<option value="">Selecione o cliente...</option>' + opts;
+                    document.getElementById('filtro-cliente-select').innerHTML = '<option value="">Todos</option>' + opts;
+                }
+            } catch(e) { console.error('Erro clientes:', e); }
+        }
+
+        async function carregarCategorias() {
+            try {
+                const response = await fetch('/api/financeiro/categorias', { credentials: 'include' });
+                if (response.ok) { const rawCats = await response.json(); const cats = Array.isArray(rawCats) ? rawCats : (Array.isArray(rawCats?.data) ? rawCats.data : []); document.getElementById('categoria-id').innerHTML = '<option value="">Selecione...</option>' + cats.filter(c=>c.tipo==='receita').map(c=>`<option value="${c.id}">${c.nome}</option>`).join(''); }
+            } catch(e) { console.error('Erro categorias:', e); }
+        }
+
+        // ===== MODAIS =====
+        function abrirModal(id = null) {
+            document.getElementById('modal-conta').classList.add('active');
+            document.getElementById('form-conta').reset();
+            document.getElementById('conta-id').value = '';
+            document.getElementById('modal-titulo').textContent = 'Nova Receita';
+            document.querySelector('#modal-conta .modal-subtitle').textContent = 'Preencha os dados da conta a receber';
+            document.getElementById('conta-vencimento').value = new Date().toISOString().split('T')[0];
+            if (id) {
+                const c = contas.find(x => x.id === id); if (!c) return;
+                document.getElementById('modal-titulo').textContent = 'Editar Receita';
+                document.querySelector('#modal-conta .modal-subtitle').textContent = 'Altere os dados da conta a receber';
+                document.getElementById('conta-id').value = c.id;
+                document.getElementById('descrição').value = c.descrição;
+                document.getElementById('cliente-id').value = c.cliente_id;
+                document.getElementById('categoria-id').value = c.categoria_id;
+                document.getElementById('conta-valor').value = c.valor;
+                document.getElementById('conta-vencimento').value = c.data_vencimento?.split('T')[0];
+                document.getElementById('forma-pagamento').value = c.forma_pagamento || 'pix';
+                document.getElementById('observacoes').value = c.observacoes || '';
+                document.getElementById('numero-documento').value = c.numero_documento || '';
+            }
+        }
+        function fecharModal() { document.getElementById('modal-conta').classList.remove('active'); }
+        function editarConta(id) { abrirModal(id); }
+
+        function abrirModalReceber(id, valor) {
+            document.getElementById('receber-conta-id').value = id;
+            document.getElementById('receber-valor-original').value = valor;
+            document.getElementById('receber-valor').value = valor;
+            document.getElementById('receber-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('receber-obs').value = '';
+            document.getElementById('modal-receber').classList.add('active');
+        }
+        function fecharModalReceber() { document.getElementById('modal-receber').classList.remove('active'); }
+
+        async function confirmarRecebimento(event) {
+            event.preventDefault();
+            const id = document.getElementById('receber-conta-id').value;
+            const dados = { valor_recebido: parseFloat(document.getElementById('receber-valor').value), data_recebimento: document.getElementById('receber-data').value, forma_pagamento: document.getElementById('receber-forma').value, observacoes: document.getElementById('receber-obs').value };
+            try {
+                const r = await fetch(`/api/financeiro/contas-receber/${id}/receber`, { method: 'POST', headers:{'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(dados) });
+                if (r.ok) { showToast('Recebimento confirmado com sucesso!'); fecharModalReceber(); await init(); } else { showToast('Erro ao confirmar recebimento', 'error'); }
+            } catch(e) { console.error(e); showToast('Erro ao confirmar recebimento', 'error'); }
+        }
+
+        async function salvarConta(event) {
+            event.preventDefault();
+            const id = document.getElementById('conta-id').value;
+            const dados = { descrição: document.getElementById('descrição').value, cliente_id: document.getElementById('cliente-id').value, categoria_id: document.getElementById('categoria-id').value, valor: parseFloat(document.getElementById('conta-valor').value), data_vencimento: document.getElementById('conta-vencimento').value, forma_pagamento: document.getElementById('forma-pagamento').value, observacoes: document.getElementById('observacoes').value, numero_documento: document.getElementById('numero-documento').value, num_parcelas: parseInt(document.getElementById('num-parcelas').value) || 1 };
+            try {
+                const url = id ? `/api/financeiro/contas-receber/${id}` : '/api/financeiro/contas-receber';
+                const r = await fetch(url, { method: id?'PUT':'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(dados) });
+                if (r.ok) { showToast('Conta salva com sucesso!'); fecharModal(); await init(); } else { showToast('Erro ao salvar conta', 'error'); }
+            } catch(e) { console.error(e); showToast('Erro ao salvar conta', 'error'); }
+        }
+
+        async function excluirConta(id) {
+            if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
+            try {
+                const r = await fetch(`/api/financeiro/contas-receber/${id}`, { method:'DELETE', credentials:'include' });
+                if (r.ok) { showToast('Conta excluída com sucesso!'); await init(); } else { showToast('Erro ao excluir', 'error'); }
+            } catch(e) { console.error(e); showToast('Erro ao excluir', 'error'); }
+        }
+
+        async function enviarCobranca(id) {
+            if (!confirm('Enviar cobrança para este cliente?')) return;
+            try {
+                const r = await fetch(`/api/financeiro/contas-receber/${id}/cobrar`, { method:'POST', credentials:'include' });
+                if (r.ok) { showToast('Cobrança enviada com sucesso!'); } else { showToast('Erro ao enviar cobrança', 'error'); }
+            } catch(e) { showToast('Erro ao enviar cobrança', 'error'); }
+        }
+
+        async function enviarCobrancas() {
+            const pendentes = contas.filter(c => c.status === 'pendente' || c.status === 'vencido');
+            if (pendentes.length === 0) { showToast('Não há contas pendentes para cobrança', 'warning'); return; }
+            if (!confirm(`Enviar cobrança para ${pendentes.length} conta(s)?`)) return;
+            try {
+                const ids = pendentes.map(c => c.id);
+                const r = await fetch('/api/financeiro/enviar-cobranca-lote', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ ids }) });
+                if (r.ok) { showToast(`Cobranças enviadas para ${pendentes.length} conta(s)!`); } else { showToast('Erro ao enviar cobranças em lote', 'error'); }
+            } catch(e) { showToast('Erro ao enviar cobranças', 'error'); }
+        }
+
+        // ===== FILTROS =====
+        function filtrarContas() {
+            const periodo = document.getElementById('filtro-periodo').value;
+            const status = document.getElementById('filtro-status').value;
+            const clienteId = document.getElementById('filtro-cliente-select').value;
+            const pesquisa = document.getElementById('pesquisa-global').value.toLowerCase();
+            let filtradas = [...contas];
+            const hoje = new Date(); hoje.setHours(0,0,0,0);
+            if (periodo && periodo !== 'todas') {
+                filtradas = filtradas.filter(c => { const v = new Date(c.data_vencimento); v.setHours(0,0,0,0); switch(periodo){ case 'mes':return v.getMonth()===hoje.getMonth()&&v.getFullYear()===hoje.getFullYear(); case 'proximos7':return v>=hoje&&v<=new Date(hoje.getTime()+7*86400000); case 'proximos30':return v>=hoje&&v<=new Date(hoje.getTime()+30*86400000); case 'vencidas':return v<hoje&&c.status!=='recebido'&&c.status!=='pago'; default:return true; } });
+            }
+            if (status) filtradas = filtradas.filter(c => c.status === status);
+            if (clienteId) filtradas = filtradas.filter(c => c.cliente_id == clienteId);
+            if (pesquisa) filtradas = filtradas.filter(c => (c.descrição||'').toLowerCase().includes(pesquisa)||(c.cliente_nome||'').toLowerCase().includes(pesquisa)||(c.valor?.toString()||'').includes(pesquisa)||(c.numero_documento||'').toLowerCase().includes(pesquisa));
+            renderizarTabela(filtradas, pesquisa);
+        }
+        let pesquisaTimeout;
+        function pesquisarGlobal() { clearTimeout(pesquisaTimeout); const i=document.getElementById('pesquisa-global'); i.parentElement.querySelector('.btn-clear-search').style.display=i.value?'flex':'none'; pesquisaTimeout=setTimeout(()=>filtrarContas(),300); }
+        function limparPesquisa() { document.getElementById('pesquisa-global').value=''; document.querySelector('.btn-clear-search').style.display='none'; filtrarContas(); }
+        function limparFiltros() { document.getElementById('pesquisa-global').value=''; document.getElementById('filtro-periodo').value='todas'; document.getElementById('filtro-status').value=''; document.getElementById('filtro-cliente-select').value=''; document.querySelector('.btn-clear-search').style.display='none'; renderizarTabela(contas); }
+
+        // ===== VISUALIZAR =====
+        let contaVisualizando = null;
+        function visualizarConta(id) {
+            const c = contas.find(x => x.id === id); if (!c) return;
+            contaVisualizando = c;
+            document.getElementById('view-id').textContent = '#'+c.id;
+            document.getElementById('view-descrição').textContent = c.descrição || '-';
+            document.getElementById('view-cliente').textContent = c.cliente_nome || '-';
+            document.getElementById('view-categoria').textContent = c.categoria_nome || '-';
+            document.getElementById('view-valor').textContent = `R$ ${(c.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+            document.getElementById('view-vencimento').textContent = new Date(c.data_vencimento).toLocaleDateString('pt-BR');
+            document.getElementById('view-forma').textContent = formatarForma(c.forma_pagamento);
+            document.getElementById('view-documento').textContent = c.numero_documento || '-';
+            document.getElementById('view-observacoes').textContent = c.observacoes || 'Nenhuma observação';
+            const badges = {'pendente':{c:'pending',t:'Pendente',i:'fa-clock'},'recebido':{c:'paid',t:'Recebido',i:'fa-check-circle'},'pago':{c:'paid',t:'Recebido',i:'fa-check-circle'},'vencido':{c:'overdue',t:'Vencido',i:'fa-exclamation-circle'},'parcial':{c:'partial',t:'Parcial',i:'fa-adjust'}};
+            const si = badges[c.status] || badges.pendente;
+            const badge = document.getElementById('view-status-badge'); badge.className = 'view-badge '+si.c; badge.innerHTML = `<i class="fas ${si.i}"></i> ${si.t}`;
+            const recInfo = document.getElementById('view-recebimento-info');
+            const btnReceber = document.getElementById('btn-receber-view');
+            if (c.status === 'recebido' || c.status === 'pago') {
+                recInfo.style.display = 'block';
+                document.getElementById('view-data-recebimento').textContent = c.data_recebimento ? new Date(c.data_recebimento).toLocaleDateString('pt-BR') : '-';
+                document.getElementById('view-valor-recebido').textContent = c.valor_recebido ? `R$ ${c.valor_recebido.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : document.getElementById('view-valor').textContent;
+                btnReceber.style.display = 'none';
+            } else { recInfo.style.display = 'none'; btnReceber.style.display = 'inline-flex'; }
+            document.getElementById('modal-visualizar').classList.add('active');
+        }
+        function formatarForma(f) { const m={'dinheiro':'Dinheiro','pix':'PIX','transferencia':'Transferência Bancária','cartao':'Cartão','boleto':'Boleto','cheque':'Cheque'}; return m[f]||f||'-'; }
+        function fecharModalVisualizar() { document.getElementById('modal-visualizar').classList.remove('active'); contaVisualizando=null; }
+        function editarContaFromView() { if(contaVisualizando){fecharModalVisualizar();editarConta(contaVisualizando.id);}}
+        function receberContaFromView() { if(contaVisualizando){fecharModalVisualizar();abrirModalReceber(contaVisualizando.id,contaVisualizando.valor);}}
+
+        // ===== EXPORTAR =====
+        function exportarExcel() {
+            if(contas.length===0){showToast('Não há dados para exportar','warning');return;}
+            const csvSafe=(s)=>{if(typeof s!=='string')return String(s??'');let v=s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'');if(/^[=+\-@\t\r]/.test(v))v="'"+v;return v;};
+            const headers=['ID','Descrição','Cliente','Vencimento','Valor','Status','Forma','Nº Documento'];
+            const linhas=contas.map(c=>[c.id,`"${csvSafe(c.descrição||'').replace(/"/g,'""')}"`,`"${csvSafe(c.cliente_nome||'').replace(/"/g,'""')}"`,new Date(c.data_vencimento).toLocaleDateString('pt-BR'),(parseFloat(c.valor)||0).toFixed(2).replace('.',','),csvSafe(c.status||'pendente'),csvSafe(formatarForma(c.forma_pagamento)),csvSafe(c.numero_documento||'')]);
+            const csv=[headers.join(';'),...linhas.map(l=>l.join(';'))].join('\n');
+            const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+            const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`contas_receber_${new Date().toISOString().split('T')[0]}.csv`;link.click();
+            setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { init().catch(e => console.error(e)); });
+    </script>
+
+    <script src="/js/chat-suporte-widgets.js?v=20260103"></script>
+    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

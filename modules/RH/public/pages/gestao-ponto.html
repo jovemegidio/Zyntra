@@ -1,0 +1,1338 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Gestão do Ponto</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; overflow-x: hidden; }
+        .app-container { display: flex; min-height: 100vh; }
+
+        /* Sidebar */
+        .sidebar { width: var(--sidebar-width); background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; position: fixed; height: 100vh; z-index: 100; }
+        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-pink); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; text-decoration: none; }
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; text-decoration: none; position: relative; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-btn::after { content: attr(title); position: absolute; left: 54px; background: #1a1a2e; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .sidebar-btn::before { content: ''; position: absolute; left: 46px; border: 6px solid transparent; border-right-color: #1a1a2e; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; }
+        .sidebar-btn:hover::after, .sidebar-btn:hover::before { opacity: 1; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* Main */
+        .main-area { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; }
+        .header { height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; /* position: global-header-sidebar.css */ top: 0; z-index: 50; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; font-size: 14px; }
+        .header-brand img { height: 24px; }
+        .header-brand span { color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; }
+
+        /* Content */
+        .content-area { flex: 1; padding: 24px; overflow-y: auto; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .page-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+        .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+        /* Buttons */
+        .btn { padding: 10px 20px; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; text-decoration: none; }
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: #db2777; transform: translateY(-1px); }
+        .btn-success { background: var(--success-green); color: white; }
+        .btn-success:hover { background: #16a34a; }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        .btn-warning { background: var(--warning-yellow); color: #1e293b; }
+        .btn-warning:hover { background: #ca8a04; color: white; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 16px; transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
+        .stat-icon.purple { background: rgba(236, 72, 153,0.1); color: var(--primary-pink); }
+        .stat-icon.green { background: rgba(34,197,94,0.1); color: var(--success-green); }
+        .stat-icon.yellow { background: rgba(234,179,8,0.1); color: var(--warning-yellow); }
+        .stat-icon.red { background: rgba(239,68,68,0.1); color: var(--danger-red); }
+        .stat-icon.blue { background: rgba(59,130,246,0.1); color: var(--info-blue); }
+        .stat-content h4 { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .stat-content .value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0; background: white; border-radius: 16px 16px 0 0; padding: 4px 4px 0; }
+        .tab-btn { padding: 12px 20px; background: transparent; border: none; color: #64748b; font-weight: 600; cursor: pointer; position: relative; transition: all 0.3s ease; border-radius: 10px 10px 0 0; font-size: 0.85rem; }
+        .tab-btn:hover { color: var(--primary-pink); background: rgba(236, 72, 153,0.05); }
+        .tab-btn.active { color: var(--primary-pink); background: rgba(236, 72, 153,0.08); }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 3px; background: var(--primary-pink); border-radius: 3px 3px 0 0; }
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Filters */
+        .filters-bar { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: flex-end; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.75rem; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; }
+        .form-input, .form-select { padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 0.875rem; min-width: 160px; transition: all 0.2s ease; background: #fafbfc; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--primary-pink); box-shadow: 0 0 0 3px rgba(236, 72, 153,0.1); background: white; }
+
+        /* Card */
+        .card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .card-header { padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg, #ffffff, #fafbfc); }
+        .card-title { font-size: 1rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: var(--primary-pink); }
+        .card-body { padding: 24px; }
+
+        /* Table */
+        .table-container { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; }
+        .data-table th { background: linear-gradient(180deg, #f8fafc, #f1f5f9); font-weight: 600; color: #475569; white-space: nowrap; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
+        .data-table tr { transition: background 0.2s ease; }
+        .data-table tr:hover { background: rgba(236, 72, 153,0.03); }
+        .data-table td { vertical-align: middle; color: #334155; }
+
+        /* Status badges */
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+        .status-badge.normal { background: rgba(34,197,94,0.1); color: #16a34a; }
+        .status-badge.atraso { background: rgba(234,179,8,0.1); color: #ca8a04; }
+        .status-badge.falta { background: rgba(239,68,68,0.1); color: #dc2626; }
+        .status-badge.folga { background: rgba(100,116,139,0.1); color: #64748b; }
+        .status-badge.ferias { background: rgba(59,130,246,0.1); color: #2563eb; }
+        .status-badge.pendente { background: rgba(234,179,8,0.1); color: #ca8a04; }
+        .status-badge.aprovado { background: rgba(34,197,94,0.1); color: #16a34a; }
+
+        /* Employee info */
+        .employee-info { display: flex; align-items: center; gap: 12px; }
+        .employee-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; flex-shrink: 0; }
+        .employee-name { font-weight: 500; color: #1e293b; }
+        .employee-dept { font-size: 0.75rem; color: #64748b; }
+
+        /* Action buttons */
+        .action-btns { display: flex; gap: 8px; }
+        .action-btn { width: 32px; height: 32px; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .action-btn.edit { background: rgba(59,130,246,0.1); color: #3b82f6; }
+        .action-btn.edit:hover { background: #3b82f6; color: white; }
+        .action-btn.delete { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .action-btn.delete:hover { background: #ef4444; color: white; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; border-radius: 20px; width: 100%; max-width: 600px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+        body.modal-open { overflow: hidden !important; }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 1.25rem; font-weight: 600; }
+        .modal-close { width: 36px; height: 36px; border: none; background: #f1f5f9; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: #e2e8f0; }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 60px 20px; color: #64748b; }
+        .empty-state i { font-size: 3rem; margin-bottom: 16px; opacity: 0.5; }
+        .empty-state h3 { margin-bottom: 8px; color: #1e293b; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: white; padding: 16px 24px; border-radius: 12px; display: none; align-items: center; gap: 12px; z-index: 2000; animation: slideIn 0.3s ease; }
+        .toast.success { background: var(--success-green); }
+        .toast.error { background: var(--danger-red); }
+        .toast.show { display: flex; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* Sync indicator */
+        .sync-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 10px; font-size: 0.8rem; font-weight: 500; }
+        .sync-status.online { background: rgba(34,197,94,0.1); color: #16a34a; }
+        .sync-status.offline { background: rgba(239,68,68,0.1); color: #dc2626; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; }
+        .sync-dot.online { background: #22c55e; }
+        .sync-dot.offline { background: #ef4444; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        /* Audit Trail Timeline */
+        .audit-timeline { padding: 0; list-style: none; }
+        .audit-item { display: flex; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; position: relative; }
+        .audit-item:last-child { border-bottom: none; }
+        .audit-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+        .audit-icon.edicao { background: rgba(59,130,246,0.1); color: #3b82f6; }
+        .audit-icon.exclusao { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .audit-icon.criacao { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .audit-body { flex: 1; min-width: 0; }
+        .audit-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+        .audit-action { font-weight: 600; font-size: 0.875rem; color: #1e293b; }
+        .audit-time { font-size: 0.75rem; color: #94a3b8; white-space: nowrap; }
+        .audit-detail { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
+        .audit-change { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 4px 10px; background: #f8fafc; border-radius: 8px; margin: 4px 4px 0 0; }
+        .audit-change .old { color: #ef4444; text-decoration: line-through; }
+        .audit-change .new { color: #22c55e; font-weight: 600; }
+        .audit-change .arrow { color: #94a3b8; }
+        .audit-motivo { font-size: 0.8rem; color: #8b5cf6; font-style: italic; margin-top: 6px; padding: 6px 12px; background: rgba(236, 72, 153,0.05); border-radius: 8px; border-left: 3px solid #8b5cf6; }
+        .audit-user { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+
+        /* Motivo required indicator */
+        .required-indicator { color: #ef4444; font-weight: 600; margin-left: 2px; }
+        .motivo-warning { display: none; padding: 10px 14px; background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.3); border-radius: 10px; font-size: 0.8rem; color: #92400e; margin-top: 12px; }
+        .motivo-warning.show { display: flex; align-items: center; gap: 8px; }
+
+        /* Confirm delete modal */
+        .confirm-delete-body { text-align: center; padding: 20px 0; }
+        .confirm-delete-body i { font-size: 3rem; color: #ef4444; margin-bottom: 16px; }
+        .confirm-delete-body h3 { margin-bottom: 8px; }
+        .confirm-delete-body p { color: #64748b; font-size: 0.875rem; }
+    </style>
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn active" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Ponto</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title"><i class="fas fa-clock"></i> Gestão do Ponto</h1>
+                        <p class="page-subtitle">Controle e gestão de marcações de ponto — dados reais do banco</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-outline" onclick="exportarRelatorio()"><i class="fas fa-download"></i> Exportar</button>
+                        <button class="btn btn-success" onclick="sincronizarRhid()" id="btn-sync-rhid"><i class="fas fa-cloud-download-alt"></i> Sincronizar RHiD</button>
+                        <button class="btn btn-warning" onclick="window.location.href='importar-ponto.html'"><i class="fas fa-upload"></i> Importar Ponto</button>
+                        <button class="btn btn-primary" onclick="abrirModalAjuste()"><i class="fas fa-plus"></i> Ajuste Manual</button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-users"></i></div>
+                        <div class="stat-content"><h4>Funcionários Ativos</h4><div class="value" id="stat-funcionarios">-</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-content"><h4>Presentes Hoje</h4><div class="value" id="stat-presentes">-</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-content"><h4>Marcações Hoje</h4><div class="value" id="stat-marcacoes">-</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+                        <div class="stat-content"><h4>Faltas no Mês</h4><div class="value" id="stat-faltas">-</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-database"></i></div>
+                        <div class="stat-content"><h4>Total no Banco</h4><div class="value" id="stat-total-banco">-</div></div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="registros">Registros do Dia</button>
+                    <button class="tab-btn" data-tab="historico">Histórico</button>
+                    <button class="tab-btn" data-tab="alteracoes">Histórico de Alterações</button>
+                    <button class="tab-btn" data-tab="resumo">Resumo Mensal</button>
+                </div>
+
+                <!-- Tab: Registros do Dia -->
+                <div class="tab-content active" id="tab-registros">
+                    <div class="filters-bar">
+                        <div class="form-group">
+                            <label class="form-label">Data</label>
+                            <input type="date" class="form-input" id="filter-data">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="filter-func">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="carregarRegistrosDia()"><i class="fas fa-search"></i> Filtrar</button>
+                        <button class="btn btn-outline" onclick="carregarRegistrosDia(true)" title="Recarregar dados"><i class="fas fa-sync-alt"></i></button>
+                    </div>
+
+                    <div class="card" style="position:relative">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-list"></i> Marcações — <span id="data-atual"></span></h3>
+                            <div style="display:flex;align-items:center;gap:12px;">
+                                <div id="sync-status" class="sync-status online">
+                                    <span id="sync-dot" class="sync-dot online"></span>
+                                    <span id="sync-text">Conectado</span>
+                                </div>
+                                <span class="status-badge normal" id="total-registros">0 registros</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Data</th>
+                                            <th>Hora</th>
+                                            <th>Tipo</th>
+                                            <th>Origem</th>
+                                            <th>Observação</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-registros"></tbody>
+                                </table>
+                            </div>
+                            <div class="empty-state" id="empty-registros" style="display:none">
+                                <i class="fas fa-clock"></i>
+                                <h3>Nenhuma marcação encontrada</h3>
+                                <p>Importe dados do Control iD ou adicione manualmente.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Histórico -->
+                <div class="tab-content" id="tab-historico">
+                    <div class="filters-bar">
+                        <div class="form-group">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="filter-func-hist">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data Início</label>
+                            <input type="date" class="form-input" id="filter-inicio">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data Fim</label>
+                            <input type="date" class="form-input" id="filter-fim">
+                        </div>
+                        <button class="btn btn-primary" onclick="carregarHistorico()"><i class="fas fa-search"></i> Buscar</button>
+                    </div>
+                    <div class="card" style="position:relative">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-history"></i> Histórico de Marcações</h3>
+                            <span class="status-badge normal" id="total-historico">0 registros</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Data</th>
+                                            <th>Hora</th>
+                                            <th>Tipo</th>
+                                            <th>Origem</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-historico"></tbody>
+                                </table>
+                            </div>
+                            <div class="empty-state" id="empty-historico" style="display:none">
+                                <i class="fas fa-history"></i>
+                                <h3>Nenhum registro no período</h3>
+                                <p>Selecione um período e clique em Buscar.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Histórico de Alterações -->
+                <div class="tab-content" id="tab-alteracoes">
+                    <div class="filters-bar">
+                        <div class="form-group">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="filter-func-alteracoes">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tipo de Ação</label>
+                            <select class="form-select" id="filter-acao-alteracoes">
+                                <option value="">Todas</option>
+                                <option value="criacao">Criação</option>
+                                <option value="edicao">Edição</option>
+                                <option value="exclusao">Exclusão</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data Início</label>
+                            <input type="date" class="form-input" id="filter-alteracoes-inicio">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data Fim</label>
+                            <input type="date" class="form-input" id="filter-alteracoes-fim">
+                        </div>
+                        <button class="btn btn-primary" onclick="carregarAlteracoes()"><i class="fas fa-search"></i> Buscar</button>
+                    </div>
+                    <div class="card" style="position:relative">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-clipboard-list"></i> Auditoria de Alterações</h3>
+                            <span class="status-badge normal" id="total-alteracoes">0 registros</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="audit-timeline" id="audit-timeline"></div>
+                            <div class="empty-state" id="empty-alteracoes">
+                                <i class="fas fa-clipboard-check"></i>
+                                <h3>Nenhuma alteração registrada</h3>
+                                <p>As edições e exclusões de marcações aparecerão aqui com detalhes completos.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Resumo Mensal -->
+                <div class="tab-content" id="tab-resumo">
+                    <div class="filters-bar">
+                        <div class="form-group">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="filter-func-resumo">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Mês</label>
+                            <select class="form-select" id="filter-mes-resumo"></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Ano</label>
+                            <input type="number" class="form-input" id="filter-ano-resumo" style="width:100px">
+                        </div>
+                        <button class="btn btn-primary" onclick="carregarResumo()"><i class="fas fa-chart-bar"></i> Ver Resumo</button>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-chart-pie"></i> Resumo do Funcionário</h3>
+                        </div>
+                        <div class="card-body" id="resumo-content">
+                            <div class="empty-state">
+                                <i class="fas fa-user-clock"></i>
+                                <h3>Selecione um funcionário</h3>
+                                <p>Escolha um funcionário e período para ver o resumo.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Ajuste Manual -->
+    <div class="modal-overlay" id="modal-ajuste">
+        <div class="modal" style="max-width: 700px; width: 95%; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); display: flex; flex-direction: column;">
+            <div style="background: #ffffff; padding: 28px 32px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+                <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
+                    <div style="width: 52px; height: 52px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(236, 72, 153, 0.35);">
+                        <i class="fas fa-clock" style="color: white; font-size: 22px;"></i>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #111827;" id="modal-ajuste-title">Ajuste Manual de Ponto</h2>
+                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Registre ou corrija uma marcação de ponto</p>
+                    </div>
+                </div>
+                <button onclick="fecharModal('modal-ajuste')" style="width: 44px; height: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-times" style="color: #6b7280; font-size: 18px;"></i>
+                </button>
+            </div>
+            <div style="padding: 32px; background: #f9fafb; overflow-y: auto; flex: 1; min-height: 0;">
+                <input type="hidden" id="ajuste-id" value="">
+                <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px; margin-bottom: 24px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                                <i class="fas fa-user" style="color: #8b5cf6;"></i> Funcionário
+                            </label>
+                            <select class="form-select" id="ajuste-funcionario" style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; background: #f9fafb;"></select>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                                <i class="fas fa-calendar-alt" style="color: #3b82f6;"></i> Data
+                            </label>
+                            <input type="date" class="form-input" id="ajuste-data" style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; background: #f9fafb; box-sizing: border-box;">
+                        </div>
+                    </div>
+                </div>
+                <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px; margin-bottom: 24px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                                <i class="fas fa-clock" style="color: #22c55e;"></i> Horário
+                            </label>
+                            <input type="time" id="ajuste-hora" style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 16px; font-weight: 600; text-align: center; background: #f9fafb; box-sizing: border-box;">
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                                <i class="fas fa-tag" style="color: #f59e0b;"></i> Tipo
+                            </label>
+                            <select class="form-select" id="ajuste-tipo" style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; background: #f9fafb;">
+                                <option value="entrada">Entrada</option>
+                                <option value="saida_almoco">Saída Almoço</option>
+                                <option value="retorno_almoco">Retorno Almoço</option>
+                                <option value="saida">Saída</option>
+                                <option value="marcacao">Marcação</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                        <i class="fas fa-comment-alt" style="color: #f59e0b;"></i> Observação
+                    </label>
+                    <textarea id="ajuste-observacao" placeholder="Observação sobre a marcação..." style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; min-height: 80px; resize: vertical; background: #f9fafb; box-sizing: border-box; font-family: inherit;"></textarea>
+                </div>
+                <div id="motivo-section" style="display:none; background: #ffffff; border-radius: 16px; border: 2px solid #8b5cf6; padding: 24px; margin-top: 16px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                        <i class="fas fa-gavel" style="color: #8b5cf6;"></i> Motivo da Alteração <span class="required-indicator">*</span>
+                    </label>
+                    <textarea id="ajuste-motivo" placeholder="Descreva o motivo da edição (obrigatório para edições)..." style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; min-height: 60px; resize: vertical; background: #faf5ff; box-sizing: border-box; font-family: inherit;"></textarea>
+                    <div class="motivo-warning" id="motivo-warning">
+                        <i class="fas fa-exclamation-triangle"></i> O motivo é obrigatório para edições de marcações existentes.
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 24px 32px; background: #ffffff; border-top: 1px solid #e5e7eb; display: flex; gap: 16px; justify-content: flex-end;">
+                <button onclick="fecharModal('modal-ajuste')" style="padding: 14px 28px; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 12px; font-size: 15px; font-weight: 500; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button onclick="salvarAjuste()" style="padding: 14px 28px; border: none; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 12px; font-size: 15px; font-weight: 600; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(236, 72, 153, 0.4);">
+                    <i class="fas fa-save"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Exclusão -->
+    <div class="modal-overlay" id="modal-excluir">
+        <div class="modal" style="max-width: 520px; width: 95%; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); display: flex; flex-direction: column;">
+            <div style="background: #ffffff; padding: 28px 32px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+                <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
+                    <div style="width: 52px; height: 52px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);">
+                        <i class="fas fa-trash-alt" style="color: white; font-size: 22px;"></i>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #111827;">Excluir Marcação</h2>
+                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Esta ação não pode ser desfeita</p>
+                    </div>
+                </div>
+                <button onclick="fecharModal('modal-excluir')" style="width: 44px; height: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-times" style="color: #6b7280; font-size: 18px;"></i>
+                </button>
+            </div>
+            <div style="padding: 32px; background: #f9fafb; overflow-y: auto; flex: 1; min-height: 0;">
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: flex-start; gap: 12px;">
+                    <i class="fas fa-exclamation-triangle" style="color: #ef4444; font-size: 18px; margin-top: 2px;"></i>
+                    <div>
+                        <p style="margin: 0; font-size: 14px; font-weight: 600; color: #991b1b;">Confirmação de exclusão</p>
+                        <p style="margin: 6px 0 0 0; font-size: 14px; color: #b91c1c;" id="excluir-info"></p>
+                    </div>
+                </div>
+                <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                        <i class="fas fa-gavel" style="color: #ef4444;"></i> Motivo da Exclusão <span style="color: #ef4444;">*</span>
+                    </label>
+                    <textarea id="excluir-motivo" placeholder="Descreva o motivo da exclusão (obrigatório para auditoria)..." style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; min-height: 80px; resize: vertical; background: #fef2f2; box-sizing: border-box; font-family: inherit; transition: border-color 0.2s;"></textarea>
+                    <p style="margin: 8px 0 0 0; font-size: 12px; color: #9ca3af; display: flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-shield-alt"></i> O motivo será registrado na auditoria do sistema
+                    </p>
+                </div>
+            </div>
+            <div style="padding: 24px 32px; background: #ffffff; border-top: 1px solid #e5e7eb; display: flex; gap: 16px; justify-content: flex-end;">
+                <button onclick="fecharModal('modal-excluir')" style="padding: 14px 28px; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 12px; font-size: 15px; font-weight: 500; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button onclick="confirmarExclusao()" style="padding: 14px 28px; border: none; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 12px; font-size: 15px; font-weight: 600; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);">
+                    <i class="fas fa-trash-alt"></i> Excluir
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"><i class="fas fa-check-circle"></i><span id="toast-msg"></span></div>
+
+    <script>
+        // ============= AUTH TOKEN =============
+        function getToken() {
+            return sessionStorage.getItem('authToken') || sessionStorage.getItem('token') ||
+                   localStorage.getItem('authToken') || localStorage.getItem('token');
+        }
+        function getCookie(name) {
+            var value = '; ' + document.cookie;
+            var parts = value.split('; ' + name + '=');
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+        // Obter token CSRF fresco do servidor (necessário para operações de escrita)
+        async function getCsrfToken() {
+            try {
+                var resp = await fetch('/api/csrf-token', { credentials: 'include' });
+                if (resp.ok) {
+                    var data = await resp.json();
+                    return data.token;
+                }
+            } catch (e) { console.warn('Falha ao obter CSRF token:', e); }
+            return getCookie('csrf_token') || getCookie('_csrf') || null;
+        }
+        function authHeaders() {
+            var h = { 'Content-Type': 'application/json' };
+            var token = getToken();
+            if (token) h['Authorization'] = 'Bearer ' + token;
+            var csrf = getCookie('csrf_token') || getCookie('_csrf');
+            if (csrf) h['X-CSRF-Token'] = csrf;
+            return h;
+        }
+        // Fetch com CSRF automático para operações de escrita (POST/PUT/DELETE)
+        async function fetchWithCsrf(url, options) {
+            options = options || {};
+            options.credentials = 'include';
+            // Obter token CSRF fresco antes de enviar
+            var csrfToken = await getCsrfToken();
+            if (!options.headers) options.headers = {};
+            if (typeof options.headers.set === 'function') {
+                if (csrfToken) options.headers.set('X-CSRF-Token', csrfToken);
+            } else {
+                if (csrfToken) options.headers['X-CSRF-Token'] = csrfToken;
+                var token = getToken();
+                if (token && !options.headers['Authorization']) options.headers['Authorization'] = 'Bearer ' + token;
+                if (!options.headers['Content-Type']) options.headers['Content-Type'] = 'application/json';
+            }
+            return fetch(url, options);
+        }
+
+        // ============= AVATAR MAP =============
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp', 'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp', 'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp', 'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp', 'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp', 'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp', 'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp', 'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp', 'hellen': '/avatars/Hellen.webp', 'helen': '/avatars/Hellen.webp'
+        };
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            var username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) { var fn = nome.split(' ')[0].toLowerCase(); if (avatarNameMap[fn]) return avatarNameMap[fn]; }
+            return null;
+        }
+
+        // ============= GLOBAL STATE =============
+        var funcionariosList = [];
+        var marcacoesCache = [];
+        var autoRefreshTimer = null;
+
+        // ============= LOAD USER =============
+        async function carregarUsuario() {
+            try {
+                var resp = await fetch('/api/me', { headers: authHeaders() });
+                if (!resp.ok) return;
+                var user = await resp.json();
+                var hour = new Date().getHours();
+                var greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+                document.getElementById('greeting-text').textContent = greeting;
+                var nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                document.getElementById('user-name').textContent = nome;
+                var av = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : null;
+                if (!av) av = getAvatarFromEmail(user.email, user.nome);
+                var photoEl = document.getElementById('user-photo');
+                var initEl = document.getElementById('user-initial');
+                if (av && photoEl) { photoEl.src = av; photoEl.style.display = 'block'; if (initEl) initEl.style.display = 'none'; }
+                else if (initEl) { initEl.textContent = nome.charAt(0).toUpperCase(); initEl.style.display = 'flex'; if (photoEl) photoEl.style.display = 'none'; }
+            } catch (e) { console.error('Erro usuario:', e); }
+        }
+
+        // ============= LOAD FUNCIONARIOS =============
+        async function carregarFuncionarios() {
+            try {
+                var resp = await fetch('/api/rh/funcionarios?status=Ativo&limit=500', { headers: authHeaders() });
+                if (!resp.ok) throw new Error('Erro ao buscar funcionários');
+                var data = await resp.json();
+                funcionariosList = data.funcionarios || data || [];
+
+                var selects = ['filter-func', 'filter-func-hist', 'filter-func-resumo', 'filter-func-alteracoes', 'ajuste-funcionario'];
+                selects.forEach(function(id) {
+                    var el = document.getElementById(id);
+                    if (!el) return;
+                    var firstOpt = el.querySelector('option');
+                    el.innerHTML = '';
+                    if (firstOpt) el.appendChild(firstOpt);
+                    funcionariosList.forEach(function(f) {
+                        var opt = document.createElement('option');
+                        opt.value = f.id;
+                        opt.textContent = f.nome_completo || f.nome || ('Func #' + f.id);
+                        el.appendChild(opt);
+                    });
+                });
+
+                document.getElementById('stat-funcionarios').textContent = funcionariosList.length;
+            } catch (e) {
+                console.error('Erro funcionários:', e);
+                document.getElementById('stat-funcionarios').textContent = '?';
+            }
+        }
+
+        // ============= FORMAT HELPERS =============
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            // Handle ISO datetime (2026-02-11T03:00:00.000Z) or date-only (2026-02-11)
+            var str = String(dateStr).substring(0, 10);
+            var parts = str.split('-');
+            if (parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+            var d = new Date(str + 'T12:00:00');
+            return isNaN(d) ? str : d.toLocaleDateString('pt-BR');
+        }
+        function formatTime(timeStr) {
+            if (!timeStr) return '-';
+            return timeStr.substring(0, 5);
+        }
+        function tipoLabel(tipo) {
+            var map = { entrada: 'Entrada', saida_almoco: 'Saída Almoço', retorno_almoco: 'Retorno Almoço', saida: 'Saída', marcacao: 'Marcação' };
+            return map[tipo] || tipo || 'Marcação';
+        }
+        function origemLabel(origem) {
+            var map = { control_id: 'Control iD', rhid_cloud: 'RHiD Cloud', arquivo: 'Arquivo', manual: 'Manual' };
+            return map[origem] || origem || '-';
+        }
+        function origemBadgeClass(origem) {
+            if (origem === 'control_id') return 'normal';
+            if (origem === 'rhid_cloud') return 'normal';
+            if (origem === 'manual') return 'pendente';
+            return 'folga';
+        }
+        function getFuncName(id) {
+            var f = funcionariosList.find(function(x) { return x.id == id; });
+            return f ? (f.nome_completo || f.nome || ('#' + id)) : ('#' + id);
+        }
+        function getFuncDept(id) {
+            var f = funcionariosList.find(function(x) { return x.id == id; });
+            return f ? (f.departamento || f.cargo || '') : '';
+        }
+        function getFuncPhoto(id) {
+            var f = funcionariosList.find(function(x) { return x.id == id; });
+            if (!f) return null;
+            // 1. foto_perfil_url do banco
+            if (f.foto_perfil_url) return f.foto_perfil_url;
+            // 2. avatarNameMap por email/nome
+            var nome = f.nome_completo || f.nome || '';
+            var email = f.email || '';
+            return getAvatarFromEmail(email, nome);
+        }
+
+        // ============= LOAD REGISTROS DO DIA =============
+        async function carregarRegistrosDia(forceRefresh) {
+            var dataInput = document.getElementById('filter-data');
+            var funcFilter = document.getElementById('filter-func').value;
+            var data = dataInput.value;
+            if (!data) { showToast('Selecione uma data', 'error'); return; }
+
+            document.getElementById('data-atual').textContent = formatDate(data);
+
+            try {
+                var url = '/api/rh/ponto/marcacoes?data_inicio=' + data + '&data_fim=' + data;
+                if (funcFilter) url += '&funcionario_id=' + funcFilter;
+
+                var resp = await fetch(url, { headers: authHeaders() });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var result = await resp.json();
+                marcacoesCache = result.marcacoes || [];
+
+                updateSyncStatus(true, marcacoesCache.length);
+                renderMarcacoes(marcacoesCache, 'tbody-registros', 'empty-registros', 'total-registros');
+
+                var uniqueFuncs = new Set(marcacoesCache.map(function(m) { return m.funcionario_id; }));
+                document.getElementById('stat-presentes').textContent = uniqueFuncs.size;
+                document.getElementById('stat-marcacoes').textContent = marcacoesCache.length;
+
+            } catch (e) {
+                console.error('Erro marcações:', e);
+                updateSyncStatus(false);
+                showToast('Erro ao carregar marcações: ' + e.message, 'error');
+            }
+        }
+
+        // ============= RENDER MARCAÇÕES TABLE =============
+        function renderMarcacoes(marcacoes, tbodyId, emptyId, totalId) {
+            var tbody = document.getElementById(tbodyId);
+            var empty = document.getElementById(emptyId);
+
+            if (!marcacoes || marcacoes.length === 0) {
+                tbody.innerHTML = '';
+                if (empty) empty.style.display = 'block';
+                if (totalId) document.getElementById(totalId).textContent = '0 registros';
+                return;
+            }
+
+            if (empty) empty.style.display = 'none';
+            if (totalId) document.getElementById(totalId).textContent = marcacoes.length + ' registros';
+
+            tbody.innerHTML = marcacoes.map(function(m) {
+                var nome = m.funcionario_nome || getFuncName(m.funcionario_id);
+                var dept = m.departamento || m.cargo || getFuncDept(m.funcionario_id);
+                var initial = nome.charAt(0).toUpperCase();
+                var foto = getFuncPhoto(m.funcionario_id);
+                var avatarHtml = foto
+                    ? '<div class="employee-avatar" style="overflow:hidden;padding:0"><img src="' + foto + '" alt="' + initial + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.innerHTML=\'' + initial + '\'"></div>'
+                    : '<div class="employee-avatar">' + initial + '</div>';
+
+                return '<tr>' +
+                    '<td><div class="employee-info">' +
+                        avatarHtml +
+                        '<div><div class="employee-name">' + nome + '</div>' +
+                        '<div class="employee-dept">' + dept + '</div></div>' +
+                    '</div></td>' +
+                    '<td>' + formatDate(m.data) + '</td>' +
+                    '<td><strong>' + formatTime(m.hora) + '</strong></td>' +
+                    '<td><span class="status-badge normal">' + tipoLabel(m.tipo) + '</span></td>' +
+                    '<td><span class="status-badge ' + origemBadgeClass(m.origem) + '">' + origemLabel(m.origem) + '</span></td>' +
+                    '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis">' + (m.observacao || '-') + '</td>' +
+                    '<td><div class="action-btns">' +
+                        '<button class="action-btn edit" onclick="editarMarcacao(' + m.id + ')" title="Editar"><i class="fas fa-edit"></i></button>' +
+                        '<button class="action-btn delete" onclick="excluirMarcacao(' + m.id + ')" title="Excluir"><i class="fas fa-trash"></i></button>' +
+                    '</div></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        // ============= LOAD HISTÓRICO =============
+        async function carregarHistorico() {
+            var funcId = document.getElementById('filter-func-hist').value;
+            var inicio = document.getElementById('filter-inicio').value;
+            var fim = document.getElementById('filter-fim').value;
+
+            if (!inicio || !fim) { showToast('Selecione data início e fim', 'error'); return; }
+
+            try {
+                var url = '/api/rh/ponto/marcacoes?data_inicio=' + inicio + '&data_fim=' + fim;
+                if (funcId) url += '&funcionario_id=' + funcId;
+
+                var resp = await fetch(url, { headers: authHeaders() });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var result = await resp.json();
+                var marcacoes = result.marcacoes || [];
+
+                renderMarcacoes(marcacoes, 'tbody-historico', 'empty-historico', 'total-historico');
+                showToast(marcacoes.length + ' registros encontrados', 'success');
+
+            } catch (e) {
+                console.error('Erro histórico:', e);
+                showToast('Erro ao carregar histórico: ' + e.message, 'error');
+            }
+        }
+
+        // ============= LOAD RESUMO =============
+        async function carregarResumo() {
+            var funcId = document.getElementById('filter-func-resumo').value;
+            var mes = document.getElementById('filter-mes-resumo').value;
+            var ano = document.getElementById('filter-ano-resumo').value;
+
+            if (!funcId) { showToast('Selecione um funcionário', 'error'); return; }
+
+            try {
+                var resp = await fetch('/api/rh/ponto/resumo?funcionario_id=' + funcId + '&mes=' + mes + '&ano=' + ano, { headers: authHeaders() });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var data = await resp.json();
+                var r = data.resumo || {};
+                var p = data.penalidades || [];
+                var funcName = getFuncName(funcId);
+
+                var penText = p.length > 0
+                    ? p.map(function(x) { return '<span class="status-badge atraso">' + x.tipo + ': ' + x.total + '</span>'; }).join(' ')
+                    : '<span class="status-badge normal">Nenhuma</span>';
+
+                document.getElementById('resumo-content').innerHTML =
+                    '<div style="text-align:center;margin-bottom:24px">' +
+                        '<div class="employee-avatar" style="width:60px;height:60px;font-size:24px;margin:0 auto">' + funcName.charAt(0) + '</div>' +
+                        '<h3 style="margin-top:12px">' + funcName + '</h3>' +
+                    '</div>' +
+                    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px">' +
+                        '<div style="text-align:center;padding:16px;background:#f8fafc;border-radius:12px">' +
+                            '<div style="font-size:0.8rem;color:#64748b">Dias Trabalhados</div>' +
+                            '<div style="font-size:1.5rem;font-weight:700;color:#1e293b">' + (r.dias_trabalhados || 0) + '</div>' +
+                        '</div>' +
+                        '<div style="text-align:center;padding:16px;background:#f8fafc;border-radius:12px">' +
+                            '<div style="font-size:0.8rem;color:#64748b">Total Marcações</div>' +
+                            '<div style="font-size:1.5rem;font-weight:700;color:#1e293b">' + (r.total_marcacoes || 0) + '</div>' +
+                        '</div>' +
+                        '<div style="text-align:center;padding:16px;background:#f8fafc;border-radius:12px">' +
+                            '<div style="font-size:0.8rem;color:#64748b">Entradas</div>' +
+                            '<div style="font-size:1.5rem;font-weight:700;color:#22c55e">' + (r.entradas || 0) + '</div>' +
+                        '</div>' +
+                        '<div style="text-align:center;padding:16px;background:#f8fafc;border-radius:12px">' +
+                            '<div style="font-size:0.8rem;color:#64748b">Saídas</div>' +
+                            '<div style="font-size:1.5rem;font-weight:700;color:#ef4444">' + (r.saidas || 0) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:12px">' +
+                        '<div style="font-size:0.8rem;color:#64748b;margin-bottom:8px">Penalidades no Mês</div>' +
+                        '<div>' + penText + '</div>' +
+                    '</div>';
+
+            } catch (e) {
+                console.error('Erro resumo:', e);
+                showToast('Erro ao carregar resumo: ' + e.message, 'error');
+            }
+        }
+
+        // ============= LOAD STATS =============
+        async function carregarStats() {
+            try {
+                var resp = await fetch('/api/rh/ponto/marcacoes?data_inicio=2020-01-01&data_fim=2030-12-31', { headers: authHeaders() });
+                if (resp.ok) {
+                    var data = await resp.json();
+                    var total = (data.marcacoes || []).length;
+                    document.getElementById('stat-total-banco').textContent = total;
+                }
+            } catch (e) {
+                document.getElementById('stat-total-banco').textContent = '?';
+            }
+        }
+
+        // ============= MODAL AJUSTE =============
+        function abrirModalAjuste() {
+            document.getElementById('ajuste-id').value = '';
+            document.getElementById('ajuste-data').value = document.getElementById('filter-data').value;
+            document.getElementById('ajuste-hora').value = '';
+            document.getElementById('ajuste-tipo').value = 'entrada';
+            document.getElementById('ajuste-observacao').value = '';
+            document.getElementById('ajuste-motivo').value = '';
+            document.getElementById('ajuste-funcionario').value = '';
+            document.getElementById('modal-ajuste-title').textContent = 'Ajuste Manual de Ponto';
+            document.getElementById('motivo-section').style.display = 'none';
+            document.getElementById('motivo-warning').classList.remove('show');
+            document.title = 'Aluforce: Ajuste de Ponto';
+            document.getElementById('modal-ajuste').classList.add('active');
+            document.body.classList.add('modal-open');
+        }
+
+        function editarMarcacao(id) {
+            var m = marcacoesCache.find(function(x) { return x.id === id; });
+            if (!m) { showToast('Marcação não encontrada', 'error'); return; }
+
+            document.getElementById('ajuste-id').value = m.id;
+            document.getElementById('ajuste-funcionario').value = m.funcionario_id || '';
+            document.getElementById('ajuste-data').value = m.data ? m.data.substring(0, 10) : '';
+            document.getElementById('ajuste-hora').value = formatTime(m.hora);
+            document.getElementById('ajuste-tipo').value = m.tipo || 'marcacao';
+            document.getElementById('ajuste-observacao').value = m.observacao || '';
+            document.getElementById('ajuste-motivo').value = '';
+            document.getElementById('modal-ajuste-title').textContent = 'Editar Marcação #' + m.id;
+            document.getElementById('motivo-section').style.display = 'block';
+            document.getElementById('motivo-warning').classList.remove('show');
+            document.title = 'Aluforce: Editar Marcação';
+            document.getElementById('modal-ajuste').classList.add('active');
+            document.body.classList.add('modal-open');
+        }
+
+        async function salvarAjuste() {
+            var id = document.getElementById('ajuste-id').value;
+            var funcId = document.getElementById('ajuste-funcionario').value;
+            var data = document.getElementById('ajuste-data').value;
+            var hora = document.getElementById('ajuste-hora').value;
+            var tipo = document.getElementById('ajuste-tipo').value;
+            var obs = document.getElementById('ajuste-observacao').value;
+            var motivo = document.getElementById('ajuste-motivo').value.trim();
+
+            if (!funcId || !data || !hora) {
+                showToast('Preencha funcionário, data e horário', 'error');
+                return;
+            }
+
+            // Motivo obrigatório para edições
+            if (id && !motivo) {
+                document.getElementById('motivo-warning').classList.add('show');
+                document.getElementById('ajuste-motivo').focus();
+                showToast('Informe o motivo da alteração', 'error');
+                return;
+            }
+
+            try {
+                var url, method, body;
+                if (id) {
+                    url = '/api/rh/ponto/marcacoes/' + id;
+                    method = 'PUT';
+                    body = { hora: hora, tipo: tipo, observacao: obs, funcionario_id: parseInt(funcId), data: data, motivo: motivo };
+                } else {
+                    url = '/api/rh/ponto/marcacoes';
+                    method = 'POST';
+                    body = { funcionario_id: parseInt(funcId), data: data, hora: hora, tipo: tipo, observacao: obs };
+                }
+
+                var resp = await fetchWithCsrf(url, { method: method, body: JSON.stringify(body) });
+                if (!resp.ok) {
+                    var errData = await resp.json().catch(function() { return {}; });
+                    throw new Error(errData.error || 'HTTP ' + resp.status);
+                }
+
+                var result = await resp.json();
+                var changeCount = result.alteracoes_registradas || 0;
+                var msg = id ? 'Marcação atualizada!' : 'Marcação registrada!';
+                if (changeCount > 0) msg += ' (' + changeCount + ' alteração(ões) registrada(s))';
+
+                showToast(msg, 'success');
+                fecharModal('modal-ajuste');
+                carregarRegistrosDia();
+            } catch (e) {
+                console.error('Erro ao salvar:', e);
+                showToast('Erro ao salvar: ' + e.message, 'error');
+            }
+        }
+
+        var excluirMarcacaoId = null;
+
+        function excluirMarcacao(id) {
+            var m = marcacoesCache.find(function(x) { return x.id === id; });
+            var info = m ? (getFuncName(m.funcionario_id) + ' - ' + formatDate(m.data) + ' ' + formatTime(m.hora)) : ('Marcação #' + id);
+
+            excluirMarcacaoId = id;
+            document.getElementById('excluir-info').textContent = info;
+            document.getElementById('excluir-motivo').value = '';
+            document.getElementById('modal-excluir').classList.add('active');
+            document.body.classList.add('modal-open');
+            setTimeout(function() { document.getElementById('excluir-motivo').focus(); }, 150);
+        }
+
+        async function confirmarExclusao() {
+            var motivo = document.getElementById('excluir-motivo').value.trim();
+            if (!motivo) {
+                showToast('Informe o motivo da exclusão', 'error');
+                document.getElementById('excluir-motivo').focus();
+                document.getElementById('excluir-motivo').style.borderColor = '#ef4444';
+                return;
+            }
+
+            try {
+                var resp = await fetchWithCsrf('/api/rh/ponto/marcacoes/' + excluirMarcacaoId, {
+                    method: 'DELETE',
+                    body: JSON.stringify({ motivo: motivo })
+                });
+                if (!resp.ok) {
+                    var errData = await resp.json().catch(function() { return {}; });
+                    throw new Error(errData.error || 'HTTP ' + resp.status);
+                }
+                fecharModal('modal-excluir');
+                showToast('Marcação excluída! (registrado na auditoria)', 'success');
+                carregarRegistrosDia();
+            } catch (e) {
+                console.error('Erro ao excluir:', e);
+                showToast('Erro ao excluir: ' + e.message, 'error');
+            }
+        }
+
+        // ============= EXPORT =============
+        function exportarRelatorio() {
+            if (marcacoesCache.length === 0) { showToast('Nenhum dado para exportar', 'error'); return; }
+
+            var csv = 'Funcionário;Data;Hora;Tipo;Origem;Observação\n';
+            marcacoesCache.forEach(function(m) {
+                csv += '"' + (m.funcionario_nome || getFuncName(m.funcionario_id)) + '";"' + formatDate(m.data) + '";"' + formatTime(m.hora) + '";"' + tipoLabel(m.tipo) + '";"' + origemLabel(m.origem) + '";"' + (m.observacao || '') + '"\n';
+            });
+
+            var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'ponto_' + document.getElementById('filter-data').value + '.csv';
+            link.click();
+            showToast('Relatório exportado!', 'success');
+        }
+
+        // ============= SYNC STATUS =============
+        function updateSyncStatus(online, count) {
+            var statusEl = document.getElementById('sync-status');
+            var dotEl = document.getElementById('sync-dot');
+            var textEl = document.getElementById('sync-text');
+            if (!statusEl || !dotEl || !textEl) return;
+            if (online) {
+                statusEl.className = 'sync-status online';
+                dotEl.className = 'sync-dot online';
+                textEl.textContent = count !== undefined ? (count + ' marcações') : 'Conectado';
+            } else {
+                statusEl.className = 'sync-status offline';
+                dotEl.className = 'sync-dot offline';
+                textEl.textContent = 'Erro de conexão';
+            }
+        }
+
+        // ============= AUTO REFRESH (60s) =============
+        function startAutoRefresh() {
+            if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+            autoRefreshTimer = setInterval(function() {
+                if (document.getElementById('tab-registros').classList.contains('active')) {
+                    carregarRegistrosDia();
+                }
+            }, 60000);
+        }
+
+        // ============= MODAL / TOAST / TABS =============
+        function fecharModal(id) {
+            document.getElementById(id).classList.remove('active');
+            document.body.classList.remove('modal-open');
+            document.title = 'Aluforce: Gestão do Ponto';
+        }
+
+        function showToast(msg, type) {
+            var toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            toast.className = 'toast show ' + (type || '');
+            setTimeout(function() { toast.classList.remove('show'); }, 3000);
+        }
+
+        document.querySelectorAll('.tab-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+                document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // ============= RHID CLOUD SYNC =============
+        async function sincronizarRhid() {
+            var btn = document.getElementById('btn-sync-rhid');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sincronizando...';
+
+            try {
+                var today = new Date().toISOString().split('T')[0];
+                var resp = await fetchWithCsrf('/api/rh/controlid/rhid/sync', {
+                    method: 'POST',
+                    body: JSON.stringify({ dateStart: today, dateEnd: today })
+                });
+                var result = await resp.json();
+
+                if (result.success) {
+                    var msg = result.summary.success + ' registros importados';
+                    if (result.summary.duplicates > 0) msg += ', ' + result.summary.duplicates + ' duplicados ignorados';
+                    showToast(msg, 'success');
+                    updateSyncStatus(true, result.summary.total);
+                    carregarRegistrosDia(true);
+                    carregarStats();
+                } else {
+                    showToast('Erro: ' + result.message, 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao sincronizar RHiD:', e);
+                showToast('Erro ao conectar com RHiD Cloud', 'error');
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Sincronizar RHiD';
+        }
+
+        // ============= HISTÓRICO DE ALTERAÇÕES =============
+        async function carregarAlteracoes() {
+            var funcId = document.getElementById('filter-func-alteracoes').value;
+            var acao = document.getElementById('filter-acao-alteracoes').value;
+            var inicio = document.getElementById('filter-alteracoes-inicio').value;
+            var fim = document.getElementById('filter-alteracoes-fim').value;
+
+            try {
+                var params = [];
+                if (funcId) params.push('funcionario_id=' + funcId);
+                if (acao) params.push('acao=' + acao);
+                if (inicio) params.push('data_inicio=' + inicio);
+                if (fim) params.push('data_fim=' + fim);
+                params.push('limit=100');
+
+                var url = '/api/rh/ponto/alteracoes' + (params.length ? '?' + params.join('&') : '');
+                var resp = await fetch(url, { headers: authHeaders() });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var data = await resp.json();
+                var alteracoes = data.alteracoes || [];
+
+                document.getElementById('total-alteracoes').textContent = alteracoes.length + ' registros';
+                var timeline = document.getElementById('audit-timeline');
+                var empty = document.getElementById('empty-alteracoes');
+
+                if (alteracoes.length === 0) {
+                    timeline.innerHTML = '';
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+
+                // Group by marcacao_id + criado_em (same second = same action)
+                var grouped = {};
+                alteracoes.forEach(function(a) {
+                    var key = a.marcacao_id + '_' + (a.criado_em || '').substring(0, 19);
+                    if (!grouped[key]) {
+                        grouped[key] = {
+                            marcacao_id: a.marcacao_id,
+                            funcionario_id: a.funcionario_id,
+                            acao: a.acao,
+                            motivo: a.motivo,
+                            usuario_id: a.usuario_id,
+                            ip_address: a.ip_address,
+                            criado_em: a.criado_em,
+                            changes: []
+                        };
+                    }
+                    if (a.campo_alterado) {
+                        grouped[key].changes.push({
+                            campo: a.campo_alterado,
+                            anterior: a.valor_anterior,
+                            novo: a.valor_novo
+                        });
+                    }
+                });
+
+                var items = Object.values(grouped).sort(function(a, b) {
+                    return new Date(b.criado_em) - new Date(a.criado_em);
+                });
+
+                timeline.innerHTML = items.map(function(item) {
+                    var iconClass = item.acao || 'edicao';
+                    var iconMap = { criacao: 'fa-plus-circle', edicao: 'fa-edit', exclusao: 'fa-trash-alt' };
+                    var acaoMap = { criacao: 'Criação', edicao: 'Edição', exclusao: 'Exclusão' };
+                    var icon = iconMap[iconClass] || 'fa-edit';
+                    var funcName = getFuncName(item.funcionario_id);
+                    var dtStr = item.criado_em ? new Date(item.criado_em).toLocaleString('pt-BR') : '-';
+
+                    var changesHtml = '';
+                    if (item.changes.length > 0) {
+                        changesHtml = '<div style="margin-top:6px">' + item.changes.map(function(c) {
+                            var campoLabel = { hora: 'Horário', tipo: 'Tipo', observacao: 'Observação', data: 'Data', funcionario_id: 'Funcionário' };
+                            return '<div class="audit-change">' +
+                                '<strong>' + (campoLabel[c.campo] || c.campo) + ':</strong> ' +
+                                '<span class="old">' + (c.anterior || 'vazio') + '</span>' +
+                                '<span class="arrow">→</span>' +
+                                '<span class="new">' + (c.novo || 'vazio') + '</span>' +
+                            '</div>';
+                        }).join('') + '</div>';
+                    }
+
+                    var motivoHtml = item.motivo ? '<div class="audit-motivo"><i class="fas fa-quote-left" style="margin-right:6px;font-size:10px"></i>' + item.motivo + '</div>' : '';
+                    var userHtml = '<div class="audit-user"><i class="fas fa-user-shield" style="margin-right:4px"></i>Usuário #' + (item.usuario_id || '?') + (item.ip_address ? ' — IP: ' + item.ip_address : '') + '</div>';
+
+                    return '<div class="audit-item">' +
+                        '<div class="audit-icon ' + iconClass + '"><i class="fas ' + icon + '"></i></div>' +
+                        '<div class="audit-body">' +
+                            '<div class="audit-header">' +
+                                '<span class="audit-action">' + (acaoMap[item.acao] || item.acao) + ' — Marcação #' + item.marcacao_id + ' (' + funcName + ')</span>' +
+                                '<span class="audit-time">' + dtStr + '</span>' +
+                            '</div>' +
+                            changesHtml +
+                            motivoHtml +
+                            userHtml +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+
+                showToast(items.length + ' alterações encontradas', 'success');
+            } catch (e) {
+                console.error('Erro alterações:', e);
+                showToast('Erro ao carregar alterações: ' + e.message, 'error');
+            }
+        }
+
+        // ============= INIT =============
+        document.addEventListener('DOMContentLoaded', async function() {
+            var today = new Date().toISOString().split('T')[0];
+            document.getElementById('filter-data').value = today;
+            document.getElementById('filter-inicio').value = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+            document.getElementById('filter-fim').value = today;
+            document.getElementById('filter-alteracoes-inicio').value = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+            document.getElementById('filter-alteracoes-fim').value = today;
+            document.getElementById('filter-ano-resumo').value = new Date().getFullYear();
+
+            var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            var mesSelect = document.getElementById('filter-mes-resumo');
+            meses.forEach(function(m, i) {
+                var opt = document.createElement('option');
+                opt.value = i + 1;
+                opt.textContent = m;
+                if (i === new Date().getMonth()) opt.selected = true;
+                mesSelect.appendChild(opt);
+            });
+
+            document.getElementById('data-atual').textContent = formatDate(today);
+
+            await carregarUsuario();
+            await carregarFuncionarios();
+            carregarRegistrosDia();
+            carregarStats();
+            startAutoRefresh();
+        });
+    </script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

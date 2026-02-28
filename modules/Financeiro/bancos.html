@@ -1,0 +1,3619 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Bancos</title>
+
+    <!-- Autenticacao -->
+    <script src="/js/auth-unified.js?v=20260211" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Financeiro Design System -->
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+
+    <!-- XLSX Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+    :root {
+        --primary-orange: #225cfa;
+        --primary-dark: #1a1a2e;
+        --bg-gray: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+    }
+
+        /* Botão Importar */
+        .btn-importar {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+        .btn-importar:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+        }
+        .btn-importar i {
+            font-size: 16px;
+        }
+
+        /* Botão Nova Movimentação - Azul Financeiro */
+        .btn-movimentacao {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+        }
+        .btn-movimentacao:hover {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+        }
+        .btn-movimentacao:active {
+            transform: translateY(0);
+        }
+
+        /* Botão Transferência - Indigo */
+        .btn-transferencia {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+        }
+        .btn-transferencia:hover {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+        }
+        .btn-transferencia:active {
+            transform: translateY(0);
+        }
+
+        /* Botão Novo Banco - Teal Gradiente */
+        .btn-novo-banco {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+        }
+        .btn-novo-banco:hover {
+            background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(15, 118, 110, 0.4);
+        }
+        .btn-novo-banco:active {
+            transform: translateY(0);
+        }
+/* SIDEBAR */
+.sidebar-logo i { color: white; font-size: 18px; }
+.sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-blue); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN */
+/* HEADER */
+.header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+.header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; position: relative; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .header-btn .notification-badge { position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; background: #ef4444; border-radius: 10px; color: white; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+        .notification-container { position: relative; }
+        .notification-panel { position: absolute; top: calc(100% + 12px); right: 0; width: 380px; max-height: 500px; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 10000; display: none; overflow: hidden; }
+        .notification-panel.active { display: block; }
+        .notification-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(135deg, #84cc16, #65a30d); color: white; }
+        .notification-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
+        .notification-list { max-height: 340px; overflow-y: auto; }
+        .notification-item { display: flex; gap: 12px; padding: 14px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: all 0.2s; }
+        .notification-item:hover { background: #f8f8f8; }
+        .notification-item.unread { background: #f0fdf4; border-left: 3px solid #84cc16; }
+        .notification-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .notification-icon.success { background: #dcfce7; color: #22c55e; }
+        .notification-icon.warning { background: #fef3c7; color: #f59e0b; }
+        .notification-icon.error { background: #fee2e2; color: #ef4444; }
+        .notification-icon.info { background: #dbeafe; color: #3b82f6; }
+        .notification-content { flex: 1; }
+        .notification-title { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 4px; }
+        .notification-message { font-size: 12px; color: #666; }
+        .notification-time { font-size: 11px; color: #999; margin-top: 6px; }
+        .notification-footer { padding: 12px 20px; background: #f8f8f8; text-align: center; border-top: 1px solid #e5e5e5; }
+        .notification-footer a { color: #84cc16; text-decoration: none; font-size: 13px; font-weight: 500; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-avatar .user-initial { display: block; }
+        .user-avatar img.visible + .user-initial { display: none; }
+
+        /* PAGE */
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title-section h1 { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+        .page-title-section h1 i { color: var(--primary-blue); }
+        .page-title-section p { font-size: 14px; color: var(--text-secondary); }
+        .page-actions { display: flex; gap: 12px; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--primary-blue); color: white; }
+        .btn-primary:hover { background: #65a30d; }
+        .btn-secondary { background: white; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+        /* KPI CARDS */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .kpi-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .kpi-card.highlight { background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%); color: white; }
+        .kpi-card.highlight .kpi-content h3 { color: rgba(255,255,255,0.8); }
+        .kpi-card.highlight .kpi-icon { background: rgba(255,255,255,0.2); color: white; }
+        .kpi-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .kpi-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+        .kpi-icon.blue { background: rgba(59,130,246,0.1); color: var(--info); }
+        .kpi-icon.green { background: rgba(34,197,94,0.1); color: var(--success); }
+        .kpi-icon.orange { background: rgba(245,158,11,0.1); color: var(--warning); }
+        .kpi-icon.purple { background: rgba(139,92,246,0.1); color: #8b5cf6; }
+        .kpi-content h3 { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+        .kpi-value { font-size: 28px; font-weight: 700; }
+
+        /* BANCOS GRID - Logos dos Bancos */
+        .banco-logo img, .banco-logo svg { width: 100%; height: 100%; border-radius: 12px; object-fit: cover; }
+        .banco-logo.bb { background: linear-gradient(135deg, #fece00, #003882); }
+        .banco-logo.itau { background: linear-gradient(135deg, #ec7000, #d45f00); }
+        .banco-logo.bradesco { background: linear-gradient(135deg, #cc092f, #9e1030); }
+        .banco-logo.santander { background: linear-gradient(135deg, #ec0000, #b50000); }
+        .banco-logo.caixa { background: linear-gradient(135deg, #005ca9, #003d6b); }
+        .banco-logo.nubank { background: linear-gradient(135deg, #820ad1, #6b08a8); }
+        .banco-logo.inter { background: linear-gradient(135deg, #ff7a00, #d46500); }
+        .banco-logo.sicoob { background: linear-gradient(135deg, #003641, #005566); }
+        .banco-logo.fitbank { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+        .banco-logo.finaxis { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+        .banco-logo.socapa { background: linear-gradient(135deg, #f97316, #ea580c); }
+        .banco-logo.default { background: linear-gradient(135deg, #64748b, #475569); }
+        .banco-detail span.entrada { color: var(--success); }
+        .banco-detail span.saida { color: var(--danger); }
+
+        /* CARD */
+        .card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+        .card-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .card-header h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .card-header h3 i { color: var(--primary-blue); }
+        .card-body { padding: 24px; }
+
+        /* TABLE */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th { background: var(--bg-gray); padding: 14px 20px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
+        .data-table td { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        .data-table tr:hover { background: var(--bg-gray); }
+        .tipo-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .tipo-badge.entrada { background: rgba(34,197,94,0.1); color: var(--success); }
+        .tipo-badge.saida { background: rgba(239,68,68,0.1); color: var(--danger); }
+        .tipo-badge.transferencia { background: rgba(59,130,246,0.1); color: var(--info); }
+        .valor-cell { font-weight: 600; }
+        .valor-cell.positivo { color: var(--success); }
+        .valor-cell.negativo { color: var(--danger); }
+
+        /* TOAST NOTIFICATION SYSTEM */
+        .toast-container {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 999999;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
+        }
+        .toast {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 18px 22px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.1);
+            min-width: 360px;
+            max-width: 450px;
+            pointer-events: auto;
+            transform: translateX(120%);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-left: 4px solid transparent;
+        }
+        .toast.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        .toast.hiding {
+            transform: translateX(120%);
+            opacity: 0;
+        }
+        .toast-icon {
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .toast.success { border-left-color: #22c55e; }
+        .toast.success .toast-icon { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #16a34a; }
+        .toast.error { border-left-color: #ef4444; }
+        .toast.error .toast-icon { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #dc2626; }
+        .toast.warning { border-left-color: #f59e0b; }
+        .toast.warning .toast-icon { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #d97706; }
+        .toast.info { border-left-color: #3b82f6; }
+        .toast.info .toast-icon { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #2563eb; }
+        .toast-content { flex: 1; }
+        .toast-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        .toast-message {
+            font-size: 13px;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        .toast-close {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: #f1f5f9;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94a3b8;
+            transition: all 0.2s;
+            margin-left: 8px;
+        }
+        .toast-close:hover {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        .toast-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: currentColor;
+            opacity: 0.3;
+            border-radius: 0 0 0 16px;
+            animation: toastProgress 4s linear forwards;
+        }
+        @keyframes toastProgress {
+            from { width: 100%; }
+            to { width: 0%; }
+        }
+
+        /* MODAL SAAS EMPRESARIAL */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .modal-overlay.active { display: flex !important; }
+        
+        /* MODAL PADRÍO - Corrigido para classes com encoding */
+        .modal-overlay-padrão { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+        .modal-overlay-padrão.active { display: flex !important; }
+        .modal-padrão { display: flex !important; flex-direction: column !important; background: white !important; border-radius: 20px !important; width: 100% !important; max-width: 720px !important; min-height: 580px !important; max-height: 90vh !important; overflow: hidden !important; box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15) !important; animation: modalFadeIn 0.25s ease-out !important; position: relative !important; margin: 16px !important; }
+        .modal-padrão.modal-extrato-lg { max-width: 900px !important; }
+        .modal-header-padrão { background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%); padding: 0; color: white; position: relative; overflow: hidden; border-bottom: none; flex-shrink: 0; }
+        .modal-header-content-padrão { display: flex; align-items: center; gap: 16px; padding: 24px 28px; position: relative; z-index: 1; }
+        .modal-header-icon-padrão { width: 52px; height: 52px; min-width: 52px; background: rgba(255,255,255,0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+        .modal-header-icon-padrão i { color: white; font-size: 22px; }
+        .modal-header-text-padrão { flex: 1; }
+        .modal-header-text-padrão h2, .modal-header-text h2 { margin: 0; font-size: 20px; font-weight: 700; color: white; }
+        .modal-header-text-padrão p, .modal-header-text p { margin: 4px 0 0; font-size: 14px; color: rgba(255,255,255,0.85); }
+        .modal-close-padrão { width: 40px; height: 40px; min-width: 40px; border: none; background: rgba(255,255,255,0.15); border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; margin-left: auto; }
+        .modal-close-padrão:hover { background: rgba(255,255,255,0.25); transform: rotate(90deg); }
+        .modal-close-padrão i { color: white; font-size: 16px; }
+        .modal-progress-padrão { display: flex; gap: 8px; padding: 16px 28px; background: rgba(0,0,0,0.1); }
+        .modal-step-padrão { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: rgba(255,255,255,0.1); border-radius: 10px; transition: all 0.2s; }
+        .modal-step-padrão.active { background: rgba(255,255,255,0.25); }
+        .modal-step-number-padrão { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: white; }
+        .modal-step-padrão.active .modal-step-number-padrão { background: white; color: #65a30d; }
+        .modal-step-padrão span { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); }
+        .modal-body-padrão { padding: 28px; background: #f8fafc; overflow-y: auto; flex: 1; min-height: 0; }
+        .modal-footer-padrão { padding: 20px 28px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; background: #ffffff; flex-shrink: 0; }
+        .form-section-padrão { background: white; border-radius: 16px; padding: 24px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .form-section-padrão:last-child { margin-bottom: 0; }
+        .form-section-title-padrão { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9; }
+        .form-section-title-padrão i { width: 40px; height: 40px; background: linear-gradient(135deg, #84cc16, #65a30d); color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .form-section-title-padrão span { font-size: 15px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .section-badge-padrão { margin-left: auto; font-size: 11px; padding: 5px 12px; border-radius: 20px; font-weight: 600; background: #fee2e2; color: #dc2626; }
+        .form-grid-padrão { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .form-group-padrão { margin-bottom: 16px; }
+        .form-group-padrão:last-child { margin-bottom: 0; }
+        .form-group-padrão label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+        .form-group-padrão label .required { color: #dc2626; }
+        .form-group-padrão input, .form-group-padrão select, .form-group-padrão textarea { width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; font-family: inherit; transition: all 0.2s; background: #ffffff; }
+        .form-group-padrão input:focus, .form-group-padrão select:focus, .form-group-padrão textarea:focus { outline: none; border-color: #84cc16; box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15); }
+        .field-hint { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9ca3af; margin-top: 6px; }
+        .field-hint i { font-size: 11px; }
+        .valor-destaque-padrão { display: flex; align-items: center; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #86efac; border-radius: 12px; padding: 4px 16px; }
+        .valor-destaque-padrão .currency-symbol { font-size: 18px; font-weight: 700; color: #22c55e; margin-right: 8px; }
+        .valor-destaque-padrão input { border: none !important; background: transparent !important; font-size: 24px !important; font-weight: 700 !important; color: #166534 !important; padding: 12px 0 !important; box-shadow: none !important; }
+        .valor-destaque-padrão input:focus { box-shadow: none !important; }
+        .btn-padrao-ghost, .btn-padrão-ghost { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid #e5e7eb; background: #ffffff; color: #6b7280; }
+        .btn-padrao-ghost:hover, .btn-padrão-ghost:hover { background: #f3f4f6; }
+        .btn-padrao-primary, .btn-padrão-primary { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%); color: white; box-shadow: 0 4px 14px rgba(132, 204, 22, 0.4); }
+        .btn-padrao-primary:hover, .btn-padrão-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(132, 204, 22, 0.5); }
+        .modal-footer-left-padrão { display: flex; align-items: center; }
+        .modal-footer-left-padrão .footer-info { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9ca3af; }
+        .modal-footer-left-padrão .footer-info i { color: #84cc16; }
+        .modal-footer-right-padrão { display: flex; gap: 12px; margin-left: auto; }
+        .modal { display: flex !important; flex-direction: column !important; background: white !important; border-radius: 24px !important; width: 100% !important; max-width: 600px !important; max-height: 90vh !important; overflow: hidden !important; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25) !important; animation: modalFadeIn 0.25s ease-out !important; position: relative !important; inset: auto !important; height: auto !important; margin: 16px !important; }
+        @keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95) translateY(-10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .modal-header-saas { background: #ffffff; padding: 28px 32px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+        .modal-header-saas .header-left { display: flex; align-items: center; gap: 16px; flex: 1; }
+        .modal-header-saas .header-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+        .modal-header-saas .header-icon i { color: white; font-size: 22px; }
+        .modal-header-saas h2 { margin: 0; font-size: 20px; font-weight: 700; color: #111827; }
+        .modal-header-saas .subtitle { font-size: 14px; color: #6b7280; margin-top: 2px; }
+        .modal-close-saas { width: 44px; height: 44px; min-width: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .modal-close-saas:hover { background: #e5e7eb; }
+        .modal-close-saas i { color: #6b7280; font-size: 18px; }
+        .modal-body-saas { padding: 28px 32px; overflow-y: auto; max-height: calc(90vh - 200px); background: #f9fafb; }
+        .modal-footer-saas { padding: 24px 32px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 14px; background: #ffffff; }
+        .btn-saas { padding: 14px 28px; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 10px; }
+        .btn-saas-ghost { border: 1px solid #e5e7eb; background: #ffffff; color: #6b7280; }
+        .btn-saas-ghost:hover { background: #f3f4f6; }
+        .btn-saas-primary { border: none; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4); }
+        .btn-saas-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5); }
+        .btn-saas-success { border: none; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; box-shadow: 0 4px 14px rgba(34, 197, 94, 0.4); }
+        
+        /* FORM SAAS */
+        .form-group-saas { margin-bottom: 20px; }
+        .form-group-saas label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px; }
+        .form-group-saas label i { color: #9ca3af; }
+        .form-group-saas input, .form-group-saas select, .form-group-saas textarea { width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; font-family: inherit; transition: all 0.2s; box-sizing: border-box; }
+        .form-group-saas input:focus, .form-group-saas select:focus, .form-group-saas textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .form-card-saas { background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px; margin-bottom: 20px; }
+        .form-grid-saas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* MODAL ANTIGO - COMPATIBILIDADE */
+        .modal-header { padding: 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+        .modal-header h2 i { color: var(--primary-blue); }
+        .modal-close { width: 36px; height: 36px; border: none; background: var(--bg-gray); border-radius: 10px; cursor: pointer; font-size: 18px; color: var(--text-secondary); }
+        .modal-body { padding: 24px; overflow-y: auto; max-height: calc(90vh - 160px); }
+        .modal-footer { padding: 20px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* FORM */
+        .form-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group.full { grid-column: span 2; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; font-family: inherit; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(132,204,22,0.1); }
+
+        /* SEÇÃO TÍTULO INSTITUCIONAL SAAS */
+        .page-section-header {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .section-title-group h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 0 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .section-title-group h2 i {
+            color: #84cc16;
+            font-size: 20px;
+            padding: 10px;
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            border-radius: 12px;
+        }
+        .section-title-group p {
+            font-size: 14px;
+            color: #64748b;
+            margin: 0;
+            padding-left: 52px;
+        }
+
+        /* BANCOS GRID - ESTILO INSTITUCIONAL SAAS */
+        .bancos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        /* BANCO CARD - VISUAL EMPRESARIAL */
+        .banco-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            border: 1px solid #e2e8f0;
+        }
+        .banco-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+            border-color: #84cc16;
+        }
+
+        .banco-header {
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: linear-gradient(135deg, #fafffe 0%, #f8fafc 100%);
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .banco-logo {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .banco-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .banco-info h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin: 0 0 4px 0;
+            color: #1e293b;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .banco-info span {
+            font-size: 13px;
+            color: #64748b;
+            display: block;
+        }
+
+        .banco-status {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .banco-status.ativo {
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+            color: #166534;
+        }
+        .banco-status.inativo {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            color: #991b1b;
+        }
+
+        .banco-body {
+            padding: 24px;
+        }
+
+        .banco-saldo {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 12px;
+            text-align: center;
+        }
+        .banco-saldo-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .banco-saldo-valor {
+            font-size: 28px;
+            font-weight: 800;
+        }
+        .banco-saldo-valor.positivo {
+            color: #1e293b;
+        }
+        .banco-saldo-valor.negativo {
+            color: #dc2626;
+        }
+
+        .banco-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .banco-detail {
+            background: #f8fafc;
+            padding: 14px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+        .banco-detail label {
+            font-size: 11px;
+            color: #64748b;
+            display: block;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .banco-detail span {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .banco-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .banco-actions .btn {
+            flex: 1;
+            justify-content: center;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .banco-actions .btn-secondary {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+        }
+        .banco-actions .btn-secondary:hover {
+            background: #f1f5f9;
+            border-color: #84cc16;
+            color: #1e293b;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 1400px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 900px) { .bancos-grid { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } }
+        @media (max-width: 768px) { .kpi-grid { grid-template-columns: 1fr; } .page-section-header { padding: 20px; } .section-title-group p { padding-left: 0; } }
+
+        /* -------------------------------------------------------------------------------
+           ESTILOS PROFISSIONAIS DOS MODAIS - SAAS EMPRESARIAL INSTITUCIONAL
+           ------------------------------------------------------------------------------- */
+        
+        /* MODAL PROFISSIONAL - BASE */
+        .modal-profissional {
+            display: flex !important;
+            flex-direction: column !important;
+            max-width: 700px !important;
+            border-radius: 20px !important;
+            overflow: hidden !important;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15) !important;
+        }
+        .modal-extrato-lg {
+            max-width: 900px !important;
+        }
+        
+        /* HEADER PROFISSIONAL - VARIANTES DE COR (Verde Lima) */
+        .modal-header-pro-blue,
+        .modal-header-pro-purple,
+        .modal-header-pro-green {
+            padding: 0 !important;
+            color: white;
+            position: relative;
+            overflow: hidden;
+            border-bottom: none !important;
+            flex-shrink: 0;
+        }
+        .modal-header-pro-blue {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 50%, #4d7c0f 100%);
+            box-shadow: 0 8px 32px rgba(132, 204, 22, 0.35);
+        }
+        .modal-header-pro-purple {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 50%, #4d7c0f 100%);
+            box-shadow: 0 8px 32px rgba(132, 204, 22, 0.35);
+        }
+        .modal-header-pro-green {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 50%, #4d7c0f 100%);
+            box-shadow: 0 8px 32px rgba(132, 204, 22, 0.35);
+        }
+        
+        /* Efeitos decorativos do header */
+        .modal-header-pro-blue::before,
+        .modal-header-pro-purple::before,
+        .modal-header-pro-green::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .modal-header-pro-blue::after,
+        .modal-header-pro-purple::after,
+        .modal-header-pro-green::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        }
+        
+        /* Header Content */
+        .modal-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 28px;
+            position: relative;
+            z-index: 1;
+        }
+        .modal-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .modal-header-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .modal-header-icon i {
+            font-size: 24px;
+            color: white;
+        }
+        .modal-header-text h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .modal-header-text p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin: 4px 0 0 0;
+        }
+        
+        /* Boto Fechar Profissional */
+        .modal-close-pro {
+            width: 44px;
+            height: 44px;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            color: white;
+        }
+        .modal-close-pro:hover {
+            background: rgba(255,255,255,0.25);
+            transform: scale(1.05);
+        }
+        .modal-close-pro i {
+            font-size: 18px;
+        }
+        
+        /* PROGRESS STEPS - TABS */
+        .modal-progress {
+            display: flex;
+            padding: 0 28px 20px 28px;
+            gap: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        .modal-progress-purple .modal-step-pro.active .modal-step-number {
+            background: white;
+            color: #65a30d;
+        }
+        .modal-progress-green .modal-step-pro.active .modal-step-number {
+            background: white;
+            color: #65a30d;
+        }
+        .modal-step-pro {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .modal-step-pro:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .modal-step-pro.active {
+            background: rgba(255,255,255,0.25);
+        }
+        .modal-step-number {
+            width: 28px;
+            height: 28px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        .modal-step-pro.active .modal-step-number {
+            background: white;
+            color: #65a30d;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+        .modal-step-pro span {
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+        .modal-step-pro.active span {
+            opacity: 1;
+            font-weight: 600;
+        }
+        
+        /* MODAL BODY PROFISSIONAL */
+        .modal-body-pro {
+            padding: 28px !important;
+            background: #f8fafc !important;
+            overflow-y: auto !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+        }
+        .modal-body-pro::-webkit-scrollbar {
+            width: 8px;
+        }
+        .modal-body-pro::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        .modal-body-pro::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        .modal-body-pro::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        
+        /* FORM SECTIONS PROFISSIONAIS */
+        .form-section-pro {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: all 0.2s ease;
+        }
+        .form-section-pro:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .form-section-pro:last-child {
+            margin-bottom: 0;
+        }
+        .form-section-pro-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+        .form-section-pro-title i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #84cc16, #65a30d);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 4px 10px rgba(132, 204, 22, 0.25);
+        }
+        .form-section-pro-title span {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .section-badge {
+            margin-left: auto;
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .section-badge-blue {
+            background: #ecfccb;
+            color: #4d7c0f;
+        }
+        .section-badge-green {
+            background: #ecfccb;
+            color: #4d7c0f;
+        }
+        .section-badge-purple {
+            background: #ecfccb;
+            color: #4d7c0f;
+        }
+        
+        /* FORM GRID */
+        .form-grid-pro {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 600px) {
+            .form-grid-pro {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* FORM GROUP PROFISSIONAL */
+        .form-group-pro {
+            margin-bottom: 0;
+        }
+        .form-group-pro label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+        .form-group-pro label i {
+            color: #9ca3af;
+            font-size: 13px;
+            width: 16px;
+            text-align: center;
+        }
+        .form-group-pro label .required {
+            color: #ef4444;
+            margin-left: 2px;
+            font-weight: 700;
+        }
+        .field-hint {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .form-group-pro input,
+        .form-group-pro select,
+        .form-group-pro textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.25s;
+            background: #fafbfc;
+            color: #1e293b;
+        }
+        .form-group-pro input:focus,
+        .form-group-pro select:focus,
+        .form-group-pro textarea:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15);
+            background: white;
+        }
+        .form-group-pro input:valid:not(:placeholder-shown) {
+            border-color: #bef264;
+            background: #f7fee7;
+        }
+        
+        /* VALOR DESTAQUE - VARIANTES (Verde Lima) */
+        .valor-destaque-pro-blue,
+        .valor-destaque-pro-purple,
+        .valor-destaque-pro-green {
+            position: relative;
+            border-radius: 12px;
+            padding: 4px;
+            border: 2px solid;
+            transition: all 0.3s ease;
+        }
+        .valor-destaque-pro-blue {
+            background: linear-gradient(135deg, #f7fee7 0%, #ecfccb 100%);
+            border-color: #bef264;
+        }
+        .valor-destaque-pro-purple {
+            background: linear-gradient(135deg, #f7fee7 0%, #ecfccb 100%);
+            border-color: #bef264;
+        }
+        .valor-destaque-pro-green {
+            background: linear-gradient(135deg, #f7fee7 0%, #ecfccb 100%);
+            border-color: #bef264;
+        }
+        .valor-destaque-pro-blue:hover { border-color: #84cc16; }
+        .valor-destaque-pro-purple:hover { border-color: #84cc16; }
+        .valor-destaque-pro-green:hover { border-color: #84cc16; }
+        
+        .valor-destaque-pro-blue:focus-within,
+        .valor-destaque-pro-purple:focus-within,
+        .valor-destaque-pro-green:focus-within {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .valor-destaque-pro-blue:focus-within { border-color: #65a30d; box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15); }
+        .valor-destaque-pro-purple:focus-within { border-color: #65a30d; box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15); }
+        .valor-destaque-pro-green:focus-within { border-color: #65a30d; box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15); }
+        
+        .valor-destaque-pro-blue input,
+        .valor-destaque-pro-purple input,
+        .valor-destaque-pro-green input {
+            font-size: 24px;
+            font-weight: 800;
+            padding: 16px 16px 16px 55px;
+            background: transparent;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .valor-destaque-pro-blue input { color: #4d7c0f; }
+        .valor-destaque-pro-purple input { color: #4d7c0f; }
+        .valor-destaque-pro-green input { color: #4d7c0f; }
+        
+        .valor-destaque-pro-blue input:focus,
+        .valor-destaque-pro-purple input:focus,
+        .valor-destaque-pro-green input:focus {
+            outline: none;
+            background: transparent;
+        }
+        .valor-destaque-pro-blue .currency-symbol,
+        .valor-destaque-pro-purple .currency-symbol,
+        .valor-destaque-pro-green .currency-symbol {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            font-weight: 700;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .valor-destaque-pro-blue .currency-symbol { color: #4d7c0f; }
+        .valor-destaque-pro-purple .currency-symbol { color: #4d7c0f; }
+        .valor-destaque-pro-green .currency-symbol { color: #4d7c0f; }
+        
+        /* TRANSFERÊNCIA - VISUAL CARD */
+        .transferencia-visual-card {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 20px;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 16px;
+            border: 2px dashed #e2e8f0;
+        }
+        .transferencia-conta {
+            padding: 20px;
+            border-radius: 14px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .transferencia-conta.origem {
+            border-left: 4px solid #ef4444;
+        }
+        .transferencia-conta.destino {
+            border-left: 4px solid #22c55e;
+        }
+        .conta-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .transferencia-conta.origem .conta-label { color: #ef4444; }
+        .transferencia-conta.destino .conta-label { color: #22c55e; }
+        .select-conta-grande {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 14px;
+            background: #fafbfc;
+        }
+        .transferencia-seta {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .seta-animada {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #84cc16, #65a30d);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(132, 204, 22, 0.35);
+            animation: pulseArrow 2s infinite;
+        }
+        .seta-animada i {
+            color: white;
+            font-size: 20px;
+        }
+        @keyframes pulseArrow {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        /* TIPO TOGGLE - ENTRADA/SADA */
+        .tipo-toggle-container {
+            display: flex;
+            gap: 12px;
+        }
+        .tipo-toggle {
+            flex: 1;
+            cursor: pointer;
+        }
+        .tipo-toggle input {
+            display: none;
+        }
+        .tipo-toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            border: 2px solid #e5e7eb;
+            background: #fafbfc;
+            color: #64748b;
+        }
+        .tipo-toggle.entrada input:checked + .tipo-toggle-btn {
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+            border-color: #22c55e;
+            color: #166534;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+        }
+        .tipo-toggle.saida input:checked + .tipo-toggle-btn {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            border-color: #ef4444;
+            color: #991b1b;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        }
+        .tipo-toggle-btn:hover {
+            border-color: #94a3b8;
+        }
+        
+        /* MODAL FOOTER PROFISSIONAL */
+        .modal-footer-pro {
+            padding: 20px 28px !important;
+            background: white !important;
+            border-top: 1px solid #e5e7eb !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            flex-shrink: 0 !important;
+        }
+        .modal-footer-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .footer-info {
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .footer-info i {
+            color: #84cc16;
+        }
+        .modal-footer-right {
+            display: flex;
+            gap: 12px;
+        }
+        
+        /* BOTES PROFISSIONAIS (Verde Lima) */
+        .btn-pro {
+            padding: 14px 24px !important;
+            border-radius: 12px !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            border: none !important;
+        }
+        .btn-pro-ghost {
+            background: white !important;
+            border: 2px solid #e5e7eb !important;
+            color: #64748b !important;
+        }
+        .btn-pro-ghost:hover {
+            background: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #475569 !important;
+        }
+        .btn-pro-primary-blue {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%) !important;
+            color: white !important;
+            box-shadow: 0 4px 14px rgba(132, 204, 22, 0.4) !important;
+        }
+        .btn-pro-primary-blue:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(132, 204, 22, 0.5) !important;
+        }
+        .btn-pro-primary-purple {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(132, 204, 22, 0.4);
+        }
+        .btn-pro-primary-purple:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(132, 204, 22, 0.5);
+        }
+        .btn-pro-primary-green {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(132, 204, 22, 0.4);
+        }
+        .btn-pro-primary-green:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(132, 204, 22, 0.5);
+        }
+        
+        /* -------------------------------------------------------------------------------
+           MODAL EXTRATO - ESTILOS ESPECFICOS
+           ------------------------------------------------------------------------------- */
+        
+        .modal-header-extrato {
+            padding-bottom: 0 !important;
+        }
+        .modal-header-extrato .modal-header-content {
+            padding-bottom: 24px;
+        }
+        
+        /* Hero Card do Extrato */
+        .extrato-hero {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 50%, #4d7c0f 100%);
+            padding: 0 28px 28px 28px;
+        }
+        .extrato-hero-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 20px 24px;
+        }
+        .extrato-banco-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .extrato-banco-logo {
+            width: 64px;
+            height: 64px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 800;
+            color: white;
+        }
+        .extrato-banco-dados h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            margin: 0 0 4px 0;
+        }
+        .extrato-banco-dados p {
+            font-size: 13px;
+            color: rgba(255,255,255,0.85);
+            margin: 0;
+        }
+        .extrato-saldo-card {
+            text-align: right;
+            background: rgba(255,255,255,0.15);
+            padding: 16px 24px;
+            border-radius: 12px;
+        }
+        .saldo-label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+        }
+        .saldo-valor {
+            font-size: 28px;
+            font-weight: 800;
+            color: white;
+        }
+        
+        /* KPIs do Extrato */
+        .extrato-kpis {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            padding: 20px 28px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .extrato-kpi {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            border-radius: 14px;
+        }
+        .extrato-kpi.entrada { background: linear-gradient(135deg, #f0fdf4, #dcfce7); }
+        .extrato-kpi.saida { background: linear-gradient(135deg, #fef2f2, #fee2e2); }
+        .extrato-kpi.inicial { background: linear-gradient(135deg, #eff6ff, #dbeafe); }
+        
+        .kpi-icon-mini {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        .extrato-kpi.entrada .kpi-icon-mini { background: #22c55e; color: white; }
+        .extrato-kpi.saida .kpi-icon-mini { background: #ef4444; color: white; }
+        .extrato-kpi.inicial .kpi-icon-mini { background: #3b82f6; color: white; }
+        
+        .kpi-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .kpi-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #64748b;
+            letter-spacing: 0.3px;
+            margin-bottom: 2px;
+        }
+        .kpi-valor {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .extrato-kpi.entrada .kpi-valor { color: #166534; }
+        .extrato-kpi.saida .kpi-valor { color: #991b1b; }
+        .extrato-kpi.inicial .kpi-valor { color: #1d4ed8; }
+        
+        /* Detalhes da Conta */
+        .extrato-detalhes-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        @media (max-width: 700px) {
+            .extrato-detalhes-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        .extrato-detalhe {
+            padding: 14px;
+            background: #f8fafc;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .detalhe-label {
+            display: block;
+            font-size: 11px;
+            color: #64748b;
+            margin-bottom: 4px;
+        }
+        .detalhe-valor {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .detalhe-valor.status-ativo { color: #22c55e; }
+        .detalhe-valor.status-inativo { color: #ef4444; }
+        
+        /* Body do Extrato */
+        .extrato-body {
+            max-height: calc(90vh - 400px) !important;
+        }
+        
+        /* Lista de Movimentações do Extrato */
+        .extrato-movimentacoes-list {
+            max-height: 350px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #fafbfc;
+        }
+        .extrato-movimentacoes-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .extrato-movimentacoes-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .extrato-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #94a3b8;
+            gap: 12px;
+        }
+        .extrato-loading i {
+            font-size: 24px;
+            color: #3b82f6;
+        }
+        
+        /* Item de Movimentação */
+        .mov-item {
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            gap: 14px;
+            transition: background 0.2s;
+        }
+        .mov-item:hover {
+            background: white;
+        }
+        .mov-item:last-child {
+            border-bottom: none;
+        }
+        .mov-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        .mov-icon.entrada {
+            background: #dcfce7;
+            color: #22c55e;
+        }
+        .mov-icon.saida {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+        .mov-info {
+            flex: 1;
+        }
+        .mov-descricao {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+        .mov-data {
+            font-size: 12px;
+            color: #64748b;
+        }
+        .mov-valores {
+            text-align: right;
+        }
+        .mov-valor {
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .mov-valor.entrada { color: #22c55e; }
+        .mov-valor.saida { color: #ef4444; }
+        .mov-saldo {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        
+        /* Responsive para Transferência */
+        @media (max-width: 700px) {
+            .transferencia-visual-card {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .transferencia-seta {
+                transform: rotate(90deg);
+            }
+            .extrato-hero-content {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+            .extrato-banco-info {
+                flex-direction: column;
+            }
+            .extrato-saldo-card {
+                width: 100%;
+                text-align: center;
+            }
+            .extrato-kpis {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Header & Sidebar refinado -->
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260215">
+    <!-- Global Header & Sidebar - override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <link rel="stylesheet" href="/css/modal-fix-global.css?v=20260114-fix4">
+    <link rel="stylesheet" href="css/modais-padrao.css?v=20260114-fix3">
+    <!-- CSS Unificado de Modais SaaS -->
+    <link rel="stylesheet" href="css/modais-saas-unified.css?v=20260121">
+
+
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="bancos.html" class="sidebar-btn active" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="plano-contas.html" class="sidebar-btn" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="orcamentos.html" class="sidebar-btn" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn" title="Centros de Custo">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <!-- Botao Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Bancos</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="main-content">
+
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header" style="justify-content: flex-end;">
+                    <div class="page-actions">
+                        <button class="btn-importar" onclick="abrirModalImportar('bancos')"><i class="fas fa-file-excel"></i> Importar XLSX</button>
+                        <button class="btn-movimentacao" onclick="abrirModalMovimento()"><i class="fas fa-plus-circle"></i> Nova Movimentação</button>
+                        <button class="btn-transferencia" onclick="abrirModalTransferencia()"><i class="fas fa-exchange-alt"></i> Transferência</button>
+                        <button class="btn-novo-banco" onclick="abrirModalBanco()"><i class="fas fa-university"></i> Novo Banco</button>
+                    </div>
+                </div>
+
+                <!-- KPIs -->
+                <div class="kpi-grid">
+                    <div class="kpi-card highlight">
+                        <div class="kpi-header">
+                            <div class="kpi-icon"><i class="fas fa-wallet"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Saldo Total</h3>
+                            <div class="kpi-value" id="saldoTotal">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon blue"><i class="fas fa-building-columns"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Contas Ativas</h3>
+                            <div class="kpi-value" id="contasAtivas">0</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon green"><i class="fas fa-arrow-down"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Entradas do Mês</h3>
+                            <div class="kpi-value" id="entradasMes" style="color: var(--success);">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon orange"><i class="fas fa-arrow-up"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Saídas do Mês</h3>
+                            <div class="kpi-value" id="saidasMes" style="color: var(--danger);">R$ 0,00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção Título da Página -->
+                <div class="page-section-header">
+                    <div class="section-title-group">
+                        <h2><i class="fas fa-university"></i> Minhas Contas Bancárias</h2>
+                        <p>Gerencie suas contas bancárias, saldos e movimentações</p>
+                    </div>
+                </div>
+
+                <!-- Bancos Grid -->
+                <div class="bancos-grid" id="bancosGrid"></div>
+
+                <!-- Últimas Movimentações (REMOVIDO CONFORME SOLICITAÇÁO) -->
+                <!-- Seção de movimentações oculta -->
+                <div id="movimentacoesSection" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-history"></i> Últimas Movimentações</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="abrirModalMovimento()"><i class="fas fa-plus"></i> Nova Movimentação</button>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Banco</th>
+                                    <th>Descrição</th>
+                                    <th>Tipo</th>
+                                    <th>Valor</th>
+                                    <th>Saldo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="movimentacoesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        
+            </div> <!-- /main-content -->
+</main>
+    </div>
+
+    <!-- -------------------------------------------------------------------------------
+         MODAL NOVO/EDITAR BANCO - DESIGN COM ABAS (TABS) ESTILO OMIE
+         ------------------------------------------------------------------------------- -->
+    <div class="modal-overlay-padrão" id="modalBanco" onclick="fecharModal('modalBanco')">
+        <div class="modal-banco-omie" onclick="event.stopPropagation()">
+            <!-- HEADER -->
+            <div class="mbo-header">
+                <div class="mbo-header-left">
+                    <div class="mbo-avatar">
+                        <i class="fas fa-university"></i>
+                    </div>
+                    <h2 class="mbo-titulo" id="modalBancoTitulo">Nova Conta Bancária</h2>
+                </div>
+                <button class="mbo-fechar" type="button" onclick="fecharModal('modalBanco')">
+                    Fechar <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- BODY -->
+            <div class="mbo-body">
+                <form id="formBanco">
+                    <input type="hidden" id="bancoId">
+                    
+                    <!-- CAMPOS PRINCIPAIS -->
+                    <div class="mbo-campos-principais">
+                        <div class="mbo-row">
+                            <div class="mbo-field">
+                                <label>Tipo de Conta Corrente</label>
+                                <select id="tipoConta">
+                                    <option value="corrente">Conta Corrente</option>
+                                    <option value="poupanca">Poupança</option>
+                                    <option value="investimento">Investimento</option>
+                                    <option value="pagamentos">Conta de Pagamentos</option>
+                                </select>
+                            </div>
+                            <div class="mbo-field mbo-field-lg">
+                                <label>Instituição</label>
+                                <select id="bancoCodigo" required>
+                                    <option value="">Selecione a instituição...</option>
+                                    <optgroup label="Bancos Tradicionais">
+                                        <option value="001">001 - Banco do Brasil</option>
+                                        <option value="237">237 - Bradesco</option>
+                                        <option value="341">341 - Itaú Unibanco</option>
+                                        <option value="033">033 - Santander</option>
+                                        <option value="104">104 - Caixa Econômica</option>
+                                    </optgroup>
+                                    <optgroup label="Bancos Digitais">
+                                        <option value="260">260 - Nubank</option>
+                                        <option value="077">077 - Banco Inter</option>
+                                        <option value="336">336 - C6 Bank</option>
+                                    </optgroup>
+                                    <optgroup label="Cooperativas">
+                                        <option value="756">756 - Sicoob</option>
+                                        <option value="748">748 - Sicredi</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mbo-row">
+                            <div class="mbo-field">
+                                <label>Nome da Conta</label>
+                                <input type="text" id="apelido" placeholder="Ex: Conta Principal">
+                            </div>
+                            <div class="mbo-field mbo-field-sm">
+                                <label>Agência</label>
+                                <input type="text" id="agencia" placeholder="0000" maxlength="10">
+                            </div>
+                            <div class="mbo-field mbo-field-md">
+                                <label>Conta Corrente (com dígito)</label>
+                                <input type="text" id="conta" placeholder="00000-0" maxlength="15">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ABAS -->
+                    <div class="mbo-tabs">
+                        <button type="button" class="mbo-tab" data-tab="integracao">
+                            <i class="fas fa-link"></i> Integração com o Banco
+                        </button>
+                        <button type="button" class="mbo-tab" data-tab="boletos">Boletos de Cobrança</button>
+                        <button type="button" class="mbo-tab" data-tab="agencia">Sobre a Agência</button>
+                        <button type="button" class="mbo-tab" data-tab="pagamentos">Pagamentos e CNAB</button>
+                    </div>
+                    
+                    <!-- SLIDER / BARRA DE PROGRESSO (DECORATIVA) -->
+                    <div class="mbo-slider-bar">
+                        <div class="mbo-slider-track">
+                            <div class="mbo-slider-thumb"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- CONTEÚDO DAS ABAS (OUTRAS INFORMAÇÕES - PADRÃO) -->
+                    <div class="mbo-tab-content">
+                        <!-- OUTRAS INFORMAÇÕES (SEMPRE VISÍVEL QUANDO NENHUMA ABA SELECIONADA) -->
+                        <div class="mbo-tab-pane active" id="mbo-tab-default">
+                            <div class="mbo-row">
+                                <div class="mbo-field mbo-field-sm">
+                                    <label>Saldo Inicial</label>
+                                    <input type="text" id="saldoInicial" placeholder="0,00" oninput="formatarMoedaBanco(this)">
+                                </div>
+                                <div class="mbo-field mbo-field-md">
+                                    <label>Data do Saldo Inicial</label>
+                                    <div class="mbo-input-icon">
+                                        <input type="date" id="dataSaldoInicial">
+                                        <i class="fas fa-calendar"></i>
+                                    </div>
+                                </div>
+                                <div class="mbo-field mbo-field-md">
+                                    <label>Valor do Limite de Crédito <i class="fas fa-info-circle mbo-info" title="Limite de crédito disponível"></i></label>
+                                    <input type="text" id="limiteCredito" placeholder="0,00" oninput="formatarMoedaBanco(this)">
+                                </div>
+                                <div class="mbo-field">
+                                    <label>Conta Vinculada <i class="fas fa-info-circle mbo-info" title="Conta principal vinculada"></i></label>
+                                    <select id="contaVinculada">
+                                        <option value="">Nenhuma</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mbo-row">
+                                <div class="mbo-field">
+                                    <label>Categoria</label>
+                                    <select id="categoriaConta">
+                                        <option value="conta_corrente">Conta Corrente</option>
+                                        <option value="garantida">Garantida</option>
+                                        <option value="emprestimo">Empréstimo</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mbo-row mbo-row-toggle">
+                                <label class="mbo-toggle">
+                                    <input type="checkbox" id="naoConsiderarResumo">
+                                    <span class="mbo-toggle-slider"></span>
+                                    <span class="mbo-toggle-text">Não considerar esta conta no "Resumo", no "Fluxo de Caixa" e no "Orçamento de Caixa"</span>
+                                </label>
+                            </div>
+                            <div class="mbo-row">
+                                <div class="mbo-field mbo-field-full">
+                                    <label>Observação</label>
+                                    <textarea id="observacoes" rows="3" placeholder="Anotações sobre esta conta bancária..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- INTEGRAÇÃO COM O BANCO -->
+                        <div class="mbo-tab-pane" id="mbo-tab-integracao">
+                            <div class="mbo-empty">
+                                <p>=\</p>
+                                <p>Ainda não temos suporte para integração bancária automática para este banco.</p>
+                            </div>
+                        </div>
+                        
+                        <!-- BOLETOS DE COBRANÇA -->
+                        <div class="mbo-tab-pane" id="mbo-tab-boletos">
+                            <div class="mbo-empty">
+                                <p>=\(</p>
+                                <p>Ainda não temos suporte para geração de boletos de cobrança.</p>
+                            </div>
+                        </div>
+                        
+                        <!-- SOBRE A AGÊNCIA -->
+                        <div class="mbo-tab-pane" id="mbo-tab-agencia">
+                            <div class="mbo-row">
+                                <div class="mbo-field">
+                                    <label>Gerente da Conta</label>
+                                    <input type="text" id="gerenteConta" placeholder="Nome do gerente">
+                                </div>
+                                <div class="mbo-field">
+                                    <label>E-mail</label>
+                                    <input type="email" id="emailGerente" placeholder="email@banco.com">
+                                </div>
+                                <div class="mbo-field mbo-field-xs">
+                                    <label>DDD</label>
+                                    <input type="text" id="dddAgencia" placeholder="00" maxlength="2">
+                                </div>
+                                <div class="mbo-field mbo-field-sm">
+                                    <label>Telefone</label>
+                                    <input type="text" id="telefoneAgencia" placeholder="0000-0000">
+                                </div>
+                            </div>
+                            <div class="mbo-row">
+                                <div class="mbo-field mbo-field-lg">
+                                    <label>Endereço</label>
+                                    <input type="text" id="enderecoAgencia" placeholder="Rua, Avenida...">
+                                </div>
+                                <div class="mbo-field mbo-field-xs">
+                                    <label>Número</label>
+                                    <input type="text" id="numeroAgencia" placeholder="Nº">
+                                </div>
+                            </div>
+                            <div class="mbo-row">
+                                <div class="mbo-field">
+                                    <label>Bairro</label>
+                                    <input type="text" id="bairroAgencia" placeholder="Bairro">
+                                </div>
+                                <div class="mbo-field">
+                                    <label>Complemento</label>
+                                    <input type="text" id="complementoAgencia" placeholder="Sala, Andar...">
+                                </div>
+                            </div>
+                            <div class="mbo-row">
+                                <div class="mbo-field mbo-field-sm">
+                                    <label>Estado</label>
+                                    <select id="estadoAgencia">
+                                        <option value="">UF</option>
+                                        <option value="AC">AC</option><option value="AL">AL</option><option value="AM">AM</option>
+                                        <option value="AP">AP</option><option value="BA">BA</option><option value="CE">CE</option>
+                                        <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+                                        <option value="MA">MA</option><option value="MG">MG</option><option value="MS">MS</option>
+                                        <option value="MT">MT</option><option value="PA">PA</option><option value="PB">PB</option>
+                                        <option value="PE">PE</option><option value="PI">PI</option><option value="PR">PR</option>
+                                        <option value="RJ">RJ</option><option value="RN">RN</option><option value="RO">RO</option>
+                                        <option value="RR">RR</option><option value="RS">RS</option><option value="SC">SC</option>
+                                        <option value="SE">SE</option><option value="SP">SP</option><option value="TO">TO</option>
+                                    </select>
+                                </div>
+                                <div class="mbo-field">
+                                    <label>Cidade</label>
+                                    <input type="text" id="cidadeAgencia" placeholder="Cidade">
+                                </div>
+                                <div class="mbo-field mbo-field-sm">
+                                    <label>CEP</label>
+                                    <input type="text" id="cepAgencia" placeholder="00000-000">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- PAGAMENTOS E CNAB -->
+                        <div class="mbo-tab-pane" id="mbo-tab-pagamentos">
+                            <div class="mbo-empty">
+                                <p>😕</p>
+                                <p>Ainda não temos suporte para integração bancária de pagamentos.</p>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- FOOTER -->
+            <div class="mbo-footer">
+                <button class="mbo-btn-salvar" type="button" onclick="salvarBanco()">
+                    <i class="fas fa-save"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSS DO MODAL BANCO OMIE -->
+    <style>
+        /* ========== MODAL BANCO OMIE - VERSÃO 2 ========== */
+        .modal-banco-omie {
+            background: #fff;
+            width: 90vw;
+            max-width: 1200px;
+            min-height: 85vh;
+            max-height: 92vh;
+            border-radius: 12px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: mboSlideIn 0.25s ease-out;
+        }
+        @keyframes mboSlideIn {
+            from { opacity: 0; transform: translateY(-20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        /* HEADER */
+        .mbo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 28px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .mbo-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .mbo-avatar {
+            width: 46px;
+            height: 46px;
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #84cc16;
+            font-size: 20px;
+            border: 2px solid #bbf7d0;
+        }
+        .mbo-titulo {
+            font-size: 18px;
+            font-weight: 700;
+            color: #84cc16;
+            margin: 0;
+            letter-spacing: -0.3px;
+        }
+        .mbo-fechar {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        .mbo-fechar:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+            color: #111827;
+            font-weight: 500;
+        }
+        .mbo-fechar:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+            color: #111827;
+        }
+        
+        /* BODY */
+        .mbo-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            background: #fafafa;
+        }
+        
+        /* CAMPOS PRINCIPAIS */
+        .mbo-campos-principais {
+            padding: 28px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        /* ROW E FIELDS */
+        .mbo-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .mbo-row:last-child { margin-bottom: 0; }
+        .mbo-row-toggle { margin-top: 14px; }
+        
+        .mbo-field {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .mbo-field-xs { flex: 0 0 80px; max-width: 80px; }
+        .mbo-field-sm { flex: 0 0 120px; max-width: 120px; }
+        .mbo-field-md { flex: 0 0 180px; max-width: 180px; }
+        .mbo-field-lg { flex: 2; }
+        .mbo-field-full { flex: 1 1 100%; }
+        
+        .mbo-field label {
+            font-size: 13px;
+            color: #374151;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .mbo-field input,
+        .mbo-field select,
+        .mbo-field textarea {
+            padding: 12px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #111827;
+            background: #fff;
+            width: 100%;
+            box-sizing: border-box;
+            transition: all 0.2s;
+            height: 44px;
+        }
+        .mbo-field select {
+            height: 44px;
+        }
+        .mbo-field input::placeholder { color: #9ca3af; }
+        .mbo-field input:focus,
+        .mbo-field select:focus,
+        .mbo-field textarea:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.15);
+            background: #fefffe;
+        }
+        .mbo-field textarea {
+            resize: vertical;
+            min-height: 80px;
+            height: auto;
+        }
+        
+        /* INPUT COM ÍCONE */
+        .mbo-input-icon {
+            position: relative;
+        }
+        .mbo-input-icon input {
+            padding-right: 40px;
+        }
+        .mbo-input-icon i {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        
+        /* INFO ICON */
+        .mbo-info {
+            color: #9ca3af;
+            font-size: 11px;
+            cursor: help;
+            margin-left: 4px;
+        }
+        
+        /* TABS */
+        .mbo-tabs {
+            display: flex;
+            padding: 0 28px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            gap: 6px;
+            overflow-x: auto;
+        }
+        .mbo-tab {
+            padding: 16px 20px;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: -1px;
+        }
+        .mbo-tab:hover {
+            color: #374151;
+            background: #f9fafb;
+            border-radius: 8px 8px 0 0;
+        }
+        .mbo-tab.active {
+            color: #84cc16;
+            border-bottom-color: #84cc16;
+            background: #f0fdf4;
+            border-radius: 8px 8px 0 0;
+        }
+        .mbo-tab i {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        /* SLIDER BAR (DECORATIVO) */
+        .mbo-slider-bar {
+            padding: 16px 28px;
+            background: #fff;
+        }
+        .mbo-slider-track {
+            height: 6px;
+            background: #e5e7eb;
+            border-radius: 3px;
+            position: relative;
+        }
+        .mbo-slider-thumb {
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border: 3px solid #84cc16;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 0;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* TAB CONTENT */
+        .mbo-tab-content {
+            padding: 28px;
+            background: #fff;
+            min-height: 180px;
+        }
+        .mbo-tab-pane {
+            display: none;
+        }
+        .mbo-tab-pane.active {
+            display: block;
+            animation: mboFadeIn 0.2s ease;
+        }
+        @keyframes mboFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* EMPTY STATE */
+        .mbo-empty {
+            text-align: center;
+            padding: 48px 24px;
+            color: #9ca3af;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px dashed #e5e7eb;
+        }
+        .mbo-empty p:first-child {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        .mbo-empty p:last-child {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        /* TOGGLE */
+        .mbo-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+        .mbo-toggle input {
+            display: none;
+        }
+        .mbo-toggle-slider {
+            width: 44px;
+            height: 24px;
+            background: #d1d5db;
+            border-radius: 12px;
+            position: relative;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .mbo-toggle-slider::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+        }
+        .mbo-toggle input:checked + .mbo-toggle-slider {
+            background: #84cc16;
+        }
+        .mbo-toggle input:checked + .mbo-toggle-slider::after {
+            transform: translateX(20px);
+        }
+        .mbo-toggle-text {
+            font-size: 13px;
+            color: #4b5563;
+            line-height: 1.4;
+        }
+        
+        /* FOOTER */
+        .mbo-footer {
+            padding: 20px 28px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            background: linear-gradient(to top, #f3f4f6, #f9fafb);
+            gap: 12px;
+        }
+        .mbo-btn-salvar {
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(132, 204, 22, 0.3);
+        }
+        .mbo-btn-salvar:hover {
+            background: linear-gradient(135deg, #65a30d 0%, #4d7c0f 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.4);
+        }
+        .mbo-btn-salvar i {
+            font-size: 13px;
+        }
+        
+        /* RESPONSIVE */
+        @media (max-width: 760px) {
+            .modal-banco-omie {
+                width: 100%;
+                height: 100vh;
+                max-height: none;
+                min-height: auto;
+                border-radius: 0;
+            }
+            .mbo-header {
+                padding: 16px;
+            }
+            .mbo-campos-principais, .mbo-tab-content {
+                padding: 16px;
+            }
+            .mbo-row {
+                flex-wrap: wrap;
+            }
+            .mbo-field-xs, .mbo-field-sm, .mbo-field-md {
+                flex: 1 1 calc(50% - 8px);
+                max-width: none;
+            }
+            .mbo-tabs {
+                padding: 0 16px;
+            }
+        }
+    </style>
+
+    <!-- Script para controle das abas -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.mbo-tab');
+            const panes = document.querySelectorAll('.mbo-tab-pane');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+                    
+                    // Remove active de todas as abas
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panes.forEach(p => p.classList.remove('active'));
+                    
+                    // Se clicou na mesma aba, volta para default
+                    if (this.classList.contains('was-active')) {
+                        document.getElementById('mbo-tab-default').classList.add('active');
+                        this.classList.remove('was-active');
+                        return;
+                    }
+                    
+                    // Ativa a aba clicada
+                    this.classList.add('active');
+                    document.getElementById('mbo-tab-' + targetTab).classList.add('active');
+                });
+            });
+        });
+    </script>
+
+    <!-- -------------------------------------------------------------------------------
+         MODAL TRANSFERÊNCIA - DESIGN PROFISSIONAL SAAS EMPRESARIAL
+         ------------------------------------------------------------------------------- -->
+    <div class="modal-overlay-padrão" id="modalTransferencia" onclick="fecharModal('modalTransferencia')">
+        <div class="modal-padrão" onclick="event.stopPropagation()">
+            <!-- HEADER PROFISSIONAL COM GRADIENT VERDE LIMA -->
+            <div class="modal-header-padrão">
+                <div class="modal-header-content-padrão">
+                    <div class="modal-header-icon-padrão">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <div class="modal-header-text-padrão">
+                        <h2>Transferência entre Contas</h2>
+                        <p>Movimente valores entre suas contas bancárias</p>
+                    </div>
+                    <button class="modal-close-padrão" type="button" onclick="fecharModal('modalTransferencia')" title="Fechar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <!-- STEPS/PROGRESS -->
+                <div class="modal-progress-padrão">
+                    <div class="modal-step-padrão active" data-step="1">
+                        <div class="modal-step-number-padrão">1</div>
+                        <span>Contas</span>
+                    </div>
+                    <div class="modal-step-padrão" data-step="2">
+                        <div class="modal-step-number-padrão">2</div>
+                        <span>Valor</span>
+                    </div>
+                    <div class="modal-step-padrão" data-step="3">
+                        <div class="modal-step-number-padrão">3</div>
+                        <span>Confirmar</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- BODY -->
+            <div class="modal-body-padrão">
+                <form id="formTransferencia">
+                    <!-- Seção: Seleção de Contas -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-route"></i>
+                            <span>Origem e Destino</span>
+                            <span class="section-badge-padrão">Obrigatório</span>
+                        </div>
+                        
+                        <!-- Card Visual de Transferência -->
+                        <div class="transferencia-visual-card">
+                            <div class="transferencia-conta origem">
+                                <div class="conta-label">
+                                    <i class="fas fa-arrow-right-from-bracket"></i>
+                                    De: Conta de Origem
+                                </div>
+                                <select id="contaOrigem" required class="select-conta-grande"></select>
+                            </div>
+                            <div class="transferencia-seta">
+                                <div class="seta-animada">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                            </div>
+                            <div class="transferencia-conta destino">
+                                <div class="conta-label">
+                                    <i class="fas fa-arrow-right-to-bracket"></i>
+                                    Para: Conta de Destino
+                                </div>
+                                <select id="contaDestino" required class="select-conta-grande"></select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção: Valor e Data -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-dollar-sign"></i>
+                            <span>Detalhes da Transferência</span>
+                        </div>
+                        <div class="form-grid-padrão">
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-money-bill-wave"></i> 
+                                    Valor da Transferência 
+                                    <span class="required">*</span>
+                                </label>
+                                <div class="valor-destaque-padrão">
+                                    <span class="currency-symbol">R$</span>
+                                    <input type="text" id="valorTransferencia" placeholder="0,00" required oninput="formatarMoedaBanco(this)">
+                                </div>
+                            </div>
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-calendar-alt"></i> 
+                                    Data da Transferência 
+                                    <span class="required">*</span>
+                                </label>
+                                <input type="date" id="dataTransferencia" required>
+                            </div>
+                        </div>
+                        <div class="form-group-padrao">
+                            <label>
+                                <i class="fas fa-comment-alt"></i> 
+                                Descrição / Motivo
+                            </label>
+                            <input type="text" id="descricaoTransferencia" placeholder="Ex: Transferência para pagamento de fornecedores...">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- FOOTER PROFISSIONAL -->
+            <div class="modal-footer-padrao">
+                <div class="modal-footer-left-padrao">
+                    <span class="footer-info"><i class="fas fa-lock"></i> Operação segura</span>
+                </div>
+                <div class="modal-footer-right-padrao">
+                    <button class="btn-padrão-ghost" type="button" onclick="fecharModal('modalTransferencia')">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn-padrão-primary" type="button" onclick="realizarTransferencia()">
+                        <i class="fas fa-paper-plane"></i> Transferir
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- -------------------------------------------------------------------------------
+         MODAL NOVA MOVIMENTAÇÃO - DESIGN ESTILO OMIE (IGUAL AO MODAL DE BANCO)
+         ------------------------------------------------------------------------------- -->
+    <div class="modal-overlay-padrão" id="modalMovimento" onclick="fecharModal('modalMovimento')">
+        <div class="modal-banco-omie" onclick="event.stopPropagation()">
+            <!-- HEADER -->
+            <div class="mbo-header">
+                <div class="mbo-header-left">
+                    <div class="mbo-avatar">
+                        <i class="fas fa-plus-circle"></i>
+                    </div>
+                    <h2 class="mbo-titulo">Nova Movimentação</h2>
+                </div>
+                <button class="mbo-fechar" type="button" onclick="fecharModal('modalMovimento')">
+                    Fechar <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- BODY -->
+            <div class="mbo-body">
+                <form id="formMovimento">
+                    <!-- CAMPOS PRINCIPAIS -->
+                    <div class="mbo-campos-principais">
+                        <div class="mbo-row">
+                            <div class="mbo-field mbo-field-lg">
+                                <label>Conta Bancária</label>
+                                <select id="contaMovimento" required>
+                                    <option value="">Selecione a conta...</option>
+                                </select>
+                            </div>
+                            <div class="mbo-field">
+                                <label>Tipo de Movimentação</label>
+                                <select id="tipoMovimento" required>
+                                    <option value="entrada">Entrada</option>
+                                    <option value="saida">Saída</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mbo-row">
+                            <div class="mbo-field mbo-field-sm">
+                                <label>Valor</label>
+                                <input type="text" id="valorMovimento" placeholder="0,00" required oninput="formatarMoedaBanco(this)">
+                            </div>
+                            <div class="mbo-field mbo-field-md">
+                                <label>Data</label>
+                                <div class="mbo-input-icon">
+                                    <input type="date" id="dataMovimento" required>
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                            </div>
+                            <div class="mbo-field">
+                                <label>Categoria</label>
+                                <select id="categoriaMovimento">
+                                    <option value="">Selecione...</option>
+                                    <optgroup label="Receitas">
+                                        <option value="vendas">Vendas</option>
+                                        <option value="servicos">Serviços</option>
+                                        <option value="comissoes">Comissões</option>
+                                        <option value="juros">Juros/Rendimentos</option>
+                                    </optgroup>
+                                    <optgroup label="Despesas">
+                                        <option value="fornecedores">Fornecedores</option>
+                                        <option value="pessoal">Pessoal/RH</option>
+                                        <option value="impostos">Impostos</option>
+                                        <option value="utilidades">Utilidades</option>
+                                        <option value="aluguel">Aluguel</option>
+                                    </optgroup>
+                                    <optgroup label="Outros">
+                                        <option value="transferencia">Transferência</option>
+                                        <option value="outros">Outros</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- SLIDER DECORATIVO -->
+                    <div class="mbo-slider-bar">
+                        <div class="mbo-slider-track">
+                            <div class="mbo-slider-thumb"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- OUTRAS INFORMAÇÕES -->
+                    <div class="mbo-tab-content">
+                        <div class="mbo-tab-pane active">
+                            <div class="mbo-row">
+                                <div class="mbo-field" style="flex: 1;">
+                                    <label>Descrição <span style="color: #ef4444;">*</span></label>
+                                    <input type="text" id="descricaoMovimento" placeholder="Ex: Recebimento de vendas, Pagamento de fornecedor..." required>
+                                </div>
+                            </div>
+                            <div class="mbo-row">
+                                <div class="mbo-field" style="flex: 1;">
+                                    <label>Observações</label>
+                                    <textarea id="observacaoMovimento" rows="3" placeholder="Anotações adicionais sobre esta movimentação..." style="width: 100%; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-family: inherit; font-size: 14px; resize: vertical;"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- FOOTER -->
+            <div class="mbo-footer">
+                <button class="mbo-btn-salvar" type="button" onclick="salvarMovimento()">
+                    <i class="fas fa-save"></i> Registrar Movimentação
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- -------------------------------------------------------------------------------
+         MODAL EXTRATO BANCÁRIO - DESIGN PROFISSIONAL SAAS EMPRESARIAL
+         ------------------------------------------------------------------------------- -->
+    <div class="modal-overlay-padrão" id="modalExtrato" onclick="fecharModal('modalExtrato')">
+        <div class="modal-padrão modal-extrato-lg" onclick="event.stopPropagation()">
+            <!-- HEADER PROFISSIONAL COM GRADIENT VERDE LIMA -->
+            <div class="modal-header-padrão modal-header-extrato">
+                <div class="modal-header-content-padrão">
+                    <div class="modal-header-icon-padrão">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div class="modal-header-text-padrão">
+                        <h2 id="extratoTitulo">Extrato Bancário</h2>
+                        <p>Visualize todas as movimentações da conta</p>
+                    </div>
+                    <button class="modal-close-padrão" type="button" onclick="fecharModal('modalExtrato')" title="Fechar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- HERO CARD DO BANCO -->
+            <div class="extrato-hero" style="background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);">
+                <div class="extrato-hero-content">
+                    <div class="extrato-banco-info">
+                        <div id="extratoBancoLogo" class="extrato-banco-logo">BB</div>
+                        <div class="extrato-banco-dados">
+                            <h3 id="extratoBancoNome">Conta Principal</h3>
+                            <p id="extratoBancoInfo">Ag: 1234 | Cc: 12345-6</p>
+                        </div>
+                    </div>
+                    <div class="extrato-saldo-card">
+                        <span class="saldo-label">Saldo Atual</span>
+                        <span id="extratoSaldo" class="saldo-valor">R$ 0,00</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- KPIs DO BANCO -->
+            <div class="extrato-kpis">
+                <div class="extrato-kpi entrada">
+                    <div class="kpi-icon-mini" style="background: #f0fdf4; color: #22c55e;"><i class="fas fa-arrow-down"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Entradas (Mês)</span>
+                        <span id="extratoEntradas" class="kpi-valor">R$ 0,00</span>
+                    </div>
+                </div>
+                <div class="extrato-kpi saida">
+                    <div class="kpi-icon-mini" style="background: #fef2f2; color: #ef4444;"><i class="fas fa-arrow-up"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Saídas (Mês)</span>
+                        <span id="extratoSaidas" class="kpi-valor">R$ 0,00</span>
+                    </div>
+                </div>
+                <div class="extrato-kpi inicial">
+                    <div class="kpi-icon-mini" style="background: #f7fee7; color: #84cc16;"><i class="fas fa-wallet"></i></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Saldo Inicial</span>
+                        <span id="extratoSaldoInicial" class="kpi-valor">R$ 0,00</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- BODY -->
+            <div class="modal-body-padrão extrato-body">
+                <!-- Informações Detalhadas da Conta -->
+                <div class="form-section-padrão">
+                    <div class="form-section-title-padrão">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Informações da Conta</span>
+                    </div>
+                    <div class="extrato-detalhes-grid">
+                        <div class="extrato-detalhe">
+                            <span class="detalhe-label">Código Banco</span>
+                            <span id="extratoCodigo" class="detalhe-valor">001</span>
+                        </div>
+                        <div class="extrato-detalhe">
+                            <span class="detalhe-label">Tipo de Conta</span>
+                            <span id="extratoTipo" class="detalhe-valor">Corrente</span>
+                        </div>
+                        <div class="extrato-detalhe">
+                            <span class="detalhe-label">Status</span>
+                            <span id="extratoStatus" class="detalhe-valor status-ativo">Ativo</span>
+                        </div>
+                        <div class="extrato-detalhe">
+                            <span class="detalhe-label">Data Cadastro</span>
+                            <span id="extratoCadastro" class="detalhe-valor">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Lista de Movimentações -->
+                <div class="form-section-padrão">
+                    <div class="form-section-title-padrão">
+                        <i class="fas fa-history"></i>
+                        <span>Últimas Movimentações</span>
+                        <span class="section-badge-padrão">Histórico</span>
+                    </div>
+                    <div id="extratoMovimentacoes" class="extrato-movimentacoes-list">
+                        <div class="extrato-loading">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Carregando movimentações...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- FOOTER PROFISSIONAL -->
+            <div class="modal-footer-padrão">
+                <div class="modal-footer-left">
+                    <span class="footer-info"><i class="fas fa-clock" style="color: #84cc16;"></i> Atualizado agora</span>
+                </div>
+                <div class="modal-footer-right">
+                    <button class="btn-padrão-ghost" type="button" onclick="fecharModal('modalExtrato')">
+                        <i class="fas fa-times"></i> Fechar
+                    </button>
+                    <button class="btn-padrão-primary" type="button" id="btnEditarExtrato" onclick="editarDaVisualizacação()">
+                        <i class="fas fa-edit"></i> Editar Conta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dados
+        let bancos = [];
+        let movimentacoes = [];
+        let bancoVisualizando = null;
+
+        // Funo para formatar moeda nos inputs dos modais
+        function formatarMoedaBanco(input) {
+            let valor = input.value.replace(/\D/g, '');
+            valor = (parseFloat(valor) / 100).toFixed(2);
+            valor = valor.replace('.', ',');
+            valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            if (valor === 'NaN' || valor === '0,00') valor = '';
+            input.value = valor;
+        }
+
+        // Funo para atualizar visual do tipo de movimentação
+        function atualizarVisualTipo() {
+            const tipo = document.getElementById('tipoMovimento').value;
+            const container = document.getElementById('valorMovimentoContainer');
+            if (container) {
+                container.classList.remove('valor-destaque-pro-green', 'valor-destaque-pro-red');
+                if (tipo === 'entrada') {
+                    container.style.background = 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)';
+                    container.style.borderColor = '#86efac';
+                } else {
+                    container.style.background = 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)';
+                    container.style.borderColor = '#fca5a5';
+                }
+            }
+        }
+
+        // Logos em SVG Data URI - no dependem de CORS e so leves
+        const bancosLogos = {
+            itau: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="14" fill="#EC7000"/><text x="50" y="42" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="white">Ita</text><text x="50" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="white">Unibanco</text></svg>'),
+            nubank: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="14" fill="#820AD1"/><text x="50" y="60" text-anchor="middle" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="white">Nu</text></svg>')
+        };
+
+        const bancosConfig = {
+            '001': { nome: 'Banco do Brasil', classe: 'bb', sigla: 'BB', logo: null },
+            '237': { nome: 'Bradesco', classe: 'bradesco', sigla: 'BR', logo: null },
+            '341': { nome: 'Itaú', classe: 'itau', sigla: 'Itaú', logo: 'itau' },
+            '033': { nome: 'Santander', classe: 'santander', sigla: 'SA', logo: null },
+            '104': { nome: 'Caixa', classe: 'caixa', sigla: 'CX', logo: null },
+            '260': { nome: 'Nubank', classe: 'nubank', sigla: 'Nu', logo: 'nubank' },
+            '077': { nome: 'Banco Inter', classe: 'inter', sigla: 'IN', logo: null },
+            '756': { nome: 'Sicoob', classe: 'sicoob', sigla: 'SC', logo: null },
+            '422': { nome: 'Safra', classe: 'bb', sigla: 'SF', logo: null },
+            '208': { nome: 'BTG', classe: 'bb', sigla: 'BTG', logo: null },
+            '336': { nome: 'C6 Bank', classe: 'bb', sigla: 'C6', logo: null },
+            '748': { nome: 'Sicredi', classe: 'sicoob', sigla: 'SI', logo: null },
+            'fitbank': { nome: 'FitBank', classe: 'fitbank', sigla: 'FB', logo: null },
+            'finaxis': { nome: 'Finaxis', classe: 'finaxis', sigla: 'FX', logo: null },
+            'socapa': { nome: 'Socapa', classe: 'socapa', sigla: 'SP', logo: null },
+            'default': { nome: 'Conta', classe: 'default', sigla: '$$', logo: null }
+        };
+
+        // ========== TOAST NOTIFICATION SYSTEM ==========
+        function createToastContainer() {
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+            return container;
+        }
+
+        function showToast(type, title, message, duration = 4000) {
+            const container = createToastContainer();
+            
+            const icons = {
+                success: 'fas fa-check-circle',
+                error: 'fas fa-times-circle',
+                warning: 'fas fa-exclamation-triangle',
+                info: 'fas fa-info-circle'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-icon">
+                    <i class="${icons[type] || icons.info}"></i>
+                </div>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="closeToast(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div class="toast-progress" style="color: ${type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : type === 'warning' ? '#f59e0b' : '#3b82f6'}"></div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+            
+            // Auto remove
+            const autoRemove = setTimeout(() => {
+                closeToast(toast.querySelector('.toast-close'));
+            }, duration);
+            
+            toast.dataset.timeout = autoRemove;
+        }
+
+        function closeToast(btn) {
+            const toast = btn.closest ? btn.closest('.toast') : btn.parentElement;
+            if (toast.dataset.timeout) {
+                clearTimeout(parseInt(toast.dataset.timeout));
+            }
+            toast.classList.add('hiding');
+            toast.classList.remove('show');
+            setTimeout(() => {
+                toast.remove();
+            }, 400);
+        }
+        // ========== END TOAST SYSTEM ==========
+
+        // Init
+        document.addEventListener('DOMContentLoaded', async function() {
+            await carregarUsuario();
+            await carregarBancos();
+            await carregarMovimentacoes();
+            document.getElementById('dataTransferencia').valueAsDate = new Date();
+            document.getElementById('dataMovimento').valueAsDate = new Date();
+            
+            // Fechar modal ação clicar no overlay (fora do modal)
+            document.querySelectorAll('.modal-overlay').forEach(overlay => {
+                overlay.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        this.classList.remove('active');
+                        if (this.id === 'modalExtrato') bancoVisualizando = null;
+                    }
+                });
+            });
+        });
+
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    document.getElementById('user-name').textContent = primeiroNome;
+                    document.getElementById('user-initials').textContent = primeiroNome.charAt(0).toUpperCase();
+                    
+                    const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    const foto = document.getElementById('user-photo');
+                    const inicialEl = document.getElementById('user-initials');
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                        foto.src = fotoUrl;
+                        foto.onload = () => { foto.style.display = 'block'; foto.classList.add('visible'); if (inicialEl) inicialEl.style.display = 'none'; };
+                        foto.onerror = () => { foto.style.display = 'none'; if (inicialEl) { inicialEl.textContent = primeiroNome.charAt(0).toUpperCase(); inicialEl.style.display = 'flex'; } };
+                    }
+                }
+            } catch (e) { console.log('Erro ao carregar usuário'); }
+        }
+
+        async function carregarBancos() {
+            try {
+                const response = await fetch('/api/financeiro/bancos', { credentials: 'include' });
+                const data = await response.json();
+                
+                console.log('Dados recebidos da API:', data);
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    bancos = data.map(b => {
+                        // Normalizar campos - API pode retornar da tabela bancos
+                        const nome = b.nome || b.instituicao || 'Conta';
+                        const instituicao = b.instituicao || '';
+                        const tipoConta = b.tipo_conta || b.tipo || 'Conta Corrente';
+                        const codigo = b.codigo || encontrarCodigoBanco(instituicao) || encontrarCodigoBanco(nome);
+                        
+                        return {
+                            id: b.id,
+                            codigo: codigo,
+                            nome: nome,
+                            instituicao: instituicao,
+                            tipo_conta: tipoConta,
+                            agencia: b.agencia || '-',
+                            conta: b.conta_corrente || b.conta || '-',
+                            tipo: tipoConta,
+                            apelido: nome,
+                            saldo: parseFloat(b.saldo_atual || b.saldo || b.saldo_inicial) || 0,
+                            saldo_inicial: parseFloat(b.saldo_inicial) || 0,
+                            status: (b.status === 'ativo' || b.ativo === 1 || b.ativo === true) ? 'ativo' : 'inativo',
+                            entradas: parseFloat(b.entradas_mes || b.entradas) || 0,
+                            saidas: parseFloat(b.saidas_mes || b.saidas) || 0,
+                            limite: parseFloat(b.limite_credito || b.limite) || 0,
+                            considera_fluxo: b.considera_fluxo || 0,
+                            emite_boleto: b.emite_boleto || 0,
+                            created_at: b.created_at,
+                            updated_at: b.updated_at,
+                            observacoes: b.observacoes
+                        };
+                    });
+                    console.log('Bancos processados:', bancos);
+                } else {
+                    console.log('Nenhum banco encontrado na API, usando array vazio');
+                    bancos = [];
+                }
+                
+                atualizarKPIs();
+                renderizarBancos();
+            } catch (e) {
+                console.error('Erro ao carregar bancos:', e);
+                showToast('error', 'Erro ao Carregar', 'Erro ao carregar bancos: ' + e.message);
+                bancos = [];
+                atualizarKPIs();
+                renderizarBancos();
+            }
+        }
+        
+        // Funo para encontrar código do banco pelo nome
+        function encontrarCodigoBanco(nome) {
+            if (!nome) return 'default';
+            const nomeUpper = nome.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            
+            // Mapeamento mais especfico primeiro (para evitar falsos positivos)
+            const bancosMap = [
+                { keys: ['ITAU', 'ITA', 'ITA UNIBANCO', 'ITAU UNIBANCO'], codigo: '341' },
+                { keys: ['NUBANK', 'NU PAGAMENTOS'], codigo: '260' },
+                { keys: ['BANCO DO BRASIL', 'BB S/A', 'BB SA'], codigo: '001' },
+                { keys: ['BRADESCO'], codigo: '237' },
+                { keys: ['SANTANDER'], codigo: '033' },
+                { keys: ['CAIXA ECONOMICA', 'CEF', 'CAIXA'], codigo: '104' },
+                { keys: ['BANCO INTER', 'INTER SA'], codigo: '077' },
+                { keys: ['SICOOB'], codigo: '756' },
+                { keys: ['SAFRA'], codigo: '422' },
+                { keys: ['BTG PACTUAL', 'BTG'], codigo: '208' },
+                { keys: ['C6 BANK', 'C6'], codigo: '336' },
+                { keys: ['SICREDI'], codigo: '748' },
+                { keys: ['NEXT'], codigo: '237' },
+                { keys: ['ORIGINAL'], codigo: '212' },
+                { keys: ['FITBANK'], codigo: 'fitbank' },
+                { keys: ['FINAXIS'], codigo: 'finaxis' },
+                { keys: ['SOCAPA'], codigo: 'socapa' }
+            ];
+            
+            for (const banco of bancosMap) {
+                for (const key of banco.keys) {
+                    const keyNorm = key.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                    if (nomeUpper.includes(keyNorm)) {
+                        return banco.codigo;
+                    }
+                }
+            }
+            return 'default';
+        }
+
+        // Funo para obter cor do tipo de conta
+        function obterCorTipoConta(tipo) {
+            const tiposConfig = {
+                'conta corrente': { bg: '#dbeafe', color: '#1d4ed8', icon: 'fa-university' },
+                'conta garantida': { bg: '#fef3c7', color: '#b45309', icon: 'fa-shield-alt' },
+                'adiantamento': { bg: '#d1fae5', color: '#047857', icon: 'fa-hand-holding-usd' },
+                'caixinha': { bg: '#fce7f3', color: '#be185d', icon: 'fa-piggy-bank' },
+                'mutuo': { bg: '#e0e7ff', color: '#4338ca', icon: 'fa-handshake' },
+                'mútuo': { bg: '#e0e7ff', color: '#4338ca', icon: 'fa-handshake' },
+                'default': { bg: '#f1f5f9', color: '#475569', icon: 'fa-wallet' }
+            };
+            return tiposConfig[(tipo || '').toLowerCase()] || tiposConfig['default'];
+        }
+
+        async function carregarMovimentacoes() {
+            try {
+                const response = await fetch('/api/financeiro/movimentacoes-bancarias?limit=20', { credentials: 'include' });
+                const data = await response.json();
+                
+                if (Array.isArray(data)) {
+                    movimentacoes = data.map(m => ({
+                        id: m.id,
+                        data: m.data,
+                        bancoId: m.banco_id,
+                        bancoNome: m.banco_apelido || m.banco_nome,
+                        descricao: m.descricao || m.descricao,
+                        tipo: m.tipo,
+                        valor: parseFloat(m.valor) || 0,
+                        saldo: parseFloat(m.saldo_apos) || 0,
+                        categoria: m.categoria
+                    }));
+                } else {
+                    // Dados demo
+                    movimentacoes = [
+                        { id: 1, data: new Date().toISOString().split('T')[0], bancoId: 1, bancoNome: 'Conta Principal', descricao: 'Recebimento Cliente ABC', tipo: 'entrada', valor: 15000, saldo: 85420.50 },
+                        { id: 2, data: new Date().toISOString().split('T')[0], bancoId: 2, bancoNome: 'Fornecedores', descricao: 'Pagamento Fornecedor', tipo: 'saida', valor: 8500, saldo: 42890.75 },
+                    ];
+                }
+                
+                renderizarMovimentacoes();
+            } catch (e) {
+                console.error('Erro ao carregar movimentacoes:', e);
+                movimentacoes = [];
+                renderizarMovimentacoes();
+            }
+        }
+
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            try {
+                const d = new Date(data);
+                if (!isNaN(d.getTime())) {
+                    return d.toLocaleDateString('pt-BR');
+                }
+                const d2 = new Date(data + 'T00:00:00');
+                if (!isNaN(d2.getTime())) {
+                    return d2.toLocaleDateString('pt-BR');
+                }
+                return '-';
+            } catch (e) {
+                return '-';
+            }
+        }
+
+        function atualizarKPIs() {
+            const saldoTotal = bancos.filter(b => b.status === 'ativo').reduce((sum, b) => sum + (b.saldo || 0), 0);
+            const contasAtivas = bancos.filter(b => b.status === 'ativo').length;
+            const entradas = bancos.reduce((sum, b) => sum + (b.entradas || 0), 0);
+            const saidas = bancos.reduce((sum, b) => sum + (b.saidas || 0), 0);
+
+            document.getElementById('saldoTotal').textContent = formatarMoeda(saldoTotal);
+            document.getElementById('contasAtivas').textContent = contasAtivas;
+            document.getElementById('entradasMes').textContent = formatarMoeda(entradas);
+            document.getElementById('saidasMes').textContent = formatarMoeda(saidas);
+        }
+
+        function renderizarBancos() {
+            const grid = document.getElementById('bancosGrid');
+            
+            if (bancos.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state-card" style="grid-column: 1 / -1; text-align: center; padding: 60px 40px; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border-radius: 20px; border: 2px dashed #e2e8f0;">
+                        <div style="width: 80px; height: 80px; margin: 0 auto 20px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: 20px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-university" style="font-size: 32px; color: #84cc16;"></i>
+                        </div>
+                        <h3 style="font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 8px;">Nenhuma conta bancária cadastrada</h3>
+                        <p style="font-size: 14px; color: #64748b; margin-bottom: 24px; max-width: 400px; margin-left: auto; margin-right: auto;">Cadastre suas contas bancárias para gerenciar saldos, movimentações e transferências.</p>
+                        <button class="btn btn-primary" onclick="abrirModalBanco()" style="padding: 14px 28px; border-radius: 12px; font-size: 15px;">
+                            <i class="fas fa-plus"></i> Cadastrar Primeira Conta
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = bancos.map(banco => {
+                const config = bancosConfig[banco.codigo] || bancosConfig['default'];
+                const tipoConfig = obterCorTipoConta(banco.tipo_conta);
+                
+                // Determinar sigla baseada no tipo de conta ou instituição
+                let logoContent;
+                if (config.logo && bancosLogos[config.logo]) {
+                    logoContent = `<img src="${bancosLogos[config.logo]}" alt="${config.nome}">`;
+                } else {
+                    // Usar sigla baseada na instituição ou tipo
+                    const sigla = banco.instituicao ? banco.instituicao.substring(0, 2).toUpperCase() : config.sigla;
+                    logoContent = sigla;
+                }
+                
+                // Informação secundária
+                let subInfo = '';
+                if (banco.agencia && banco.agencia !== '-' && banco.conta && banco.conta !== '-') {
+                    subInfo = `Ag: ${banco.agencia} | Cc: ${banco.conta}`;
+                } else if (banco.instituicao) {
+                    subInfo = banco.instituicao;
+                } else {
+                    subInfo = banco.tipo_conta || 'Conta';
+                }
+                
+                return `
+                    <div class="banco-card">
+                        <div class="banco-header">
+                            <div class="banco-logo ${config.classe}" style="background: ${tipoConfig.bg}; color: ${tipoConfig.color};">
+                                <i class="fas ${tipoConfig.icon}" style="font-size: 22px;"></i>
+                            </div>
+                            <div class="banco-info">
+                                <h3>${banco.nome}</h3>
+                                <span>${subInfo}</span>
+                            </div>
+                            <span class="banco-status ${banco.status}">${banco.status === 'ativo' ? 'Ativo' : 'Inativo'}</span>
+                        </div>
+                        <div class="banco-body">
+                            <div class="banco-saldo">
+                                <div class="banco-saldo-label">Saldo Atual</div>
+                                <div class="banco-saldo-valor ${banco.saldo >= 0 ? 'positivo' : 'negativo'}">${formatarMoeda(banco.saldo)}</div>
+                            </div>
+                            <div class="banco-details">
+                                <div class="banco-detail">
+                                    <label>Tipo de Conta</label>
+                                    <span style="color: ${tipoConfig.color};">${banco.tipo_conta || 'Conta Corrente'}</span>
+                                </div>
+                                <div class="banco-detail">
+                                    <label>Limite de Crédito</label>
+                                    <span>${formatarMoeda(banco.limite)}</span>
+                                </div>
+                            </div>
+                            <div class="banco-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="verExtrato(${banco.id})"><i class="fas fa-list"></i> Extrato</button>
+                                <button class="btn btn-secondary btn-sm" onclick="editarBanco(${banco.id})"><i class="fas fa-edit"></i> Editar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderizarMovimentacoes() {
+            const tbody = document.getElementById('movimentacoesBody');
+            
+            if (movimentacoes.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #64748b;">
+                            <i class="fas fa-exchange-alt" style="font-size: 32px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
+                            Nenhuma movimentação encontrada
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = movimentacoes.slice(0, 10).map(mov => {
+                const banco = bancos.find(b => b.id === mov.bancoId);
+                const bancoNome = mov.bancoNome || (banco ? (banco.apelido || bancosConfig[banco.codigo]?.nome) : '-');
+                return `
+                    <tr>
+                        <td>${formatarData(mov.data)}</td>
+                        <td><strong>${bancoNome}</strong></td>
+                        <td>${mov.descricao}</td>
+                        <td>
+                            <span class="tipo-badge ${mov.tipo}">
+                                <i class="fas fa-arrow-${mov.tipo === 'entrada' ? 'down' : mov.tipo === 'saida' ? 'up' : 'right-left'}"></i>
+                                ${mov.tipo === 'entrada' ? 'Entrada' : mov.tipo === 'saida' ? 'Saida' : 'Transferencia'}
+                            </span>
+                        </td>
+                        <td class="valor-cell ${mov.tipo === 'entrada' ? 'positivo' : 'negativo'}">
+                            ${mov.tipo === 'entrada' ? '+' : '-'}${formatarMoeda(mov.valor)}
+                        </td>
+                        <td><strong>${formatarMoeda(mov.saldo)}</strong></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Modal Extrato / Visualização
+        async function verExtrato(id) {
+            const banco = bancos.find(b => b.id === id);
+            if (!banco) return;
+            
+            bancoVisualizando = banco;
+            const config = bancosConfig[banco.codigo] || { nome: banco.nome, classe: 'bb', sigla: '??' };
+            
+            // Preencher informações
+            document.getElementById('extratoTitulo').textContent = `Extrato - ${banco.apelido || config.nome}`;
+            
+            // Logo do banco com classe correta
+            const logoEl = document.getElementById('extratoBancoLogo');
+            logoEl.textContent = config.sigla;
+            logoEl.className = 'extrato-banco-logo banco-logo ' + config.classe;
+            
+            document.getElementById('extratoBancoNome').textContent = banco.apelido || config.nome;
+            document.getElementById('extratoBancoInfo').textContent = `Ag: ${banco.agencia} | Cc: ${banco.conta}`;
+            document.getElementById('extratoSaldo').textContent = formatarMoeda(banco.saldo);
+            document.getElementById('extratoEntradas').textContent = formatarMoeda(banco.entradas);
+            document.getElementById('extratoSaidas').textContent = formatarMoeda(banco.saidas);
+            document.getElementById('extratoSaldoInicial').textContent = formatarMoeda(banco.saldo_inicial);
+            document.getElementById('extratoCodigo').textContent = banco.codigo;
+            document.getElementById('extratoTipo').textContent = banco.tipo === 'corrente' ? 'Conta Corrente' : banco.tipo === 'poupanca' ? 'Poupana' : 'Investimento';
+            
+            // Status com classe apropriada
+            const statusEl = document.getElementById('extratoStatus');
+            statusEl.textContent = banco.status === 'ativo' ? 'Ativo' : 'Inativo';
+            statusEl.className = 'detalhe-valor ' + (banco.status === 'ativo' ? 'status-ativo' : 'status-inativo');
+            
+            document.getElementById('extratoCadastro').textContent = formatarData(banco.created_at);
+            
+            // Carregar movimentações do banco
+            const movDiv = document.getElementById('extratoMovimentacoes');
+            movDiv.innerHTML = '<div class="extrato-loading"><i class="fas fa-spinner fa-spin"></i><span>Carregando movimentações...</span></div>';
+            
+            document.getElementById('modalExtrato').classList.add('active');
+            console.log('[Modal Extrato] Aberto com classe active');
+            
+            // Buscar movimentações especficas do banco
+            try {
+                const response = await fetch(`/api/financeiro/bancos/${id}/movimentacoes?limit=20`, { credentials: 'include' });
+                const data = await response.json();
+                
+                if (Array.isArray(data) && data.length > 0) {
+                    movDiv.innerHTML = data.map(m => `
+                        <div class="mov-item">
+                            <div class="mov-icon ${m.tipo}">
+                                <i class="fas fa-arrow-${m.tipo === 'entrada' ? 'down' : 'up'}"></i>
+                            </div>
+                            <div class="mov-info">
+                                <div class="mov-descricao">${m.descricao}</div>
+                                <div class="mov-data">${formatarData(m.data)} ${m.categoria ? ' ' + m.categoria : ''}</div>
+                            </div>
+                            <div class="mov-valores">
+                                <div class="mov-valor ${m.tipo}">
+                                    ${m.tipo === 'entrada' ? '+' : '-'}${formatarMoeda(m.valor)}
+                                </div>
+                                <div class="mov-saldo">Saldo: ${formatarMoeda(m.saldo_apos)}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    // Usar movimentacoes locais filtradas
+                    const movsBanco = movimentacoes.filter(m => m.bancoId === id);
+                    if (movsBanco.length > 0) {
+                        movDiv.innerHTML = movsBanco.map(m => `
+                            <div class="mov-item">
+                                <div class="mov-icon ${m.tipo}">
+                                    <i class="fas fa-arrow-${m.tipo === 'entrada' ? 'down' : 'up'}"></i>
+                                </div>
+                                <div class="mov-info">
+                                    <div class="mov-descricao">${m.descricao}</div>
+                                    <div class="mov-data">${formatarData(m.data)}</div>
+                                </div>
+                                <div class="mov-valores">
+                                    <div class="mov-valor ${m.tipo}">
+                                        ${m.tipo === 'entrada' ? '+' : '-'}${formatarMoeda(m.valor)}
+                                    </div>
+                                    <div class="mov-saldo">Saldo: ${formatarMoeda(m.saldo)}</div>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        movDiv.innerHTML = '<div class="extrato-loading" style="color: #94a3b8;"><i class="fas fa-inbox" style="color: #cbd5e1;"></i><span>Nenhuma movimentação encontrada para esta conta</span></div>';
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao carregar movimentações:', e);
+                movDiv.innerHTML = '<div class="extrato-loading" style="color: #94a3b8;"><i class="fas fa-inbox" style="color: #cbd5e1;"></i><span>Nenhuma movimentação encontrada</span></div>';
+            }
+        }
+
+        function editarDaVisualizacação() {
+            if (bancoVisualizando) {
+                fecharModal('modalExtrato');
+                editarBanco(bancoVisualizando.id);
+            }
+        }
+
+        function abrirModalBanco(id = null) {
+            document.getElementById('formBanco').reset();
+            document.getElementById('bancoId').value = '';
+            document.getElementById('modalBancoTitulo').textContent = 'Nova Conta Bancária';
+            
+            if (id) {
+                const banco = bancos.find(b => b.id === id);
+                if (banco) {
+                    document.getElementById('bancoId').value = banco.id;
+                    document.getElementById('bancoCodigo').value = banco.codigo;
+                    document.getElementById('tipoConta').value = banco.tipo;
+                    document.getElementById('agencia').value = banco.agencia;
+                    document.getElementById('conta').value = banco.conta;
+                    document.getElementById('apelido').value = banco.apelido || '';
+                    document.getElementById('observacoes').value = banco.observacoes || '';
+                    document.getElementById('modalBancoTitulo').textContent = 'Editar Conta Bancária';
+                }
+            }
+            
+            document.getElementById('modalBanco').classList.add('active');
+            console.log('[Modal Banco] Aberto com classe active');
+        }
+
+        function abrirModalTransferencia() {
+            document.getElementById('formTransferencia').reset();
+            
+            const options = bancos.filter(b => b.status === 'ativo').map(b => 
+                `<option value="${b.id}">${b.apelido || bancosConfig[b.codigo]?.nome} - ${formatarMoeda(b.saldo)}</option>`
+            ).join('');
+            
+            document.getElementById('contaOrigem').innerHTML = '<option value="">Selecione...</option>' + options;
+            document.getElementById('contaDestino').innerHTML = '<option value="">Selecione...</option>' + options;
+            document.getElementById('dataTransferencia').valueAsDate = new Date();
+            
+            document.getElementById('modalTransferencia').classList.add('active');
+        }
+
+        function abrirModalMovimento() {
+            document.getElementById('formMovimento').reset();
+            
+            const options = bancos.filter(b => b.status === 'ativo').map(b => 
+                `<option value="${b.id}">${b.apelido || bancosConfig[b.codigo]?.nome}</option>`
+            ).join('');
+            
+            document.getElementById('contaMovimento').innerHTML = '<option value="">Selecione...</option>' + options;
+            document.getElementById('dataMovimento').valueAsDate = new Date();
+            
+            document.getElementById('modalMovimento').classList.add('active');
+        }
+
+        function fecharModal(id) {
+            console.log('[Modal] Fechando modal:', id);
+            const modal = document.getElementById(id);
+            if (modal) {
+                modal.classList.remove('active');
+                console.log('[Modal] Classe active removida, classList:', modal.classList.value);
+                if (id === 'modalExtrato') bancoVisualizando = null;
+            }
+        }
+
+        async function salvarBanco() {
+            const id = document.getElementById('bancoId').value;
+            const codigoSelect = document.getElementById('bancoCodigo');
+            const codigo = codigoSelect.value;
+            const nome = bancosConfig[codigo]?.nome || codigoSelect.options[codigoSelect.selectedIndex]?.text.split(' - ')[1] || '';
+            
+            const dados = {
+                codigo: codigo,
+                nome: nome,
+                tipo: document.getElementById('tipoConta').value,
+                categoria: document.getElementById('categoriaConta').value,
+                agencia: document.getElementById('agencia').value,
+                conta: document.getElementById('conta').value,
+                apelido: document.getElementById('apelido').value || null,
+                saldo_inicial: parseFloat(document.getElementById('saldoInicial').value.replace(/[^\d,-]/g, '').replace(',', '.')) || 0,
+                data_saldo_inicial: document.getElementById('dataSaldoInicial').value || null,
+                limite_credito: parseFloat(document.getElementById('limiteCredito')?.value?.replace(/[^\d,-]/g, '').replace(',', '.')) || 0,
+                conta_vinculada: document.getElementById('contaVinculada').value || null,
+                nao_considerar_resumo: document.getElementById('naoConsiderarResumo').checked,
+                observacoes: document.getElementById('observacoes').value || null,
+                // Dados da agência
+                gerente_conta: document.getElementById('gerenteConta')?.value || null,
+                email_gerente: document.getElementById('emailGerente')?.value || null,
+                ddd_agencia: document.getElementById('dddAgencia')?.value || null,
+                telefone_agencia: document.getElementById('telefoneAgencia')?.value || null,
+                endereco_agencia: document.getElementById('enderecoAgencia')?.value || null,
+                numero_agencia: document.getElementById('numeroAgencia')?.value || null,
+                bairro_agencia: document.getElementById('bairroAgencia')?.value || null,
+                complemento_agencia: document.getElementById('complementoAgencia')?.value || null,
+                estado_agencia: document.getElementById('estadoAgencia')?.value || null,
+                cidade_agencia: document.getElementById('cidadeAgencia')?.value || null,
+                cep_agencia: document.getElementById('cepAgencia')?.value || null,
+                ativo: true
+            };
+
+            try {
+                const url = id ? `/api/financeiro/bancos/${id}` : '/api/financeiro/bancos';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+                
+                if (response.ok) {
+                    fecharModal('modalBanco');
+                    await carregarBancos();
+                    showToast('success', id ? 'Banco Atualizado!' : 'Banco Cadastrado!', id ? 'Os dados da conta bancária foram atualizados com sucesso.' : 'Nova conta bancária cadastrada com sucesso.');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showToast('error', 'Erro ao Salvar', err.error || 'Não foi possível salvar os dados do banco.');
+                }
+            } catch (e) {
+                console.error('Erro ao salvar banco:', e);
+                showToast('error', 'Erro de Conexão', 'Não foi possível conectar ao servidor.');
+            }
+        }
+
+        function editarBanco(id) {
+            abrirModalBanco(id);
+        }
+
+        async function realizarTransferencia() {
+            const origem = parseInt(document.getElementById('contaOrigem').value);
+            const destino = parseInt(document.getElementById('contaDestino').value);
+            const valor = parseFloat(document.getElementById('valorTransferencia').value.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+            const data = document.getElementById('dataTransferencia').value;
+            const descricao = document.getElementById('descricaoTransferencia').value;
+            
+            if (!origem || !destino || origem === destino) {
+                showToast('warning', 'Atenção', 'Selecione contas diferentes para origem e destino.');
+                return;
+            }
+            
+            if (valor <= 0) {
+                showToast('warning', 'Valor Inválido', 'Informe um valor maior que zero para a transferência.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/financeiro/transferencia-bancaria', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        conta_origem: origem,
+                        conta_destino: destino,
+                        valor: valor,
+                        data: data,
+                        descricao: descricao
+                    })
+                });
+                
+                if (response.ok) {
+                    fecharModal('modalTransferencia');
+                    await carregarBancos();
+                    await carregarMovimentacoes();
+                    showToast('success', 'Transferência Realizada!', 'A transferência entre contas foi concluída com sucesso.');
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showToast('error', 'Erro na Transferência', err.error || 'Não foi possível realizar a transferência. Tente novamente.');
+                }
+            } catch (e) {
+                console.error('Erro na transferencia:', e);
+                showToast('error', 'Erro de Conexão', 'Não foi possível conectar ao servidor. Verifique sua conexão.');
+            }
+        }
+
+        async function salvarMovimento() {
+            const bancoId = parseInt(document.getElementById('contaMovimento').value);
+            const tipo = document.getElementById('tipoMovimento').value;
+            const valor = parseFloat(document.getElementById('valorMovimento').value.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+            const data = document.getElementById('dataMovimento').value;
+            const descricao = document.getElementById('descricaoMovimento').value;
+            const categoria = document.getElementById('categoriaMovimento').value;
+            
+            if (!bancoId || valor <= 0 || !descricao) {
+                showToast('warning', 'Campos Obrigatórios', 'Preencha todos os campos obrigatórios para continuar.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/financeiro/movimentacoes-bancarias', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        banco_id: bancoId,
+                        tipo: tipo,
+                        valor: valor,
+                        data: data,
+                        descricao: descricao,
+                        categoria: categoria || null
+                    })
+                });
+                
+                if (response.ok) {
+                    fecharModal('modalMovimento');
+                    await carregarBancos();
+                    await carregarMovimentacoes();
+                    showToast('success', 'Movimentação Registrada!', `${tipo === 'entrada' ? 'Entrada' : 'Saída'} de R$ ${valor.toFixed(2).replace('.', ',')} registrada com sucesso.`);
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showToast('error', 'Erro ao Registrar', err.error || 'Não foi possível registrar a movimentação.');
+                }
+            } catch (e) {
+                console.error('Erro ao salvar movimentacao:', e);
+                showToast('error', 'Erro de Conexão', 'Não foi possível conectar ao servidor.');
+            }
+        }
+
+        // Sistema de Notificações
+        function toggleNotificacoes() {
+            const panel = document.getElementById('notification-panel');
+            panel.classList.toggle('active');
+        }
+
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.notification-container');
+            const panel = document.getElementById('notification-panel');
+            if (container && !container.contains(e.target)) {
+                panel.classList.remove('active');
+            }
+        });
+
+        function carregarNotificacoesFinanceiro() {
+            const lista = document.getElementById('notification-list');
+            if (!lista) return;
+            lista.innerHTML = `
+                <div class="notification-item unread">
+                    <div class="notification-icon info"><i class="fas fa-university"></i></div>
+                    <div class="notification-content">
+                        <div class="notification-title">Saldo atualizado</div>
+                        <div class="notification-message">Os saldos bancários foram atualizados</div>
+                        <div class="notification-time"><i class="fas fa-clock"></i> Agora</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarNotificacoesFinanceiro();
+        });
+
+        // Fechar modais com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                fecharModal('modalBanco');
+                fecharModal('modalTransferencia');
+                fecharModal('modalMovimento');
+                fecharModal('modalExtrato');
+            }
+        });
+    </script>
+
+    <script src="financeiro.js"></script>
+    <script src="public/js/financeiro-user-loader.js?v=20251222"></script>
+    
+    <!-- Sistema de Notificações Global -->
+    <script src="/js/notifications-manager.js?v=20251223"></script>
+    <script src="/js/notification-button.js?v=20251223"></script>
+    
+    <!-- Sistema de Chat e Suporte -->
+    <script src="/js/chat-suporte-widgets.js?v=20260103"></script>
+    
+    <!-- Sistema de MonitOrçamento de Conexo -->
+    <script src="../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/modal-fix-global.js?v=20260110"></script>
+    
+    <!-- Sistema de Importação XLSX -->
+    <script src="public/js/importar-xlsx.js?v=20260131"></script>
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+

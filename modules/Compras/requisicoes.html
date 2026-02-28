@@ -1,0 +1,1005 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Requisições de Compra</title>
+    <link rel="icon" type="image/png" href="/images/favicon-aluforce.png">
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260215">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260215">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260201">
+    <style>
+        .fa-duotone { font-family: "Font Awesome 6 Free" !important; font-weight: 900 !important; }
+
+        /* ===== Toast Notifications ===== */
+        .toast-container {
+            position: fixed; top: 24px; right: 24px; z-index: 100000;
+            display: flex; flex-direction: column; gap: 10px;
+            pointer-events: none;
+        }
+        .toast {
+            pointer-events: auto;
+            display: flex; align-items: center; gap: 12px;
+            min-width: 320px; max-width: 440px;
+            padding: 14px 18px; border-radius: var(--radius-lg);
+            background: #fff; color: var(--gray-800);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid var(--gray-300);
+            font-size: 0.85rem; font-weight: 500; line-height: 1.4;
+            animation: toastSlideIn 0.35s cubic-bezier(.21,1.02,.73,1) forwards;
+            transform: translateX(120%);
+        }
+        .toast.hiding {
+            animation: toastSlideOut 0.3s ease forwards;
+        }
+        .toast .toast-icon {
+            flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem;
+        }
+        .toast .toast-body { flex: 1; }
+        .toast .toast-close {
+            flex-shrink: 0; background: none; border: none; color: var(--gray-400);
+            cursor: pointer; padding: 4px; font-size: 0.75rem; border-radius: 4px;
+            transition: all 0.15s;
+        }
+        .toast .toast-close:hover { color: var(--gray-700); background: var(--gray-100); }
+        /* Tipos */
+        .toast.success { border-left-color: #10b981; }
+        .toast.success .toast-icon { background: #ecfdf5; color: #059669; }
+        .toast.error { border-left-color: #ef4444; }
+        .toast.error .toast-icon { background: #fef2f2; color: #dc2626; }
+        .toast.warning { border-left-color: #f59e0b; }
+        .toast.warning .toast-icon { background: #fffbeb; color: #d97706; }
+        .toast.info { border-left-color: #3b82f6; }
+        .toast.info .toast-icon { background: #eff6ff; color: #2563eb; }
+        /* Barra de progresso */
+        .toast .toast-progress {
+            position: absolute; bottom: 0; left: 4px; right: 0; height: 3px;
+            border-radius: 0 0 var(--radius-lg) 0;
+            animation: toastProgress var(--toast-duration, 4s) linear forwards;
+        }
+        .toast.success .toast-progress { background: #10b981; }
+        .toast.error .toast-progress { background: #ef4444; }
+        .toast.warning .toast-progress { background: #f59e0b; }
+        .toast.info .toast-progress { background: #3b82f6; }
+        @keyframes toastSlideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes toastSlideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(120%); opacity: 0; } }
+        @keyframes toastProgress { from { width: 100%; } to { width: 0%; } }
+
+        /* ===== Modal: Item Cards ===== */
+        .item-card {
+            background: var(--gray-50);
+            border: 1.5px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            margin-bottom: var(--space-3);
+            position: relative;
+            transition: border-color var(--transition-fast);
+        }
+        .item-card:hover { border-color: var(--primary-300); }
+        .item-card .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
+        .item-card .item-header span { font-size: 0.75rem; font-weight: 700; color: var(--primary-600); text-transform: uppercase; letter-spacing: 0.5px; }
+        .item-card .btn-remove-item {
+            background: none; border: none; color: var(--gray-400); cursor: pointer; font-size: 0.85rem;
+            padding: var(--space-1); border-radius: var(--radius-sm); transition: all var(--transition-fast);
+        }
+        .item-card .btn-remove-item:hover { color: var(--danger-500); background: rgba(239,68,68,0.08); }
+        .item-card .form-grid { gap: var(--space-3); }
+
+        /* ===== Priority Toggle Pills ===== */
+        .priority-group {
+            display: flex; gap: 8px; margin-top: var(--space-2);
+            padding: 4px; background: var(--gray-100);
+            border-radius: var(--radius-xl); border: 1px solid var(--gray-200);
+            width: fit-content;
+        }
+        .priority-option {
+            position: relative;
+        }
+        .priority-option input[type="radio"] {
+            position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+        }
+        .priority-option label {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 16px;
+            font-size: 0.78rem; font-weight: 600;
+            color: var(--gray-500); cursor: pointer;
+            border-radius: var(--radius-lg);
+            transition: all var(--transition-base);
+            user-select: none; white-space: nowrap;
+            border: 1.5px solid transparent;
+        }
+        .priority-option label:hover {
+            color: var(--gray-700); background: rgba(255,255,255,0.7);
+        }
+        /* Selecionado — Baixa (verde) */
+        .priority-option input[value="baixa"]:checked + label {
+            background: #ecfdf5; color: #059669; border-color: #a7f3d0;
+            box-shadow: 0 1px 3px rgba(5,150,105,0.12);
+        }
+        /* Selecionado — Normal (azul) */
+        .priority-option input[value="normal"]:checked + label {
+            background: #eff6ff; color: #2563eb; border-color: #bfdbfe;
+            box-shadow: 0 1px 3px rgba(37,99,235,0.12);
+        }
+        /* Selecionado — Alta (amber) */
+        .priority-option input[value="alta"]:checked + label {
+            background: #fffbeb; color: #d97706; border-color: #fde68a;
+            box-shadow: 0 1px 3px rgba(217,119,6,0.12);
+        }
+        /* Selecionado — Urgente (vermelho) */
+        .priority-option input[value="urgente"]:checked + label {
+            background: #fef2f2; color: #dc2626; border-color: #fecaca;
+            box-shadow: 0 1px 3px rgba(220,38,38,0.15);
+        }
+        .priority-option label i {
+            font-size: 0.7rem;
+        }
+
+        /* ===== Resumo Itens ===== */
+        .resumo-itens {
+            display: flex; gap: var(--space-6); padding: var(--space-4);
+            background: linear-gradient(135deg, var(--primary-50), var(--gray-50));
+            border-radius: var(--radius-lg); margin-top: var(--space-4);
+            border: 1px solid var(--primary-100);
+        }
+        .resumo-item { text-align: center; flex: 1; }
+        .resumo-item span { display: block; font-size: 0.7rem; color: var(--gray-500); font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+        .resumo-item strong { font-size: 1.05rem; color: var(--gray-800); font-weight: 700; }
+
+        /* ===== Anexos / Upload Dropzone ===== */
+        .upload-dropzone {
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius-lg);
+            padding: var(--space-5) var(--space-4);
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-base);
+            background: var(--gray-50);
+            position: relative;
+        }
+        .upload-dropzone:hover {
+            border-color: var(--primary-400);
+            background: var(--primary-50);
+        }
+        .upload-dropzone.drag-over {
+            border-color: var(--primary-500);
+            background: var(--primary-50);
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        }
+        .upload-dropzone input[type="file"] {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+        .upload-dropzone .upload-icon {
+            font-size: 1.5rem; color: var(--gray-400); margin-bottom: 6px;
+            transition: color var(--transition-fast);
+        }
+        .upload-dropzone:hover .upload-icon { color: var(--primary-500); }
+        .upload-dropzone .upload-text {
+            font-size: 0.8rem; color: var(--gray-500); font-weight: 500;
+        }
+        .upload-dropzone .upload-text strong {
+            color: var(--primary-600); font-weight: 600;
+        }
+        .upload-dropzone .upload-hint {
+            font-size: 0.7rem; color: var(--gray-400); margin-top: 4px;
+        }
+        .anexos-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+        .anexo-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 12px; background: white;
+            border-radius: var(--radius-md); font-size: 0.78rem; border: 1px solid var(--gray-200);
+            color: var(--gray-700); font-weight: 500;
+            transition: all var(--transition-fast);
+        }
+        .anexo-item:hover { border-color: var(--gray-300); box-shadow: var(--shadow-sm); }
+        .anexo-item i.fa-paperclip { color: var(--primary-500); font-size: 0.7rem; }
+        .anexo-item .btn-remove {
+            background: none; border: none; color: var(--gray-400); cursor: pointer;
+            font-size: 0.7rem; padding: 2px; border-radius: var(--radius-sm);
+            transition: all var(--transition-fast);
+        }
+        .anexo-item .btn-remove:hover { color: var(--danger-500); background: rgba(239,68,68,0.08); }
+
+        /* ===== View Modal ===== */
+        .view-section { margin-bottom: var(--space-4); }
+        .view-section h4 { font-size: 0.8rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-3); padding-bottom: var(--space-2); border-bottom: 1.5px solid var(--gray-200); }
+        .view-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
+        .view-item label { font-size: 0.7rem; color: var(--gray-500); font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
+        .view-item p { font-size: 0.85rem; color: var(--gray-800); margin-top: 4px; font-weight: 500; }
+
+        /* ===== Required asterisk ===== */
+        .required { color: var(--danger-500); font-weight: 700; }
+    </style>
+    <script>
+        function toggleNotificacoes() { const p = document.getElementById('notification-panel'); if (p) p.classList.toggle('active'); }
+        function marcarTodasLidas() {}
+        function limparNotificacoes() {}
+    </script>
+    <script src="/js/anti-copy-protection.js" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn active" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Requisições</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Exportar CSV" onclick="exportarDados()"><i class="fas fa-download"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge hidden" id="notification-count">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header"><h3><i class="fas fa-bell"></i> Notificações</h3><div class="notification-actions"><button onclick="marcarTodasLidas()" title="Marcar todas como lidas"><i class="fas fa-check-double"></i></button><button onclick="limparNotificacoes()" title="Limpar todas"><i class="fas fa-trash-alt"></i></button></div></div>
+                            <div class="notification-tabs"><button class="notif-tab active" onclick="filtrarNotificacoes('todas', this)">Todas</button><button class="notif-tab" onclick="filtrarNotificacoes('nao-lidas', this)">Não lidas</button><button class="notif-tab" onclick="filtrarNotificacoes('importantes', this)">Importantes</button></div>
+                            <div class="notification-list" id="notification-list"></div>
+                            <div class="notification-footer"><a href="#" onclick="verTodasNotificacoes(); return false;">Ver histórico completo</a></div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar"><img src="" alt="" id="user-photo" style="display:none;"><span id="user-initial">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- PAGE CONTENT -->
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-actions">
+                            <button class="btn btn-primary" onclick="abrirModalNovaRequisicao()"><i class="fas fa-plus"></i> Nova Requisição</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card purple">
+                        <div class="stat-header"><div class="stat-icon purple"><i class="fas fa-clipboard-list"></i></div></div>
+                        <div class="stat-value" id="totalRequisicoes">0</div>
+                        <div class="stat-label">Total Requisições</div>
+                    </div>
+                    <div class="stat-card amber">
+                        <div class="stat-header"><div class="stat-icon amber"><i class="fas fa-clock"></i></div></div>
+                        <div class="stat-value" id="requisicoesPendentes">0</div>
+                        <div class="stat-label">Pendentes</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-header"><div class="stat-icon green"><i class="fas fa-check-double"></i></div></div>
+                        <div class="stat-value" id="requisicoesAprovadas">0</div>
+                        <div class="stat-label">Aprovadas</div>
+                    </div>
+                    <div class="stat-card cyan">
+                        <div class="stat-header"><div class="stat-icon cyan"><i class="fas fa-file-invoice-dollar"></i></div></div>
+                        <div class="stat-value" id="requisicoesCotacao">0</div>
+                        <div class="stat-label">Em Cotação</div>
+                    </div>
+                </div>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchRequisicao" placeholder="Buscar requisição...">
+            </div>
+            <div class="filter-buttons">
+                <button class="filter-btn active" onclick="filtrarRequisicoes('todos', this)">Todas</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('pendente', this)">Pendentes</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('aprovada', this)">Aprovadas</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('cotacao', this)">Em Cotação</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('rascunho', this)">Rascunhos</button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="card">
+            <div class="card-body" style="padding:0;">
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:50px">#</th>
+                                <th>Nº Requisição</th>
+                                <th>Solicitante</th>
+                                <th>Data</th>
+                                <th>Centro de Custo</th>
+                                <th>Prioridade</th>
+                                <th>Valor Est.</th>
+                                <th>Status</th>
+                                <th style="width:120px">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requisicoesTableBody">
+                            <tr><td colspan="9" style="text-align:center; padding:var(--space-8); color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+            </div><!-- /page-content -->
+        </main><!-- /main-area -->
+    </div><!-- /app-container -->
+
+    <!-- Modal: Nova Requisição -->
+    <div class="modal-overlay" id="modalNovaRequisicao">
+        <div class="modal" style="max-width:760px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-clipboard-list"></i> Nova Requisição de Compra</h3>
+                <button class="modal-close" onclick="fecharModalNovaRequisicao()">&times;</button>
+            </div>
+            <form id="formNovaRequisicao" onsubmit="event.preventDefault();">
+                <div class="modal-body" style="max-height:60vh; overflow-y:auto;">
+                    <!-- Seção: Informações Gerais -->
+                    <div style="margin-bottom:var(--space-4);">
+                        <h4 style="font-size:0.8rem; font-weight:600; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:var(--space-3);"><i class="fas fa-info-circle" style="margin-right:6px; color:var(--primary-500);"></i>Informações Gerais</h4>
+                        <div class="form-grid cols-3">
+                            <div class="form-group">
+                                <label>Nº Requisição</label>
+                                <input type="text" class="form-control" id="reqNumero" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Solicitante</label>
+                                <input type="text" class="form-control" id="reqSolicitante" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Data Solicitação</label>
+                                <input type="date" class="form-control" id="reqDataSolicitacao" readonly>
+                            </div>
+                        </div>
+                        <div class="form-grid cols-3" style="margin-top:var(--space-3);">
+                            <div class="form-group">
+                                <label>Centro de Custo</label>
+                                <select class="form-control" id="reqCentroCusto"><option value="">Selecione</option></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Data Necessidade <span class="required">*</span></label>
+                                <input type="date" class="form-control" id="reqDataNecessidade" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Projeto/Obra</label>
+                                <input type="text" class="form-control" id="reqProjeto" placeholder="Opcional">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Prioridade -->
+                    <div style="margin-bottom:var(--space-4);">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Prioridade</label>
+                            <div class="priority-group">
+                                <div class="priority-option">
+                                    <input type="radio" name="prioridade" value="baixa" id="prioBaixa">
+                                    <label for="prioBaixa"><i class="fas fa-arrow-down"></i> Baixa</label>
+                                </div>
+                                <div class="priority-option">
+                                    <input type="radio" name="prioridade" value="normal" id="prioNormal" checked>
+                                    <label for="prioNormal"><i class="fas fa-minus"></i> Normal</label>
+                                </div>
+                                <div class="priority-option">
+                                    <input type="radio" name="prioridade" value="alta" id="prioAlta">
+                                    <label for="prioAlta"><i class="fas fa-arrow-up"></i> Alta</label>
+                                </div>
+                                <div class="priority-option">
+                                    <input type="radio" name="prioridade" value="urgente" id="prioUrgente">
+                                    <label for="prioUrgente"><i class="fas fa-exclamation-triangle"></i> Urgente</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Justificativa -->
+                    <div style="margin-bottom:var(--space-4);">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Justificativa <span class="required">*</span></label>
+                            <textarea class="form-control" id="reqJustificativa" rows="2" required placeholder="Descreva a necessidade da compra..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Itens da Requisição -->
+                    <div style="padding-top:var(--space-4); border-top:1.5px solid var(--gray-200); margin-bottom:var(--space-4);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-3);">
+                            <h4 style="font-size:0.8rem; font-weight:600; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.5px;"><i class="fas fa-boxes" style="margin-right:6px; color:var(--primary-500);"></i>Itens da Requisição</h4>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="adicionarItemReq()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                        </div>
+                        <div id="itensContainer"></div>
+                        <div class="resumo-itens">
+                            <div class="resumo-item"><span>Total Itens</span><strong id="totalItens">0</strong></div>
+                            <div class="resumo-item"><span>Qtd. Total</span><strong id="qtdTotal">0</strong></div>
+                            <div class="resumo-item"><span>Valor Estimado</span><strong id="valorTotal">R$ 0,00</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Informações Adicionais -->
+                    <div style="padding-top:var(--space-4); border-top:1.5px solid var(--gray-200);">
+                        <h4 style="font-size:0.8rem; font-weight:600; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:var(--space-3);"><i class="fas fa-paperclip" style="margin-right:6px; color:var(--primary-500);"></i>Informações Adicionais</h4>
+                        <div class="form-grid cols-1">
+                            <div class="form-group">
+                                <label>Fornecedores Sugeridos</label>
+                                <input type="text" class="form-control" id="fornecedoresSugeridos" placeholder="Opcional — separe por vírgula">
+                            </div>
+                            <div class="form-group">
+                                <label>Observações</label>
+                                <textarea class="form-control" id="reqObservacoes" rows="2" placeholder="Observações adicionais..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>Anexos</label>
+                                <div class="upload-dropzone" id="dropzoneAnexos">
+                                    <input type="file" id="reqAnexos" multiple onchange="handleAnexos(this)">
+                                    <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                                    <div class="upload-text"><strong>Clique para enviar</strong> ou arraste arquivos aqui</div>
+                                    <div class="upload-hint">PDF, imagens, planilhas — máx. 10MB por arquivo</div>
+                                </div>
+                                <div class="anexos-list" id="anexosList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content:space-between;">
+                    <button type="button" class="btn btn-secondary" id="btnCancelarRequisicao" onclick="fecharModalNovaRequisicao()">Cancelar</button>
+                    <div style="display:flex; gap:var(--space-2);">
+                        <button type="button" class="btn btn-secondary" id="btnSalvarRascunho" onclick="salvarRascunho()"><i class="fas fa-save"></i> Salvar Rascunho</button>
+                        <button type="button" class="btn btn-primary" id="btnEnviarRequisicao" onclick="enviarRequisicao()"><i class="fas fa-paper-plane"></i> Enviar Requisição</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Visualizar Requisição -->
+    <div class="modal-overlay" id="modalVisualizarRequisicao">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye"></i> Requisição <span id="viewReqNumero"></span></h3>
+                <button class="modal-close" onclick="fecharModalVisualizar()">&times;</button>
+            </div>
+            <div class="modal-body" id="viewReqContent" style="max-height:60vh; overflow-y:auto;">
+                <p style="text-align:center; color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i></p>
+            </div>
+            <div class="modal-footer" id="viewReqFooter">
+                <button class="btn btn-secondary" onclick="fecharModalVisualizar()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /* ========== State ========== */
+    let requisicoesData = [];
+    let materiaisData = [];
+    let centrosCustoData = [];
+    let usuarioLogado = null;
+    let filtroAtual = 'todos';
+    let termoBusca = '';
+    let itemCounter = 0;
+    let anexosFiles = [];
+    const avatarNameMap = {};
+
+    function toggleMobileSidebar() {
+        const sidebar = document.getElementById('mobile-sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (overlay) overlay.classList.toggle('active');
+    }
+
+    /* ========== Init ========== */
+    document.addEventListener('DOMContentLoaded', () => {
+        carregarUsuarioLogado();
+        carregarDadosIniciais();
+        configurarEventos();
+    });
+
+    async function carregarUsuarioLogado() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { usuarioLogado = await r.json(); }
+        } catch (e) { console.log('Erro user:', e); }
+    }
+
+    async function carregarDadosIniciais() {
+        await Promise.all([carregarRequisicoes(), carregarMateriais(), carregarCentrosCusto()]);
+    }
+
+    async function carregarRequisicoes() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/requisicoes', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) {
+                const data = await r.json();
+                requisicoesData = data.requisicoes || data || [];
+            }
+        } catch (e) { console.log('Erro requisições:', e); requisicoesData = gerarDadosExemplo(); }
+        atualizarContadores();
+        filtrarRequisicoes(filtroAtual);
+    }
+
+    async function carregarMateriais() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/pcp/produtos?limit=1000', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { const d = await r.json(); materiaisData = d.produtos || d || []; }
+        } catch (e) { console.log('Erro materiais:', e); }
+    }
+
+    async function carregarCentrosCusto() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/centros-custo', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { const d = await r.json(); centrosCustoData = d.centros || d || []; }
+        } catch (e) { console.log('Erro CC:', e); }
+    }
+
+    function gerarDadosExemplo() {
+        return [
+            { id: 1, numero: 'RC-001', solicitante: 'Admin', data_solicitacao: new Date().toISOString(), centro_custo: 'Produção', prioridade: 'normal', valor_estimado: 1500, status: 'pendente' },
+            { id: 2, numero: 'RC-002', solicitante: 'Admin', data_solicitacao: new Date().toISOString(), centro_custo: 'Manutenção', prioridade: 'alta', valor_estimado: 3200, status: 'aprovada' }
+        ];
+    }
+
+    function configurarEventos() {
+        const search = document.getElementById('searchRequisicao');
+        if (search) search.addEventListener('input', () => { termoBusca = search.value; filtrarRequisicoes(filtroAtual); });
+    }
+
+    /* ========== Filter & Render ========== */
+    function filtrarRequisicoes(status, btn) {
+        filtroAtual = status;
+        if (btn) { document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+        let dados = [...requisicoesData];
+        if (status !== 'todos') dados = dados.filter(r => r.status === status);
+        if (termoBusca) {
+            const t = termoBusca.toLowerCase();
+            dados = dados.filter(r => (r.numero || '').toLowerCase().includes(t) || (r.solicitante || '').toLowerCase().includes(t));
+        }
+        renderizarTabela(dados);
+    }
+
+    function renderizarTabela(dados) {
+        const tbody = document.getElementById('requisicoesTableBody');
+        if (!dados.length) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:var(--space-8); color:var(--gray-400);"><i class="fas fa-inbox"></i> Nenhuma requisição encontrada</td></tr>';
+            return;
+        }
+        tbody.innerHTML = dados.map((r, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td><strong>${r.numero || '-'}</strong></td>
+                <td>${r.solicitante || '-'}</td>
+                <td>${formatarData(r.data_solicitacao)}</td>
+                <td>${r.centro_custo || '-'}</td>
+                <td><span class="badge badge-${r.prioridade === 'urgente' ? 'urgent' : r.prioridade === 'alta' ? 'pending' : r.prioridade === 'normal' ? 'in-progress' : 'approved'}">${r.prioridade || 'normal'}</span></td>
+                <td>${formatarMoeda(r.valor_estimado)}</td>
+                <td><span class="badge badge-${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
+                <td>
+                    <div class="action-btns">
+                        <button class="action-btn" onclick="visualizarRequisicao(${r.id})" title="Ver"><i class="fas fa-eye"></i></button>
+                        ${r.status === 'rascunho' || r.status === 'pendente' ? '<button class="action-btn" onclick="editarRequisicao(' + r.id + ')" title="Editar"><i class="fas fa-edit"></i></button>' : ''}
+                        ${r.status === 'rascunho' ? '<button class="action-btn" style="color:var(--danger-500);" onclick="excluirRequisicao(' + r.id + ')" title="Excluir"><i class="fas fa-trash"></i></button>' : ''}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function atualizarContadores() {
+        document.getElementById('totalRequisicoes').textContent = requisicoesData.length;
+        document.getElementById('requisicoesPendentes').textContent = requisicoesData.filter(r => r.status === 'pendente' || r.status === 'urgente').length;
+        document.getElementById('requisicoesAprovadas').textContent = requisicoesData.filter(r => r.status === 'aprovada').length;
+        document.getElementById('requisicoesCotacao').textContent = requisicoesData.filter(r => r.status === 'cotacao' || r.status === 'em_cotacao').length;
+    }
+
+    /* ========== Modal: Nova Requisição ========== */
+    async function abrirModalNovaRequisicao() {
+        document.getElementById('formNovaRequisicao').reset();
+        itemCounter = 0;
+        anexosFiles = [];
+        document.getElementById('itensContainer').innerHTML = '';
+        document.getElementById('anexosList').innerHTML = '';
+        document.getElementById('reqDataSolicitacao').value = new Date().toISOString().split('T')[0];
+        if (usuarioLogado) document.getElementById('reqSolicitante').value = usuarioLogado.nome || usuarioLogado.name || 'Usuário';
+        // Populate CC
+        const sel = document.getElementById('reqCentroCusto');
+        sel.innerHTML = '<option value="">Selecione</option>' + centrosCustoData.map(c => `<option value="${c.id || c.nome}">${c.nome || c.descricao}</option>`).join('');
+        // Get next number
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/requisicoes/proximo-numero', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { const d = await r.json(); document.getElementById('reqNumero').value = d.numero || d.proximo_numero || ''; }
+        } catch (e) { document.getElementById('reqNumero').value = 'RC-' + String(requisicoesData.length + 1).padStart(3, '0'); }
+        adicionarItemReq();
+        document.getElementById('modalNovaRequisicao').classList.add('active');
+    }
+
+    function fecharModalNovaRequisicao() {
+        document.getElementById('modalNovaRequisicao').classList.remove('active');
+    }
+
+    function adicionarItemReq() {
+        itemCounter++;
+        const id = itemCounter;
+        const materiaisOptions = materiaisData.map(m => `<option value="${m.nome || m.descricao}">${m.codigo ? m.codigo + ' - ' : ''}${m.nome || m.descricao}</option>`).join('');
+        const html = `
+        <div class="item-card" id="item-${id}">
+            <div class="item-header">
+                <span>Item #${id}</span>
+                <button type="button" class="btn-remove-item" onclick="removerItem(${id})" title="Remover"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="form-grid cols-4">
+                <div class="form-group" style="grid-column:span 2;">
+                    <label>Material/Produto</label>
+                    <input type="text" class="form-control" id="itemMaterial-${id}" list="listMateriais-${id}" placeholder="Buscar material..." oninput="buscarPrecoMaterial(this, ${id})">
+                    <datalist id="listMateriais-${id}">${materiaisOptions}</datalist>
+                </div>
+                <div class="form-group">
+                    <label>Quantidade</label>
+                    <input type="number" class="form-control" id="itemQtd-${id}" min="1" value="1" onchange="calcularSubtotal(${id})">
+                </div>
+                <div class="form-group">
+                    <label>Unidade</label>
+                    <select class="form-control" id="itemUnidade-${id}"><option value="UN">UN</option><option value="KG">KG</option><option value="M">M</option><option value="L">L</option><option value="CX">CX</option><option value="PC">PC</option></select>
+                </div>
+                <div class="form-group">
+                    <label>Preço Unit. Est.</label>
+                    <input type="text" class="form-control" id="itemPreco-${id}" value="R$ 0,00" oninput="mascaraMoedaInput(this)" onblur="formatarPrecoBlur(this); calcularSubtotal(${id})" onchange="calcularSubtotal(${id})">
+                </div>
+                <div class="form-group">
+                    <label>Subtotal</label>
+                    <input type="text" class="form-control" id="itemSubtotal-${id}" readonly value="R$ 0,00">
+                </div>
+                <div class="form-group" style="grid-column:span 2;">
+                    <label>Especificação</label>
+                    <input type="text" class="form-control" id="itemSpec-${id}" placeholder="Detalhes adicionais...">
+                </div>
+            </div>
+        </div>`;
+        document.getElementById('itensContainer').insertAdjacentHTML('beforeend', html);
+        atualizarResumoItens();
+    }
+
+    function removerItem(id) {
+        const items = document.querySelectorAll('.item-card');
+        if (items.length <= 1) { showToast('Mínimo 1 item na requisição', 'warning'); return; }
+        document.getElementById('item-' + id)?.remove();
+        atualizarResumoItens();
+    }
+
+    function calcularSubtotal(id) {
+        const qtd = parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0;
+        const preco = parseMoeda(document.getElementById('itemPreco-' + id)?.value);
+        const sub = qtd * preco;
+        const el = document.getElementById('itemSubtotal-' + id);
+        if (el) el.value = formatarMoeda(sub);
+        atualizarResumoItens();
+    }
+
+    function atualizarResumoItens() {
+        const items = document.querySelectorAll('.item-card');
+        let totalQtd = 0, totalVal = 0;
+        items.forEach(item => {
+            const id = item.id.split('-')[1];
+            totalQtd += parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0;
+            const qtd = parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0;
+            const preco = parseMoeda(document.getElementById('itemPreco-' + id)?.value);
+            totalVal += qtd * preco;
+        });
+        document.getElementById('totalItens').textContent = items.length;
+        document.getElementById('qtdTotal').textContent = totalQtd;
+        document.getElementById('valorTotal').textContent = formatarMoeda(totalVal);
+    }
+
+    function buscarPrecoMaterial(input, itemId) {
+        const mat = materiaisData.find(m => (m.nome || m.descricao) === input.value);
+        if (mat && mat.preco_unitario) {
+            document.getElementById('itemPreco-' + itemId).value = formatarMoeda(mat.preco_unitario);
+            calcularSubtotal(itemId);
+        }
+    }
+
+    function enviarRequisicao() { salvarRequisicaoAPI('pendente'); }
+    function salvarRascunho() { salvarRequisicaoAPI('rascunho'); }
+
+    let salvandoRequisicao = false; // Flag anti duplo-clique
+    async function salvarRequisicaoAPI(status) {
+        // Prevenir duplo clique
+        if (salvandoRequisicao) return;
+
+        const justificativa = document.getElementById('reqJustificativa').value;
+        if (status !== 'rascunho' && !justificativa) { showToast('Preencha a justificativa', 'warning'); return; }
+
+        const numero = document.getElementById('reqNumero').value;
+        if (!numero) { showToast('Número da requisição não gerado. Feche e reabra o formulário.', 'warning'); return; }
+
+        const items = [];
+        document.querySelectorAll('.item-card').forEach(card => {
+            const id = card.id.split('-')[1];
+            const qtd = parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0;
+            const preco = parseMoeda(document.getElementById('itemPreco-' + id)?.value);
+            items.push({
+                descricao: document.getElementById('itemMaterial-' + id)?.value || '',
+                quantidade: qtd,
+                unidade: document.getElementById('itemUnidade-' + id)?.value || 'UN',
+                valor_estimado: preco,
+                subtotal: qtd * preco,
+                observacao: document.getElementById('itemSpec-' + id)?.value || ''
+            });
+        });
+
+        if (items.length === 0) { showToast('Adicione pelo menos 1 item', 'warning'); return; }
+
+        const prioridade = document.querySelector('input[name="prioridade"]:checked')?.value || 'normal';
+        const solicitante = document.getElementById('reqSolicitante')?.value || (usuarioLogado ? (usuarioLogado.nome || usuarioLogado.name) : 'Usuário');
+        const solicitante_id = usuarioLogado ? (usuarioLogado.id || null) : null;
+        const body = {
+            numero,
+            solicitante,
+            solicitante_id,
+            centro_custo: document.getElementById('reqCentroCusto').value || null,
+            data_solicitacao: document.getElementById('reqDataSolicitacao')?.value || new Date().toISOString().split('T')[0],
+            data_necessidade: document.getElementById('reqDataNecessidade').value || null,
+            projeto: document.getElementById('reqProjeto').value || null,
+            prioridade, justificativa, status, itens: items,
+            fornecedores_sugeridos: document.getElementById('fornecedoresSugeridos').value || null,
+            observacoes: document.getElementById('reqObservacoes').value || null
+        };
+
+        // Desabilitar botões e marcar como salvando
+        salvandoRequisicao = true;
+        const btnEnviar = document.getElementById('btnEnviarRequisicao');
+        const btnRascunho = document.getElementById('btnSalvarRascunho');
+        if (btnEnviar) { btnEnviar.disabled = true; btnEnviar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...'; }
+        if (btnRascunho) btnRascunho.disabled = true;
+
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/requisicoes', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(body)
+            });
+            if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.message || 'Erro ao salvar requisição'); }
+            fecharModalNovaRequisicao();
+            carregarRequisicoes();
+            showToast(status === 'rascunho' ? 'Rascunho salvo com sucesso!' : 'Requisição enviada com sucesso!', 'success');
+        } catch (e) {
+            showToast('Erro: ' + e.message, 'error');
+            console.error('[Requisição] Erro ao salvar:', e);
+        } finally {
+            // Restaurar botões
+            salvandoRequisicao = false;
+            if (btnEnviar) { btnEnviar.disabled = false; btnEnviar.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Requisição'; }
+            if (btnRascunho) { btnRascunho.disabled = false; }
+        }
+    }
+
+    /* ========== View / Edit / Delete ========== */
+    async function visualizarRequisicao(id) {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`/api/compras/requisicoes/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const d = await r.json();
+            const req = d.requisicao || d;
+            document.getElementById('viewReqNumero').textContent = req.numero || '';
+            let itensHtml = '';
+            if (req.itens && req.itens.length) {
+                itensHtml = '<table class="data-table" style="font-size:0.8rem;"><thead><tr><th>Material</th><th>Qtd</th><th>Un</th><th>Preço</th><th>Subtotal</th></tr></thead><tbody>' +
+                    req.itens.map(it => `<tr><td>${it.material}</td><td>${it.quantidade}</td><td>${it.unidade}</td><td>${formatarMoeda(it.preco_unitario)}</td><td>${formatarMoeda((it.quantidade || 0) * (it.preco_unitario || 0))}</td></tr>`).join('') +
+                    '</tbody></table>';
+            }
+            document.getElementById('viewReqContent').innerHTML =
+                '<div class="view-section"><h4>Informações Gerais</h4><div class="view-grid">' +
+                '<div class="view-item"><label>Nº Requisição</label><p>' + (req.numero || '-') + '</p></div>' +
+                '<div class="view-item"><label>Solicitante</label><p>' + (req.solicitante || '-') + '</p></div>' +
+                '<div class="view-item"><label>Data</label><p>' + formatarData(req.data_solicitacao) + '</p></div>' +
+                '<div class="view-item"><label>Centro de Custo</label><p>' + (req.centro_custo || '-') + '</p></div>' +
+                '<div class="view-item"><label>Prioridade</label><p><span class="badge badge-' + (req.prioridade === 'urgente' ? 'urgent' : 'pending') + '">' + (req.prioridade || 'normal') + '</span></p></div>' +
+                '<div class="view-item"><label>Status</label><p><span class="badge badge-' + getStatusClass(req.status) + '">' + getStatusLabel(req.status) + '</span></p></div>' +
+                '</div></div>' +
+                '<div class="view-section"><h4>Justificativa</h4><p style="font-size:0.85rem; color:var(--gray-700);">' + (req.justificativa || '-') + '</p></div>' +
+                (itensHtml ? '<div class="view-section"><h4>Itens</h4>' + itensHtml + '</div>' : '') +
+                (req.observacoes ? '<div class="view-section"><h4>Observações</h4><p style="font-size:0.85rem; color:var(--gray-700);">' + req.observacoes + '</p></div>' : '');
+            document.getElementById('modalVisualizarRequisicao').classList.add('active');
+        } catch (e) { showToast('Erro ao carregar requisição', 'error'); }
+    }
+
+    function fecharModalVisualizar() {
+        document.getElementById('modalVisualizarRequisicao').classList.remove('active');
+    }
+
+    async function editarRequisicao(id) {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`/api/compras/requisicoes/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const d = await r.json();
+            const req = d.requisicao || d;
+            if (req.status !== 'rascunho' && req.status !== 'pendente') { showToast('Esta requisição não pode ser editada', 'warning'); return; }
+            await abrirModalNovaRequisicao();
+            document.getElementById('reqNumero').value = req.numero || '';
+            document.getElementById('reqJustificativa').value = req.justificativa || '';
+            document.getElementById('reqObservacoes').value = req.observacoes || '';
+            if (req.prioridade) {
+                const radio = document.querySelector(`input[name="prioridade"][value="${req.prioridade}"]`);
+                if (radio) radio.checked = true;
+            }
+        } catch (e) { showToast('Erro ao carregar para edição', 'error'); }
+    }
+
+    async function excluirRequisicao(id) {
+        if (!confirm('Excluir esta requisição?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await fetch(`/api/compras/requisicoes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            carregarRequisicoes();
+            showToast('Requisição excluída com sucesso!', 'success');
+        } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+    }
+
+    /* ========== Attachments ========== */
+    function handleAnexos(input) {
+        const files = Array.from(input.files);
+        files.forEach(f => {
+            if (f.size > 10 * 1024 * 1024) { showToast(`${f.name} excede 10MB`, 'warning'); return; }
+            anexosFiles.push(f);
+        });
+        renderizarAnexos();
+        input.value = '';
+    }
+
+    function renderizarAnexos() {
+        const list = document.getElementById('anexosList');
+        if (!anexosFiles.length) { list.innerHTML = ''; return; }
+        list.innerHTML = anexosFiles.map((f, i) => {
+            const ext = f.name.split('.').pop().toLowerCase();
+            let icon = 'fa-file';
+            if (['pdf'].includes(ext)) icon = 'fa-file-pdf';
+            else if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) icon = 'fa-file-image';
+            else if (['xls','xlsx','csv'].includes(ext)) icon = 'fa-file-excel';
+            else if (['doc','docx'].includes(ext)) icon = 'fa-file-word';
+            const size = f.size < 1024 ? f.size + ' B' : f.size < 1048576 ? (f.size / 1024).toFixed(1) + ' KB' : (f.size / 1048576).toFixed(1) + ' MB';
+            return '<div class="anexo-item"><i class="fas ' + icon + '" style="color:var(--primary-500);"></i> <span>' + f.name + '</span> <small style="color:var(--gray-400);font-size:0.68rem;">(' + size + ')</small>' +
+                ' <button type="button" class="btn-remove" onclick="removerAnexo(' + i + ')" title="Remover"><i class="fas fa-times"></i></button></div>';
+        }).join('');
+    }
+
+    function removerAnexo(index) { anexosFiles.splice(index, 1); renderizarAnexos(); }
+
+    /* Dropzone drag & drop */
+    (function() {
+        document.addEventListener('DOMContentLoaded', function() {
+            const dz = document.getElementById('dropzoneAnexos');
+            if (!dz) return;
+            ['dragenter','dragover'].forEach(ev => dz.addEventListener(ev, function(e) { e.preventDefault(); dz.classList.add('drag-over'); }));
+            ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, function(e) { e.preventDefault(); dz.classList.remove('drag-over'); }));
+            dz.addEventListener('drop', function(e) {
+                const files = Array.from(e.dataTransfer.files);
+                files.forEach(f => { if (f.size > 10*1024*1024) { showToast(f.name+' excede 10MB', 'warning'); return; } anexosFiles.push(f); });
+                renderizarAnexos();
+            });
+        });
+    })();
+
+    /* ========== Export ========== */
+    function exportarDados() {
+        if (!requisicoesData.length) { showToast('Sem dados para exportar', 'info'); return; }
+        const bom = '\uFEFF';
+        let csv = bom + 'Nº;Solicitante;Data;Centro Custo;Prioridade;Valor;Status\n';
+        requisicoesData.forEach(r => {
+            csv += `${r.numero};${r.solicitante};${formatarData(r.data_solicitacao)};${r.centro_custo};${r.prioridade};${r.valor_estimado || 0};${r.status}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'requisicoes_compras.csv'; a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    /* ========== Helpers ========== */
+    function getStatusClass(s) {
+        const map = { pendente: 'pending', aprovada: 'approved', rascunho: 'in-progress', cotacao: 'in-progress', em_cotacao: 'in-progress', rejeitada: 'cancelled', urgente: 'urgent', finalizada: 'approved' };
+        return map[s] || 'pending';
+    }
+    function getStatusLabel(s) {
+        const map = { pendente: 'Pendente', aprovada: 'Aprovada', rascunho: 'Rascunho', cotacao: 'Em Cotação', em_cotacao: 'Em Cotação', rejeitada: 'Rejeitada', urgente: 'Urgente', finalizada: 'Finalizada' };
+        return map[s] || s || '-';
+    }
+    function formatarData(d) { if (!d) return '-'; try { return new Date(d).toLocaleDateString('pt-BR'); } catch (e) { return d; } }
+    function formatarMoeda(v) { return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+    function parseMoeda(str) {
+        if (typeof str === 'number') return str;
+        if (!str) return 0;
+        return parseFloat(String(str).replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
+    }
+    function mascaraMoedaInput(el) {
+        let v = el.value.replace(/\D/g, '');
+        v = (parseInt(v, 10) || 0) / 100;
+        el.value = formatarMoeda(v);
+    }
+    function formatarPrecoBlur(el) {
+        const v = parseMoeda(el.value);
+        el.value = formatarMoeda(v);
+    }
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    /* ========== Toast Notification System ========== */
+    function showToast(message, type = 'success', duration = 4000) {
+        const container = document.getElementById('toastContainer');
+        if (!container) { console.warn('Toast container não encontrado'); return; }
+        const icons = {
+            success: 'fa-check',
+            error: 'fa-xmark',
+            warning: 'fa-exclamation',
+            info: 'fa-info'
+        };
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.style.setProperty('--toast-duration', duration + 'ms');
+        toast.innerHTML = `
+            <div class="toast-icon"><i class="fas ${icons[type] || icons.info}"></i></div>
+            <div class="toast-body">${message}</div>
+            <button class="toast-close" onclick="this.parentElement.classList.add('hiding'); setTimeout(() => this.parentElement.remove(), 300);"><i class="fas fa-times"></i></button>
+            <div class="toast-progress"></div>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, duration);
+    }
+    </script>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/modules/Compras/compras-user-loader.js?v=20260214"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/mobile-menu.js"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

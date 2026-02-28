@@ -1,0 +1,2073 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Consulta de Estoque</title>
+    
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-blue: #225cfa;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            /* Status colors - alinhado com PCP */
+            --status-success: #10b981;
+            --status-warning: #f59e0b;
+            --status-danger: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-gray);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-blue);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+        .sidebar-btn {
+            width: 34px; height: 34px;
+            min-height: 34px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            transition: all 0.15s ease;
+            position: relative;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-blue); color: white; }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* HEADER */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */ margin-top: 0; padding: 0; }
+
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent; color: #8b8b9a;
+            border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .header-btn#btn-refresh.loading i { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 8px; color: #8b8b9a; font-size: 13px;
+        }
+        .user-greeting strong { color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer;
+        }
+        .user-avatar img {
+            width: 100%; height: 100%;
+            object-fit: cover; border-radius: 50%;
+            display: none;
+        }
+        .user-avatar img.visible { display: block; }
+
+        /* CONTENT */
+        .content-area { flex: 1; overflow-y: auto; padding: 20px; background: var(--bg-gray); }
+
+        /* PAGE HEADER */
+        .page-header-section {
+            background: white; border-radius: 12px;
+            padding: 20px 24px; margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .page-header-left h1 {
+            font-size: 24px; font-weight: 700; color: #1a1a1a;
+            margin-bottom: 4px; display: flex; align-items: center; gap: 12px;
+        }
+        .page-header-left h1 i { color: var(--primary-blue); }
+        .page-header-left p { font-size: 14px; color: #7f8c8d; }
+
+        .page-header-right { display: flex; gap: 12px; align-items: center; }
+
+        /* STATS CARDS */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 16px; margin-bottom: 20px;
+        }
+        @media (max-width: 1200px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 768px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 500px) { .stats-grid { grid-template-columns: 1fr; } }
+
+        .stat-card {
+            background: white; border-radius: 12px;
+            padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+        .stat-card.highlight { 
+            background: linear-gradient(135deg, #225cfa, #1a4fd6); 
+            color: white; 
+        }
+        .stat-card.highlight .stat-label, .stat-card.highlight .stat-value { color: white; }
+
+        .stat-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+
+        .stat-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+        }
+        .stat-icon.blue { background: #eff6ff; color: #3b82f6; }
+        .stat-icon.green { background: #f0fdf4; color: #22c55e; }
+        .stat-icon.yellow { background: #fefce8; color: #eab308; }
+        .stat-icon.red { background: #fef2f2; color: #ef4444; }
+        .stat-icon.purple { background: #faf5ff; color: #a855f7; }
+        .stat-icon.white { background: rgba(255,255,255,0.2); color: white; }
+
+        .stat-value { font-size: 28px; font-weight: 700; color: #1a1a1a; }
+        .stat-label { font-size: 13px; color: #7f8c8d; margin-top: 4px; }
+
+        /* FILTERS BAR */
+        .filters-bar {
+            background: white; border-radius: 12px;
+            padding: 16px 20px; margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+        }
+
+        .filter-group { display: flex; align-items: center; gap: 8px; }
+        .filter-group label { font-size: 13px; color: #6b7280; font-weight: 500; white-space: nowrap; }
+        .filter-group select {
+            padding: 8px 12px; border: 1px solid #e5e7eb;
+            border-radius: 6px; font-size: 13px; min-width: 150px;
+            cursor: pointer;
+        }
+        .filter-group select:focus { outline: none; border-color: var(--primary-blue); }
+
+        .search-box {
+            display: flex; align-items: center;
+            background: #f5f5f5; border-radius: 8px;
+            padding: 0 12px; flex: 1; min-width: 300px;
+        }
+        .search-box i { color: #999; font-size: 14px; }
+        .search-box input {
+            border: none; background: transparent;
+            padding: 10px 12px; font-size: 14px; width: 100%; outline: none;
+        }
+
+        .btn-refresh {
+            padding: 8px 16px; border-radius: 8px;
+            border: 1px solid #e5e7eb; background: white;
+            color: #374151; font-size: 13px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; gap: 6px;
+            transition: all 0.2s;
+        }
+        .btn-refresh:hover { background: #f9fafb; border-color: var(--primary-blue); color: var(--primary-blue); }
+        .btn-refresh.loading i { animation: spin 1s linear infinite; }
+
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* TABLE */
+        .table-container {
+            background: white; border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;
+        }
+
+        .table-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
+        }
+        .table-header h3 { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+        .table-header span { font-size: 13px; color: #6b7280; }
+
+        .table-tabs { display: flex; gap: 4px; }
+        .table-tab {
+            padding: 6px 12px; border: none; background: #f3f4f6;
+            border-radius: 6px; font-size: 12px; font-weight: 500;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .table-tab:hover { background: #e5e7eb; }
+        .table-tab.active { background: var(--primary-blue); color: white; }
+
+        .table-wrapper { overflow-x: auto; }
+
+        .estoque-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        .estoque-table th, .estoque-table td {
+            padding: 14px 16px; text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .estoque-table th {
+            background: #f9fafb; font-size: 12px; font-weight: 600;
+            color: #6b7280; text-transform: uppercase;
+            position: sticky; top: 0;
+        }
+        .estoque-table th.sortable { cursor: pointer; user-select: none; }
+        .estoque-table th.sortable:hover { background: #f3f4f6; }
+        .estoque-table th i { margin-left: 4px; font-size: 10px; opacity: 0.5; }
+        .estoque-table tbody tr { transition: background 0.15s; }
+        .estoque-table tbody tr:hover { background: #f9fafb; }
+
+        .produto-codigo { 
+            font-weight: 600; color: var(--primary-blue); 
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+        }
+        .produto-nome { 
+            font-weight: 500; color: #1a1a1a; 
+            max-width: 280px; 
+        }
+        .produto-nome small { 
+            display: block; font-size: 11px; color: #9ca3af; 
+            font-weight: 400; margin-top: 2px;
+        }
+
+        /* Badges de status - alinhado com PCP */
+        .badge { 
+            padding: 3px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 500;
+            background: #f3f4f6; color: #6b7280;
+        }
+        .badge-success { background: #dcfce7; color: #166534; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-danger { background: #fee2e2; color: #991b1b; }
+
+        .estoque-badge {
+            padding: 4px 10px; border-radius: 20px;
+            font-size: 12px; font-weight: 600; display: inline-flex;
+            align-items: center; gap: 4px;
+        }
+        .estoque-badge.disponivel, .estoque-badge.success { background: #dcfce7; color: #166534; }
+        .estoque-badge.baixo, .estoque-badge.warning { background: #fef3c7; color: #92400e; }
+        .estoque-badge.critico, .estoque-badge.danger { background: #fee2e2; color: #991b1b; }
+        .estoque-badge.zerado { background: #f3f4f6; color: #6b7280; }
+
+        .quantidade-cell { 
+            font-weight: 600; font-size: 15px; 
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        .quantidade-cell.alto { color: #16a34a; }
+        .quantidade-cell.medio { color: #ca8a04; }
+        .quantidade-cell.baixo { color: #dc2626; }
+
+        .preco-cell { font-weight: 500; color: #374151; }
+
+        .categoria-badge {
+            padding: 3px 8px; border-radius: 4px;
+            font-size: 11px; font-weight: 500;
+            text-transform: uppercase;
+        }
+        .categoria-badge.duplex { background: #dbeafe; color: #1e40af; }
+        .categoria-badge.triplex { background: #dcfce7; color: #166534; }
+        .categoria-badge.quadruplex { background: #fef3c7; color: #92400e; }
+        .categoria-badge.outros { background: #f3e8ff; color: #7e22ce; }
+
+        .action-btn {
+            width: 32px; height: 32px; border-radius: 6px;
+            border: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: all 0.2s; font-size: 14px;
+            background: #f3f4f6; color: #6b7280;
+        }
+        .action-btn:hover { background: var(--primary-blue); color: white; }
+
+        /* PAGINATION */
+        .table-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; border-top: 1px solid #e5e7eb;
+        }
+
+        .pagination { display: flex; gap: 4px; }
+        .pagination button {
+            width: 32px; height: 32px; border: 1px solid #e5e7eb;
+            background: white; border-radius: 6px;
+            cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px;
+        }
+        .pagination button:hover:not(:disabled) { border-color: var(--primary-blue); color: var(--primary-blue); }
+        .pagination button.active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .items-info { font-size: 13px; color: #6b7280; }
+
+        /* EMPTY STATE */
+        .empty-state {
+            text-align: center; padding: 60px 20px;
+        }
+        .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 16px; }
+        .empty-state h3 { font-size: 18px; color: #374151; margin-bottom: 8px; }
+        .empty-state p { font-size: 14px; color: #9ca3af; }
+
+        /* LOADING */
+        .loading-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10;
+        }
+        .loading-spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #e5e7eb;
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* ===========================================
+           MODAL DETALHES - SAAS EMPRESARIAL PREMIUM
+           =========================================== */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: #ffffff;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 
+                0 0 0 1px rgba(0, 0, 0, 0.03),
+                0 2px 4px rgba(0, 0, 0, 0.05),
+                0 12px 24px rgba(0, 0, 0, 0.09),
+                0 32px 64px rgba(0, 0, 0, 0.12);
+            animation: modalEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes modalEnter {
+            from { 
+                opacity: 0; 
+                transform: translateY(24px) scale(0.96); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0) scale(1); 
+            }
+        }
+
+        .modal-header {
+            padding: 20px 24px 16px;
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 50%, #60a5fa 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            gap: 12px;
+        }
+        
+        .modal-header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 1;
+        }
+        
+        .modal-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        
+        .modal-header h2 { 
+            font-size: 17px;
+            font-weight: 600;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .modal-header h2 i { 
+            width: 32px;
+            height: 32px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        
+        .modal-header-badge {
+            position: relative;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border: 1px solid rgba(255,255,255,0.2);
+            letter-spacing: 0.3px;
+            z-index: 1;
+            margin-right: 12px;
+        }
+        
+        .modal-header-badge i {
+            font-size: 10px;
+        }
+        
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(8px);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .modal-close:hover { 
+            background: rgba(255,255,255,0.25);
+            transform: scale(1.05);
+        }
+        
+        .modal-close:active {
+            transform: scale(0.95);
+        }
+
+        .modal-body { 
+            padding: 0;
+            overflow-y: auto;
+            max-height: calc(90vh - 80px);
+            background: #f8fafc;
+        }
+
+        /* ═══════ MODAL DETALHES — CLEAN MINIMAL ═══════ */
+        .mdp-hero {
+            padding: 28px 28px 24px;
+            background: #fff;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .mdp-hero-top {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .mdp-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: #fff;
+            font-size: 20px;
+        }
+
+        .mdp-title-block { flex: 1; min-width: 0; }
+
+        .mdp-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.35;
+            margin: 0 0 6px;
+            word-wrap: break-word;
+        }
+
+        .mdp-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .mdp-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            padding: 3px 9px;
+            border-radius: 5px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .mdp-chip.code {
+            background: #eff6ff;
+            color: #1e40af;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .mdp-chip.cat {
+            background: #f0fdf4;
+            color: #15803d;
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.4px;
+        }
+
+        .mdp-chip i { font-size: 9px; }
+
+        /* ── KPI Row ── */
+        .mdp-kpi-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .mdp-kpi {
+            background: #fff;
+            padding: 16px 12px;
+            text-align: center;
+        }
+
+        .mdp-kpi-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 6px;
+        }
+
+        .mdp-kpi-value {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0f172a;
+            line-height: 1;
+        }
+
+        .mdp-kpi-value small {
+            font-size: 11px;
+            font-weight: 500;
+            color: #64748b;
+            margin-left: 2px;
+        }
+
+        .mdp-kpi-sub {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* ── Sections ── */
+        .mdp-section {
+            padding: 24px 28px;
+            background: #fff;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .mdp-section:last-child { border-bottom: none; }
+
+        .mdp-section-head {
+            font-size: 12px;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mdp-section-head i {
+            font-size: 13px;
+            color: #3b82f6;
+        }
+
+        /* ── Status Bar ── */
+        .mdp-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .mdp-status-bar.ok   { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .mdp-status-bar.warn { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+        .mdp-status-bar.crit { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+        .mdp-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .mdp-status-bar.ok   .mdp-status-dot { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,.4); }
+        .mdp-status-bar.warn .mdp-status-dot { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,.4); }
+        .mdp-status-bar.crit .mdp-status-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,.4); animation: mdp-pulse 2s infinite; }
+
+        @keyframes mdp-pulse {
+            0%,100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: .6; }
+        }
+
+        .mdp-status-text {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ── Progress ── */
+        .mdp-progress {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .mdp-progress-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width .6s ease;
+        }
+
+        .mdp-progress-fill.ok   { background: #22c55e; }
+        .mdp-progress-fill.warn { background: #f59e0b; }
+        .mdp-progress-fill.crit { background: #ef4444; }
+
+        /* ── Data Pairs ── */
+        .mdp-pairs {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .mdp-pair {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .mdp-pair-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .mdp-pair-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .mdp-pair-value .empty {
+            color: #cbd5e1;
+            font-weight: 400;
+            font-style: italic;
+        }
+
+        /* ── Bobinas Table ── */
+        .mdp-table-wrap {
+            overflow-x: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+
+        .mdp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .mdp-table thead th {
+            padding: 10px 12px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .mdp-table thead th:first-child { text-align: center; }
+        .mdp-table thead th:nth-child(2) { text-align: right; }
+
+        .mdp-table tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            color: #334155;
+            vertical-align: middle;
+        }
+
+        .mdp-table tbody tr:last-child td { border-bottom: none; }
+
+        .mdp-table tbody tr:hover { background: #fafbfc; }
+
+        .mdp-table .td-num { font-weight: 700; color: #1e40af; text-align: center; }
+        .mdp-table .td-qty { font-weight: 700; color: #0f172a; text-align: right; }
+
+        .mdp-color-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,0,0,.08);
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+
+        .mdp-badge-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .mdp-badge-status.st-ok   { background: #f0fdf4; color: #15803d; }
+        .mdp-badge-status.st-res  { background: #fffbeb; color: #92400e; }
+        .mdp-badge-status.st-cons { background: #f8fafc; color: #64748b; }
+        .mdp-badge-status.st-block{ background: #fef2f2; color: #991b1b; }
+
+        /* Tipo badge (Bobina / Rolo) */
+        .mdp-tipo-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+            white-space: nowrap;
+        }
+        .mdp-tipo-badge.bobina { background: #eff6ff; color: #1d4ed8; }
+        .mdp-tipo-badge.rolo   { background: #fdf4ff; color: #9333ea; }
+
+        .mdp-dim-tag {
+            display: inline-block; font-size: 11px; font-weight: 600;
+            background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 4px;
+            font-family: 'Courier New', monospace; letter-spacing: 0.3px;
+        }
+
+        .mdp-sum-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 6px;
+        }
+        .mdp-sum-chip.bobina { background: #dbeafe; color: #1d4ed8; }
+        .mdp-sum-chip.rolo   { background: #f3e8ff; color: #7c3aed; }
+
+        /* ── Preco ── */
+        .mdp-preco {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .mdp-preco-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .mdp-preco-value {
+            font-size: 24px;
+            font-weight: 800;
+            color: #059669;
+            letter-spacing: -0.3px;
+        }
+
+        /* ── Footer Note ── */
+        .mdp-footer-note {
+            padding: 16px 28px;
+            background: #f9fafb;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .mdp-footer-note i { font-size: 14px; }
+
+        /* ── Observacao ── */
+        .mdp-obs {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #92400e;
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .mdp-obs i { margin-top: 2px; flex-shrink: 0; }
+
+        /* ── Color chips for cores ── */
+        .mdp-color-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            margin: 1px;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 500px) {
+            .mdp-kpi-row { grid-template-columns: 1fr; }
+            .mdp-pairs { grid-template-columns: 1fr; }
+            .mdp-hero { padding: 20px; }
+            .mdp-section { padding: 20px; }
+        }
+
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .page-header-section { flex-direction: column; gap: 16px; align-items: flex-start; }
+            .filters-bar { flex-direction: column; }
+            .search-box { min-width: 100%; }
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    
+    <!-- Verificação de Admin (Gestão de Vendas) -->
+    <script src="js/vendas-admin-check.js"></script>
+
+    <!-- Controle de Acesso por Permissões -->
+    <script src="js/vendas-access-control.js?v=20260114" defer></script>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <!-- Mobile Overlay -->
+        <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+        
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Kanban" onclick="window.location.href='index.html'">
+                    <i class="fas fa-columns"></i>
+                </button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'">
+                    <i class="fas fa-clipboard-list"></i>
+                </button>
+                <button class="sidebar-btn" title="Clientes" onclick="window.location.href='clientes.html'">
+                    <i class="fas fa-users"></i>
+                </button>
+                <button class="sidebar-btn" title="Prospecções & Leads" onclick="window.location.href='prospeccao.html'">
+                    <i class="fas fa-crosshairs"></i>
+                </button>
+                <button class="sidebar-btn active" title="Estoque" onclick="window.location.href='estoque.html'">
+                    <i class="fas fa-boxes-stacked"></i>
+                </button>
+                <button class="sidebar-btn" title="Meu Dashboard" onclick="window.location.href='dashboard.html'">
+                    <i class="fas fa-chart-pie"></i>
+                </button>
+                <button class="sidebar-btn" title="Gestão de Vendas" onclick="window.location.href='dashboard-admin.html'">
+                    <i class="fas fa-chart-line"></i>
+                </button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+                <button class="sidebar-btn" title="Comissões" onclick="window.location.href='comissoes.html'">
+                    <i class="fas fa-percentage"></i>
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Estoque</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" id="btn-refresh" title="Atualizar" onclick="carregarProdutos()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content-area">
+                <!-- Page Header -->
+                <div class="page-header-section">
+                    <div class="page-header-left">
+                        <h1><i class="fas fa-boxes-stacked"></i> Consulta de Estoque</h1>
+                        <p>Conferência diária - Dados sincronizados em tempo real com o módulo PCP</p>
+                    </div>
+                    <div class="page-header-right">
+                        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                            <button onclick="baixarTemplateEstoque()" style="padding: 6px 14px; background: linear-gradient(135deg, #1e40af, #3b82f6); color: white; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(59,130,246,0.3)'" onmouseout="this.style.transform='';this.style.boxShadow=''" title="Baixar template para preenchimento e importação no PCP">
+                                <i class="fas fa-file-excel"></i> Download Template
+                            </button>
+                            <span style="font-size: 11px; color: #9ca3af; background: #f3f4f6; padding: 4px 8px; border-radius: 4px;">
+                                <i class="fas fa-eye"></i> Somente Leitura
+                            </span>
+                            <span style="font-size: 13px; color: #6b7280; display: flex; align-items: center; gap: 8px;">
+                                <span id="sync-indicator" style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite;"></span>
+                                Sincronizado | <strong id="last-update">--</strong>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <style>
+                    @keyframes pulse {
+                        0%, 100% { opacity: 1; }
+                        50% { opacity: 0.4; }
+                    }
+                </style>
+
+                <!-- Stats Cards - ALINHADO COM PCP -->
+                <div class="stats-grid">
+                    <div class="stat-card highlight">
+                        <div class="stat-card-header">
+                            <div class="stat-icon white"><i class="fas fa-box"></i></div>
+                        </div>
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total em Estoque</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon purple"><i class="fas fa-layer-group"></i></div>
+                        </div>
+                        <div class="stat-value" id="stat-categorias">0</div>
+                        <div class="stat-label">Categorias</div>
+                        <div class="stat-detail" id="stat-categorias-detail" style="font-size: 10px; color: #9ca3af; margin-top: 4px;"></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon yellow"><i class="fas fa-exclamation-triangle"></i></div>
+                        </div>
+                        <div class="stat-value" id="stat-baixo">0</div>
+                        <div class="stat-label">Estoque Baixo</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+                        </div>
+                        <div class="stat-value" id="stat-zerado">0</div>
+                        <div class="stat-label">Nível Crítico</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        </div>
+                        <div class="stat-value" id="stat-disponivel">0</div>
+                        <div class="stat-label">Estoque Normal</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" placeholder="Buscar por código, nome, SKU ou GTIN..." oninput="filtrarProdutos()">
+                    </div>
+                    <div class="filter-group">
+                        <label>Categoria:</label>
+                        <select id="filter-categoria" onchange="filtrarProdutos()">
+                            <option value="">Todas as Categorias</option>
+                            <option value="DUPLEX">Duplex</option>
+                            <option value="TRIPLEX">Triplex</option>
+                            <option value="QUADRUPLEX">Quadruplex</option>
+                            <option value="OUTROS">Outros</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Status:</label>
+                        <select id="filter-status" onchange="filtrarProdutos()">
+                            <option value="">Todos os Status</option>
+                            <option value="disponivel">Estoque Normal</option>
+                            <option value="baixo">Estoque Baixo</option>
+                            <option value="zerado">Nível Crítico</option>
+                        </select>
+                    </div>
+                    <button class="btn-refresh" onclick="carregarProdutos()" id="btn-refresh">
+                        <i class="fas fa-sync-alt"></i> Atualizar
+                    </button>
+                </div>
+
+                <!-- Table -->
+                <div class="table-container" style="position: relative;">
+                    <div class="table-header">
+                        <h3><i class="fas fa-table"></i> Catálogo de Produtos</h3>
+                        <div class="table-tabs">
+                            <button class="table-tab active" onclick="setView('todos')">Todos</button>
+                            <button class="table-tab" onclick="setView('disponivel')">Normal</button>
+                            <button class="table-tab" onclick="setView('baixo')">Baixo</button>
+                            <button class="table-tab" onclick="setView('critico')">Crítico</button>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="estoque-table">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" onclick="ordenar('codigo')">Código <i class="fas fa-sort"></i></th>
+                                    <th class="sortable" onclick="ordenar('nome')">Nome / Descrição <i class="fas fa-sort"></i></th>
+                                    <th>SKU</th>
+                                    <th>Categoria</th>
+                                    <th class="sortable" onclick="ordenar('estoque')">Estoque <i class="fas fa-sort"></i></th>
+                                    <th>Mínimo</th>
+                                    <th class="sortable" onclick="ordenar('preco')">Preço <i class="fas fa-sort"></i></th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="produtos-tbody">
+                                <!-- Produtos serão carregados via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div class="empty-state" id="empty-state" style="display: none;">
+                        <i class="fas fa-box-open"></i>
+                        <h3>Nenhum produto disponível</h3>
+                        <p>Os produtos aparecerão aqui quando o técnico de PCP registrar entradas no estoque</p>
+                        <small style="color: #9ca3af; margin-top: 8px; display: block;">
+                            <i class="fas fa-sync-alt"></i> Dados sincronizados automaticamente a cada 30 segundos
+                        </small>
+                    </div>
+
+                    <!-- Loading -->
+                    <div class="loading-overlay" id="loading-overlay" style="display: none;">
+                        <div class="loading-spinner"></div>
+                    </div>
+
+                    <div class="table-footer">
+                        <div class="items-info">
+                            Exibindo <strong id="items-showing">0</strong> de <strong id="items-total">0</strong> produtos
+                        </div>
+                        <div class="pagination" id="pagination">
+                            <!-- Pagination será gerada via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Detalhes — Clean Minimal -->
+    <div class="modal-overlay" id="modal-detalhes">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-box-open"></i> Detalhes do Produto</h2>
+                <div class="modal-header-right">
+                    <button class="modal-close" onclick="fecharModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Conteúdo preenchido via JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Estado global - ALINHADO COM PCP
+        let todosProdutos = [];
+        let produtosFiltrados = [];
+        let paginaAtual = 1;
+        const itensPorPagina = 50; // Mesmo padrão do PCP
+        let ordenacaoAtual = { campo: 'nome', direcao: 'asc' };
+        let autoRefreshInterval = null;
+        const AUTO_REFRESH_TIME = 30000; // Atualização a cada 30 segundos
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarProdutos();
+            carregarUsuario();
+            iniciarAutoRefresh();
+        });
+
+        // Auto-refresh para sincronização em tempo real com PCP
+        function iniciarAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            autoRefreshInterval = setInterval(() => {
+                carregarProdutos(true); // silent refresh
+            }, AUTO_REFRESH_TIME);
+        }
+
+        // Mapeamento de avatares por nome de usuário
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcia': '/avatars/Marcia.webp',
+            'augusto': '/avatars/Augusto.jpg',
+            'renata': '/avatars/Renata.jpg',
+            'fabiano': '/avatars/Fabiano.webp',
+            'fabiola': '/avatars/Fabiola.webp',
+            'ronaldo': '/avatars/RonaldoTorres.jpg',
+            'joao': '/avatars/JoaoVictor.jpg',
+            'douglas': '/avatars/Douglas.webp',
+            'fernando': '/avatars/Fernando.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Carregar dados do usuário logado
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    if (user) {
+                        // Usar apelido se disponível, senão primeiro+último nome
+                        const userName = user.apelido || user.nome || 'Usuário';
+                        const _partesNome = user.nome ? user.nome.split(/\s+/) : [];
+                        const primeiroNome = user.apelido || (_partesNome.length > 1 ? _partesNome[0] + ' ' + _partesNome[_partesNome.length - 1] : (_partesNome[0] || 'Usuário'));
+                        
+                        // Atualizar saudação dinâmica baseada na hora
+                        const greetingTextEl = document.getElementById('greeting-text');
+                        if (greetingTextEl) {
+                            const hour = new Date().getHours();
+                            let greeting = 'Bom dia';
+                            if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                            else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                            greetingTextEl.textContent = greeting;
+                        }
+                        
+                        // Nome do usuário
+                        document.getElementById('user-name').textContent = primeiroNome;
+                        
+                        // Iniciais
+                        const initials = (user.nome || userName).split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                        document.getElementById('user-initials').textContent = initials;
+                        
+                        // Foto do usuário - verificar múltiplos campos
+                        let userAvatar = (user.avatar || user.foto || user.foto_perfil_url);
+                        if (userAvatar === '/avatars/default.webp') userAvatar = null;
+                        if (!userAvatar) {
+                            userAvatar = getAvatarFromEmail(user.email, user.nome);
+                        }
+                        
+                        if (userAvatar) {
+                            const photoEl = document.getElementById('user-photo');
+                            photoEl.src = userAvatar;
+                            photoEl.classList.add('visible');
+                            document.getElementById('user-initials').style.display = 'none';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Usuário não carregado:', e);
+            }
+        }
+
+        // Carregar produtos do servidor - USANDO API DE ESTOQUE UNIFICADO (PRODUTOS)
+        async function carregarProdutos(silent = false) {
+            const btn = document.getElementById('btn-refresh');
+            const loading = document.getElementById('loading-overlay');
+            
+            btn.classList.add('loading');
+            if (!silent) loading.style.display = 'flex';
+
+            try {
+                // API DE ESTOQUE - Retorna PRODUTOS com estoque (não materiais/matéria-prima)
+                const response = await fetch('/api/estoque', { credentials: 'include' });
+                
+                if (!response.ok) throw new Error('Erro ao carregar produtos');
+                
+                const body = await response.json();
+                
+                // Produtos da tabela produtos
+                const produtos = body.produtos || [];
+                const stats = body.estatisticas || {};
+                
+                if (produtos.length === 0) {
+                    // Mostrar mensagem informativa se não há produtos disponíveis
+                    todosProdutos = [];
+                    atualizarEstatisticas({});
+                    filtrarProdutos();
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+                    return;
+                }
+                
+                todosProdutos = produtos.map(p => {
+                    // Dados já vêm formatados da nova API
+                    const codigo = p.codigo || p.id || '';
+                    const descricao = p.nome || p.descricao || '';
+                    const sku = p.sku || '-';
+                    const categoria = p.categoria || detectarCategoria(descricao);
+                    const estoque = Number(p.estoque_atual || 0);
+                    const estoqueMinimo = Number(p.estoque_minimo || 10);
+                    const preco = Number(p.preco_venda || p.preco || p.preco_custo || 0);
+                    const gtin = p.gtin || '';
+                    const unidade = p.unidade_medida || 'M';
+                    
+                    return {
+                        id: p.id,
+                        codigo: codigo,
+                        nome: descricao,
+                        descricao: descricao,
+                        sku: sku,
+                        categoria: categoria,
+                        estoque: estoque,
+                        estoque_minimo: estoqueMinimo,
+                        preco: preco,
+                        gtin: gtin,
+                        unidade: unidade,
+                        ultima_movimentacao: p.ultima_movimentacao,
+                        total_movimentacoes: p.total_movimentacoes,
+                        // Dados originais para referência
+                        _raw: p
+                    };
+                });
+
+                // Atualiza estatísticas da API
+                atualizarEstatisticas(stats);
+                
+                // Filtra e renderiza
+                filtrarProdutos();
+                
+                // Atualiza timestamp
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString('pt-BR');
+
+            } catch (error) {
+                console.error('Erro:', error);
+                if (!silent) mostrarErro('Erro ao carregar produtos. Tente novamente.');
+            } finally {
+                btn.classList.remove('loading');
+                loading.style.display = 'none';
+            }
+        }
+
+        // Detectar categoria pelo nome do produto (DUPLEX, TRIPLEX, etc)
+        function detectarCategoria(nome) {
+            if (!nome) return 'OUTROS';
+            nome = nome.toUpperCase();
+            // Detectar pela formAção do cabo (2X, 3X, 4X, etc) - sem \b no final para pegar 3X2,5
+            if (nome.includes('DUPLEX') || nome.includes('DUN') || nome.includes('DUI') || /\b2\s*X/.test(nome)) return 'DUPLEX';
+            if (nome.includes('TRIPLEX') || nome.includes('TRI') || /\b3\s*X/.test(nome)) return 'TRIPLEX';
+            if (nome.includes('QUADRUPLEX') || nome.includes('QDR') || nome.includes('QDN') || /\b4\s*X/.test(nome)) return 'QUADRUPLEX';
+            if (nome.includes('QUINTUPLEX') || nome.includes('QUI') || /\b5\s*X/.test(nome)) return 'QUINTUPLEX';
+            if (nome.includes('SEXTUPLEX') || nome.includes('SEX') || /\b6\s*X/.test(nome)) return 'SEXTUPLEX';
+            if (nome.includes('MULTIPLEX') || nome.includes('MULTI') || /\b[7-9]\s*X/.test(nome) || /\b\d{2,}\s*X/.test(nome)) return 'MULTIPLEX';
+            if (nome.includes('UNIPOLAR') || /\b1\s*X/.test(nome)) return 'UNIPOLAR';
+            return 'OUTROS';
+        }
+
+        // Obter status do estoque - MESMA LÓGICA DO PCP
+        function getStatusEstoque(estoque, estoqueMinimo = 10) {
+            if (estoque <= 0) return { status: 'critico', label: 'Crítico', class: 'danger' };
+            if (estoque <= estoqueMinimo) return { status: 'baixo', label: 'Baixo', class: 'warning' };
+            return { status: 'normal', label: 'Normal', class: 'success' };
+        }
+
+        // Atualizar estatísticas - USANDO DADOS DA API /api/estoque
+        function atualizarEstatisticas(apiStats = {}) {
+            const total = apiStats.total || todosProdutos.length;
+            
+            // Calcular estatísticas se não vieram da API
+            let estoqueNormal = 0, estoqueBaixo = 0, estoqueCritico = 0;
+            const categoriasCounts = {};
+            
+            if (apiStats.disponiveis !== undefined) {
+                // Usar dados da API /api/estoque
+                estoqueNormal = apiStats.disponiveis || 0;
+                estoqueBaixo = apiStats.estoque_baixo || 0;
+                estoqueCritico = apiStats.zerados || 0;
+            } else {
+                todosProdutos.forEach(p => {
+                    const qtd = Number(p.estoque || 0);
+                    const min = Number(p.estoque_minimo || 10);
+                    if (qtd <= 0) estoqueCritico++;
+                    else if (qtd <= min) estoqueBaixo++;
+                    else estoqueNormal++;
+                });
+            }
+            
+            // Contar categorias (duplex, triplex, quadruplex, etc)
+            if (apiStats.categorias) {
+                Object.assign(categoriasCounts, apiStats.categorias);
+            } else {
+                todosProdutos.forEach(p => {
+                    const cat = (p.categoria || detectarCategoria(p.nome) || 'OUTROS').toUpperCase();
+                    categoriasCounts[cat] = (categoriasCounts[cat] || 0) + 1;
+                });
+            }
+
+            const totalCategorias = apiStats.total_categorias || Object.keys(categoriasCounts).length;
+            
+            // Criar texto de detalhe das categorias
+            const categoriasList = Object.entries(categoriasCounts)
+                .sort((a, b) => b[1] - a[1]) // Ordenar por quantidade
+                .slice(0, 3) // Top 3
+                .map(([cat, qtd]) => `${cat}: ${qtd}`)
+                .join(' | ');
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-disponivel').textContent = estoqueNormal;
+            document.getElementById('stat-baixo').textContent = estoqueBaixo;
+            document.getElementById('stat-zerado').textContent = estoqueCritico;
+            document.getElementById('stat-categorias').textContent = totalCategorias;
+            
+            // Mostrar detalhe das categorias
+            const detailEl = document.getElementById('stat-categorias-detail');
+            if (detailEl && categoriasList) {
+                detailEl.textContent = categoriasList;
+            }
+        }
+
+        // Filtrar produtos
+        function filtrarProdutos() {
+            const termo = document.getElementById('search-input').value.toLowerCase();
+            const categoria = document.getElementById('filter-categoria').value;
+            const status = document.getElementById('filter-status').value;
+
+            produtosFiltrados = todosProdutos.filter(p => {
+                // Filtro de busca - incluir SKU e código como no PCP
+                const matchBusca = !termo || 
+                    (p.codigo && p.codigo.toLowerCase().includes(termo)) ||
+                    (p.nome && p.nome.toLowerCase().includes(termo)) ||
+                    (p.descricao && p.descricao.toLowerCase().includes(termo)) ||
+                    (p.sku && p.sku.toLowerCase().includes(termo)) ||
+                    (p.gtin && p.gtin.toLowerCase().includes(termo));
+
+                // Filtro de categoria
+                const matchCategoria = !categoria || p.categoria === categoria;
+
+                // Filtro de status - MESMA LÓGICA DO PCP
+                const statusInfo = getStatusEstoque(p.estoque, p.estoque_minimo);
+                let matchStatus = true;
+                if (status === 'disponivel') matchStatus = statusInfo.status === 'normal';
+                else if (status === 'baixo') matchStatus = statusInfo.status === 'baixo';
+                else if (status === 'zerado') matchStatus = statusInfo.status === 'critico';
+
+                return matchBusca && matchCategoria && matchStatus;
+            });
+
+            // Ordenar
+            ordenarProdutos();
+            
+            // Reset página
+            paginaAtual = 1;
+            
+            // Renderizar
+            renderizarProdutos();
+        }
+
+        // Ordenar produtos
+        function ordenar(campo) {
+            if (ordenacaoAtual.campo === campo) {
+                ordenacaoAtual.direcao = ordenacaoAtual.direcao === 'asc' ? 'desc' : 'asc';
+            } else {
+                ordenacaoAtual.campo = campo;
+                ordenacaoAtual.direcao = 'asc';
+            }
+            ordenarProdutos();
+            renderizarProdutos();
+        }
+
+        function ordenarProdutos() {
+            const { campo, direcao } = ordenacaoAtual;
+            produtosFiltrados.sort((a, b) => {
+                let valA = a[campo];
+                let valB = b[campo];
+                
+                if (typeof valA === 'string') {
+                    valA = valA.toLowerCase();
+                    valB = valB.toLowerCase();
+                }
+                
+                if (valA < valB) return direcao === 'asc' ? -1 : 1;
+                if (valA > valB) return direcao === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        // Renderizar produtos na tabela - FORMATO ALINHADO COM PCP
+        function renderizarProdutos() {
+            const tbody = document.getElementById('produtos-tbody');
+            const emptyState = document.getElementById('empty-state');
+            const tableWrapper = document.querySelector('.table-wrapper');
+
+            if (produtosFiltrados.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                tableWrapper.style.display = 'none';
+                document.getElementById('items-showing').textContent = '0';
+                document.getElementById('items-total').textContent = '0';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            tableWrapper.style.display = 'block';
+
+            // PaginAção
+            const inicio = (paginaAtual - 1) * itensPorPagina;
+            const fim = inicio + itensPorPagina;
+            const produtosPagina = produtosFiltrados.slice(inicio, fim);
+
+            // Renderizar tabela - MESMO FORMATO DO PCP
+            tbody.innerHTML = produtosPagina.map(p => {
+                const statusInfo = getStatusEstoque(p.estoque, p.estoque_minimo);
+                
+                return `
+                    <tr data-id="${p.id}">
+                        <td><strong class="produto-codigo">${escapeHtml(p.codigo)}</strong></td>
+                        <td>
+                            <div class="produto-nome">${escapeHtml(p.nome)}</div>
+                        </td>
+                        <td><span class="badge">${escapeHtml(p.sku)}</span></td>
+                        <td><span class="categoria-badge ${p.categoria.toLowerCase()}">${p.categoria}</span></td>
+                        <td class="quantidade-cell ${statusInfo.status === 'normal' ? 'alto' : statusInfo.status === 'baixo' ? 'medio' : 'baixo'}">${p.estoque.toFixed(2)}</td>
+                        <td>${p.estoque_minimo}</td>
+                        <td class="preco-cell">R$ ${p.preco.toFixed(2)}</td>
+                        <td><span class="badge badge-${statusInfo.class}">${statusInfo.label}</span></td>
+                        <td>
+                            <button class="action-btn" title="Ver detalhes" onclick="verDetalhes(${p.id})">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Atualizar info
+            document.getElementById('items-showing').textContent = produtosPagina.length;
+            document.getElementById('items-total').textContent = produtosFiltrados.length;
+
+            // Renderizar paginAção
+            renderizarPaginacao();
+        }
+
+        // Renderizar paginAção
+        function renderizarPaginacao() {
+            const totalPaginas = Math.ceil(produtosFiltrados.length / itensPorPagina);
+            const pagination = document.getElementById('pagination');
+
+            if (totalPaginas <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+
+            let html = `
+                <button onclick="irParaPagina(${paginaAtual - 1})" ${paginaAtual === 1 ? 'disabled' : ''}>
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            `;
+
+            // Mostrar até 5 páginas
+            let inicio = Math.max(1, paginaAtual - 2);
+            let fim = Math.min(totalPaginas, inicio + 4);
+            inicio = Math.max(1, fim - 4);
+
+            for (let i = inicio; i <= fim; i++) {
+                html += `
+                    <button onclick="irParaPagina(${i})" class="${i === paginaAtual ? 'active' : ''}">
+                        ${i}
+                    </button>
+                `;
+            }
+
+            html += `
+                <button onclick="irParaPagina(${paginaAtual + 1})" ${paginaAtual === totalPaginas ? 'disabled' : ''}>
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            `;
+
+            pagination.innerHTML = html;
+        }
+
+        function irParaPagina(pagina) {
+            const totalPaginas = Math.ceil(produtosFiltrados.length / itensPorPagina);
+            if (pagina < 1 || pagina > totalPaginas) return;
+            paginaAtual = pagina;
+            renderizarProdutos();
+        }
+
+        // Set view (tabs) - ALINHADO COM PCP
+        function setView(view) {
+            document.querySelectorAll('.table-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (view === 'todos') {
+                document.getElementById('filter-status').value = '';
+            } else if (view === 'disponivel') {
+                document.getElementById('filter-status').value = 'disponivel';
+            } else if (view === 'baixo') {
+                document.getElementById('filter-status').value = 'baixo';
+            } else if (view === 'critico') {
+                document.getElementById('filter-status').value = 'zerado';
+            }
+            filtrarProdutos();
+        }
+
+        // Função para formatar unidade de medida
+        function formatarUnidade(unidade) {
+            const unidadeUpper = (unidade || 'M').toUpperCase();
+            const unidades = {
+                'UN': 'Metros',
+                'M': 'Metros',
+                'MT': 'Metros',
+                'KG': 'Quilogramas',
+                'L': 'Litros',
+                'PC': 'Metros',
+                'CX': 'Caixas'
+            };
+            return unidades[unidadeUpper] || 'Metros';
+        }
+
+        // Função para formatar unidade abreviada
+        function formatarUnidadeAbrev(unidade) {
+            const unidadeUpper = (unidade || 'M').toUpperCase();
+            const unidades = {
+                'UN': 'm',
+                'M': 'm',
+                'MT': 'm',
+                'KG': 'kg',
+                'L': 'L',
+                'PC': 'm',
+                'CX': 'cx'
+            };
+            return unidades[unidadeUpper] || 'm';
+        }
+
+        // Ver detalhes do produto — Clean Minimal
+        async function verDetalhes(id) {
+            const produto = todosProdutos.find(p => p.id === id);
+            if (!produto) return;
+
+            document.getElementById('modal-detalhes').classList.add('active');
+            document.getElementById('modal-body').innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:14px;">
+                    <div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite;"></div>
+                    <span style="color:#94a3b8;font-size:13px;">Carregando...</span>
+                </div>
+                <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+            `;
+
+            try {
+                const detRes = await fetch('/api/estoque/' + id + '/detalhes', { credentials: 'include' });
+                let detalhes = null, bobinas = [], resumo = {};
+                if (detRes.ok) {
+                    const data = await detRes.json();
+                    if (data.success) { detalhes = data.produto; bobinas = data.bobinas || []; resumo = data.resumo || {}; }
+                }
+
+                const p = detalhes || produto;
+                const nome = p.nome || p.descricao || '';
+                const codigo = p.codigo || '';
+                const categoria = p.categoria || produto.categoria || 'CABOS';
+                const estoque = Number(p.estoque_atual || produto.estoque || 0);
+                const estoqueMinimo = Number(p.estoque_minimo || produto.estoque_minimo || 5);
+                const preco = Number(p.preco || produto.preco || 0);
+                const unidade = p.unidade_medida || produto.unidade || 'M';
+                const observacoes = p.observacoes || '';
+
+                const unidadeAbrev = formatarUnidadeAbrev(unidade);
+                const precoFmt = preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                const statusInfo = getStatusEstoque(estoque, estoqueMinimo);
+                const stMap = { 'normal': 'ok', 'baixo': 'warn', 'critico': 'crit' };
+                const stClass = stMap[statusInfo.status] || 'ok';
+                const stLabel = { 'normal': 'Disponível para venda', 'baixo': 'Estoque baixo', 'critico': 'Nível crítico' }[statusInfo.status];
+
+                const estoqueMax = Math.max(estoqueMinimo * 5, estoque, 100);
+                const estoquePercent = Math.min((estoque / estoqueMax) * 100, 100);
+
+                const totalBobinas = resumo.total_bobinas || bobinas.length;
+                const totalMetros = resumo.total_metros || bobinas.reduce((s, b) => s + parseFloat(b.quantidade || 0), 0);
+                const coresUnicas = resumo.cores || [...new Set(bobinas.map(b => b.veia_cor).filter(Boolean))];
+                const locaisUnicos = resumo.locais || [...new Set(bobinas.map(b => b.local_armazenamento).filter(Boolean))];
+
+                // Dados REAIS derivados das bobinas
+                const totalRolosGeral = resumo.total_rolos || bobinas.filter(b => (b.tipo||'').toLowerCase() === 'rolo').length;
+                const totalBobinasReaisGeral = resumo.total_bobinas_reais || (totalBobinas - totalRolosGeral);
+                // Cor principal = mais frequente nas bobinas (dados reais)
+                const corProduto = p.cor || p.variacao || '';
+                const corReal = (() => {
+                    if (corProduto) return corProduto;
+                    if (coresUnicas.length === 1) return coresUnicas[0];
+                    if (coresUnicas.length > 1) {
+                        const freq = {};
+                        bobinas.forEach(b => { if (b.veia_cor) freq[b.veia_cor] = (freq[b.veia_cor]||0)+1; });
+                        return Object.entries(freq).sort((a,b) => b[1]-a[1])[0][0];
+                    }
+                    return '';
+                })();
+                // Local principal = mais frequente nas bobinas
+                const localProduto = p.localizacao || '';
+                const localReal = (() => {
+                    if (localProduto) return localProduto;
+                    if (locaisUnicos.length === 1) return locaisUnicos[0];
+                    if (locaisUnicos.length > 1) return locaisUnicos.join(', ');
+                    return '';
+                })();
+                // Dimensões únicas das bobinas
+                const dimensoesUnicas = [...new Set(bobinas.map(b => b.dimensao_bobina).filter(d => d && d.toUpperCase() !== 'BOBINA' && d.toUpperCase() !== 'ROLO'))];
+
+                // Bobinas table - layout melhorado com tipo bobina/rolo
+                let bobinasHtml = '';
+                if (bobinas.length > 0) {
+                    // Separar bobinas e rolos
+                    const tipoLabel = (b) => {
+                        const tipo = (b.tipo || '').toLowerCase();
+                        const dim = (b.dimensao_bobina || '').toUpperCase();
+                        if (tipo === 'rolo' || dim === 'ROLO') return 'Rolo';
+                        return 'Bobina';
+                    };
+                    const tipoBadge = (b) => {
+                        const t = tipoLabel(b);
+                        if (t === 'Rolo') return '<span class="mdp-tipo-badge rolo"><i class="fas fa-scroll"></i> Rolo</span>';
+                        return '<span class="mdp-tipo-badge bobina"><i class="fas fa-circle-notch"></i> Bobina</span>';
+                    };
+                    const dimLabel = (b) => {
+                        const dim = (b.dimensao_bobina || '').toUpperCase();
+                        if (!dim || dim === 'BOBINA' || dim === 'ROLO') return '';
+                        return dim; // ex: 0,65X0,45
+                    };
+
+                    const totalRolos = bobinas.filter(b => tipoLabel(b) === 'Rolo').length;
+                    const totalBobinasReais = totalBobinas - totalRolos;
+
+                    const rows = bobinas.map((b, i) => {
+                        const stBob = {
+                            'disponivel': '<span class="mdp-badge-status st-ok"><i class="fas fa-check"></i> Disponível</span>',
+                            'reservada':  '<span class="mdp-badge-status st-res"><i class="fas fa-lock"></i> Reservada</span>',
+                            'consumida':  '<span class="mdp-badge-status st-cons"><i class="fas fa-minus"></i> Consumida</span>',
+                            'bloqueada':  '<span class="mdp-badge-status st-block"><i class="fas fa-ban"></i> Bloqueada</span>'
+                        }[b.status] || (b.status || '-');
+                        const dim = dimLabel(b);
+
+                        return `<tr>
+                            <td class="td-num">${b.numero_bobina || (i + 1)}</td>
+                            <td>${tipoBadge(b)}</td>
+                            <td class="td-qty">${parseFloat(b.quantidade).toLocaleString('pt-BR',{minimumFractionDigits:0})} ${unidadeAbrev}</td>
+                            <td>${dim ? '<span class="mdp-dim-tag">'+escapeHtml(dim)+'</span>' : '<span style="color:#cbd5e1;">—</span>'}</td>
+                            <td>${b.veia_cor ? '<span class="mdp-color-dot" style="background:'+getCorCSS(b.veia_cor)+'"></span>'+escapeHtml(b.veia_cor) : '-'}</td>
+                            <td style="color:#64748b;font-size:12px;"><i class="fas fa-map-marker-alt" style="margin-right:4px;color:#94a3b8;"></i>${escapeHtml(b.local_armazenamento || '-')}</td>
+                            <td>${stBob}</td>
+                            ${b.observacao ? '<td style="color:#94a3b8;font-size:11px;"><i class="fas fa-sticky-note" style="margin-right:3px;"></i>'+escapeHtml(b.observacao.substring(0,40))+(b.observacao.length>40?'...':'')+'</td>' : ''}
+                        </tr>`;
+                    }).join('');
+
+                    // Summary chips
+                    let summaryChips = '';
+                    if (totalBobinasReais > 0) summaryChips += '<span class="mdp-sum-chip bobina"><i class="fas fa-circle-notch"></i> '+totalBobinasReais+' Bobina'+(totalBobinasReais>1?'s':'')+'</span>';
+                    if (totalRolos > 0) summaryChips += '<span class="mdp-sum-chip rolo"><i class="fas fa-scroll"></i> '+totalRolos+' Rolo'+(totalRolos>1?'s':'')+'</span>';
+
+                    bobinasHtml = `
+                    <div class="mdp-section">
+                        <div class="mdp-section-head" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                            <span><i class="fas fa-boxes"></i> Estoque em Bobinas/Rolos</span>
+                            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                                ${summaryChips}
+                                <span style="font-size:12px;font-weight:700;color:#1e40af;background:#eff6ff;padding:3px 10px;border-radius:4px;">${totalMetros.toLocaleString('pt-BR',{minimumFractionDigits:0})} ${unidadeAbrev} total</span>
+                            </div>
+                        </div>
+                        <div class="mdp-table-wrap">
+                            <table class="mdp-table">
+                                <thead><tr>
+                                    <th>Nº</th><th>Tipo</th><th>Qtde</th><th>Dimensão</th><th>Veia/Cor</th><th>Local</th><th>Status</th>
+                                </tr></thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                }
+
+                document.getElementById('modal-body').innerHTML = `
+                    <!-- Hero -->
+                    <div class="mdp-hero">
+                        <div class="mdp-hero-top">
+                            <div class="mdp-avatar"><i class="fas fa-box-open"></i></div>
+                            <div class="mdp-title-block">
+                                <div class="mdp-title">${escapeHtml(nome)}</div>
+                                <div class="mdp-chips">
+                                    <span class="mdp-chip code"><i class="fas fa-barcode"></i> ${escapeHtml(codigo)}</span>
+                                    <span class="mdp-chip cat"><i class="fas fa-tag"></i> ${escapeHtml(categoria)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mdp-kpi-row">
+                            <div class="mdp-kpi">
+                                <div class="mdp-kpi-label">Estoque Total</div>
+                                <div class="mdp-kpi-value">${estoque.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0})}<small>${unidadeAbrev}</small></div>
+                            </div>
+                            <div class="mdp-kpi">
+                                <div class="mdp-kpi-label">Bobinas</div>
+                                <div class="mdp-kpi-value">${totalBobinasReaisGeral}<small style="font-size:11px;color:#3b82f6;">un</small></div>
+                                ${totalBobinasReaisGeral > 0 ? '<div class="mdp-kpi-sub"><i class="fas fa-circle-notch" style="font-size:9px;margin-right:3px;"></i>bobinas em estoque</div>' : ''}
+                            </div>
+                            <div class="mdp-kpi">
+                                <div class="mdp-kpi-label">Rolos</div>
+                                <div class="mdp-kpi-value">${totalRolosGeral}<small style="font-size:11px;color:#8b5cf6;">un</small></div>
+                                ${totalRolosGeral > 0 ? '<div class="mdp-kpi-sub"><i class="fas fa-scroll" style="font-size:9px;margin-right:3px;"></i>rolos em estoque</div>' : ''}
+                            </div>
+                            <div class="mdp-kpi">
+                                <div class="mdp-kpi-label">Preço / ${unidadeAbrev}</div>
+                                <div class="mdp-kpi-value" style="color:#059669;font-size:17px;">R$ ${precoFmt}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="mdp-section">
+                        <div class="mdp-status-bar ${stClass}">
+                            <span class="mdp-status-dot"></span>
+                            <span class="mdp-status-text">${stLabel}</span>
+                        </div>
+                        <div class="mdp-progress">
+                            <div class="mdp-progress-fill ${stClass}" style="width:${estoquePercent}%"></div>
+                        </div>
+                        <div class="mdp-pairs">
+                            <div class="mdp-pair">
+                                <span class="mdp-pair-label">Estoque Mínimo</span>
+                                <span class="mdp-pair-value">${estoqueMinimo} ${unidadeAbrev}</span>
+                            </div>
+                            <div class="mdp-pair">
+                                <span class="mdp-pair-label">Unidade</span>
+                                <span class="mdp-pair-value">${formatarUnidade(unidade)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Produto -->
+                    <div class="mdp-section">
+                        <div class="mdp-section-head"><i class="fas fa-info-circle"></i> Informações do Produto</div>
+                        <div class="mdp-pairs">
+                            <div class="mdp-pair">
+                                <span class="mdp-pair-label">Veia / Cor</span>
+                                <span class="mdp-pair-value">${corReal ? '<span class="mdp-color-dot" style="background:'+getCorCSS(corReal)+'"></span> '+escapeHtml(corReal) + (coresUnicas.length > 1 ? ' <span style="font-size:11px;color:#94a3b8;">(+'+( coresUnicas.length-1)+' '+(coresUnicas.length-1===1?'cor':'cores')+')</span>' : '') : '<span class="empty">Sem dados</span>'}</span>
+                            </div>
+                            <div class="mdp-pair">
+                                <span class="mdp-pair-label">Localização</span>
+                                <span class="mdp-pair-value">${localReal ? '<i class="fas fa-map-marker-alt" style="color:#3b82f6;margin-right:4px;"></i>'+escapeHtml(localReal) : '<span class="empty">Sem dados</span>'}</span>
+                            </div>
+                            ${dimensoesUnicas.length > 0 ? '<div class="mdp-pair"><span class="mdp-pair-label">Dimensões</span><span class="mdp-pair-value">'+dimensoesUnicas.map(d=>'<span class="mdp-dim-tag">'+escapeHtml(d)+'</span>').join(' ')+'</span></div>' : ''}
+                            ${p.updated_at ? '<div class="mdp-pair"><span class="mdp-pair-label">Última Atualização</span><span class="mdp-pair-value"><i class="fas fa-clock" style="color:#94a3b8;margin-right:4px;"></i>'+new Date(p.updated_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+'</span></div>' : ''}
+                        </div>
+                        ${observacoes ? '<div class="mdp-obs"><i class="fas fa-sticky-note"></i><div><strong>Obs:</strong> '+escapeHtml(observacoes)+'</div></div>' : ''}
+                    </div>
+
+                    <!-- Bobinas -->
+                    ${bobinasHtml}
+
+                    <!-- Footer -->
+                    <div class="mdp-footer-note">
+                        <i class="fas fa-eye"></i>
+                        <span>Modo conferência — somente leitura. Para editar estoque, acesse o módulo PCP.</span>
+                    </div>
+                `;
+
+            } catch (err) {
+                console.error('Erro ao carregar detalhes:', err);
+                document.getElementById('modal-body').innerHTML = `
+                    <div style="padding:48px 20px;text-align:center;">
+                        <i class="fas fa-exclamation-circle" style="font-size:28px;color:#ef4444;margin-bottom:12px;"></i>
+                        <p style="color:#64748b;font-size:14px;margin:0 0 16px;">Erro ao carregar detalhes</p>
+                        <button onclick="verDetalhes(${id})" style="padding:8px 20px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">
+                            <i class="fas fa-redo"></i> Tentar novamente
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // Helper: mapear nome de cor para CSS
+        function getCorCSS(corNome) {
+            if (!corNome) return '#94a3b8';
+            const mapa = {
+                'CINZA': '#9ca3af', 'PRETO': '#1f2937', 'BRANCO': '#f8fafc',
+                'VERMELHO': '#ef4444', 'VERMELHA': '#ef4444', 'AZUL': '#3b82f6',
+                'VERDE': '#22c55e', 'AMARELO': '#eab308', 'AMARELA': '#eab308',
+                'LARANJA': '#f97316', 'MARROM': '#92400e', 'ROXO': '#8b5cf6',
+                'ROSA': '#ec4899', 'BEGE': '#d4b896', 'PRATA': '#c0c0c0',
+                'DOURADO': '#d4a017', 'NATURAL': '#d2b48c', 'TRANSPARENTE': '#e2e8f0'
+            };
+            return mapa[corNome.toUpperCase()] || '#94a3b8';
+        }
+
+        function fecharModal() {
+            document.getElementById('modal-detalhes').classList.remove('active');
+        }
+
+        // Fechar modal ao clicar fora
+        document.getElementById('modal-detalhes').addEventListener('click', function(e) {
+            if (e.target === this) fecharModal();
+        });
+
+        // Escape HTML para prevenir XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Mostrar erro
+        function mostrarErro(msg) {
+            alert(msg);
+        }
+
+        // Download Template de Estoque
+        function baixarTemplateEstoque() {
+            const link = document.createElement('a');
+            link.href = '/api/estoque/template/download';
+            link.download = 'Template_Estoque_Bobinas_Aluforce.xlsx';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Atalhos de teclado
+        document.addEventListener('keydown', function(e) {
+            // ESC fecha modal
+            if (e.key === 'Escape') fecharModal();
+            // Ctrl+F foca na busca
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('search-input').focus();
+            }
+            // F5 atualiza dados
+            if (e.key === 'F5') {
+                e.preventDefault();
+                carregarProdutos();
+            }
+        });
+
+        // Limpar intervalo ao sair da página
+        window.addEventListener('beforeunload', () => {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        });
+
+        // Pausar auto-refresh quando a página não está visível
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            } else {
+                iniciarAutoRefresh();
+                carregarProdutos(true); // Silent refresh ao voltar
+            }
+        });
+        
+        // Toggle Sidebar Mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+    </script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/js/user-dropdown.js?v=20260223" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,416 @@
+﻿PCP/pages/relatorios.html<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <title>Aluforce: Inutilização</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { height:100%; }
+        html, body { font-family:'Inter',sans-serif; background:#f9fafb; color:#111827; }
+        body { height:100%; min-height:100vh; }
+        :root { --fat-primary:#10b981; --fat-secondary:#059669; }
+        .page-content { padding:20px; max-width:100%; margin:0; flex:1; }
+        .page-title { font-size:18px; font-weight:700; color:#111827; margin-bottom:20px; display:flex; align-items:center; gap:10px; }
+        .page-title i { color:#ef4444; }
+        .card { background:#fff; border-radius:8px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:20px; }
+        .card-header { font-size:14px; font-weight:600; color:#111827; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+        .card-header i { color:var(--fat-primary); font-size:14px; }
+        .danger-banner { background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:16px 20px; margin-bottom:20px; }
+        .danger-banner .danger-title { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; color:#991b1b; margin-bottom:8px; }
+        .danger-banner .danger-title i { font-size:20px; color:#ef4444; }
+        .danger-banner p { font-size:13px; color:#991b1b; line-height:1.5; }
+        .danger-banner ul { margin-top:8px; padding-left:20px; font-size:12px; color:#7f1d1d; }
+        .danger-banner ul li { margin-bottom:4px; }
+        .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
+        .form-group { display:flex; flex-direction:column; }
+        .form-group label { font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; }
+        .form-group input, .form-group select, .form-group textarea { height:36px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; padding:0 10px; font-family:inherit; outline:none; transition:border-color 0.2s; }
+        .form-group textarea { height:auto; padding:8px 10px; resize:vertical; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--fat-primary); box-shadow:0 0 0 2px rgba(16,185,129,0.1); }
+        .form-group .hint { font-size:11px; color:#9ca3af; margin-top:3px; }
+        .char-count { font-size:11px; color:#9ca3af; margin-top:3px; }
+        .range-row { display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:end; }
+        .range-row .range-separator { font-size:14px; color:#6b7280; padding-bottom:8px; }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
+        .btn-danger { background:#ef4444; color:#fff; }
+        .btn-danger:hover { background:#dc2626; }
+        .btn-secondary { background:#e5e7eb; color:#374151; }
+        .btn-secondary:hover { background:#d1d5db; }
+        .btn-primary { background:var(--fat-primary); color:#fff; }
+        .btn-primary:hover { background:var(--fat-secondary); }
+        .actions { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+        .suggestion-box { background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#1d4ed8; display:none; }
+        .suggestion-box i { margin-right:6px; }
+        .historico-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .historico-table th { background:#f3f4f6; padding:10px 12px; font-weight:600; font-size:11px; text-transform:uppercase; color:#6b7280; border-bottom:2px solid #e5e7eb; text-align:left; }
+        .historico-table td { padding:10px 12px; border-bottom:1px solid #f3f4f6; }
+        .historico-table tr:hover { background:#f9fafb; }
+        .status-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+        .status-homologada { background:#dcfce7; color:#166534; }
+        .status-rejeitada { background:#fef2f2; color:#991b1b; }
+        .empty-state { text-align:center; padding:30px; color:#9ca3af; }
+        .empty-state i { font-size:28px; margin-bottom:8px; display:block; }
+        .alert { padding:12px 16px; border-radius:6px; font-size:13px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+        .alert-success { background:#dcfce7; color:#166534; border:1px solid #86efac; }
+        .alert-danger { background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
+        .alert-warning { background:#fef3c7; color:#92400e; border:1px solid #fbbf24; }
+        .ambiente-indicator { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:12px; font-size:11px; font-weight:600; }
+        .ambiente-homologacao { background:#fef3c7; color:#92400e; }
+        .ambiente-producao { background:#fef2f2; color:#991b1b; }
+        @media(max-width:768px) {
+            .page-content { padding:14px; }
+            .form-grid { grid-template-columns:1fr; }
+            .range-row { grid-template-columns:1fr; }
+            .range-row .range-separator { display:none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="emitir.html" class="sidebar-btn" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+                <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
+                <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+                <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+                <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
+                <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+                <a href="inutilizacao.html" class="sidebar-btn active" title="Inutilização"><i class="fas fa-ban"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Inutilização</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <div class="main-content">
+                <div class="page-content">
+                    <div id="alertContainer"></div>
+                    <h2 class="page-title"><i class="fas fa-ban"></i> Inutilização de Numeração</h2>
+
+                    <!-- Warning Banner -->
+                    <div class="danger-banner">
+                        <div class="danger-title"><i class="fas fa-exclamation-triangle"></i> OPERAÇÃO IRREVERSÍVEL</div>
+                        <p>A inutilização de numeração é uma operação definitiva e não pode ser desfeita. Utilize quando houver quebra de sequência na numeração das NF-e.</p>
+                        <ul>
+                            <li>Números inutilizados não poderão ser utilizados para emitir novas NF-e</li>
+                            <li>A inutilização deve ser feita até o 10º dia do mês subsequente</li>
+                            <li>A SEFAZ validará os dados de série, CNPJ e UF do emitente</li>
+                        </ul>
+                    </div>
+
+                    <!-- Form Card -->
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-file-signature"></i> Dados para Inutilização</div>
+                        
+                        <div id="suggestionBox" class="suggestion-box">
+                            <i class="fas fa-lightbulb"></i> <span id="suggestionText"></span>
+                        </div>
+
+                        <form id="inutilizacaoForm" onsubmit="return false;">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Série <span style="color:#ef4444;">*</span></label>
+                                    <input type="text" id="serie" value="1" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Ano <span style="color:#ef4444;">*</span></label>
+                                    <input type="text" id="ano" required>
+                                    <span class="hint">Formato: 2 dígitos (ex: 26)</span>
+                                </div>
+                                <div class="form-group">
+                                    <label>Ambiente</label>
+                                    <select id="ambiente">
+                                        <option value="2">Homologação</option>
+                                        <option value="1">Produção</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="margin-top:14px;">
+                                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">Faixa de Numeração <span style="color:#ef4444;">*</span></label>
+                                <div class="range-row">
+                                    <div class="form-group">
+                                        <label>Número Inicial</label>
+                                        <input type="number" id="numInicial" min="1" required placeholder="Ex: 100">
+                                    </div>
+                                    <div class="range-separator">até</div>
+                                    <div class="form-group">
+                                        <label>Número Final</label>
+                                        <input type="number" id="numFinal" min="1" required placeholder="Ex: 105">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-grid" style="margin-top:14px;">
+                                <div class="form-group">
+                                    <label>CNPJ do Emitente <span style="color:#ef4444;">*</span></label>
+                                    <input type="text" id="cnpj" placeholder="00.000.000/0000-00" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>UF do Emitente <span style="color:#ef4444;">*</span></label>
+                                    <select id="uf" required>
+                                        <option value="">Selecione</option>
+                                        <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+                                        <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+                                        <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+                                        <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+                                        <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+                                        <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
+                                        <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+                                        <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+                                        <option value="SP" selected>SP</option><option value="SE">SE</option><option value="TO">TO</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group" style="margin-top:14px;">
+                                <label>Justificativa <span style="color:#ef4444;">*</span></label>
+                                <textarea id="justificativa" rows="3" placeholder="Mínimo 15 caracteres" minlength="15" maxlength="255" oninput="atualizarContador()" required></textarea>
+                                <div class="char-count"><span id="charCount">0</span>/255 caracteres (mínimo 15)</div>
+                            </div>
+
+                            <div class="actions">
+                                <button type="button" class="btn btn-primary" onclick="buscarSugestao()"><i class="fas fa-lightbulb"></i> Buscar Sugestão</button>
+                                <button type="button" class="btn btn-danger" onclick="inutilizar()"><i class="fas fa-ban"></i> Inutilizar Numeração</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Histórico -->
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-list"></i> Histórico de Inutilizações</div>
+                        <div style="overflow-x:auto;">
+                            <table class="historico-table">
+                                <thead>
+                                    <tr>
+                                        <th>Série</th>
+                                        <th>Faixa</th>
+                                        <th>Ano</th>
+                                        <th>Data</th>
+                                        <th>Protocolo</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historicoBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="historicoEmpty" class="empty-state">
+                            <i class="fas fa-ban"></i>
+                            <p style="font-size:13px;">Nenhuma inutilização registrada</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function toggleMobileSidebar() {
+            document.getElementById('mobile-sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('active');
+        }
+        function toggleNotificacoes() {}
+
+        const avatarNameMap = {
+            'clemerson':'CM','isabela':'IB','thaina':'TH','thiago':'TG','nicolas':'NC',
+            'nicolasdaniel':'ND','rh':'RH','admin':'AD','ti':'TI','tialuforce':'TI',
+            'antonio':'AT','andreia':'AN','guilherme':'GH','marcelo':'MC','financeiro':'FN',
+            'douglas':'DG','hellen':'HL','helen':'HL','marcia':'MR','augusto':'AG',
+            'renata':'RN','fabiano':'FB','fabiola':'FL'
+        };
+
+        function carregarUsuario() {
+            fetch('/api/me', { credentials:'include' })
+            .then(r => r.json())
+            .then(user => {
+                const d = user.dados || user;
+                const nome = (d.nome || d.name || 'Usuário').split(' ')[0];
+                document.getElementById('user-name').textContent = nome;
+                const h = new Date().getHours();
+                document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                const el = document.getElementById('user-initials');
+                const photo = document.getElementById('user-photo');
+                if (d.foto || d.avatar) {
+                    photo.src = d.foto || d.avatar;
+                    photo.style.display = 'block';
+                    photo.style.width = '100%';
+                    photo.style.height = '100%';
+                    photo.style.borderRadius = '50%';
+                    photo.style.objectFit = 'cover';
+                    el.style.display = 'none';
+                } else {
+                    const key = nome.toLowerCase().replace(/\s/g,'');
+                    el.textContent = avatarNameMap[key] || nome.substring(0,2).toUpperCase();
+                }
+            }).catch(() => {});
+        }
+
+        function buscarSugestao() {
+            const serie = document.getElementById('serie').value;
+            fetch('/api/inutilizacao/sugestao?serie=' + serie, { credentials:'include' })
+            .then(r => r.json())
+            .then(data => {
+                const box = document.getElementById('suggestionBox');
+                const text = document.getElementById('suggestionText');
+                if (data.sugestao || data.proximo) {
+                    text.textContent = 'Sugestão: inutilizar de ' + (data.inicio || data.de || '?') + ' até ' + (data.fim || data.ate || data.proximo || '?');
+                    if (data.inicio || data.de) document.getElementById('numInicial').value = data.inicio || data.de;
+                    if (data.fim || data.ate) document.getElementById('numFinal').value = data.fim || data.ate;
+                    box.style.display = 'block';
+                } else {
+                    text.textContent = 'Nenhuma sugestão disponível para esta série';
+                    box.style.display = 'block';
+                }
+            })
+            .catch(() => {
+                document.getElementById('suggestionBox').style.display = 'block';
+                document.getElementById('suggestionText').textContent = 'Não foi possível obter sugestão do servidor';
+            });
+        }
+
+        function inutilizar() {
+            const serie = document.getElementById('serie').value.trim();
+            const ano = document.getElementById('ano').value.trim();
+            const numInicial = document.getElementById('numInicial').value.trim();
+            const numFinal = document.getElementById('numFinal').value.trim();
+            const cnpj = document.getElementById('cnpj').value.trim();
+            const uf = document.getElementById('uf').value;
+            const justificativa = document.getElementById('justificativa').value.trim();
+            const ambiente = document.getElementById('ambiente').value;
+
+            if (!serie || !ano || !numInicial || !numFinal || !cnpj || !uf || !justificativa) {
+                return showAlert('Preencha todos os campos obrigatórios', 'warning');
+            }
+            if (justificativa.length < 15) {
+                return showAlert('Justificativa deve ter no mínimo 15 caracteres', 'warning');
+            }
+            if (parseInt(numFinal) < parseInt(numInicial)) {
+                return showAlert('Número final deve ser maior ou igual ao inicial', 'warning');
+            }
+
+            const qtd = parseInt(numFinal) - parseInt(numInicial) + 1;
+            if (!confirm('ATENÇÃO: Você está prestes a inutilizar ' + qtd + ' número(s) de NFe (de ' + numInicial + ' a ' + numFinal + ').\n\nEsta operação é IRREVERSÍVEL.\n\nDeseja continuar?')) return;
+
+            fetch('/api/inutilizacao', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                credentials:'include',
+                body: JSON.stringify({ serie, ano, numInicial: parseInt(numInicial), numFinal: parseInt(numFinal), cnpj, uf, justificativa, ambiente: parseInt(ambiente) })
+            })
+            .then(r => {
+                if (!r.ok) throw new Error('Erro ao inutilizar');
+                return r.json();
+            })
+            .then(data => {
+                showAlert('Inutilização realizada com sucesso! Protocolo: ' + (data.protocolo || '-'), 'success');
+                carregarHistorico();
+                // Reset form
+                document.getElementById('numInicial').value = '';
+                document.getElementById('numFinal').value = '';
+                document.getElementById('justificativa').value = '';
+                atualizarContador();
+            })
+            .catch(e => showAlert(e.message || 'Erro ao processar inutilização', 'danger'));
+        }
+
+        function carregarHistorico() {
+            fetch('/api/inutilizacao/historico', { credentials:'include' })
+            .then(r => r.json())
+            .then(data => {
+                const historico = data.historico || data.data || data || [];
+                const tbody = document.getElementById('historicoBody');
+                const empty = document.getElementById('historicoEmpty');
+                if (!Array.isArray(historico) || historico.length === 0) {
+                    tbody.innerHTML = '';
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+                tbody.innerHTML = historico.map(h => {
+                    const dt = h.data ? new Date(h.data).toLocaleString('pt-BR') : '-';
+                    const stClass = (h.status||'').toLowerCase().includes('homolog') || (h.status||'').toLowerCase().includes('sucesso') ? 'status-homologada' : 'status-rejeitada';
+                    return `<tr>
+                        <td>${h.serie || '-'}</td>
+                        <td>${h.numInicial || h.inicio || '-'} a ${h.numFinal || h.fim || '-'}</td>
+                        <td>${h.ano || '-'}</td>
+                        <td>${dt}</td>
+                        <td style="font-family:monospace;font-size:12px;">${h.protocolo || '-'}</td>
+                        <td><span class="status-badge ${stClass}">${h.status || '-'}</span></td>
+                    </tr>`;
+                }).join('');
+            })
+            .catch(() => {
+                document.getElementById('historicoBody').innerHTML = '';
+                document.getElementById('historicoEmpty').style.display = 'block';
+            });
+        }
+
+        function atualizarContador() {
+            document.getElementById('charCount').textContent = document.getElementById('justificativa').value.length;
+        }
+
+        function showAlert(msg, type) {
+            const c = document.getElementById('alertContainer');
+            const d = document.createElement('div');
+            d.className = 'alert alert-' + type;
+            d.innerHTML = '<i class="fas fa-' + (type==='success'?'check-circle':type==='danger'?'times-circle':'exclamation-triangle') + '"></i> ' + msg;
+            c.prepend(d);
+            setTimeout(() => d.remove(), 5000);
+        }
+
+        function abrirModalConfiguracoes() { alert('Configurações - Em desenvolvimento'); }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            // Set current year as 2-digit
+            const y = new Date().getFullYear().toString().slice(-2);
+            document.getElementById('ano').value = y;
+            carregarHistorico();
+        });
+    </script>
+    <script src="/js/notification-manager.js" defer></script>
+    <script src="../_shared/connection-monitor.js" defer></script>
+    <script src="/js/popup-confirmacao.js" defer></script>
+    <script src="/js/auth-unified.js?v=20260131c" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

@@ -1,0 +1,771 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Centros de Custo</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+    <style>
+        :root {
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --bg-gray: #f1f5f9;
+            --border-color: #e2e8f0;
+            --primary-orange: #f97316;
+            --primary-dark: #1e3a5f;
+            --sidebar-width: 60px;
+            --header-height: 56px;
+        }
+
+        
+
+        
+        
+        
+
+        /* ======================================== SIDEBAR LATERAL ======================================== */
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+        /* ======================================== MAIN CONTENT AREA ======================================== */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */ }
+
+        /* ======================================== HEADER SUPERIOR ======================================== */
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+        /* ======================================== SISTEMA DE NOTIFICAÇÕES ======================================== */
+        
+        
+        
+        
+        @keyframes pulse-badge { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        
+        
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        
+        
+        
+        
+        
+        .notif-tab { flex: 1; padding: 12px; background: none; border: none; font-size: 12px; color: #666; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent; }
+        .notif-tab:hover { color: #f97316; }
+        .notif-tab.active { color: #f97316; border-bottom-color: #f97316; font-weight: 600; }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+
+        /* CONTENT */
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+        /* PAGE HEADER */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+        .page-title p { font-size: 14px; color: var(--text-secondary); }
+        .page-actions { display: flex; gap: 12px; }
+
+        /* BUTTONS */
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--primary-orange); color: white; }
+        .btn-primary:hover { background: #65a30d; }
+        .btn-secondary { background: white; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--bg-gray); }
+
+        /* STATS */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: white; border-radius: 14px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.04); display: flex; align-items: center; gap: 16px; transition: all 0.2s; }
+        .stat-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); transform: translateY(-1px); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .stat-icon.purple { background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(139,92,246,0.05)); color: #8b5cf6; }
+        .stat-icon.green { background: linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05)); color: #22c55e; }
+        .stat-icon.blue { background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(59,130,246,0.05)); color: #3b82f6; }
+        .stat-icon.orange { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); color: #f59e0b; }
+        .stat-info { flex: 1; }
+        .stat-card h3 { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; font-weight: 600; }
+        .stat-card .value { font-size: 26px; font-weight: 700; line-height: 1.1; }
+        .stat-card .value.green { color: var(--success); }
+        .stat-card .value.red { color: var(--danger); }
+        .stat-card .value.blue { color: var(--info); }
+
+        /* TABLE */
+        .card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .card-header h3 { font-size: 16px; font-weight: 600; }
+        .search-wrapper { position: relative; }
+        .search-wrapper .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 13px; pointer-events: none; }
+        .search-input-card { padding: 10px 16px 10px 38px !important; border: 1.5px solid var(--border-color) !important; border-radius: 10px !important; font-size: 13px !important; background: var(--bg-gray) !important; min-width: 260px; transition: all 0.2s ease !important; outline: none !important; }
+        .search-input-card:focus { border-color: var(--info) !important; background: white !important; box-shadow: 0 0 0 3px rgba(59,130,246,0.1) !important; }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: var(--bg-gray); padding: 14px 20px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; }
+        td { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        tr:hover td { background: var(--bg-gray); }
+
+        /* BADGES */
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .badge-success { background: rgba(34,197,94,0.1); color: #16a34a; }
+        .badge-warning { background: rgba(245,158,11,0.1); color: #b45309; }
+        .badge-danger { background: rgba(239,68,68,0.1); color: #b91c1c; }
+
+        /* PROGRESS */
+        .progress-bar { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+        .progress-bar .fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .progress-bar .fill.green { background: var(--success); }
+        .progress-bar .fill.yellow { background: var(--warning); }
+        .progress-bar .fill.red { background: var(--danger); }
+
+        /* ACTIONS */
+        .btn-action { width: 32px; height: 32px; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .btn-action.view { background: rgba(59,130,246,0.1); color: var(--info); }
+        .btn-action.edit { background: rgba(245,158,11,0.1); color: var(--warning); }
+        .btn-action.delete { background: rgba(239,68,68,0.1); color: var(--danger); }
+        .btn-action:hover { transform: scale(1.1); }
+
+        /* MODAL */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; border-radius: 16px; width: 90%; max-width: 500px; max-height: 90vh; overflow: hidden; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-color); }
+        .modal-header h3 { font-size: 18px; font-weight: 600; }
+        .modal-close { width: 32px; height: 32px; border: none; background: transparent; cursor: pointer; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: var(--bg-gray); }
+        .modal-
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* FORM */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary-orange); box-shadow: 0 0 0 3px rgba(34,92,250,0.1); }
+
+        /* RESPONSIVE */
+        @media (max-width: 1200px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .page-content { padding: 16px; }
+        }
+    </style>
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260211">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+        <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR - PADRÃO PCP (HTML estático, RBAC via JS) -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="plano-contas.html" class="sidebar-btn" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="orcamentos.html" class="sidebar-btn" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn active" title="Centros de Custo">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER - PADRÃO PCP (HTML estático) -->
+            <header class="header">
+                <div class="header-left">
+                    <!-- Botao Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Centros de Custo</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content - Padrão PCP -->
+            <div class="main-content">
+
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div class="page-title">
+                        <h1>Centros de Custo</h1>
+                        <p>Gerencie os centros de custo da empresa</p>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-secondary" onclick="exportarCSV()"><i class="fas fa-download"></i> Exportar</button>
+                        <button class="btn btn-primary" onclick="abrirModal()"><i class="fas fa-plus"></i> Novo Centro</button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-sitemap"></i></div>
+                        <div class="stat-info">
+                            <h3>Total de Centros</h3>
+                            <div class="value" id="stat-total">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-info">
+                            <h3>Ativos</h3>
+                            <div class="value green" id="stat-ativos">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-dollar-sign"></i></div>
+                        <div class="stat-info">
+                            <h3>Orçamento Total</h3>
+                            <div class="value blue" id="stat-orcamento">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon orange"><i class="fas fa-chart-pie"></i></div>
+                        <div class="stat-info">
+                            <h3>Utilização Média</h3>
+                            <div class="value" id="stat-utilizacao">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-sitemap icon-primary"></i> Lista de Centros de Custo</h3>
+                        <div class="search-wrapper">
+                            <i class="fas fa-search search-icon"></i>
+                            <input type="text" id="searchInput" placeholder="Buscar centro de custo..." class="search-input-card" onkeyup="filtrarCentros()">
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nome</th>
+                                    <th>Departamento</th>
+                                    <th>Responsável</th>
+                                    <th>Orçamento</th>
+                                    <th>Utilização</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-centros">
+                                <tr>
+                                    <td colspan="8" class="td-loading">
+                                        <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            </div> <!-- /main-content -->
+
+        </main>
+    </div>
+
+    <!-- Modal Novo/Editar - Padrão SaaS Empresarial -->
+    <div class="modal-overlay-saas" id="modalCentro" onclick="if(event.target === this) fecharModal()">
+        <div class="modal-saas modal-sm">
+            <div class="modal-header-saas header-green">
+                <div class="modal-header-content-saas">
+                    <div class="modal-header-icon-saas">
+                        <i class="fas fa-sitemap" id="modal-icon"></i>
+                    </div>
+                    <div class="modal-header-text-saas">
+                        <h2 id="modal-titulo">Novo Centro de Custo</h2>
+                        <p id="modal-subtitulo">Configure um novo centro de custo ou departamento</p>
+                    </div>
+                    <button class="modal-close-saas" onclick="fecharModal()" title="Fechar"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body-saas">
+                <form id="formCentro">
+                    <input type="hidden" id="centro-id">
+                    
+                    <!-- Seção: Identificação -->
+                    <div class="form-section-saas">
+                        <div class="form-section-title-saas">
+                            <i class="fas fa-tag"></i>
+                            <span>Identificação</span>
+                            <span class="section-badge-saas">Obrigatório</span>
+                        </div>
+                        <div class="form-grid-saas">
+                            <div class="form-group-saas">
+                                <label><i class="fas fa-hashtag"></i> Código <span class="required">*</span></label>
+                                <input type="text" id="centro-codigo" placeholder="Ex: CC001" required>
+                            </div>
+                            <div class="form-group-saas">
+                                <label><i class="fas fa-building"></i> Departamento</label>
+                                <select id="centro-departamento" title="Departamento">
+                                    <option value="">Selecione...</option>
+                                    <option value="Administrativo">Administrativo</option>
+                                    <option value="Comercial">Comercial</option>
+                                    <option value="Financeiro">Financeiro</option>
+                                    <option value="Produção">Produção</option>
+                                    <option value="RH">Recursos Humanos</option>
+                                    <option value="TI">Tecnologia</option>
+                                    <option value="Logística">Logística</option>
+                                </select>
+                            </div>
+                            <div class="form-group-saas full">
+                                <label><i class="fas fa-file-signature"></i> Nome <span class="required">*</span></label>
+                                <input type="text" id="centro-nome" placeholder="Nome completo do centro de custo" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Gestão -->
+                    <div class="form-section-saas">
+                        <div class="form-section-title-saas">
+                            <i class="fas fa-users-cog icon-blue"></i>
+                            <span>Gestão e Orçamento</span>
+                        </div>
+                        <div class="form-grid-saas">
+                            <div class="form-group-saas">
+                                <label><i class="fas fa-user-tie"></i> Responsável</label>
+                                <input type="text" id="centro-responsavel" placeholder="Nome do gestor responsável">
+                            </div>
+                            <div class="form-group-saas">
+                                <label><i class="fas fa-dollar-sign"></i> Orçamento Mensal</label>
+                                <div class="valor-destaque-saas">
+                                    <span class="currency-symbol">R$</span>
+                                    <input type="text" id="centro-orcamento" placeholder="0,00" oninput="formatarMoedaInput(this)">
+                                </div>
+                            </div>
+                            <div class="form-group-saas">
+                                <label><i class="fas fa-toggle-on"></i> Status</label>
+                                <select id="centro-ativo" title="Status">
+                                    <option value="1">Ativo</option>
+                                    <option value="0">Inativo</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer-saas">
+                <div class="modal-footer-left-saas">
+                    <div class="footer-info">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Campos com <span class="required-asterisk">*</span> são obrigatórios</span>
+                    </div>
+                </div>
+                <div class="modal-footer-right-saas">
+                    <button class="btn-saas btn-saas-ghost" onclick="fecharModal()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn-saas btn-saas-primary" onclick="salvarCentro()" id="btnSalvar">
+                        <i class="fas fa-save"></i> Salvar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSS dos Modais SaaS -->
+    <link rel="stylesheet" href="css/modais-saas.css">
+
+    <script>
+        let centrosCusto = [];
+        let editandoId = null;
+
+        // Carregar usuário
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+
+                    const hour = new Date().getHours();
+                    let greeting = 'Bom dia';
+                    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                    else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                    
+                    document.getElementById('greeting-text').textContent = greeting;
+                    document.getElementById('user-name').textContent = primeiroNome;
+                    document.getElementById('user-initials').textContent = primeiroNome.charAt(0).toUpperCase();
+                    
+                    const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    const fotoEl = document.getElementById('user-photo');
+                    const inicialEl = document.getElementById('user-initials');
+                    
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                        fotoEl.src = fotoUrl;
+                        fotoEl.onload = () => {
+                            fotoEl.style.display = 'block';
+                            fotoEl.classList.add('visible');
+                            if (inicialEl) inicialEl.style.display = 'none';
+                        };
+                        fotoEl.onerror = () => { fotoEl.style.display = 'none'; if (inicialEl) { inicialEl.textContent = primeiroNome.charAt(0).toUpperCase(); inicialEl.style.display = 'flex'; } };
+                    }
+                }
+            } catch (e) { console.error('Erro ao carregar usuário:', e); }
+        }
+
+        // Carregar centros de custo
+        async function carregarCentros() {
+            try {
+                const response = await fetch('/api/financeiro/centros-custo', { credentials: 'include' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const arr = data.data || data;
+                centrosCusto = Array.isArray(arr) ? arr : [];
+                renderizarTabela();
+                atualizarStats();
+            } catch (e) {
+                console.error('Erro ao carregar centros:', e);
+                document.getElementById('tabela-centros').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444;">Erro ao carregar dados</td></tr>';
+            }
+        }
+
+        function renderizarTabela() {
+            const tbody = document.getElementById('tabela-centros');
+            
+            if (centrosCusto.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;"><i class="fas fa-inbox" style="font-size:32px;color:#e2e8f0;display:block;margin-bottom:12px;"></i>Nenhum centro de custo cadastrado</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = centrosCusto.map(c => {
+                const utilizacao = c.orcamento_mensal > 0 ? Math.min((c.utilizado / c.orcamento_mensal) * 100, 100) : 0;
+                const corBarra = utilizacao > 90 ? 'red' : utilizacao > 70 ? 'yellow' : 'green';
+                
+                return `
+                    <tr>
+                        <td><strong>${c.codigo || 'CC' + String(c.id).padStart(3, '0')}</strong></td>
+                        <td>${c.nome || c.descricao || '-'}</td>
+                        <td>${c.departamento || '-'}</td>
+                        <td>${c.responsavel || c.responsavel_nome || '-'}</td>
+                        <td>${formatarMoeda(c.orcamento_mensal || c.orcamento || 0)}</td>
+                        <td style="min-width: 120px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div class="progress-bar" style="flex: 1;">
+                                    <div class="fill ${corBarra}" style="width: ${utilizacao}%"></div>
+                                </div>
+                                <span style="font-size: 12px; font-weight: 600;">${utilizacao.toFixed(0)}%</span>
+                            </div>
+                        </td>
+                        <td><span class="badge ${(c.ativo == 1 || c.ativo === true) ? 'badge-success' : 'badge-danger'}">${(c.ativo == 1 || c.ativo === true) ? 'Ativo' : 'Inativo'}</span></td>
+                        <td>
+                            <button class="btn-action view" title="Ver" onclick="verCentro(${c.id})"><i class="fas fa-eye"></i></button>
+                            <button class="btn-action edit" title="Editar" onclick="editarCentro(${c.id})"><i class="fas fa-edit"></i></button>
+                            <button class="btn-action delete" title="Excluir" onclick="excluirCentro(${c.id})"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function atualizarStats() {
+            const total = centrosCusto.length;
+            const ativos = centrosCusto.filter(c => c.ativo == 1 || c.ativo === true || c.ativo === 'ativo').length;
+            const inativos = total - ativos;
+            const orcamentoTotal = centrosCusto.reduce((sum, c) => sum + parseFloat(c.orcamento_mensal || c.orcamento || 0), 0);
+            const utilizadoTotal = centrosCusto.reduce((sum, c) => sum + parseFloat(c.utilizado || 0), 0);
+            const utilizacaoMedia = orcamentoTotal > 0 ? (utilizadoTotal / orcamentoTotal) * 100 : 0;
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-ativos').textContent = ativos;
+            document.getElementById('stat-orcamento').textContent = formatarMoeda(orcamentoTotal);
+            document.getElementById('stat-utilizacao').textContent = utilizacaoMedia.toFixed(1) + '%';
+        }
+
+        function filtrarCentros() {
+            const busca = document.getElementById('searchInput').value.toLowerCase();
+            const linhas = document.querySelectorAll('#tabela-centros tr');
+            linhas.forEach(linha => {
+                const texto = linha.textContent.toLowerCase();
+                linha.style.display = texto.includes(busca) ? '' : 'none';
+            });
+        }
+
+        function abrirModal() {
+            editandoId = null;
+            document.getElementById('modal-titulo').textContent = 'Novo Centro de Custo';
+            document.getElementById('formCentro').reset();
+            document.getElementById('centro-id').value = '';
+            document.getElementById('modalCentro').classList.add('active');
+        }
+
+        function fecharModal() {
+            document.getElementById('modalCentro').classList.remove('active');
+        }
+
+        function editarCentro(id) {
+            const centro = centrosCusto.find(c => c.id === id);
+            if (!centro) return;
+
+            editandoId = id;
+            document.getElementById('modal-titulo').textContent = 'Editar Centro de Custo';
+            document.getElementById('centro-id').value = centro.id;
+            document.getElementById('centro-codigo').value = centro.codigo || '';
+            document.getElementById('centro-nome').value = centro.nome || centro.descricao || '';
+            document.getElementById('centro-departamento').value = centro.departamento || '';
+            document.getElementById('centro-responsavel').value = centro.responsavel || centro.responsavel_nome || '';
+            document.getElementById('centro-orcamento').value = formatarMoeda(centro.orcamento_mensal || centro.orcamento || 0);
+            document.getElementById('centro-ativo').value = centro.ativo ? '1' : '0';
+            document.getElementById('modalCentro').classList.add('active');
+        }
+
+        async function salvarCentro() {
+            const dados = {
+                codigo: document.getElementById('centro-codigo').value,
+                nome: document.getElementById('centro-nome').value,
+                departamento: document.getElementById('centro-departamento').value,
+                responsavel: document.getElementById('centro-responsavel').value,
+                orcamento_mensal: parseMoeda(document.getElementById('centro-orcamento').value),
+                ativo: document.getElementById('centro-ativo').value === '1'
+            };
+
+            if (!dados.nome) {
+                alert('Nome é obrigatório');
+                return;
+            }
+
+            try {
+                const url = editandoId 
+                    ? `/api/financeiro/centros-custo/${editandoId}`
+                    : '/api/financeiro/centros-custo';
+                
+                const response = await fetch(url, {
+                    method: editandoId ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    fecharModal();
+                    carregarCentros();
+                    alert(editandoId ? 'Centro atualizado com sucesso!' : 'Centro criado com sucesso!');
+                } else {
+                    const error = await response.json();
+                    alert('Erro: ' + (error.message || 'Falha ao salvar'));
+                }
+            } catch (e) {
+                console.error('Erro ao salvar:', e);
+                alert('Erro ao salvar centro de custo');
+            }
+        }
+
+        async function excluirCentro(id) {
+            if (!confirm('Tem certeza que deseja excluir este centro de custo?')) return;
+
+            try {
+                const response = await fetch(`/api/financeiro/centros-custo/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    carregarCentros();
+                    alert('Centro excluído com sucesso!');
+                } else {
+                    alert('Erro ao excluir centro de custo');
+                }
+            } catch (e) {
+                console.error('Erro ao excluir:', e);
+                alert('Erro ao excluir centro de custo');
+            }
+        }
+
+        function verCentro(id) {
+            const centro = centrosCusto.find(c => c.id === id);
+            if (!centro) return;
+
+            const utilizacao = centro.orcamento_mensal > 0 ? ((centro.utilizado || 0) / centro.orcamento_mensal) * 100 : 0;
+            
+            alert(`Centro de Custo: ${centro.nome || centro.descricao}\n\nCódigo: ${centro.codigo || '-'}\nDepartamento: ${centro.departamento || '-'}\nResponsável: ${centro.responsavel || '-'}\nOrçamento: ${formatarMoeda(centro.orcamento_mensal || 0)}\nUtilizado: ${formatarMoeda(centro.utilizado || 0)}\nUtilização: ${utilizacao.toFixed(1)}%\nStatus: ${centro.ativo ? 'Ativo' : 'Inativo'}`);
+        }
+
+        function exportarCSV() {
+            if (centrosCusto.length === 0) {
+                alert('Não há dados para exportar');
+                return;
+            }
+
+            let csv = 'Código,Nome,Departamento,Responsável,Orçamento,Utilizado,Status\n';
+            centrosCusto.forEach(c => {
+                csv += `"${c.codigo || ''}","${c.nome || c.descricao || ''}","${c.departamento || ''}","${c.responsavel || ''}","${c.orcamento_mensal || 0}","${c.utilizado || 0}","${c.ativo ? 'Ativo' : 'Inativo'}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'centros-custo.csv';
+            link.click();
+        }
+
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function parseMoeda(valor) {
+            if (!valor) return 0;
+            return parseFloat(valor.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+        }
+
+        function formatarMoedaInput(input) {
+            let valor = input.value.replace(/\D/g, '');
+            if (!valor) { input.value = ''; return; }
+            valor = (parseInt(valor) / 100).toFixed(2);
+            input.value = formatarMoeda(valor);
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarUsuario();
+            carregarCentros();
+        });
+    </script>
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <!-- Sidebar + Header RBAC Component -->
+    <script src="js/financeiro-sidebar.js?v=20260211"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+

@@ -1,0 +1,723 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Espelho de Ponto</title>
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area {
+            flex: 1; overflow-y: auto; padding: 24px; background: #ffffff;
+        }
+
+        .page-header { margin-bottom: 24px; }
+
+        .page-title {
+            font-size: 1.75rem; font-weight: 700; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 12px;
+        }
+
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* Cards */
+        .card {
+            background: white; border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9; overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            padding: 20px 24px; border-bottom: 1px solid #f1f5f9;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem; font-weight: 600; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 8px;
+        }
+
+        .card-title i { color: var(--primary-pink); }
+        .card-body { padding: 24px; }
+
+        /* Controls */
+        .controls-bar {
+            display: flex; gap: 16px; align-items: flex-end;
+            margin-bottom: 24px; flex-wrap: wrap;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
+
+        .form-select, .form-input {
+            padding: 10px 16px; border: 1px solid #e2e8f0;
+            border-radius: 10px; font-size: 0.875rem;
+            color: #1e293b; background: white; min-width: 180px;
+        }
+
+        .form-select:focus, .form-input:focus {
+            outline: none; border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px; border: none; border-radius: 10px;
+            font-size: 0.875rem; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 8px;
+            transition: all 0.2s; text-decoration: none;
+        }
+
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: #db2777; }
+        .btn-outline { background: transparent; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; color: #1e293b; }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px; margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white; border-radius: 16px;
+            border: 1px solid #f1f5f9; padding: 20px;
+            display: flex; align-items: center; gap: 16px;
+        }
+
+        .stat-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .stat-icon.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .stat-icon.yellow { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .stat-icon.red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .stat-content h4 { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
+        .stat-content .value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+
+        /* Table */
+        .table-container { overflow-x: auto; }
+
+        .data-table {
+            width: 100%; border-collapse: collapse;
+        }
+
+        .data-table th, .data-table td {
+            padding: 12px 16px; text-align: left;
+            border-bottom: 1px solid #f1f5f9; font-size: 0.875rem;
+        }
+
+        .data-table th {
+            background: #f8fafc; font-weight: 600; color: #64748b;
+        }
+
+        .data-table tr:hover { background: #f8fafc; }
+
+        .status-badge {
+            padding: 4px 10px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 500;
+        }
+
+        .status-badge.normal { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .status-badge.atraso { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .status-badge.falta { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .status-badge.folga { background: rgba(100, 116, 139, 0.1); color: #64748b; }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Espelho de Ponto</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-clock"></i>
+                        Espelho de Ponto
+                    </h1>
+                    <p class="page-subtitle">Consulte suas marcações de ponto</p>
+                </div>
+
+                <!-- Controls -->
+                <div class="controls-bar">
+                    <div class="form-group">
+                        <label class="form-label" for="data-inicio">Data Início</label>
+                        <input type="date" class="form-input" id="data-inicio" title="Data início do período">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="data-fim">Data Fim</label>
+                        <input type="date" class="form-input" id="data-fim" title="Data fim do período">
+                    </div>
+                    <button class="btn btn-primary" onclick="carregarEspelho()">
+                        <i class="fas fa-search"></i>
+                        Consultar
+                    </button>
+                    <button class="btn btn-outline" onclick="exportarPDF()">
+                        <i class="fas fa-download"></i>
+                        Exportar PDF
+                    </button>
+                    <a href="../funcionario.html" class="btn btn-outline">
+                        <i class="fas fa-arrow-left"></i>
+                        Voltar
+                    </a>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Dias Trabalhados</h4>
+                            <div class="value" id="dias-trabalhados">--</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Horas Trabalhadas</h4>
+                            <div class="value" id="horas-trabalhadas">--</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Atrasos</h4>
+                            <div class="value" id="total-atrasos">--</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Faltas</h4>
+                            <div class="value" id="total-faltas">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-list"></i>
+                            Registros Detalhados
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="ponto-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Dia</th>
+                                        <th>Entrada</th>
+                                        <th>Saída Almoço</th>
+                                        <th>Retorno Almoço</th>
+                                        <th>Saída</th>
+                                        <th>Horas</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ponto-tbody">
+                                    <!-- Data loaded dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            const headers = { ...additionalHeaders };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            return headers;
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { 
+                    headers: getAuthHeaders(),
+                    credentials: 'include' 
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, userName);
+                    
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initials');
+                    
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                    
+                    // Mostrar botão admin apenas para usuários específicos
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    const btnAdmin = document.getElementById('btn-admin');
+                    if (btnAdmin && user.email && adminEmails.includes(user.email.toLowerCase())) {
+                        btnAdmin.style.display = 'flex';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        /**
+         * Sanitiza string contra XSS em innerHTML.
+         */
+        function escHTML(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        }
+
+        /** Atualiza os cards de resumo */
+        function atualizarResumo(resumo) {
+            const diasEl = document.getElementById('dias-trabalhados');
+            const horasEl = document.getElementById('horas-trabalhadas');
+            const atrasosEl = document.getElementById('total-atrasos');
+            const faltasEl = document.getElementById('total-faltas');
+            if (diasEl) diasEl.textContent = resumo.dias_trabalhados || 0;
+            if (horasEl) horasEl.textContent = resumo.horas_trabalhadas || '0h';
+            if (atrasosEl) atrasosEl.textContent = resumo.atrasos || 0;
+            if (faltasEl) faltasEl.textContent = resumo.faltas || 0;
+        }
+
+        function renderPonto(data) {
+            const tbody = document.getElementById('ponto-tbody');
+            if (!tbody) return;
+            if (!Array.isArray(data) || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b;padding:24px;">Nenhum registro encontrado para o período selecionado.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(p => {
+                const statusSafe = escHTML(p.status || 'normal');
+                return `
+                    <tr>
+                        <td>${escHTML(p.data)}</td>
+                        <td>${escHTML(p.dia)}</td>
+                        <td>${escHTML(p.entrada)}</td>
+                        <td>${escHTML(p.saidaAlmoco)}</td>
+                        <td>${escHTML(p.retornoAlmoco)}</td>
+                        <td>${escHTML(p.saida)}</td>
+                        <td>${escHTML(p.horas)}</td>
+                        <td><span class="status-badge ${statusSafe}">${statusSafe.charAt(0).toUpperCase() + statusSafe.slice(1)}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Carrega espelho de ponto da API com dados reais.
+         */
+        async function carregarEspelho() {
+            const dataInicio = document.getElementById('data-inicio')?.value;
+            const dataFim = document.getElementById('data-fim')?.value;
+
+            // Mostrar loading
+            const tbody = document.getElementById('ponto-tbody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;"><i class="fas fa-spinner fa-spin"></i> Carregando registros...</td></tr>';
+
+            try {
+                const params = new URLSearchParams();
+                if (dataInicio) params.set('data_inicio', dataInicio);
+                if (dataFim) params.set('data_fim', dataFim);
+
+                const response = await fetch(`/api/rh/espelho-ponto?${params.toString()}`, {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    if (result.success && result.registros) {
+                        renderPonto(result.registros);
+                        if (result.resumo) atualizarResumo(result.resumo);
+                        return;
+                    }
+                }
+                
+                // Se não retornou dados válidos
+                renderPonto([]);
+                atualizarResumo({ dias_trabalhados: 0, horas_trabalhadas: '0h', atrasos: 0, faltas: 0 });
+
+            } catch (error) {
+                console.error('Erro ao carregar espelho de ponto:', error);
+                renderPonto([]);
+                atualizarResumo({ dias_trabalhados: 0, horas_trabalhadas: '0h', atrasos: 0, faltas: 0 });
+            }
+        }
+
+        /**
+         * Exporta espelho de ponto para PDF via iframe + window.print().
+         * Template profissional A4 com header empresa.
+         */
+        function exportarPDF() {
+            const tbody = document.getElementById('ponto-tbody');
+            if (!tbody || !tbody.innerHTML.trim()) {
+                alert('Nenhum dado para exportar. Consulte um período primeiro.');
+                return;
+            }
+
+            const dataInicio = document.getElementById('data-inicio')?.value || '';
+            const dataFim = document.getElementById('data-fim')?.value || '';
+            const periodoTexto = dataInicio && dataFim
+                ? `${new Date(dataInicio + 'T00:00:00').toLocaleDateString('pt-BR')} a ${new Date(dataFim + 'T00:00:00').toLocaleDateString('pt-BR')}`
+                : 'Período completo';
+            const userName = document.getElementById('user-name')?.textContent || 'Colaborador';
+            const dataGeracao = new Date().toLocaleString('pt-BR');
+
+            // Extrair linhas da tabela
+            const rows = tbody.querySelectorAll('tr');
+            const tabelaHTML = Array.from(rows).map(tr => {
+                const cells = tr.querySelectorAll('td');
+                return '<tr>' + Array.from(cells).map(td => `<td>${escHTML(td.textContent)}</td>`).join('') + '</tr>';
+            }).join('');
+
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+            document.body.appendChild(iframe);
+
+            const doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Aluforce: Espelho de Ponto</title>
+    <style>
+        @page { size: A4 portrait; margin: 10mm 12mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 10px; color: #1a1a1a; background: #fff; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; }
+        .logo-area img { height: 36px; }
+        .empresa-info { text-align: right; font-size: 8px; color: #4a5568; line-height: 1.4; }
+        .empresa-info .razao { font-weight: 700; color: #1a365d; font-size: 10px; margin-bottom: 2px; }
+        .header-line { height: 3px; background: linear-gradient(90deg, #1a365d, #2c5282, #3182ce); margin-bottom: 8px; }
+        .doc-title { background: linear-gradient(135deg, #1a365d, #2c5282); color: #fff; padding: 8px 14px; text-align: center; }
+        .doc-title h1 { font-size: 13px; font-weight: 700; }
+        .doc-title .info { font-size: 9px; color: #90cdf4; margin-top: 2px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #1a365d; color: #fff; padding: 6px 8px; font-size: 8px; font-weight: 700; text-transform: uppercase; text-align: left; }
+        td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; font-size: 9px; }
+        tr:nth-child(even) { background: #f8fafc; }
+        .footer { margin-top: 14px; padding-top: 8px; border-top: 2px solid #1a365d; font-size: 8px; color: #64748b; text-align: center; }
+        @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo-area">
+            <img src="/images/Logo Monocromatico - Azul - Aluforce.png" alt="ALUFORCE"
+                 onerror="this.outerHTML='<div style=\\'font-size:18px;font-weight:700;color:#1a365d\\'>ALUFORCE</div>'">
+        </div>
+        <div class="empresa-info">
+            <div class="razao">I. M. DOS REIS INDÚSTRIA E COMÉRCIO DE CONDUTORES</div>
+            <div>CNPJ: 08.192.479/0001-60 | IE: 103.385.861-110</div>
+        </div>
+    </div>
+    <div class="header-line"></div>
+    <div class="doc-title">
+        <h1>ESPELHO DE PONTO</h1>
+        <div class="info">Colaborador: ${escHTML(userName)} | Período: ${escHTML(periodoTexto)}</div>
+    </div>
+    <table>
+        <thead>
+            <tr><th>Data</th><th>Dia</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Horas</th><th>Status</th></tr>
+        </thead>
+        <tbody>${tabelaHTML}</tbody>
+    </table>
+    <div class="footer">
+        <div style="font-weight:700;color:#1a365d;">ALUFORCE - Sistema de Gestão Empresarial</div>
+        <div style="margin-top:3px;">Documento gerado em ${escHTML(dataGeracao)}</div>
+    </div>
+</body>
+</html>`);
+            doc.close();
+
+            setTimeout(() => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                setTimeout(() => iframe.remove(), 3000);
+            }, 500);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+
+            // Definir datas padrão: mês atual
+            const hoje = new Date();
+            const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            const dataInicioEl = document.getElementById('data-inicio');
+            const dataFimEl = document.getElementById('data-fim');
+            if (dataInicioEl) dataInicioEl.value = primeiroDia.toISOString().split('T')[0];
+            if (dataFimEl) dataFimEl.value = hoje.toISOString().split('T')[0];
+
+            // Carregar dados reais da API
+            carregarEspelho();
+        });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+

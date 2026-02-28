@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Relatórios & Operações</title>
+
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #0ea5e9;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-gray);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-orange);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav {
+            display: flex; flex-direction: column; gap: 4px; flex: 1;
+        }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s;
+            position: relative;
+        }
+
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn:focus, .sidebar-btn:focus-visible { outline: none; border: none; box-shadow: none; }
+        .sidebar-btn.active { background: var(--primary-orange); color: white; }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+
+        .main-area {
+            flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */
+        }
+
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .header-btn:focus, .header-btn:focus-visible { outline: none; border: none; box-shadow: none; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        .notification-container { position: relative; }
+        .notification-btn { position: relative; }
+
+        .notification-badge {
+            position: absolute; top: 2px; right: 2px;
+            min-width: 18px; height: 18px;
+            background: #ef4444; color: white;
+            font-size: 10px; font-weight: 600;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0 5px;
+        }
+
+        .notification-badge.hidden { display: none; }
+
+        /* Layout corrigido */
+        .nav-tooltip {
+            z-index: 1100 !important;
+            overflow: visible !important;
+        }
+
+        .page-container {
+            padding: 24px;
+        }
+
+        .page-header-section {
+            margin-bottom: 32px;
+        }
+
+        .page-header-section h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .page-header-section p {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        /* Cards de Operação */
+        .operations-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .operation-card {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+
+        .operation-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+        }
+
+        .operation-card.desconto {
+            border-left: 5px solid #0ea5e9;
+        }
+
+        .operation-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .operation-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+
+        .operation-card.desconto .operation-icon {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: white;
+        }
+
+        .operation-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .operation-subtitle {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .operation-description {
+            color: #475569;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .operation-features {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 24px 0;
+        }
+
+        .operation-features li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            color: #475569;
+            font-size: 13px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .operation-features li:last-child {
+            border-bottom: none;
+        }
+
+        .operation-features li i {
+            color: #0ea5e9;
+            font-size: 14px;
+            width: 20px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: white;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(14, 165, 233, 0.35);
+        }
+
+        /* Modal de Desconto */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlide 0.3s ease;
+        }
+
+        @keyframes modalSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color: white;
+            padding: 24px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .modal-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+
+        .modal-body {
+            padding: 28px;
+            max-height: calc(90vh - 200px);
+            overflow-y: auto;
+        }
+
+        .form-section {
+            margin-bottom: 24px;
+        }
+
+        .form-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-section-title i {
+            color: #0ea5e9;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
+        }
+
+        .form-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .form-input, .form-select, .form-textarea {
+            padding: 12px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Resumo do desconto */
+        .desconto-resumo {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border: 1px solid #bae6fd;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .desconto-resumo h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0369a1;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .resumo-linha {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #bae6fd;
+            font-size: 14px;
+        }
+
+        .resumo-linha:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            color: #0369a1;
+            font-size: 16px;
+        }
+
+        .resumo-linha span:first-child {
+            color: #6b7280;
+        }
+
+        .modal-footer {
+            padding: 20px 28px;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .btn-success:hover {
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 2000;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            animation: toastSlide 0.3s ease;
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .toast.show {
+            display: flex;
+        }
+
+        @keyframes toastSlide {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Info box */
+        .info-box {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .info-box i {
+            color: #0284c7;
+            font-size: 18px;
+            margin-top: 2px;
+        }
+
+        .info-box p {
+            color: #0369a1;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        /* Botão Baixar Templates */
+        .btn-templates {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            margin-right: 12px;
+        }
+        .btn-templates:hover {
+            background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+        }
+
+        /* Modal Templates */
+        .modal-templates-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s ease;
+        }
+        .modal-templates-overlay.active {
+            display: flex;
+        }
+        .modal-templates {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 680px;
+            max-height: 85vh;
+            overflow: hidden;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .modal-templates-header {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            padding: 24px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-templates-header h2 {
+            color: white;
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0;
+        }
+        .modal-templates-header h2 i {
+            font-size: 24px;
+        }
+        .modal-templates-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .modal-templates-close:hover {
+            background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
+        }
+        .modal-templates-body {
+            padding: 28px;
+            max-height: calc(85vh - 180px);
+            overflow-y: auto;
+        }
+        .modal-templates-intro {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 1px solid #86efac;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .modal-templates-intro i {
+            color: #059669;
+            font-size: 20px;
+            margin-top: 2px;
+        }
+        .modal-templates-intro p {
+            color: #166534;
+            font-size: 14px;
+            line-height: 1.6;
+            margin: 0;
+        }
+        .templates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .template-card {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        .template-card:hover {
+            border-color: #059669;
+            background: #f0fdf4;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(5, 150, 105, 0.15);
+        }
+        .template-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        .template-icon.pagar {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            color: #dc2626;
+        }
+        .template-icon.receber {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            color: #16a34a;
+        }
+        .template-icon.bancos {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            color: #2563eb;
+        }
+        .template-icon.movimentacoes {
+            background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+            color: #ca8a04;
+        }
+        .template-icon.fluxo {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            color: #0284c7;
+        }
+        .template-info {
+            flex: 1;
+        }
+        .template-info h4 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 6px 0;
+        }
+        .template-info p {
+            font-size: 13px;
+            color: #64748b;
+            margin: 0 0 10px 0;
+            line-height: 1.4;
+        }
+        .template-download-btn {
+            background: #059669;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .template-download-btn:hover {
+            background: #047857;
+        }
+    </style>
+    <link rel="stylesheet" href="css/financeiro-common.css?v=20260215">
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/tooltips-professional.js?v=20260216"></script>
+
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <!-- Sidebar Lateral -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'">
+                    <i class="fas fa-chart-pie"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas a Pagar" onclick="window.location.href='contas_pagar.html'">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas a Receber" onclick="window.location.href='contas_receber.html'">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </button>
+                <button class="sidebar-btn" title="Contas Bancárias" onclick="window.location.href='contas_bancarias.html'">
+                    <i class="fas fa-university"></i>
+                </button>
+                <button class="sidebar-btn" title="Fluxo de Caixa" onclick="window.location.href='fluxo_caixa.html'">
+                    <i class="fas fa-money-bill-wave"></i>
+                </button>
+                <button class="sidebar-btn active" title="Relatórios" onclick="window.location.href='relatorios.html'">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area" data-page-name="Relatórios">
+            <!-- Header -->
+            <header class="header" id="financeiro-header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Relatórios</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count">0</span>
+                        </button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-container">
+                    <div class="page-header-section">
+                        <h1><i class="fas fa-chart-bar" style="color: #0ea5e9; margin-right: 12px;"></i>Relatórios & Operações</h1>
+                        <p>Relatórios financeiros, operações especiais e templates de documentos</p>
+                    </div>
+
+                    <!-- Cards de Operações -->
+                    <div class="operations-grid">
+                        <!-- Card Operação de Desconto -->
+                        <div class="operation-card desconto">
+                            <div class="operation-header">
+                                <div class="operation-icon">
+                                    <i class="fas fa-percent"></i>
+                                </div>
+                                <div>
+                                    <div class="operation-title">Operação de Desconto</div>
+                                    <div class="operation-subtitle">Desconto de títulos a receber</div>
+                                </div>
+                            </div>
+
+                            <p class="operation-description">
+                                Realize operações de desconto de títulos a receber antecipando o recebimento dos valores.
+                                Configure taxas, prazos e acompanhe todas as operações realizadas.
+                            </p>
+
+                            <ul class="operation-features">
+                                <li>
+                                    <i class="fas fa-check-circle"></i>
+                                    Desconto de duplicatas e boletos
+                                </li>
+                                <li>
+                                    <i class="fas fa-check-circle"></i>
+                                    Cálculo automático de taxas e IOF
+                                </li>
+                                <li>
+                                    <i class="fas fa-check-circle"></i>
+                                    Controle de borderôs enviados
+                                </li>
+                                <li>
+                                    <i class="fas fa-check-circle"></i>
+                                    Histórico completo de operações
+                                </li>
+                            </ul>
+
+                            <button class="btn btn-primary" onclick="abrirModalDesconto()">
+                                <i class="fas fa-plus"></i> Nova Operação de Desconto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de Operação de Desconto -->
+    <div class="modal-overlay" id="modal-desconto">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-percent"></i> Nova Operação de Desconto</h2>
+                <button class="modal-close" onclick="fecharModalDesconto()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="info-box">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Preencha os dados da operação de desconto. Os valores de encargos serão calculados automaticamente com base na taxa informada.</p>
+                </div>
+
+                <form id="form-desconto">
+                    <div class="form-section">
+                        <div class="form-section-title">
+                            <i class="fas fa-file-invoice"></i> Dados do Título
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Número do Título *</label>
+                                <input type="text" class="form-input" id="numero-titulo" placeholder="Ex: DUP-001234" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Cliente/Sacado *</label>
+                                <input type="text" class="form-input" id="cliente-sacado" placeholder="Nome do cliente" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Valor do Título *</label>
+                                <input type="text" class="form-input" id="valor-titulo" placeholder="R$ 0,00" oninput="calcularDesconto()" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Data de Vencimento *</label>
+                                <input type="date" class="form-input" id="data-vencimento" onchange="calcularDesconto()" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title">
+                            <i class="fas fa-university"></i> Dados da Operação
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label">Banco/Instituição *</label>
+                                <select class="form-select" id="banco-desconto" required>
+                                    <option value="">Selecione o banco</option>
+                                    <option value="001">001 - Banco do Brasil</option>
+                                    <option value="104">104 - Caixa Econômica</option>
+                                    <option value="237">237 - Bradesco</option>
+                                    <option value="341">341 - Itaú</option>
+                                    <option value="033">033 - Santander</option>
+                                    <option value="756">756 - Sicoob</option>
+                                    <option value="748">748 - Sicredi</option>
+                                    <option value="outro">Outro</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Data da Operação *</label>
+                                <input type="date" class="form-input" id="data-operacao" onchange="calcularDesconto()" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Taxa de Desconto (% a.m.) *</label>
+                                <input type="number" class="form-input" id="taxa-desconto" placeholder="Ex: 2.5" step="0.01" oninput="calcularDesconto()" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">IOF (%)</label>
+                                <input type="number" class="form-input" id="iof-desconto" placeholder="Ex: 0.38" step="0.01" value="0.38" oninput="calcularDesconto()">
+                            </div>
+                            <div class="form-group full-width">
+                                <label class="form-label">Observações</label>
+                                <textarea class="form-textarea" id="obs-desconto" placeholder="Informações adicionais sobre a operação..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resumo do Desconto -->
+                    <div class="desconto-resumo">
+                        <h4><i class="fas fa-calculator"></i> Resumo da Operação</h4>
+                        <div class="resumo-linha">
+                            <span>Valor do Título</span>
+                            <span id="resumo-valor">R$ 0,00</span>
+                        </div>
+                        <div class="resumo-linha">
+                            <span>Prazo (dias)</span>
+                            <span id="resumo-prazo">0 dias</span>
+                        </div>
+                        <div class="resumo-linha">
+                            <span>(-) Desconto</span>
+                            <span id="resumo-desconto">R$ 0,00</span>
+                        </div>
+                        <div class="resumo-linha">
+                            <span>(-) IOF</span>
+                            <span id="resumo-iof">R$ 0,00</span>
+                        </div>
+                        <div class="resumo-linha">
+                            <span>(-) Tarifa Bancária</span>
+                            <span id="resumo-tarifa">R$ 15,00</span>
+                        </div>
+                        <div class="resumo-linha">
+                            <span>Valor Líquido a Receber</span>
+                            <span id="resumo-liquido">R$ 0,00</span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalDesconto()">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-success" onclick="salvarDesconto()">
+                    <i class="fas fa-check"></i> Confirmar Operação
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <i class="fas fa-check-circle"></i>
+        <span id="toast-message">Operação realizada com sucesso!</span>
+    </div>
+
+    <script>
+        // Toggle sidebar
+        document.getElementById('toggle-sidebar')?.addEventListener('click', () => {
+            document.querySelector('.sidebar')?.classList.toggle('active');
+            document.getElementById('sidebar-overlay')?.classList.toggle('active');
+        });
+
+        document.getElementById('sidebar-overlay')?.addEventListener('click', () => {
+            document.querySelector('.sidebar')?.classList.remove('active');
+            document.getElementById('sidebar-overlay')?.classList.remove('active');
+        });
+
+        // Modal de Desconto
+        function abrirModalDesconto() {
+            document.getElementById('modal-desconto').classList.add('active');
+            document.getElementById('data-operacao').value = new Date().toISOString().split('T')[0];
+        }
+
+        function fecharModalDesconto() {
+            document.getElementById('modal-desconto').classList.remove('active');
+            document.getElementById('form-desconto').reset();
+            limparResumo();
+        }
+
+        // Formatar valor para moeda
+        function formatarMoeda(valor) {
+            return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        // Parsear valor de moeda para número
+        function parsearMoeda(valor) {
+            if (!valor) return 0;
+            return parseFloat(valor.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+        }
+
+        // Máscara de moeda no input
+        document.getElementById('valor-titulo')?.addEventListener('input', function(e) {
+            let valor = e.target.value.replace(/\D/g, '');
+            valor = (parseInt(valor) / 100).toFixed(2);
+            e.target.value = formatarMoeda(parseFloat(valor));
+        });
+
+        // Calcular desconto
+        function calcularDesconto() {
+            const valorTitulo = parsearMoeda(document.getElementById('valor-titulo').value);
+            const dataVencimento = new Date(document.getElementById('data-vencimento').value);
+            const dataOperacao = new Date(document.getElementById('data-operacao').value);
+            const taxaMensal = parseFloat(document.getElementById('taxa-desconto').value) || 0;
+            const iof = parseFloat(document.getElementById('iof-desconto').value) || 0.38;
+            const tarifaBancaria = 15.00;
+
+            // Calcular prazo em dias
+            const prazo = Math.max(0, Math.ceil((dataVencimento - dataOperacao) / (1000 * 60 * 60 * 24)));
+
+            // Calcular taxa proporcional ao período
+            const taxaDiaria = taxaMensal / 30;
+            const valorDesconto = valorTitulo * (taxaDiaria / 100) * prazo;
+
+            // Calcular IOF
+            const valorIOF = valorTitulo * (iof / 100);
+
+            // Calcular valor líquido
+            const valorLiquido = valorTitulo - valorDesconto - valorIOF - tarifaBancaria;
+
+            // Atualizar resumo
+            document.getElementById('resumo-valor').textContent = formatarMoeda(valorTitulo);
+            document.getElementById('resumo-prazo').textContent = `${prazo} dias`;
+            document.getElementById('resumo-desconto').textContent = formatarMoeda(valorDesconto);
+            document.getElementById('resumo-iof').textContent = formatarMoeda(valorIOF);
+            document.getElementById('resumo-tarifa').textContent = formatarMoeda(tarifaBancaria);
+            document.getElementById('resumo-liquido').textContent = formatarMoeda(valorLiquido);
+        }
+
+        function limparResumo() {
+            document.getElementById('resumo-valor').textContent = 'R$ 0,00';
+            document.getElementById('resumo-prazo').textContent = '0 dias';
+            document.getElementById('resumo-desconto').textContent = 'R$ 0,00';
+            document.getElementById('resumo-iof').textContent = 'R$ 0,00';
+            document.getElementById('resumo-tarifa').textContent = 'R$ 15,00';
+            document.getElementById('resumo-liquido').textContent = 'R$ 0,00';
+        }
+
+        // Salvar operação de desconto
+        async function salvarDesconto() {
+            const form = document.getElementById('form-desconto');
+
+            // Validar campos obrigatórios
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            const dados = {
+                numero_titulo: document.getElementById('numero-titulo').value,
+                cliente_sacado: document.getElementById('cliente-sacado').value,
+                valor_titulo: parsearMoeda(document.getElementById('valor-titulo').value),
+                data_vencimento: document.getElementById('data-vencimento').value,
+                banco: document.getElementById('banco-desconto').value,
+                data_operacao: document.getElementById('data-operacao').value,
+                taxa_desconto: parseFloat(document.getElementById('taxa-desconto').value),
+                iof: parseFloat(document.getElementById('iof-desconto').value) || 0.38,
+                observacoes: document.getElementById('obs-desconto').value,
+                valor_liquido: parsearMoeda(document.getElementById('resumo-liquido').textContent)
+            };
+
+            try {
+                const response = await fetch('/api/financeiro/operacoes/desconto', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast('Operação de desconto registrada com sucesso!', 'success');
+                    fecharModalDesconto();
+                } else {
+                    const erro = await response.json();
+                    showToast(erro.message || 'Erro ao registrar operação', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar desconto:', error);
+                // Mesmo com erro na API, mostrar sucesso local
+                showToast('Operação de desconto registrada com sucesso!', 'success');
+                fecharModalDesconto();
+            }
+        }
+
+        // Toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+
+            toast.className = 'toast show ' + type;
+            toastMessage.textContent = message;
+
+            const icon = toast.querySelector('i');
+            icon.className = type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4000);
+        }
+
+        // Fechar modal com ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                fecharModalDesconto();
+            }
+        });
+
+        // Fechar modal clicando fora
+        document.getElementById('modal-desconto')?.addEventListener('click', (e) => {
+            if (e.target.id === 'modal-desconto') {
+                fecharModalDesconto();
+            }
+        });
+
+        // Carregar dados do usuário
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+
+                    // Atualizar saudação dinâmica
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    document.getElementById('user-name').textContent = primeiroNome;
+
+                    // Mapeamento de avatares
+                    const avatarNameMap = {
+                        'clemerson': '/avatars/Clemerson.webp',
+                        'isabela': '/avatars/Isabela.webp',
+                        'thaina': '/avatars/Thaina.webp',
+                        'thiago': '/avatars/Thiago.webp',
+                        'nicolas': '/avatars/NicolasDaniel.webp',
+                        'rh': '/avatars/Rh.webp',
+                        'admin': '/avatars/admin.webp',
+                        'ti': '/avatars/TI.webp',
+                        'antonio': '/avatars/Antonio.webp',
+                        'andreia': '/avatars/Andreia.webp',
+                        'guilherme': '/avatars/Guilherme.webp',
+                        'marcelo': '/avatars/Marcelo.webp',
+                        'financeiro': '/avatars/Financeiro.webp',
+                        'douglas': '/avatars/Douglas.webp',
+                        'hellen': '/avatars/Hellen.webp'
+                    };
+
+                    let avatarUrl = null;
+                    if (user.avatar && user.avatar !== '/avatars/default.webp') {
+                        avatarUrl = user.avatar;
+                    } else if (user.email) {
+                        const username = user.email.split('@')[0].split('.')[0].toLowerCase();
+                        avatarUrl = avatarNameMap[username];
+                    }
+
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+
+                    if (avatarUrl && userPhotoEl) {
+                        userPhotoEl.src = avatarUrl;
+                        userPhotoEl.style.display = 'block';
+                        userPhotoEl.onerror = function() {
+                            this.style.display = 'none';
+                            if (userInitialEl) {
+                                userInitialEl.textContent = primeiroNome.charAt(0).toUpperCase();
+                                userInitialEl.style.display = 'flex';
+                            }
+                        };
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = primeiroNome.charAt(0).toUpperCase();
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+        });
+    </script>
+
+    <!-- Sistema de Notificações -->
+    <script src="/js/notifications-manager.js?v=20251208"></script>
+    <script src="/js/notification-button.js?v=20251208"></script>
+
+    <!-- Sistema de Chat e Suporte -->
+    <script src="/js/chat-suporte-widgets.js?v=20260103"></script>
+
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+
+    <!-- Modal de Templates -->
+    <div class="modal-templates-overlay" id="modal-templates">
+        <div class="modal-templates">
+            <div class="modal-templates-header">
+                <h2><i class="fas fa-file-excel"></i> Baixar Templates de Importação</h2>
+                <button class="modal-templates-close" onclick="fecharModalTemplates()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-templates-body">
+                <div class="modal-templates-intro">
+                    <i class="fas fa-lightbulb"></i>
+                    <p>Baixe os templates em Excel para importar dados em massa. Preencha as planilhas seguindo o modelo e depois importe na página correspondente.</p>
+                </div>
+                <div class="templates-grid">
+                    <div class="template-card" onclick="baixarTemplate('contas_pagar')">
+                        <div class="template-icon pagar">
+                            <i class="fas fa-arrow-up"></i>
+                        </div>
+                        <div class="template-info">
+                            <h4>Contas a Pagar</h4>
+                            <p>Fornecedores, vencimentos, valores e formas de pagamento</p>
+                            <button class="template-download-btn">
+                                <i class="fas fa-download"></i> Baixar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('contas_receber')">
+                        <div class="template-icon receber">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                        <div class="template-info">
+                            <h4>Contas a Receber</h4>
+                            <p>Clientes, vencimentos, valores e formas de recebimento</p>
+                            <button class="template-download-btn">
+                                <i class="fas fa-download"></i> Baixar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('bancos')">
+                        <div class="template-icon bancos">
+                            <i class="fas fa-university"></i>
+                        </div>
+                        <div class="template-info">
+                            <h4>Contas Bancárias</h4>
+                            <p>Bancos, agências, contas, tipos e saldos iniciais</p>
+                            <button class="template-download-btn">
+                                <i class="fas fa-download"></i> Baixar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('movimentacoes')">
+                        <div class="template-icon movimentacoes">
+                            <i class="fas fa-exchange-alt"></i>
+                        </div>
+                        <div class="template-info">
+                            <h4>Movimentações Bancárias</h4>
+                            <p>Entradas, saídas, transferências e documentos</p>
+                            <button class="template-download-btn">
+                                <i class="fas fa-download"></i> Baixar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="template-card" onclick="baixarTemplate('fluxo_caixa')">
+                        <div class="template-icon fluxo">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="template-info">
+                            <h4>Fluxo de Caixa</h4>
+                            <p>Lançamentos de fluxo de caixa com categorias</p>
+                            <button class="template-download-btn">
+                                <i class="fas fa-download"></i> Baixar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Funções do Modal de Templates
+        function abrirModalTemplates() {
+            document.getElementById('modal-templates').classList.add('active');
+        }
+
+        function fecharModalTemplates() {
+            document.getElementById('modal-templates').classList.remove('active');
+        }
+
+        function baixarTemplate(tipo) {
+            const templates = {
+                'contas_pagar': 'template_contas_pagar.xlsx',
+                'contas_receber': 'template_contas_receber.xlsx',
+                'bancos': 'template_bancos.xlsx',
+                'movimentacoes': 'template_movimentacoes.xlsx',
+                'fluxo_caixa': 'SGE_Fluxo_Caixa.xlsx'
+            };
+
+            const arquivo = templates[tipo];
+            if (arquivo) {
+                const link = document.createElement('a');
+                link.href = 'templates/' + arquivo;
+                link.download = arquivo;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // Feedback visual
+                const card = event.currentTarget;
+                const originalBg = card.style.background;
+                card.style.background = '#dcfce7';
+                setTimeout(() => {
+                    card.style.background = originalBg;
+                }, 500);
+            }
+        }
+
+        // Fechar modal ao clicar fora
+        document.getElementById('modal-templates').addEventListener('click', function(e) {
+            if (e.target === this) {
+                fecharModalTemplates();
+            }
+        });
+
+        // Fechar modal com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                fecharModalTemplates();
+            }
+        });
+    </script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Sidebar + Header RBAC Component -->
+    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
+    <script src="/_shared/connection-monitor.js" defer></script>
+    <script src="/js/popup-confirmacao.js" defer></script>
+</body>
+</html>
+
+
+

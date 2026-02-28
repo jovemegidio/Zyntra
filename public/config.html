@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="pt-br">
+<head>    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Aluforce: Configurações</title>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Mobile Enterprise Design System -->
+    <link rel="stylesheet" href="/css/design-system-mobile.css?v=20260202">
+    <link rel="stylesheet" href="/css/responsive-global.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-master-2026.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-enterprise-enhancements.css?v=20260202">
+  <link rel="stylesheet" href="/css/responsive-complete.css?v=20260117">
+  <link rel="stylesheet" href="/css/mobile-fixes-final.css?v=20260117">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .config-container {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Scrollbar Styling */
+    .config-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .config-container::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .config-container::-webkit-scrollbar-thumb {
+      background: rgba(102, 126, 234, 0.3);
+      border-radius: 3px;
+    }
+
+    /* Search Header */
+    .search-header {
+      padding: 20px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(10px);
+      border-radius: 24px 24px 0 0;
+      z-index: 10;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: #f8f9fc;
+      border-radius: 12px;
+      padding: 12px 16px;
+      gap: 12px;
+      border: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .search-box:focus-within {
+      border-color: #667eea;
+      background: #fff;
+      box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    }
+
+    .search-box i {
+      color: #667eea;
+      font-size: 18px;
+    }
+
+    .search-box input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 15px;
+      color: #1f2937;
+      outline: none;
+    }
+
+    .search-box input::placeholder {
+      color: #9ca3af;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #9ca3af;
+      cursor: pointer;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+
+    .close-btn:hover {
+      color: #667eea;
+    }
+
+    /* Config Content */
+    .config-content {
+      padding: 8px 20px 20px;
+    }
+
+    /* Section Styles */
+    .config-section {
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #667eea;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      padding-left: 4px;
+    }
+
+    .section-title i {
+      font-size: 14px;
+    }
+
+    /* Config Item */
+    .config-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      background: #fff;
+      border-radius: 14px;
+      margin-bottom: 10px;
+      border: 1px solid #f0f0f5;
+      transition: all 0.3s ease;
+    }
+
+    .config-item:hover {
+      border-color: #e0e0f0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .config-item-info {
+      flex: 1;
+    }
+
+    .config-item-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 2px;
+    }
+
+    .config-item-desc {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    /* Toggle Switch */
+    .toggle-switch {
+      position: relative;
+      width: 52px;
+      height: 28px;
+      flex-shrink: 0;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #e5e7eb;
+      border-radius: 28px;
+      transition: all 0.3s ease;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      height: 22px;
+      width: 22px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+
+    .toggle-switch input:checked + .toggle-slider {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(24px);
+    }
+
+    /* Select Dropdown */
+    .config-select {
+      padding: 10px 36px 10px 14px;
+      border: 2px solid #e5e7eb;
+      border-radius: 10px;
+      font-size: 14px;
+      color: #1f2937;
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23667eea' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
+      appearance: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      min-width: 140px;
+    }
+
+    .config-select:hover {
+      border-color: #667eea;
+    }
+
+    .config-select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    }
+
+    /* Action Button */
+    .config-action-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .config-action-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    .config-action-btn i {
+      font-size: 14px;
+    }
+
+    /* Footer Actions */
+    .config-footer {
+      padding: 20px;
+      border-top: 1px solid #f0f0f5;
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      padding: 14px;
+      background: #f3f4f6;
+      color: #4b5563;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+      background: #e5e7eb;
+    }
+
+    .btn-primary {
+      flex: 1;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1f2937;
+      color: white;
+      padding: 14px 24px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transition: all 0.4s ease;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    .toast i {
+      font-size: 18px;
+    }
+
+    /* Dark Mode Styles */
+    body.dark-mode {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    }
+
+    body.dark-mode .config-container {
+      background: rgba(30, 30, 45, 0.98);
+    }
+
+    body.dark-mode .search-header {
+      background: rgba(30, 30, 45, 0.98);
+    }
+
+    body.dark-mode .search-box {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    body.dark-mode .search-box input {
+      color: #fff;
+    }
+
+    body.dark-mode .config-item {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    body.dark-mode .config-item-title {
+      color: #fff;
+    }
+
+    body.dark-mode .config-item-desc {
+      color: #9ca3af;
+    }
+
+    body.dark-mode .config-select {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    body.dark-mode .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    body.dark-mode .config-footer {
+      border-top-color: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Animations */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .config-section {
+      animation: fadeInUp 0.5s ease forwards;
+    }
+
+    .config-section:nth-child(1) { animation-delay: 0.1s; }
+    .config-section:nth-child(2) { animation-delay: 0.2s; }
+    .config-section:nth-child(3) { animation-delay: 0.3s; }
+    .config-section:nth-child(4) { animation-delay: 0.4s; }
+  </style>
+    <script src="/js/anti-copy-protection.js"></script>    <link rel="stylesheet" href="/css/popup-confirmacao.css">    <link rel="stylesheet" href="/css/responsive-global.css?v=20260107">
+    <link rel="stylesheet" href="/css/responsive-complete.css?v=20260109">
+    <script src="/js/responsive-mobile.js?v=20260109" defer></script>
+    <script src="/js/mobile-orientation.js?v=20260109" defer></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+  <div class="config-container">
+    <!-- Search Header -->
+    <div class="search-header">
+      <div class="search-box">
+        <i class="fas fa-cog"></i>
+        <input type="text" id="searchConfig" placeholder="Buscar configuração..." oninput="filterConfigs(this.value)">
+        <button class="close-btn" onclick="window.history.back()" title="Fechar">&times;</button>
+      </div>
+    </div>
+
+    <!-- Config Content -->
+    <div class="config-content">
+      <!-- APARÊNCIA -->
+      <div class="config-section" data-section="aparencia">
+        <div class="section-title">
+          <i class="fas fa-palette"></i>
+          Aparência
+        </div>
+
+        <div class="config-item" data-search="modo escuro dark theme tema">
+          <div class="config-item-info">
+            <div class="config-item-title">Modo Escuro</div>
+            <div class="config-item-desc">Alterna entre tema claro e escuro</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="darkMode" onchange="toggleDarkMode(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="config-item" data-search="tamanho fonte size text">
+          <div class="config-item-info">
+            <div class="config-item-title">Tamanho da Fonte</div>
+            <div class="config-item-desc">Ajuste o tamanho do texto do sistema</div>
+          </div>
+          <select class="config-select" id="fontSize" onchange="changeFontSize(this.value)">
+            <option value="small">Pequeno (90%)</option>
+            <option value="medium" selected>Médio (100%)</option>
+            <option value="large">Grande (110%)</option>
+            <option value="xlarge">Extra Grande (120%)</option>
+          </select>
+        </div>
+
+        <div class="config-item" data-search="contraste automatico auto">
+          <div class="config-item-info">
+            <div class="config-item-title">Contraste Automático</div>
+            <div class="config-item-desc">Ajusta texto/ícones conforme o fundo</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="autoContrast" checked onchange="toggleAutoContrast(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- NOTIFICAÇÕES -->
+      <div class="config-section" data-section="notificacoes">
+        <div class="section-title">
+          <i class="fas fa-bell"></i>
+          Notificações
+        </div>
+
+        <div class="config-item" data-search="notificacoes desktop alerts alertas">
+          <div class="config-item-info">
+            <div class="config-item-title">Notificações Desktop</div>
+            <div class="config-item-desc">Receba alertas na área de trabalho</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="desktopNotif" checked onchange="toggleDesktopNotifications(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="config-item" data-search="som audio sound notificacao">
+          <div class="config-item-info">
+            <div class="config-item-title">Som de Notificação</div>
+            <div class="config-item-desc">Reproduzir som ao receber notificações</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="notifSound" checked onchange="toggleNotificationSound(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- SISTEMA -->
+      <div class="config-section" data-section="sistema">
+        <div class="section-title">
+          <i class="fas fa-cogs"></i>
+          Sistema
+        </div>
+
+        <div class="config-item" data-search="idioma language portugues english">
+          <div class="config-item-info">
+            <div class="config-item-title">Idioma</div>
+            <div class="config-item-desc">Selecione o idioma do sistema</div>
+          </div>
+          <select class="config-select" id="language" onchange="changeLanguage(this.value)">
+            <option value="pt-BR" selected>Português (Brasil)</option>
+            <option value="en-US">English (US)</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+
+        <div class="config-item" data-search="atualizacao automatica update auto">
+          <div class="config-item-info">
+            <div class="config-item-title">Atualização Automática</div>
+            <div class="config-item-desc">Verificar atualizações automaticamente</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="autoUpdate" checked onchange="toggleAutoUpdate(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- PERFORMANCE -->
+      <div class="config-section" data-section="performance">
+        <div class="section-title">
+          <i class="fas fa-tachometer-alt"></i>
+          Performance
+        </div>
+
+        <div class="config-item" data-search="animacoes transitions effects">
+          <div class="config-item-info">
+            <div class="config-item-title">Animações</div>
+            <div class="config-item-desc">Habilitar animações e transições</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="animations" checked onchange="toggleAnimations(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="config-item" data-search="cache local storage dados">
+          <div class="config-item-info">
+            <div class="config-item-title">Cache Local</div>
+            <div class="config-item-desc">Armazenar dados localmente para melhor desempenho</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="localCache" checked onchange="toggleLocalCache(this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="config-item" data-search="limpar cache clear storage">
+          <div class="config-item-info">
+            <div class="config-item-title">Limpar Cache</div>
+            <div class="config-item-desc">Limpar dados armazenados localmente</div>
+          </div>
+          <button class="config-action-btn" onclick="clearCache()">
+            <i class="fas fa-trash-alt"></i>
+            Limpar
+          </button>
+        </div>
+      </div>
+
+      <!-- DADOS -->
+      <div class="config-section" data-section="dados">
+        <div class="section-title">
+          <i class="fas fa-database"></i>
+          Dados
+        </div>
+
+        <div class="config-item" data-search="exportar dados export backup">
+          <div class="config-item-info">
+            <div class="config-item-title">Exportar Dados</div>
+            <div class="config-item-desc">Baixar backup das configurações</div>
+          </div>
+          <button class="config-action-btn" onclick="exportData()">
+            <i class="fas fa-download"></i>
+            Exportar
+          </button>
+        </div>
+
+        <div class="config-item" data-search="importar dados import restore">
+          <div class="config-item-info">
+            <div class="config-item-title">Importar Dados</div>
+            <div class="config-item-desc">Restaurar configurações de um backup</div>
+          </div>
+          <button class="config-action-btn" onclick="importData()">
+            <i class="fas fa-upload"></i>
+            Importar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Actions -->
+    <div class="config-footer">
+      <button class="btn-secondary" onclick="resetDefaults()">
+        <i class="fas fa-undo"></i> Restaurar Padrões
+      </button>
+      <button class="btn-primary" onclick="saveAllSettings()">
+        <i class="fas fa-save"></i> Salvar Tudo
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast">
+    <i class="fas fa-check-circle"></i>
+    <span id="toastMessage">Configuração salva!</span>
+  </div>
+
+  <script>
+    // Initialize settings from localStorage
+    document.addEventListener('DOMContentLoaded', function() {
+      loadSettings();
+    });
+
+    // Load all settings from localStorage
+    function loadSettings() {
+      const settings = JSON.parse(localStorage.getItem('aluforce-settings') || '{}');
+      
+      // Dark Mode
+      if (settings.darkMode) {
+        document.getElementById('darkMode').checked = true;
+        document.body.classList.add('dark-mode');
+      }
+
+      // Font Size
+      if (settings.fontSize) {
+        document.getElementById('fontSize').value = settings.fontSize;
+        changeFontSize(settings.fontSize, false);
+      }
+
+      // Other toggles
+      if (settings.autoContrast !== undefined) {
+        document.getElementById('autoContrast').checked = settings.autoContrast;
+      }
+      if (settings.desktopNotif !== undefined) {
+        document.getElementById('desktopNotif').checked = settings.desktopNotif;
+      }
+      if (settings.notifSound !== undefined) {
+        document.getElementById('notifSound').checked = settings.notifSound;
+      }
+      if (settings.autoUpdate !== undefined) {
+        document.getElementById('autoUpdate').checked = settings.autoUpdate;
+      }
+      if (settings.animations !== undefined) {
+        document.getElementById('animations').checked = settings.animations;
+        if (!settings.animations) {
+          document.body.style.setProperty('--transition-duration', '0s');
+        }
+      }
+      if (settings.localCache !== undefined) {
+        document.getElementById('localCache').checked = settings.localCache;
+      }
+      if (settings.language) {
+        document.getElementById('language').value = settings.language;
+      }
+    }
+
+    // Save setting to localStorage
+    function saveSetting(key, value) {
+      const settings = JSON.parse(localStorage.getItem('aluforce-settings') || '{}');
+      settings[key] = value;
+      localStorage.setItem('aluforce-settings', JSON.stringify(settings));
+    }
+
+    // Toggle Dark Mode
+    function toggleDarkMode(enabled) {
+      if (enabled) {
+        document.body.classList.add('dark-mode');
+      } else {
+        document.body.classList.remove('dark-mode');
+      }
+      saveSetting('darkMode', enabled);
+      showToast(enabled ? 'Modo escuro ativado' : 'Modo claro ativado');
+    }
+
+    // Change Font Size
+    function changeFontSize(size, notify = true) {
+      const sizes = {
+        'small': '90%',
+        'medium': '100%',
+        'large': '110%',
+        'xlarge': '120%'
+      };
+      document.documentElement.style.fontSize = sizes[size] || '100%';
+      saveSetting('fontSize', size);
+      if (notify) showToast('Tamanho da fonte alterado');
+    }
+
+    // Toggle Auto Contrast
+    function toggleAutoContrast(enabled) {
+      saveSetting('autoContrast', enabled);
+      showToast(enabled ? 'Contraste automático ativado' : 'Contraste automático desativado');
+    }
+
+    // Toggle Desktop Notifications
+    function toggleDesktopNotifications(enabled) {
+      if (enabled && 'Notification' in window) {
+        Notification.requestPermission().then(permission => {
+          if (permission === 'granted') {
+            saveSetting('desktopNotif', true);
+            showToast('Notificações desktop ativadas');
+          } else {
+            document.getElementById('desktopNotif').checked = false;
+            showToast('Permissão de notificação negada', 'error');
+          }
+        });
+      } else {
+        saveSetting('desktopNotif', enabled);
+        showToast('Notificações desktop desativadas');
+      }
+    }
+
+    // Toggle Notification Sound
+    function toggleNotificationSound(enabled) {
+      saveSetting('notifSound', enabled);
+      showToast(enabled ? 'Som de notificação ativado' : 'Som de notificação desativado');
+    }
+
+    // Toggle Auto Update
+    function toggleAutoUpdate(enabled) {
+      saveSetting('autoUpdate', enabled);
+      showToast(enabled ? 'Atualização automática ativada' : 'Atualização automática desativada');
+    }
+
+    // Toggle Animations
+    function toggleAnimations(enabled) {
+      if (enabled) {
+        document.body.style.removeProperty('--transition-duration');
+      } else {
+        document.body.style.setProperty('--transition-duration', '0s');
+      }
+      saveSetting('animations', enabled);
+      showToast(enabled ? 'Animações ativadas' : 'Animações desativadas');
+    }
+
+    // Toggle Local Cache
+    function toggleLocalCache(enabled) {
+      saveSetting('localCache', enabled);
+      showToast(enabled ? 'Cache local ativado' : 'Cache local desativado');
+    }
+
+    // Change Language
+    function changeLanguage(lang) {
+      saveSetting('language', lang);
+      showToast('Idioma alterado - Recarregue a página');
+    }
+
+    // Clear Cache
+    function clearCache() {
+      if (confirm('Tem certeza que deseja limpar o cache? Isso não afetará suas configurações salvas.')) {
+        // Clear specific cache items but keep settings
+        const settings = localStorage.getItem('aluforce-settings');
+        localStorage.clear();
+        if (settings) localStorage.setItem('aluforce-settings', settings);
+        
+        // Clear session storage
+        sessionStorage.clear();
+        
+        showToast('Cache limpo com sucesso!', 'success');
+      }
+    }
+
+    // Export Data
+    function exportData() {
+      const settings = localStorage.getItem('aluforce-settings') || '{}';
+      const blob = new Blob([settings], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'aluforce-config-backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Configurações exportadas!', 'success');
+    }
+
+    // Import Data
+    function importData() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            try {
+              const settings = JSON.parse(e.target.result);
+              localStorage.setItem('aluforce-settings', JSON.stringify(settings));
+              loadSettings();
+              showToast('Configurações importadas!', 'success');
+            } catch (err) {
+              showToast('Erro ao importar arquivo', 'error');
+            }
+          };
+          reader.readAsText(file);
+        }
+      };
+      input.click();
+    }
+
+    // Reset to Defaults
+    function resetDefaults() {
+      if (confirm('Tem certeza que deseja restaurar todas as configurações para o padrão?')) {
+        localStorage.removeItem('aluforce-settings');
+        location.reload();
+      }
+    }
+
+    // Save All Settings
+    function saveAllSettings() {
+      showToast('Todas as configurações foram salvas!', 'success');
+    }
+
+    // Filter Configs by Search
+    function filterConfigs(query) {
+      const items = document.querySelectorAll('.config-item');
+      const sections = document.querySelectorAll('.config-section');
+      query = query.toLowerCase().trim();
+
+      if (!query) {
+        items.forEach(item => item.style.display = 'flex');
+        sections.forEach(section => section.style.display = 'block');
+        return;
+      }
+
+      sections.forEach(section => {
+        let hasVisibleItems = false;
+        const sectionItems = section.querySelectorAll('.config-item');
+        
+        sectionItems.forEach(item => {
+          const searchData = item.dataset.search || '';
+          const title = item.querySelector('.config-item-title')?.textContent || '';
+          const desc = item.querySelector('.config-item-desc')?.textContent || '';
+          const searchText = (searchData + ' ' + title + ' ' + desc).toLowerCase();
+          
+          if (searchText.includes(query)) {
+            item.style.display = 'flex';
+            hasVisibleItems = true;
+          } else {
+            item.style.display = 'none';
+          }
+        });
+
+        section.style.display = hasVisibleItems ? 'block' : 'none';
+      });
+    }
+
+    // Show Toast Notification
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      const toastMessage = document.getElementById('toastMessage');
+      
+      toastMessage.textContent = message;
+      toast.className = 'toast ' + type;
+      
+      setTimeout(() => toast.classList.add('show'), 10);
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+  </script>
+    <script src="/js/popup-confirmacao.js"></script>    <script src="/js/mobile-menu.js?v=20260107"></script>
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+</body>
+</html>

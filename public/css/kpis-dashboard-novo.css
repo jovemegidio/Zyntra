@@ -1,0 +1,1006 @@
+﻿/**
+ * Dashboard de Indicadores - Visual Executivo Premium v5.0
+ * @author Aluforce ERP
+ * @version 5.0.0 - Correção de Visualização e Layout Responsivo
+ * @date 2026-01-05
+ */
+
+/* ==================== MODAL OVERLAY ==================== */
+.kpis-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: kpisFadeIn 0.25s ease-out;
+}
+
+@keyframes kpisFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* ==================== MODAL CONTAINER ==================== */
+.kpis-modal-container {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 
+        0 0 0 1px rgba(0, 0, 0, 0.04),
+        0 25px 60px -15px rgba(0, 0, 0, 0.35),
+        0 0 100px rgba(59, 130, 246, 0.1);
+    animation: kpisSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes kpisSlideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(40px) scale(0.96);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+body.dark-mode .kpis-modal-container {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    box-shadow: 
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 25px 60px -15px rgba(0, 0, 0, 0.6);
+}
+
+/* ==================== HEADER PREMIUM ==================== */
+.kpis-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+    border-bottom: none;
+    flex-shrink: 0;
+}
+
+.kpis-modal-header .kpis-title {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+}
+
+.kpis-modal-header .kpis-title i {
+    color: #60a5fa;
+    font-size: 1.125rem;
+}
+
+.kpis-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Select Período */
+.kpis-periodo-select {
+    padding: 6px 28px 6px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 8px center;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.kpis-periodo-select:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.kpis-periodo-select:focus {
+    outline: none;
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+.kpis-periodo-select option {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+/* Botões Header */
+.kpis-refresh-btn,
+.kpis-modal-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8125rem;
+    transition: all 0.2s ease;
+}
+
+.kpis-refresh-btn:hover {
+    background: rgba(96, 165, 250, 0.25);
+    border-color: rgba(96, 165, 250, 0.5);
+    transform: rotate(15deg);
+}
+
+.kpis-modal-close:hover {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+.kpis-refresh-btn.loading i {
+    animation: kpisSpin 0.8s linear infinite;
+}
+
+@keyframes kpisSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ==================== BODY DO MODAL ==================== */
+.kpis-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: transparent;
+}
+
+body.dark-mode .kpis-modal-body {
+    background: transparent;
+}
+
+/* Scrollbar customizada */
+.kpis-modal-container::-webkit-scrollbar,
+.kpis-modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.kpis-modal-container::-webkit-scrollbar-track,
+.kpis-modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.kpis-modal-container::-webkit-scrollbar-thumb,
+.kpis-modal-body::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+
+.kpis-modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* ==================== RESUMO FINANCEIRO - 4 CARDS ==================== */
+.kpis-resumo-financeiro {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.kpi-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 18px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 3px;
+}
+
+.kpi-card.kpi-receitas::before { background: linear-gradient(180deg, #22c55e, #16a34a); }
+.kpi-card.kpi-despesas::before { background: linear-gradient(180deg, #ef4444, #dc2626); }
+.kpi-card.kpi-lucro::before { background: linear-gradient(180deg, #3b82f6, #2563eb); }
+.kpi-card.kpi-faturamento::before { background: linear-gradient(180deg, #8b5cf6, #7c3aed); }
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+body.dark-mode .kpi-card {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Ícones Circulares */
+.kpi-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.125rem;
+    flex-shrink: 0;
+}
+
+.kpi-receitas .kpi-icon {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #16a34a;
+}
+
+.kpi-despesas .kpi-icon {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #dc2626;
+}
+
+.kpi-lucro .kpi-icon {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #2563eb;
+}
+
+.kpi-faturamento .kpi-icon {
+    background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+    color: #7c3aed;
+}
+
+body.dark-mode .kpi-receitas .kpi-icon { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+body.dark-mode .kpi-despesas .kpi-icon { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+body.dark-mode .kpi-lucro .kpi-icon { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+body.dark-mode .kpi-faturamento .kpi-icon { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+
+/* Conteúdo dos Cards */
+.kpi-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.kpi-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 3px;
+    white-space: nowrap;
+}
+
+body.dark-mode .kpi-label { color: #94a3b8; }
+
+.kpi-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.dark-mode .kpi-value { color: #f8fafc; }
+
+.kpi-trend {
+    font-size: 0.625rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 100px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 6px;
+    width: fit-content;
+    white-space: nowrap;
+}
+
+.kpi-trend.up {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #15803d;
+}
+
+.kpi-trend.down {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #b91c1c;
+}
+
+.kpi-trend.neutral {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+body.dark-mode .kpi-trend.up { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+body.dark-mode .kpi-trend.down { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+body.dark-mode .kpi-trend.neutral { background: rgba(100, 116, 139, 0.15); color: #94a3b8; }
+
+/* ==================== MÓDULOS - GRID DE 4 COLUNAS ==================== */
+.kpis-modulos-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.kpi-modulo-card {
+    background: #ffffff;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.kpi-modulo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+body.dark-mode .kpi-modulo-card {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Header dos módulos */
+.kpi-modulo-header {
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #ffffff;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.kpi-modulo-header i {
+    font-size: 0.9375rem;
+    opacity: 0.95;
+}
+
+.kpi-modulo-header.vendas { 
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+}
+.kpi-modulo-header.compras { 
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+.kpi-modulo-header.pcp { 
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+}
+.kpi-modulo-header.rh { 
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+/* Body dos módulos */
+.kpi-modulo-body {
+    padding: 14px 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    background: #ffffff;
+}
+
+body.dark-mode .kpi-modulo-body { background: rgba(30, 41, 59, 0.8); }
+
+/* Mini KPIs */
+.kpi-mini {
+    text-align: center;
+    padding: 10px 6px;
+    border-radius: 10px;
+    background: #f8fafc;
+    transition: all 0.2s ease;
+}
+
+.kpi-mini:hover {
+    background: #f1f5f9;
+    transform: scale(1.02);
+}
+
+body.dark-mode .kpi-mini { 
+    background: rgba(51, 65, 85, 0.5); 
+}
+
+body.dark-mode .kpi-mini:hover { 
+    background: rgba(51, 65, 85, 0.8); 
+}
+
+.kpi-mini-value {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    margin-bottom: 3px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+body.dark-mode .kpi-mini-value { color: #f8fafc; }
+
+.kpi-mini-label {
+    display: block;
+    font-size: 0.625rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+body.dark-mode .kpi-mini-label { color: #94a3b8; }
+
+/* ==================== ALERTAS - DESIGN BANNER ==================== */
+.kpis-alertas {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kpi-alerta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    cursor: pointer;
+}
+
+.kpi-alerta:hover {
+    transform: translateX(4px);
+}
+
+.kpi-alerta.info {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border-color: #bfdbfe;
+    color: #1e40af;
+}
+
+.kpi-alerta.warning {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border-color: #fde68a;
+    color: #92400e;
+}
+
+.kpi-alerta.danger {
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    border-color: #fecaca;
+    color: #991b1b;
+}
+
+.kpi-alerta.success {
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-color: #bbf7d0;
+    color: #166534;
+}
+
+body.dark-mode .kpi-alerta.info { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.25); color: #93c5fd; }
+body.dark-mode .kpi-alerta.warning { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.25); color: #fcd34d; }
+body.dark-mode .kpi-alerta.danger { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.25); color: #fca5a5; }
+body.dark-mode .kpi-alerta.success { background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.25); color: #86efac; }
+
+.kpi-alerta-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9375rem;
+    flex-shrink: 0;
+}
+
+.kpi-alerta.info .kpi-alerta-icon { background: rgba(59, 130, 246, 0.15); }
+.kpi-alerta.warning .kpi-alerta-icon { background: rgba(245, 158, 11, 0.15); }
+.kpi-alerta.danger .kpi-alerta-icon { background: rgba(239, 68, 68, 0.15); }
+.kpi-alerta.success .kpi-alerta-icon { background: rgba(34, 197, 94, 0.15); }
+
+.kpi-alerta-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.kpi-alerta-modulo {
+    font-weight: 700;
+    font-size: 0.6875rem;
+    display: block;
+    margin-bottom: 1px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.kpi-alerta-text {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    display: block;
+}
+
+.kpi-alerta-link {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.8);
+    color: inherit;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.kpi-alerta-link:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.02);
+}
+
+body.dark-mode .kpi-alerta-link {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+body.dark-mode .kpi-alerta-link:hover {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+/* ==================== MODAL DE PEDIDOS APROVAÇÍO ==================== */
+.pedidos-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: kpisFadeIn 0.2s ease-out;
+}
+
+.pedidos-modal-container {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+    animation: kpisSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.dark-mode .pedidos-modal-container {
+    background: #1e293b;
+}
+
+.pedidos-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: #ffffff;
+}
+
+.pedidos-modal-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pedidos-modal-header h3 i {
+    opacity: 0.9;
+}
+
+.pedidos-modal-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.pedidos-modal-close:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+.pedidos-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.pedidos-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pedido-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+}
+
+.pedido-item:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateX(4px);
+}
+
+body.dark-mode .pedido-item {
+    background: rgba(51, 65, 85, 0.5);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .pedido-item:hover {
+    background: rgba(51, 65, 85, 0.8);
+}
+
+.pedido-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #2563eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+body.dark-mode .pedido-icon {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+}
+
+.pedido-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.pedido-numero {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 2px;
+}
+
+body.dark-mode .pedido-numero {
+    color: #f8fafc;
+}
+
+.pedido-cliente {
+    font-size: 0.8125rem;
+    color: #64748b;
+}
+
+body.dark-mode .pedido-cliente {
+    color: #94a3b8;
+}
+
+.pedido-valores {
+    text-align: right;
+    min-width: 100px;
+}
+
+.pedido-valor {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #16a34a;
+    white-space: nowrap;
+}
+
+body.dark-mode .pedido-valor {
+    color: #4ade80;
+}
+
+.pedido-data {
+    font-size: 0.6875rem;
+    color: #94a3b8;
+}
+
+.pedido-acoes {
+    display: flex;
+    gap: 6px;
+}
+
+.pedido-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.pedido-btn.aprovar {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.pedido-btn.aprovar:hover {
+    background: #16a34a;
+    color: #ffffff;
+}
+
+.pedido-btn.rejeitar {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.pedido-btn.rejeitar:hover {
+    background: #dc2626;
+    color: #ffffff;
+}
+
+.pedido-btn.visualizar {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.pedido-btn.visualizar:hover {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.pedidos-vazio {
+    text-align: center;
+    padding: 40px 20px;
+    color: #64748b;
+}
+
+.pedidos-vazio i {
+    font-size: 3rem;
+    color: #cbd5e1;
+    margin-bottom: 16px;
+    display: block;
+}
+
+.pedidos-vazio p {
+    font-size: 0.9375rem;
+    margin: 0;
+}
+
+body.dark-mode .pedidos-vazio {
+    color: #94a3b8;
+}
+
+body.dark-mode .pedidos-vazio i {
+    color: #475569;
+}
+
+/* Footer do modal de pedidos */
+.pedidos-modal-footer {
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+body.dark-mode .pedidos-modal-footer {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.pedidos-total {
+    font-size: 0.8125rem;
+    color: #64748b;
+}
+
+.pedidos-total strong {
+    color: #0f172a;
+}
+
+body.dark-mode .pedidos-total {
+    color: #94a3b8;
+}
+
+body.dark-mode .pedidos-total strong {
+    color: #f8fafc;
+}
+
+.pedidos-ir-modulo {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pedidos-ir-modulo:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Animação de saída do pedido */
+@keyframes slideOut {
+    from { 
+        opacity: 1; 
+        transform: translateX(0);
+    }
+    to { 
+        opacity: 0; 
+        transform: translateX(100px);
+    }
+}
+
+/* Estilo do botão alerta para pedidos */
+button.kpi-alerta-link {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.8);
+    color: inherit;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+button.kpi-alerta-link:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.02);
+}
+
+body.dark-mode button.kpi-alerta-link {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+body.dark-mode button.kpi-alerta-link:hover {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+/* ==================== RESPONSIVIDADE ==================== */
+@media (max-width: 768px) {
+    .kpis-modal-container {
+        max-width: 100%;
+        max-height: 95vh;
+        border-radius: 16px 16px 0 0;
+        margin-top: auto;
+    }
+    
+    .kpis-resumo-financeiro {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .kpis-modulos-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .kpi-card {
+        padding: 12px 10px;
+    }
+    
+    .kpi-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 0.875rem;
+    }
+    
+    .kpi-value {
+        font-size: 1rem;
+    }
+    
+    .pedidos-modal-container {
+        max-width: 100%;
+        max-height: 90vh;
+    }
+    
+    .pedido-item {
+        flex-wrap: wrap;
+    }
+    
+    .pedido-acoes {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #e2e8f0;
+    }
+}
+
+@media (max-width: 480px) {
+    .kpis-modal-body {
+        padding: 14px;
+    }
+    
+    .kpis-resumo-financeiro,
+    .kpis-modulos-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .kpi-modulo-body {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        padding: 10px 8px;
+    }
+    
+    .kpi-mini {
+        padding: 6px 2px;
+    }
+    
+    .kpi-mini-value {
+        font-size: 0.875rem;
+    }
+    
+    .kpi-mini-label {
+        font-size: 0.5rem;
+    }
+}

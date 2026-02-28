@@ -1,0 +1,322 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — NFS-e</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn active" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon purple"><i class="fas fa-file-contract"></i></div>
+                        <div>
+                            <h1 class="page-title">NFS-e — Nota Fiscal de Serviço</h1>
+                            <p class="page-subtitle">Emissão e gerenciamento de notas fiscais de serviço eletrônicas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulário NFS-e -->
+            <form id="form-nfse" onsubmit="return emitirNFSe(event)">
+                <!-- Tomador -->
+                <div class="card fade-in-delay-1">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-user-tie"></i> Dados do Tomador</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Tipo Documento</label>
+                                <select class="form-control" id="tomador-tipo-doc" onchange="atualizarMascara()">
+                                    <option value="cpf">CPF</option>
+                                    <option value="cnpj" selected>CNPJ</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="flex:2;">
+                                <label>CPF/CNPJ *</label>
+                                <input type="text" class="form-control" id="tomador-documento" placeholder="00.000.000/0000-00" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Inscrição Municipal</label>
+                                <input type="text" class="form-control" id="tomador-im" placeholder="Inscrição Municipal">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group" style="flex:2;">
+                                <label>Razão Social / Nome *</label>
+                                <input type="text" class="form-control" id="tomador-razao" placeholder="Nome completo ou razão social" required>
+                            </div>
+                            <div class="form-group">
+                                <label>E-mail</label>
+                                <input type="email" class="form-control" id="tomador-email" placeholder="email@empresa.com">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group" style="flex:2;">
+                                <label>Endereço</label>
+                                <input type="text" class="form-control" id="tomador-endereco" placeholder="Rua, número">
+                            </div>
+                            <div class="form-group">
+                                <label>Bairro</label>
+                                <input type="text" class="form-control" id="tomador-bairro" placeholder="Bairro">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Município *</label>
+                                <input type="text" class="form-control" id="tomador-municipio" placeholder="Cidade" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Cód. Município</label>
+                                <input type="text" class="form-control" id="tomador-cod-mun" placeholder="0000000">
+                            </div>
+                            <div class="form-group">
+                                <label>UF</label>
+                                <select class="form-control" id="tomador-uf">
+                                    <option value="">Selecione</option>
+                                    <option>AC</option><option>AL</option><option>AM</option><option>AP</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option><option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option><option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option><option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option><option>TO</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>CEP</label>
+                                <input type="text" class="form-control" id="tomador-cep" placeholder="00000-000">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Serviço -->
+                <div class="card fade-in-delay-2">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-cogs"></i> Dados do Serviço</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Código do Serviço (LC 116) *</label>
+                                <input type="text" class="form-control" id="servico-codigo" placeholder="Ex: 17.01" required>
+                            </div>
+                            <div class="form-group" style="flex:2;">
+                                <label>Discriminação do Serviço *</label>
+                                <textarea class="form-control" id="servico-discriminacao" rows="3" placeholder="Descrição detalhada do serviço prestado..." required></textarea>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Valor do Serviço (R$) *</label>
+                                <input type="number" step="0.01" class="form-control" id="servico-valor" placeholder="0,00" required oninput="calcularImpostos()">
+                            </div>
+                            <div class="form-group">
+                                <label>Deduções (R$)</label>
+                                <input type="number" step="0.01" class="form-control" id="servico-deducoes" value="0" oninput="calcularImpostos()">
+                            </div>
+                            <div class="form-group">
+                                <label>Base de Cálculo</label>
+                                <input type="text" class="form-control" id="servico-base" readonly style="background:#f8fafc;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Impostos -->
+                <div class="card fade-in-delay-3">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-percentage"></i> Impostos</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>ISS (%)</label>
+                                <input type="number" step="0.01" class="form-control" id="imp-iss-aliq" value="5" oninput="calcularImpostos()">
+                            </div>
+                            <div class="form-group">
+                                <label>ISS Valor</label>
+                                <input type="text" class="form-control" id="imp-iss-valor" readonly style="background:#f8fafc;">
+                            </div>
+                            <div class="form-group">
+                                <label>ISS Retido?</label>
+                                <select class="form-control" id="imp-iss-retido">
+                                    <option value="0">Não</option>
+                                    <option value="1">Sim</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>PIS (%)</label><input type="number" step="0.01" class="form-control" id="imp-pis" value="0" oninput="calcularImpostos()"></div>
+                            <div class="form-group"><label>COFINS (%)</label><input type="number" step="0.01" class="form-control" id="imp-cofins" value="0" oninput="calcularImpostos()"></div>
+                            <div class="form-group"><label>IRPJ (%)</label><input type="number" step="0.01" class="form-control" id="imp-irpj" value="0" oninput="calcularImpostos()"></div>
+                            <div class="form-group"><label>CSLL (%)</label><input type="number" step="0.01" class="form-control" id="imp-csll" value="0" oninput="calcularImpostos()"></div>
+                            <div class="form-group"><label>INSS (%)</label><input type="number" step="0.01" class="form-control" id="imp-inss" value="0" oninput="calcularImpostos()"></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Valor Líquido NFS-e</label>
+                                <input type="text" class="form-control" id="valor-liquido" readonly style="background:#eef2ff;font-weight:700;font-size:16px;color:#2563eb;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ações -->
+                <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;">
+                    <button type="button" class="btn btn-secondary" onclick="limparFormulario()"><i class="fas fa-eraser"></i> Limpar</button>
+                    <button type="button" class="btn btn-outline" onclick="salvarRascunho()"><i class="fas fa-save"></i> Rascunho</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Emitir NFS-e</button>
+                </div>
+            </form>
+        </div>
+    </main>
+</div>
+
+<script>
+function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
+
+function atualizarMascara() {
+    const tipo = document.getElementById('tomador-tipo-doc').value;
+    document.getElementById('tomador-documento').placeholder = tipo === 'cpf' ? '000.000.000-00' : '00.000.000/0000-00';
+}
+
+function calcularImpostos() {
+    const valor = parseFloat(document.getElementById('servico-valor').value) || 0;
+    const deducoes = parseFloat(document.getElementById('servico-deducoes').value) || 0;
+    const base = valor - deducoes;
+    document.getElementById('servico-base').value = 'R$ ' + base.toFixed(2);
+
+    const issAliq = parseFloat(document.getElementById('imp-iss-aliq').value) || 0;
+    const issValor = base * (issAliq / 100);
+    document.getElementById('imp-iss-valor').value = 'R$ ' + issValor.toFixed(2);
+
+    const pis = base * (parseFloat(document.getElementById('imp-pis').value) || 0) / 100;
+    const cofins = base * (parseFloat(document.getElementById('imp-cofins').value) || 0) / 100;
+    const irpj = base * (parseFloat(document.getElementById('imp-irpj').value) || 0) / 100;
+    const csll = base * (parseFloat(document.getElementById('imp-csll').value) || 0) / 100;
+    const inss = base * (parseFloat(document.getElementById('imp-inss').value) || 0) / 100;
+
+    const retido = document.getElementById('imp-iss-retido').value === '1';
+    const totalRetencoes = pis + cofins + irpj + csll + inss + (retido ? issValor : 0);
+    document.getElementById('valor-liquido').value = 'R$ ' + (valor - totalRetencoes).toFixed(2);
+}
+
+function limparFormulario() { document.getElementById('form-nfse').reset(); calcularImpostos(); }
+function salvarRascunho() { alert('Rascunho salvo localmente!'); }
+
+async function emitirNFSe(e) {
+    e.preventDefault();
+    if (!confirm('Confirma emissão da NFS-e?')) return false;
+    try {
+        const r = await fetch('/api/nfe/emitir', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({
+            tipo: 'nfse',
+            tomador: {
+                tipo_doc: document.getElementById('tomador-tipo-doc').value,
+                documento: document.getElementById('tomador-documento').value,
+                inscricao_municipal: document.getElementById('tomador-im').value,
+                razao_social: document.getElementById('tomador-razao').value,
+                email: document.getElementById('tomador-email').value,
+                endereco: document.getElementById('tomador-endereco').value,
+                bairro: document.getElementById('tomador-bairro').value,
+                municipio: document.getElementById('tomador-municipio').value,
+                cod_municipio: document.getElementById('tomador-cod-mun').value,
+                uf: document.getElementById('tomador-uf').value,
+                cep: document.getElementById('tomador-cep').value
+            },
+            servico: {
+                codigo: document.getElementById('servico-codigo').value,
+                discriminacao: document.getElementById('servico-discriminacao').value,
+                valor: parseFloat(document.getElementById('servico-valor').value),
+                deducoes: parseFloat(document.getElementById('servico-deducoes').value)
+            },
+            impostos: {
+                iss_aliquota: parseFloat(document.getElementById('imp-iss-aliq').value),
+                iss_retido: document.getElementById('imp-iss-retido').value === '1',
+                pis: parseFloat(document.getElementById('imp-pis').value),
+                cofins: parseFloat(document.getElementById('imp-cofins').value),
+                irpj: parseFloat(document.getElementById('imp-irpj').value),
+                csll: parseFloat(document.getElementById('imp-csll').value),
+                inss: parseFloat(document.getElementById('imp-inss').value)
+            }
+        })});
+        if (r.ok) { alert('NFS-e emitida com sucesso!'); limparFormulario(); }
+        else { const d = await r.json(); alert('Erro: ' + (d.message||'Falha na emissão')); }
+    } catch(e) { alert('Erro de conexão com o servidor'); }
+    return false;
+}
+
+function carregarDadosUsuario() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(u => {
+        document.getElementById('user-name').textContent = (u.nome||u.name||'Usuário').split(' ')[0];
+        document.getElementById('user-initials').textContent = (u.nome||u.name||'U').substring(0,2).toUpperCase();
+        if (u.foto||u.avatar) { document.getElementById('user-photo').src=u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => { carregarDadosUsuario(); calcularImpostos(); });
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI - DESATIVADO 23/02/2026 -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

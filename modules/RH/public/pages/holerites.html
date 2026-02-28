@@ -1,0 +1,794 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Holerites</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/js/anti-copy-protection.js"></script>    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <style>
+        :root { --sidebar-width: 48px; --header-height: 42px; --primary-pink: #ec4899; --primary-dark: #1a1a2e; --bg-gray: #f5f5f5; --border-color: #e5e5e5; --text-primary: #1a1a1a; --text-secondary: #666; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: var(--text-primary); overflow-x: hidden; }
+        .app-container { display: flex; height: 100vh; }
+        .sidebar { width: var(--sidebar-width); background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; z-index: 100; }
+        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-pink); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; text-decoration: none; }
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; text-decoration: none; position: relative; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-btn::after { content: attr(title); position: absolute; left: 54px; background: #1a1a2e; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .sidebar-btn::before { content: ''; position: absolute; left: 46px; border: 6px solid transparent; border-right-color: #1a1a2e; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; }
+        .sidebar-btn:hover::after, .sidebar-btn:hover::before { opacity: 1; }
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */ }
+        .header { height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; flex-shrink: 0; }
+        .header-brand { display: flex; align-items: center; gap: 8px; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+    </style>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Holerites</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <div class="page-content">
+        <!-- Toolbar de Ações -->
+        <div class="section-toolbar">
+            <div class="section-search">
+                <i class="fas fa-calendar"></i>
+                <select id="competencia-select" style="width: 200px; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
+                    <option value="2024-09">Setembro 2024</option>
+                    <option value="2024-08">Agosto 2024</option>
+                    <option value="2024-07">Julho 2024</option>
+                </select>
+            </div>
+            <div class="section-actions">
+                <button class="btn-action btn-outline" onclick="exportarFolha()">
+                    <i class="fas fa-download"></i>
+                    Exportar Folha
+                </button>
+                <button class="btn-action btn-outline" onclick="relatórioPagamento()">
+                    <i class="fas fa-chart-bar"></i>
+                    Relatório
+                </button>
+                <button class="btn-action btn-primary" onclick="gerarFolha()">
+                    <i class="fas fa-calculator"></i>
+                    Gerar Folha
+                </button>
+                <button class="btn-action btn-success" onclick="gerarHolerites()">
+                    <i class="fas fa-file-invoice"></i>
+                    Gerar Holerites
+                </button>
+            </div>
+        </div>
+
+        <!-- Estatísticas -->
+        <div class="stats-row">
+            <div class="stat-card blue">
+                <div class="stat-header">
+                    <h3 class="stat-title">Holerites Gerados</h3>
+                    <div class="stat-icon">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                </div>
+                <div class="stat-value">6</div>
+                <div class="stat-subtitle">Setembro 2024</div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-header">
+                    <h3 class="stat-title">Total Bruto</h3>
+                    <div class="stat-icon">
+                        <i class="fas fa-money-bill"></i>
+                    </div>
+                </div>
+                <div class="stat-value">R$ 45.670</div>
+                <div class="stat-subtitle">Folha mensal</div>
+            </div>
+            <div class="stat-card yellow">
+                <div class="stat-header">
+                    <h3 class="stat-title">Descontos</h3>
+                    <div class="stat-icon">
+                        <i class="fas fa-minus-circle"></i>
+                    </div>
+                </div>
+                <div class="stat-value">R$ 8.420</div>
+                <div class="stat-subtitle">INSS + IRRF</div>
+            </div>
+            <div class="stat-card red">
+                <div class="stat-header">
+                    <h3 class="stat-title">Líquido</h3>
+                    <div class="stat-icon">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                </div>
+                <div class="stat-value">R$ 37.250</div>
+                <div class="stat-subtitle">A pagar</div>
+            </div>
+        </div>
+
+        <!-- Lista de Holerites -->
+        <div class="items-grid" id="holerites-grid">
+            <div class="item-card">
+                <div class="item-header">
+                    <img src="../Interativo-Aluforce.jpg" alt="Andreia Silva" class="item-avatar">
+                    <div class="item-info">
+                        <h4>Andreia Silva</h4>
+                        <p>Competência: Set/2024</p>
+                        <p>Bruto: R$ 8.500,00 | Líquido: R$ 6.800,00</p>
+                    </div>
+                </div>
+                <div class="item-status">
+                    <span class="status-badge active">Processado</span>
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Andreia Silva')">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Andreia Silva')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Andreia Silva')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="item-card">
+                <div class="item-header">
+                    <img src="../Interativo-Aluforce.jpg" alt="Douglas Santos" class="item-avatar">
+                    <div class="item-info">
+                        <h4>Douglas Santos</h4>
+                        <p>Competência: Set/2024</p>
+                        <p>Bruto: R$ 7.200,00 | Líquido: R$ 5.940,00</p>
+                    </div>
+                </div>
+                <div class="item-status">
+                    <span class="status-badge active">Processado</span>
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Douglas Santos')">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Douglas Santos')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Douglas Santos')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="item-card">
+                <div class="item-header">
+                    <img src="../Interativo-Aluforce.jpg" alt="Hellen Costa" class="item-avatar">
+                    <div class="item-info">
+                        <h4>Hellen Costa</h4>
+                        <p>Competência: Set/2024</p>
+                        <p>Bruto: R$ 6.800,00 | Líquido: R$ 5.610,00</p>
+                    </div>
+                </div>
+                <div class="item-status">
+                    <span class="status-badge active">Processado</span>
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Hellen Costa')">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Hellen Costa')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Hellen Costa')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="item-card">
+                <div class="item-header">
+                    <img src="../Interativo-Aluforce.jpg" alt="Junior Oliveira" class="item-avatar">
+                    <div class="item-info">
+                        <h4>Junior Oliveira</h4>
+                        <p>Competência: Set/2024</p>
+                        <p>Bruto: R$ 6.200,00 | Líquido: R$ 5.100,00</p>
+                    </div>
+                </div>
+                <div class="item-status">
+                    <span class="status-badge pending">Pendente</span>
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Junior Oliveira')">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Junior Oliveira')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Junior Oliveira')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="item-card">
+                <div class="item-header">
+                    <img src="../Interativo-Aluforce.jpg" alt="RH Assistente" class="item-avatar">
+                    <div class="item-info">
+                        <h4>RH Assistente</h4>
+                        <p>Competência: Set/2024</p>
+                        <p>Bruto: R$ 4.500,00 | Líquido: R$ 3.870,00</p>
+                    </div>
+                </div>
+                <div class="item-status">
+                    <span class="status-badge active">Processado</span>
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('RH Assistente')">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('RH Assistente')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="action-btn view" title="Download" onclick="downloadHolerite('RH Assistente')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="item-card">
+                <div class="item-header">
+                    <img src="../Interativo-Aluforce.jpg" alt="TI Suporte" class="item-avatar">
+                    <div class="item-info">
+                        <h4>TI Suporte</h4>
+                        <p>Competência: Set/2024</p>
+                        <p>Bruto: R$ 5.200,00 | Líquido: R$ 4.290,00</p>
+                    </div>
+                </div>
+                <div class="item-status">
+                    <span class="status-badge active">Processado</span>
+                </div>
+                <div class="item-actions">
+                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('TI Suporte')">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('TI Suporte')">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="action-btn view" title="Download" onclick="downloadHolerite('TI Suporte')">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+            </div><!-- /page-content -->
+        </main>
+    </div><!-- /app-container -->
+
+    <script>
+        // Dados mock dos funcionários (em produção viriam da API)
+        let funcionariosData = [
+            { id: 1, nome: 'Andreia Silva', cargo: 'Gerente', salarioBase: 8500, departamento: 'Administração' },
+            { id: 2, nome: 'Douglas Lima', cargo: 'Supervisor', salarioBase: 7200, departamento: 'Produção' },
+            { id: 3, nome: 'Emilia Costa', cargo: 'Analista', salarioBase: 5800, departamento: 'Financeiro' },
+            { id: 4, nome: 'Maicon Santos', cargo: 'Desenvolvedor', salarioBase: 6500, departamento: 'TI' },
+            { id: 5, nome: 'RH Assistente', cargo: 'Assistente', salarioBase: 3800, departamento: 'RH' },
+            { id: 6, nome: 'TI Suporte', cargo: 'Técnico', salarioBase: 5200, departamento: 'TI' }
+        ];
+
+        // Calcular descontos
+        function calcularINSS(salarioBruto) {
+            if (salarioBruto <= 1412.00) return salarioBruto * 0.075;
+            if (salarioBruto <= 2666.68) return salarioBruto * 0.09;
+            if (salarioBruto <= 4000.03) return salarioBruto * 0.12;
+            return salarioBruto * 0.14;
+        }
+
+        function calcularIRRF(salarioBruto, inss) {
+            const base = salarioBruto - inss;
+            if (base <= 2259.20) return 0;
+            if (base <= 2826.65) return base * 0.075 - 169.44;
+            if (base <= 3751.05) return base * 0.15 - 381.44;
+            if (base <= 4664.68) return base * 0.225 - 662.77;
+            return base * 0.275 - 896.00;
+        }
+
+        function gerarFolha() {
+            const competencia = document.getElementById('competencia-select').value;
+            const [ano, mes] = competencia.split('-');
+            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+            if (!confirm(`Gerar folha de pagamento para ${mesNome}?\n\nIsso irá calcular todos os valores de salário, descontos e benefícios.`)) {
+                return;
+            }
+
+            // Calcular folha
+            let totalBruto = 0;
+            let totalDescontos = 0;
+            let totalLiquido = 0;
+
+            funcionariosData.forEach(func => {
+                const inss = calcularINSS(func.salarioBase);
+                const irrf = calcularIRRF(func.salarioBase, inss);
+                const liquido = func.salarioBase - inss - irrf;
+
+                totalBruto += func.salarioBase;
+                totalDescontos += (inss + irrf);
+                totalLiquido += liquido;
+            });
+
+            // Atualizar cards de estatísticas
+            document.querySelector('.stat-card.green .stat-value').textContent = `R$ ${totalBruto.toLocaleString('pt-BR', {minimumFractionDigits: 0})}`;
+            document.querySelector('.stat-card.yellow .stat-value').textContent = `R$ ${totalDescontos.toLocaleString('pt-BR', {minimumFractionDigits: 0})}`;
+            document.querySelector('.stat-card.red .stat-value').textContent = `R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 0})}`;
+
+            alert(`âœ… Folha de pagamento gerada!\n\nTotal Bruto: R$ ${totalBruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\nDescontos: R$ ${totalDescontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\nLíquido: R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
+        }
+
+        function gerarHolerites() {
+            const competencia = document.getElementById('competencia-select').value;
+            const [ano, mes] = competencia.split('-');
+            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+            // Gerar um holerite modelo para visualização
+            const printWindow = window.open('', '_blank');
+
+            let holeriteHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Holerites - ${mesNome}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+                        .holerite { background: white; max-width: 800px; margin: 0 auto 30px; padding: 30px; border: 2px solid #1a1a2e; page-break-after: always; }
+                        .holerite:last-child { page-break-after: avoid; }
+                        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1a1a2e; padding-bottom: 15px; margin-bottom: 20px; }
+                        .empresa { font-weight: bold; font-size: 18px; color: #1a1a2e; }
+                        .documento { text-align: right; font-size: 12px; color: #666; }
+                        .funcionario { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; }
+                        .funcionario p { margin: 5px 0; font-size: 13px; }
+                        .funcionario strong { color: #1a1a2e; }
+                        .tabela { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
+                        .tabela th { background: #1a1a2e; color: white; padding: 10px; text-align: left; }
+                        .tabela td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+                        .tabela .valor { text-align: right; }
+                        .totais { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
+                        .total-box { padding: 15px; border-radius: 8px; text-align: center; }
+                        .total-box.bruto { background: #dcfce7; color: #166534; }
+                        .total-box.descontos { background: #fee2e2; color: #991b1b; }
+                        .total-box.liquido { background: #dbeafe; color: #1e40af; }
+                        .total-box h4 { margin: 0 0 5px 0; font-size: 12px; opacity: 0.8; }
+                        .total-box .valor { font-size: 20px; font-weight: bold; }
+                        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #ccc; display: flex; justify-content: space-between; font-size: 11px; color: #999; }
+                        @media print { body { background: white; padding: 0; } .holerite { border: 1px solid #ccc; margin: 0; } }
+                    </style>
+</head>
+                <body>
+            `;
+
+            funcionariosData.forEach(func => {
+                const inss = calcularINSS(func.salarioBase);
+                const irrf = calcularIRRF(func.salarioBase, inss);
+                const vt = func.salarioBase * 0.06;
+                const vr = 400;
+                const totalDescontos = inss + irrf + vt;
+                const totalProventos = func.salarioBase + vr;
+                const liquido = totalProventos - totalDescontos;
+
+                holeriteHtml += `
+                    <div class="holerite">
+                        <div class="header">
+                            <div class="empresa">
+                                ALUFORCE INDÚSTRIA E COMÉRCIO LTDA<br>
+                                <small style="font-weight: normal; color: #666;">CNPJ: 00.000.000/0001-00</small>
+                            </div>
+                            <div class="documento">
+                                <strong>HOLERITE DE PAGAMENTO</strong><br>
+                                Competência: ${mesNome.toUpperCase()}<br>
+                                Emissão: ${new Date().toLocaleDateString('pt-BR')}
+                            </div>
+                        </div>
+
+                        <div class="funcionario">
+                            <div>
+                                <p><strong>Funcionário:</strong> ${func.nome}</p>
+                                <p><strong>Cargo:</strong> ${func.cargo}</p>
+                                <p><strong>Departamento:</strong> ${func.departamento}</p>
+                            </div>
+                            <div>
+                                <p><strong>Matrícula:</strong> ${String(func.id).padStart(6, '0')}</p>
+                                <p><strong>Admissão:</strong> 01/01/2024</p>
+                                <p><strong>Salário Base:</strong> R$ ${func.salarioBase.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                            </div>
+                        </div>
+
+                        <table class="tabela">
+                            <thead>
+                                <tr>
+                                    <th>Cód</th>
+                                    <th>Descrição</th>
+                                    <th>Referência</th>
+                                    <th class="valor">Proventos</th>
+                                    <th class="valor">Descontos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>001</td>
+                                    <td>Salário Base</td>
+                                    <td>30 dias</td>
+                                    <td class="valor">R$ ${func.salarioBase.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                    <td class="valor">-</td>
+                                </tr>
+                                <tr>
+                                    <td>002</td>
+                                    <td>Vale Refeição</td>
+                                    <td>22 dias</td>
+                                    <td class="valor">R$ ${vr.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                    <td class="valor">-</td>
+                                </tr>
+                                <tr>
+                                    <td>101</td>
+                                    <td>INSS</td>
+                                    <td>${(inss / func.salarioBase * 100).toFixed(2)}%</td>
+                                    <td class="valor">-</td>
+                                    <td class="valor">R$ ${inss.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                </tr>
+                                <tr>
+                                    <td>102</td>
+                                    <td>IRRF</td>
+                                    <td>${irrf > 0 ? (irrf / func.salarioBase * 100).toFixed(2) + '%' : 'Isento'}</td>
+                                    <td class="valor">-</td>
+                                    <td class="valor">${irrf > 0 ? 'R$ ' + irrf.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
+                                </tr>
+                                <tr>
+                                    <td>103</td>
+                                    <td>Vale Transporte (Desc.)</td>
+                                    <td>6%</td>
+                                    <td class="valor">-</td>
+                                    <td class="valor">R$ ${vt.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="totais">
+                            <div class="total-box bruto">
+                                <h4>TOTAL PROVENTOS</h4>
+                                <div class="valor">R$ ${totalProventos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                            </div>
+                            <div class="total-box descontos">
+                                <h4>TOTAL DESCONTOS</h4>
+                                <div class="valor">R$ ${totalDescontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                            </div>
+                            <div class="total-box liquido">
+                                <h4>VALOR LÍQUIDO</h4>
+                                <div class="valor">R$ ${liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
+                            </div>
+                        </div>
+
+                        <div class="footer">
+                            <div>Assinatura do Funcionário: _________________________________</div>
+                            <div>ALUFORCE ERP - Sistema de Gestão</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            holeriteHtml += '
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+</body></html>';
+
+            printWindow.document.write(holeriteHtml);
+            printWindow.document.close();
+            setTimeout(() => printWindow.print(), 500);
+        }
+
+        function exportarFolha() {
+            const competencia = document.getElementById('competencia-select').value;
+            const [ano, mes] = competencia.split('-');
+            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+            // Gerar CSV da folha
+            let csv = 'Folha de Pagamento - ' + mesNome + '\n\n';
+            csv += 'Matrícula;Nome;Cargo;Departamento;Salário Base;INSS;IRRF;Vale Transporte;Total Descontos;Líquido\n';
+
+            let totalBruto = 0, totalDescontos = 0, totalLiquido = 0;
+
+            funcionariosData.forEach(func => {
+                const inss = calcularINSS(func.salarioBase);
+                const irrf = calcularIRRF(func.salarioBase, inss);
+                const vt = func.salarioBase * 0.06;
+                const descontos = inss + irrf + vt;
+                const liquido = func.salarioBase - descontos;
+
+                csv += `${String(func.id).padStart(6, '0')};${func.nome};${func.cargo};${func.departamento};`;
+                csv += `${func.salarioBase.toFixed(2)};${inss.toFixed(2)};${irrf.toFixed(2)};${vt.toFixed(2)};`;
+                csv += `${descontos.toFixed(2)};${liquido.toFixed(2)}\n`;
+
+                totalBruto += func.salarioBase;
+                totalDescontos += descontos;
+                totalLiquido += liquido;
+            });
+
+            csv += `\n;TOTAIS;;;;;;;;;${totalBruto.toFixed(2)};${totalDescontos.toFixed(2)};${totalLiquido.toFixed(2)}\n`;
+
+            // Download
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Folha_Pagamento_${ano}_${mes}.csv`;
+            link.click();
+
+            alert('âœ… Folha exportada com sucesso!');
+        }
+
+        function relatórioPagamento() {
+            const competencia = document.getElementById('competencia-select').value;
+            const [ano, mes] = competencia.split('-');
+            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+            // Calcular totais por departamento
+            const porDepartamento = {};
+            let totalGeral = { bruto: 0, descontos: 0, liquido: 0, funcionarios: 0 };
+
+            funcionariosData.forEach(func => {
+                const inss = calcularINSS(func.salarioBase);
+                const irrf = calcularIRRF(func.salarioBase, inss);
+                const descontos = inss + irrf;
+                const liquido = func.salarioBase - descontos;
+
+                if (!porDepartamento[func.departamento]) {
+                    porDepartamento[func.departamento] = { bruto: 0, descontos: 0, liquido: 0, funcionarios: 0 };
+                }
+
+                porDepartamento[func.departamento].bruto += func.salarioBase;
+                porDepartamento[func.departamento].descontos += descontos;
+                porDepartamento[func.departamento].liquido += liquido;
+                porDepartamento[func.departamento].funcionarios++;
+
+                totalGeral.bruto += func.salarioBase;
+                totalGeral.descontos += descontos;
+                totalGeral.liquido += liquido;
+                totalGeral.funcionarios++;
+            });
+
+            // Gerar relatório visual
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Relatório de Pagamento - ${mesNome}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 30px; max-width: 900px; margin: 0 auto; }
+                        .header { text-align: center; border-bottom: 3px solid #1a1a2e; padding-bottom: 20px; margin-bottom: 30px; }
+                        .header h1 { color: #1a1a2e; margin: 0 0 5px 0; font-size: 24px; }
+                        .header p { color: #666; margin: 5px 0; }
+                        .resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+                        .resumo-card { padding: 20px; border-radius: 10px; text-align: center; }
+                        .resumo-card.azul { background: #dbeafe; border: 1px solid #3b82f6; }
+                        .resumo-card.verde { background: #dcfce7; border: 1px solid #22c55e; }
+                        .resumo-card.amarelo { background: #fef3c7; border: 1px solid #f59e0b; }
+                        .resumo-card.vermelho { background: #fee2e2; border: 1px solid #ef4444; }
+                        .resumo-card h3 { margin: 0 0 5px 0; font-size: 12px; opacity: 0.8; }
+                        .resumo-card .valor { font-size: 22px; font-weight: bold; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background: #1a1a2e; color: white; padding: 12px; text-align: left; }
+                        td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+                        tr:hover { background: #f8fafc; }
+                        .valor { text-align: right; }
+                        .total-row { background: #f1f5f9; font-weight: bold; }
+                        .footer { margin-top: 30px; text-align: center; color: #999; font-size: 11px; }
+                    </style>
+</head>
+                <body>
+                    <div class="header">
+                        <h1>ALUFORCE - Relatório de Pagamento</h1>
+                        <p>Competência: ${mesNome.toUpperCase()}</p>
+                        <p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+                    </div>
+
+                    <div class="resumo">
+                        <div class="resumo-card azul">
+                            <h3>FUNCIONÃRIOS</h3>
+                            <div class="valor">${totalGeral.funcionarios}</div>
+                        </div>
+                        <div class="resumo-card verde">
+                            <h3>TOTAL BRUTO</h3>
+                            <div class="valor">R$ ${totalGeral.bruto.toLocaleString('pt-BR', {minimumFractionDigits: 0})}</div>
+                        </div>
+                        <div class="resumo-card amarelo">
+                            <h3>DESCONTOS</h3>
+                            <div class="valor">R$ ${totalGeral.descontos.toLocaleString('pt-BR', {minimumFractionDigits: 0})}</div>
+                        </div>
+                        <div class="resumo-card vermelho">
+                            <h3>LÍQUIDO</h3>
+                            <div class="valor">R$ ${totalGeral.liquido.toLocaleString('pt-BR', {minimumFractionDigits: 0})}</div>
+                        </div>
+                    </div>
+
+                    <h3 style="color: #1a1a2e; margin-top: 40px;">ðŸ“Š Resumo por Departamento</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Departamento</th>
+                                <th class="valor">Funcionários</th>
+                                <th class="valor">Total Bruto</th>
+                                <th class="valor">Descontos</th>
+                                <th class="valor">Líquido</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Object.entries(porDepartamento).map(([dept, dados]) => `
+                                <tr>
+                                    <td>${dept}</td>
+                                    <td class="valor">${dados.funcionarios}</td>
+                                    <td class="valor">R$ ${dados.bruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                    <td class="valor">R$ ${dados.descontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                    <td class="valor">R$ ${dados.liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                </tr>
+                            `).join('')}
+                            <tr class="total-row">
+                                <td>TOTAL GERAL</td>
+                                <td class="valor">${totalGeral.funcionarios}</td>
+                                <td class="valor">R$ ${totalGeral.bruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                <td class="valor">R$ ${totalGeral.descontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                <td class="valor">R$ ${totalGeral.liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="footer">
+                        <p>ALUFORCE ERP - Sistema de Gestão Empresarial</p>
+                    </div>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+</body>
+                </html>
+            `);
+            printWindow.document.close();
+            setTimeout(() => printWindow.print(), 500);
+        }
+
+        function visualizarHolerite(funcionario) {
+            const func = funcionariosData.find(f => f.nome === funcionario) || funcionariosData[0];
+            const competencia = document.getElementById('competencia-select').value;
+            const [ano, mes] = competencia.split('-');
+            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+            const inss = calcularINSS(func.salarioBase);
+            const irrf = calcularIRRF(func.salarioBase, inss);
+            const vt = func.salarioBase * 0.06;
+            const vr = 400;
+            const totalDescontos = inss + irrf + vt;
+            const totalProventos = func.salarioBase + vr;
+            const liquido = totalProventos - totalDescontos;
+
+            alert(`ðŸ“„ HOLERITE - ${func.nome}\n` +
+                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
+                `Competência: ${mesNome}\n` +
+                `Cargo: ${func.cargo}\n` +
+                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
+                `PROVENTOS:\n` +
+                `  Salário Base: R$ ${func.salarioBase.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                `  Vale Refeição: R$ ${vr.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
+                `DESCONTOS:\n` +
+                `  INSS: R$ ${inss.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                `  IRRF: R$ ${irrf.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                `  VT: R$ ${vt.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
+                `LÍQUIDO: R$ ${liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
+        }
+
+        function editarHolerite(funcionario) {
+            alert(`✏️ Edição de holerite: ${funcionario}\n\nPara editar valores individuais, utilize a página de Folha de Pagamento.`);
+        }
+
+        function downloadHolerite(funcionario) {
+            // Gerar holerite individual para download
+            const func = funcionariosData.find(f => f.nome === funcionario) || funcionariosData[0];
+            funcionariosData = [func]; // Temporariamente só esse
+            gerarHolerites(); // Usa a mesma função mas só com um
+            funcionariosData = [ // Restaurar
+                { id: 1, nome: 'Andreia Silva', cargo: 'Gerente', salarioBase: 8500, departamento: 'Administração' },
+                { id: 2, nome: 'Douglas Lima', cargo: 'Supervisor', salarioBase: 7200, departamento: 'Produção' },
+                { id: 3, nome: 'Emilia Costa', cargo: 'Analista', salarioBase: 5800, departamento: 'Financeiro' },
+                { id: 4, nome: 'Maicon Santos', cargo: 'Desenvolvedor', salarioBase: 6500, departamento: 'TI' },
+                { id: 5, nome: 'RH Assistente', cargo: 'Assistente', salarioBase: 3800, departamento: 'RH' },
+                { id: 6, nome: 'TI Suporte', cargo: 'Técnico', salarioBase: 5200, departamento: 'TI' }
+            ];
+        }
+
+        // Mudança de competência
+        document.getElementById('competencia-select').addEventListener('change', function(e) {
+            const competencia = e.target.value;
+            console.log(`Carregando holerites para: ${competencia}`);
+
+            // Simular carregamento
+            const cards = document.querySelectorAll('.item-card');
+            cards.forEach(card => {
+                card.style.opacity = '0.5';
+            });
+
+            setTimeout(() => {
+                cards.forEach(card => {
+                    card.style.opacity = '1';
+                });
+            }, 500);
+        });
+    </script>
+
+<!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+<!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

@@ -1,0 +1,1050 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aluforce - Painel de Suporte</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    /* ============ CSS BASE (chat) ============ */
+    :root {
+      --primary: #0088cc;
+      --primary-gradient: linear-gradient(135deg, #0088cc, #00aaff);
+      --success: #4caf50;
+      --bg-primary: #f5f7fa;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f0f2f5;
+      --text-primary: #1a1a2e;
+      --text-secondary: #555;
+      --text-muted: #999;
+      --border: #e0e0e0;
+      --radius-sm: 10px;
+      --transition: all 0.2s ease;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: var(--text-primary); }
+
+    .hidden { display: none !important; }
+
+    .input-group {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .input-group i {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+    }
+    .input-group input {
+      width: 100%;
+      padding: 12px 14px 12px 42px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: var(--transition);
+    }
+    .input-group input:focus { border-color: var(--primary); }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: var(--primary-gradient);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: var(--transition);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,136,204,0.3); }
+
+    .btn-icon {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: var(--text-muted);
+      transition: var(--transition);
+    }
+    .btn-icon:hover { background: var(--bg-tertiary); }
+
+    /* Chat header */
+    .chat-header {
+      padding: 12px 16px;
+      background: var(--primary-gradient);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chat-contact { display: flex; align-items: center; gap: 12px; }
+    .contact-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: white; position: relative;
+      background: rgba(255,255,255,0.2);
+    }
+    .contact-avatar.support { background: rgba(76,175,80,0.3); }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; position: absolute; bottom: 0; right: 0; border: 2px solid #0088cc; }
+    .status-dot.online { background: #4caf50; }
+    .contact-info h3 { font-size: 15px; font-weight: 600; }
+    .contact-status { font-size: 12px; opacity: 0.85; }
+    .chat-actions { display: flex; gap: 4px; }
+    .chat-actions .btn-icon { color: white; }
+    .chat-actions .btn-icon:hover { background: rgba(255,255,255,0.15); }
+
+    /* Messages */
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: var(--bg-primary);
+    }
+    .messages-wrapper { display: flex; flex-direction: column; gap: 4px; }
+
+    .date-divider {
+      text-align: center;
+      padding: 12px 0;
+    }
+    .date-divider span {
+      background: var(--bg-tertiary);
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .message {
+      display: flex;
+      margin-bottom: 2px;
+      max-width: 80%;
+    }
+    .message.sent { align-self: flex-end; margin-left: auto; }
+    .message.received { align-self: flex-start; }
+    .message.system { align-self: center; max-width: 90%; }
+
+    .message-bubble {
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+    .message.sent .message-bubble {
+      background: var(--primary);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    .message.received .message-bubble {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+    .message.system .message-bubble {
+      background: var(--bg-tertiary);
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+      border-radius: 20px;
+      padding: 6px 16px;
+    }
+
+    .message-sender {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 2px;
+    }
+    .message-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 2px;
+    }
+    .message-time { font-size: 10px; opacity: 0.6; }
+    .message-status { font-size: 10px; opacity: 0.6; }
+    .message.sent .message-time,
+    .message.sent .message-status { color: rgba(255,255,255,0.7); }
+
+    /* Input bar */
+    .input-bar {
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+    }
+    .input-bar-content { display: flex; align-items: flex-end; gap: 8px; }
+    .input-wrapper { flex: 1; }
+    .input-wrapper textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-family: inherit;
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      min-height: 40px;
+      max-height: 120px;
+      line-height: 1.4;
+    }
+    .input-wrapper textarea:focus { border-color: var(--primary); }
+
+    .btn-send {
+      width: 40px !important;
+      height: 40px !important;
+      background: var(--primary-gradient) !important;
+      color: white !important;
+      border-radius: 50% !important;
+      flex-shrink: 0;
+    }
+    .btn-send:hover { transform: scale(1.05); }
+
+    /* Chat main layout */
+    .chat-main { display: flex; flex-direction: column; height: 100%; }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: var(--bg-primary);
+    }
+    .typing-avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      background: var(--bg-tertiary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; color: var(--text-muted);
+    }
+    .typing-content { display: flex; align-items: center; gap: 6px; }
+    .typing-name { font-size: 11px; color: var(--text-muted); }
+    .typing-dots { display: flex; gap: 3px; }
+    .typing-dots span {
+      width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted);
+      animation: typingBounce 1.4s infinite ease-in-out;
+    }
+    .typing-dots span:nth-child(1) { animation-delay: 0s; }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Audio */
+    .audio-message { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+    .audio-play-btn {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--primary); color: white; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    .audio-waveform { display: flex; align-items: center; gap: 1px; height: 24px; }
+    .audio-waveform .bar { width: 3px; background: var(--primary); border-radius: 2px; opacity: 0.5; }
+    .audio-duration { font-size: 11px; color: var(--text-muted); min-width: 35px; }
+
+    /* Notification */
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      padding: 12px 20px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    /* ============ ESTILOS EXTRAS DO PAINEL DE SUPORTE ============ */
+    .support-layout {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .support-sidebar {
+      width: 380px;
+      min-width: 380px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .support-sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .support-sidebar-header h2 {
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .support-sidebar-header h2 i { color: var(--primary); }
+
+    .support-stats {
+      display: flex;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat-card {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .queue-section {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .queue-title {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 8px 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .queue-count {
+      background: var(--primary);
+      color: white;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    .ticket-card {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .ticket-card:hover {
+      border-color: var(--primary);
+      background: rgba(0, 136, 204, 0.05);
+    }
+
+    .ticket-card.active {
+      border-color: var(--primary);
+      background: rgba(0, 136, 204, 0.1);
+    }
+
+    .ticket-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .ticket-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 14px;
+    }
+
+    .ticket-info { flex: 1; }
+    .ticket-name { font-weight: 600; font-size: 14px; }
+    .ticket-time { font-size: 11px; color: var(--text-muted); }
+
+    .ticket-status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .ticket-status.waiting {
+      background: rgba(255, 152, 0, 0.15);
+      color: #ff9800;
+    }
+
+    .ticket-status.active {
+      background: rgba(76, 175, 80, 0.15);
+      color: #4caf50;
+    }
+
+    .ticket-reason {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .ticket-preview {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg-primary);
+      padding: 8px 10px;
+      border-radius: 6px;
+      max-height: 60px;
+      overflow: hidden;
+    }
+
+    .ticket-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn-accept {
+      flex: 1;
+      padding: 8px;
+      background: var(--primary-gradient);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-accept:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 136, 204, 0.3);
+    }
+
+    /* Chat do agente */
+    .support-chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .no-chat-selected {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      gap: 16px;
+    }
+
+    .no-chat-selected i {
+      font-size: 64px;
+      opacity: 0.3;
+    }
+
+    .no-chat-selected p {
+      font-size: 16px;
+    }
+
+    .agent-status-bar {
+      padding: 8px 16px;
+      background: rgba(76, 175, 80, 0.1);
+      border-bottom: 1px solid rgba(76, 175, 80, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .agent-status-bar .status-text {
+      color: var(--success);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .agent-status-bar .status-text i {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    /* Login do agente */
+    .agent-login {
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-primary);
+    }
+
+    .agent-login-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px;
+      width: 420px;
+      text-align: center;
+    }
+
+    .agent-login-box h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .agent-login-box p {
+      color: var(--text-secondary);
+      margin-bottom: 28px;
+    }
+
+    .agent-avatar-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4caf50, #66bb6a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 36px;
+      color: white;
+    }
+
+    @media (max-width: 768px) {
+      .support-sidebar {
+        position: fixed;
+        left: -380px;
+        z-index: 500;
+        transition: left 0.3s ease;
+      }
+      .support-sidebar.open { left: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============ LOGIN DO AGENTE ============ -->
+  <div id="agent-login" class="agent-login">
+    <div class="agent-login-box">
+      <div class="agent-avatar-icon"><i class="fas fa-headset"></i></div>
+      <h1>Painel de Suporte</h1>
+      <p>Entre como agente de suporte para atender os usuários</p>
+      <form id="agent-login-form">
+        <div class="input-group">
+          <i class="fas fa-user-shield"></i>
+          <input type="text" id="agent-name" placeholder="Nome do Agente" required autocomplete="off">
+        </div>
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-headset"></i>
+          Entrar como Agente
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ PAINEL DO SUPORTE ============ -->
+  <div id="support-panel" class="support-layout hidden">
+    <!-- Sidebar de Tickets -->
+    <div class="support-sidebar">
+      <div class="support-sidebar-header">
+        <h2><i class="fas fa-headset"></i> Painel de Suporte</h2>
+      </div>
+
+      <div class="agent-status-bar">
+        <span class="status-text"><i class="fas fa-circle"></i> Disponível</span>
+        <span id="agent-display-name" style="color: var(--text-secondary);">Agente</span>
+      </div>
+
+      <div class="support-stats">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-queue">0</div>
+          <div class="stat-label">Na Fila</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-active">0</div>
+          <div class="stat-label">Ativos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-total">0</div>
+          <div class="stat-label">Total Hoje</div>
+        </div>
+      </div>
+
+      <div class="queue-section" id="queue-section">
+        <div class="queue-title">
+          <i class="fas fa-clock"></i>
+          Fila de Espera
+          <span class="queue-count" id="queue-count">0</span>
+        </div>
+        <div id="queue-list">
+          <!-- Tickets serão inseridos aqui -->
+        </div>
+
+        <div class="queue-title" style="margin-top: 16px;">
+          <i class="fas fa-comments"></i>
+          Atendimentos Ativos
+          <span class="queue-count" id="active-count">0</span>
+        </div>
+        <div id="active-list">
+          <!-- Atendimentos ativos -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Área de Chat -->
+    <div class="support-chat">
+      <div class="no-chat-selected" id="no-chat">
+        <i class="fas fa-comments"></i>
+        <p>Selecione um atendimento para começar</p>
+        <span style="color: var(--text-muted); font-size: 13px;">
+          Os tickets aparecerão na barra lateral quando um usuário solicitar suporte
+        </span>
+      </div>
+
+      <div class="chat-main hidden" id="support-chat-area">
+        <header class="chat-header">
+          <div class="chat-contact">
+            <div class="contact-avatar support">
+              <i class="fas fa-user"></i>
+              <span class="status-dot online"></span>
+            </div>
+            <div class="contact-info">
+              <h3 id="support-chat-name">Usuário</h3>
+              <span class="contact-status" id="support-chat-status">Atendimento em andamento</span>
+            </div>
+          </div>
+          <div class="chat-actions">
+            <button class="btn-icon" title="Voltar à fila" id="btn-back-queue" onclick="backToQueue()" style="color:var(--primary);">
+              <i class="fas fa-arrow-left"></i>
+            </button>
+            <button class="btn-icon" title="Encerrar atendimento" id="btn-end-chat" style="color:#f44336;">
+              <i class="fas fa-times-circle"></i>
+            </button>
+          </div>
+        </header>
+
+        <div class="messages-container" id="support-messages-container">
+          <div class="messages-wrapper" id="support-messages-wrapper">
+            <div class="date-divider"><span>Hoje</span></div>
+          </div>
+        </div>
+
+        <div class="typing-indicator hidden" id="support-typing-indicator">
+          <div class="typing-avatar bot"><i class="fas fa-user"></i></div>
+          <div class="typing-content">
+            <span class="typing-name">Usuário</span>
+            <div class="typing-dots"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+
+        <div class="input-bar">
+          <div class="input-bar-content">
+            <div class="input-wrapper">
+              <textarea id="support-message-input" placeholder="Digite sua resposta..." rows="1"></textarea>
+            </div>
+            <button class="btn-icon btn-send" id="btn-support-send" title="Enviar">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notification hidden" id="notification">
+    <i class="fas fa-bell"></i>
+    <span id="notification-text"></span>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // ==================== ESTADO ====================
+    const state = {
+      socket: io(),
+      agent: null,
+      activeTicket: null,
+      activeConversationId: null,
+      totalHandled: 0
+    };
+
+    // ==================== INICIALIZAÇÃO ====================
+    document.addEventListener('DOMContentLoaded', () => {
+      // Login do agente
+      document.getElementById('agent-login-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = document.getElementById('agent-name').value.trim();
+        if (!name) return;
+
+        state.socket.emit('support:register', { name });
+        document.getElementById('agent-login').classList.add('hidden');
+        document.getElementById('support-panel').classList.remove('hidden');
+        document.getElementById('agent-display-name').textContent = name;
+      });
+
+      // Registrado como agente
+      state.socket.on('support:registered', (data) => {
+        state.agent = { name: document.getElementById('agent-name').value.trim() };
+        // Renderizar tickets da fila
+        if (data && data.queue && data.queue.length > 0) {
+          renderQueue(data.queue);
+          document.getElementById('stat-queue').textContent = data.queue.filter(t => t.status === 'waiting').length;
+          document.getElementById('queue-count').textContent = data.queue.filter(t => t.status === 'waiting').length;
+          showNotification(`📋 ${data.queue.length} ticket(s) na fila`);
+        }
+      });
+
+      // Novo ticket na fila
+      state.socket.on('support:new-ticket', (ticket) => {
+        if (!state.queueTickets) state.queueTickets = [];
+        state.queueTickets.push(ticket);
+        renderQueue(state.queueTickets);
+        document.getElementById('stat-queue').textContent = state.queueTickets.filter(t => t.status === 'waiting').length;
+        document.getElementById('queue-count').textContent = state.queueTickets.filter(t => t.status === 'waiting').length;
+        showNotification(`🔔 Novo ticket de ${ticket.userName || ticket.user_name || 'Usuário'}`);
+        playAlert();
+      });
+
+      // Ticket aceito
+      state.socket.on('support:accepted', (data) => {
+        state.activeTicket = data.ticket;
+        // Fix: conversationId pode vir de vários campos (MySQL snake_case vs camelCase)
+        state.activeConversationId = data.ticket.conversationId || data.ticket.conversation_id || data.conversationId;
+        state.totalHandled++;
+        document.getElementById('stat-total').textContent = state.totalHandled;
+
+        // Atualizar stats
+        const activeCount = parseInt(document.getElementById('stat-active').textContent || '0') + 1;
+        document.getElementById('stat-active').textContent = activeCount;
+        const queueVal = parseInt(document.getElementById('stat-queue').textContent || '0');
+        if (queueVal > 0) {
+          document.getElementById('stat-queue').textContent = queueVal - 1;
+          document.getElementById('queue-count').textContent = queueVal - 1;
+        }
+
+        // Remover ticket da fila interna
+        if (state.queueTickets) {
+          state.queueTickets = state.queueTickets.filter(t => t.id !== data.ticket.id);
+          renderQueue(state.queueTickets);
+        }
+
+        // Mostrar chat
+        document.getElementById('no-chat').classList.add('hidden');
+        document.getElementById('support-chat-area').classList.remove('hidden');
+        // Fix: user_name (MySQL) ou userName (JS)
+        const userName = data.ticket.userName || data.ticket.user_name || 'Usuário';
+        document.getElementById('support-chat-name').textContent = userName;
+        document.getElementById('support-chat-status').textContent = `Atendendo ${userName}`;
+
+        // Renderizar mensagens anteriores - Fix: usar conversationHistory (do backend)
+        const wrapper = document.getElementById('support-messages-wrapper');
+        wrapper.innerHTML = '<div class="date-divider"><span>Hoje</span></div>';
+        
+        if (data.conversationHistory && data.conversationHistory.length > 0) {
+          data.conversationHistory.forEach(msg => {
+            renderSupportMessage(msg);
+          });
+        }
+        
+        scrollSupportToBottom();
+      });
+
+      // Mensagem recebida do usuário
+      state.socket.on('message:received', (msg) => {
+        if (state.activeConversationId && msg.conversationId === state.activeConversationId) {
+          renderSupportMessage(msg);
+          scrollSupportToBottom();
+          playAlert();
+        }
+      });
+
+      // Digitando
+      state.socket.on('typing:update', (data) => {
+        const indicator = document.getElementById('support-typing-indicator');
+        if (data.isTyping) {
+          indicator.classList.remove('hidden');
+        } else {
+          indicator.classList.add('hidden');
+        }
+      });
+
+      // Enviar mensagem
+      const input = document.getElementById('support-message-input');
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendSupportMessage();
+        }
+      });
+
+      document.getElementById('btn-support-send').addEventListener('click', sendSupportMessage);
+
+      // Botão encerrar atendimento
+      document.getElementById('btn-end-chat').addEventListener('click', () => {
+        if (!state.activeConversationId) return;
+        if (!confirm('Deseja encerrar este atendimento?')) return;
+        
+        // Enviar mensagem de encerramento
+        state.socket.emit('message:send', {
+          conversationId: state.activeConversationId,
+          type: 'text',
+          content: '🔴 Atendimento encerrado. Obrigado pelo contato!'
+        });
+        
+        // Voltar à tela de seleção
+        backToQueue();
+        showNotification('✅ Atendimento encerrado com sucesso');
+      });
+    });
+
+    // ==================== VOLTAR À FILA ====================
+    function backToQueue() {
+      state.activeTicket = null;
+      state.activeConversationId = null;
+      document.getElementById('support-chat-area').classList.add('hidden');
+      document.getElementById('no-chat').classList.remove('hidden');
+      document.getElementById('support-messages-wrapper').innerHTML = '<div class="date-divider"><span>Hoje</span></div>';
+    }
+
+    // ==================== RENDERIZAR FILA ====================
+    function renderQueue(queue) {
+      // Salvar referência interna
+      state.queueTickets = queue;
+      const list = document.getElementById('queue-list');
+      list.innerHTML = '';
+
+      if (queue.length === 0) {
+        list.innerHTML = '<p style="color: var(--text-muted); font-size: 13px; padding: 16px; text-align: center;">Nenhum ticket na fila 🎉</p>';
+        return;
+      }
+
+      // Filtrar apenas tickets waiting
+      const waitingTickets = queue.filter(t => t.status === 'waiting');
+      waitingTickets.forEach(ticket => {
+        const card = document.createElement('div');
+        card.className = 'ticket-card';
+        const ticketName = ticket.userName || ticket.user_name || 'Usuário';
+        const ticketTime = ticket.createdAt || ticket.created_at;
+        const ticketReason = ticket.reason || 'Solicitou suporte';
+        card.innerHTML = `
+          <div class="ticket-header">
+            <div class="ticket-avatar"><i class="fas fa-user"></i></div>
+            <div class="ticket-info">
+              <div class="ticket-name">${ticketName}</div>
+              <div class="ticket-time">${formatTime(ticketTime)}</div>
+            </div>
+            <span class="ticket-status waiting">Aguardando</span>
+          </div>
+          <div class="ticket-reason">📋 ${ticketReason}</div>
+          <div class="ticket-actions">
+            <button class="btn-accept" onclick="acceptTicket('${ticket.id}')">
+              <i class="fas fa-check"></i> Aceitar Atendimento
+            </button>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    // ==================== ACEITAR TICKET ====================
+    function acceptTicket(ticketId) {
+      state.socket.emit('support:accept', { ticketId });
+    }
+
+    // ==================== ENVIAR MENSAGEM ====================
+    function sendSupportMessage() {
+      const input = document.getElementById('support-message-input');
+      const content = input.value.trim();
+      if (!content || !state.activeConversationId) return;
+
+      state.socket.emit('message:send', {
+        conversationId: state.activeConversationId,
+        type: 'text',
+        content
+      });
+
+      renderSupportMessage({
+        id: 'agent_' + Date.now(),
+        sender: state.socket.id,
+        senderName: state.agent?.name || 'Atendente',
+        type: 'text',
+        content,
+        timestamp: new Date()
+      });
+
+      input.value = '';
+      scrollSupportToBottom();
+    }
+
+    // ==================== RENDERIZAR MENSAGEM ====================
+    function renderSupportMessage(msg) {
+      const wrapper = document.getElementById('support-messages-wrapper');
+      const div = document.createElement('div');
+
+      // Fix: Para o agente, mensagens dele são 'sent', do usuário/bot são 'received'
+      // No histórico do DB, sender pode ser um socket.id antigo, então checamos se NÃO é bot/system/user
+      const isSent = msg.sender === state.socket?.id || (msg.sender && msg.sender.startsWith && msg.sender.startsWith('agent_'));
+      const isSystem = msg.type === 'system' || msg.sender === 'system';
+      const isBot = msg.sender === 'bob';
+      const senderName = msg.senderName || msg.sender_name || (isBot ? 'BOB' : 'Usuário');
+
+      div.className = `message ${isSystem ? 'system' : isSent ? 'sent' : 'received'}`;
+
+      const time = formatTime(msg.timestamp);
+      const content = formatContent(msg.content || '');
+
+      if (isSystem) {
+        div.innerHTML = `<div class="message-bubble"><div class="message-text">${content}</div><div class="message-meta"><span class="message-time">${time}</span></div></div>`;
+      } else if (msg.type === 'audio') {
+        const audioId = 'sa_' + msg.id;
+        div.innerHTML = `
+          <div class="message-bubble">
+            ${!isSent ? `<div class="message-sender">${isBot ? '<img src="/chat/BobAI.png" alt="BOB" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px"> BOB' : senderName}</div>` : ''}
+            <div class="audio-message">
+              <button class="audio-play-btn" onclick="toggleAudio('${audioId}', this)"><i class="fas fa-play"></i></button>
+              <div class="audio-waveform">${generateWaveform()}</div>
+              <span class="audio-duration">${formatDuration(msg.metadata?.duration || 0)}</span>
+              <audio id="${audioId}" src="${msg.content}" preload="metadata"></audio>
+            </div>
+            <div class="message-meta"><span class="message-time">${time}</span></div>
+          </div>`;
+      } else {
+        div.innerHTML = `
+          <div class="message-bubble">
+            ${!isSent ? `<div class="message-sender">${isBot ? '<img src="/chat/BobAI.png" alt="BOB" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px"> BOB' : senderName}</div>` : ''}
+            <div class="message-text">${content}</div>
+            <div class="message-meta">
+              <span class="message-time">${time}</span>
+              ${isSent ? '<span class="message-status"><i class="fas fa-check"></i></span>' : ''}
+            </div>
+          </div>`;
+      }
+
+      wrapper.appendChild(div);
+    }
+
+    // ==================== HELPERS ====================
+    function formatTime(ts) {
+      return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDuration(s) {
+      return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+    }
+
+    function formatContent(text) {
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      text = text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color:#64b5f6">$1</a>');
+      text = text.replace(/\n/g, '<br>');
+      return text;
+    }
+
+    function generateWaveform() {
+      let bars = '';
+      for (let i = 0; i < 25; i++) {
+        bars += `<div class="bar" style="height:${Math.random()*18+4}px"></div>`;
+      }
+      return bars;
+    }
+
+    function toggleAudio(id, btn) {
+      const audio = document.getElementById(id);
+      if (!audio) return;
+      if (audio.paused) {
+        audio.play();
+        btn.innerHTML = '<i class="fas fa-pause"></i>';
+        audio.onended = () => btn.innerHTML = '<i class="fas fa-play"></i>';
+      } else {
+        audio.pause();
+        btn.innerHTML = '<i class="fas fa-play"></i>';
+      }
+    }
+
+    function scrollSupportToBottom() {
+      const c = document.getElementById('support-messages-container');
+      setTimeout(() => c.scrollTop = c.scrollHeight, 50);
+    }
+
+    function showNotification(text) {
+      const n = document.getElementById('notification');
+      document.getElementById('notification-text').textContent = text;
+      n.classList.remove('hidden');
+      setTimeout(() => n.classList.add('hidden'), 5000);
+    }
+
+    function playAlert() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 600;
+        osc.type = 'sine';
+        gain.gain.value = 0.08;
+        osc.start();
+        setTimeout(() => { osc.frequency.value = 900; }, 150);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        osc.stop(ctx.currentTime + 0.5);
+      } catch(e) {}
+    }
+  </script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+</body>
+</html>

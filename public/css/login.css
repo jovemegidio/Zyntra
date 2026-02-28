@@ -1,0 +1,1222 @@
+/* ============================================================
+   ALUFORCE - Login Page v2.0 (Modern Glassmorphism Design)
+   Inspired by Login-Page-main React/Tailwind project
+   Converted to vanilla CSS for production system
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ============ CSS VARIABLES ============ */
+:root {
+    /* Professional Dark Theme with Indigo/Blue Accent */
+    --bg-color: hsl(222, 47%, 6%);
+    --fg-color: hsl(210, 40%, 98%);
+    --card-bg: hsl(222, 47%, 10%, 0.7);
+    --card-border: hsl(210, 40%, 98%, 0.08);
+    --primary: hsl(234, 89%, 64%);
+    --primary-hover: hsl(234, 89%, 56%);
+    --primary-glow: hsl(234, 89%, 64%, 0.4);
+    --secondary-bg: hsl(222, 47%, 14%);
+    --muted: hsl(222, 47%, 16%);
+    --muted-fg: hsl(215, 20%, 65%);
+    --accent: hsl(199, 89%, 48%);
+    --destructive: hsl(0, 84%, 60%);
+    --success: hsl(142, 76%, 45%);
+    --warning: hsl(38, 92%, 50%);
+    --border-color: hsl(222, 30%, 20%);
+    --input-bg: hsl(222, 47%, 8%, 0.6);
+    --input-border: hsl(210, 40%, 98%, 0.1);
+    --input-focus: hsl(234, 89%, 64%, 0.5);
+    --radius: 0.75rem;
+    --glass-blur: 24px;
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============ RESET & BASE ============ */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background: var(--bg-color);
+    color: var(--fg-color);
+    overflow-x: hidden;
+}
+
+/* ============ FULL-PAGE WRAPPER ============ */
+.login-page {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+/* ============ BACKGROUND LAYERS ============ */
+.bg-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.bg-image {
+    position: absolute;
+    inset: 0;
+    background: url('/images/Papeldeparede-alu.webp') no-repeat center center;
+    background-size: cover;
+}
+
+.bg-dark-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.bg-gradient-overlay {
+    position: absolute;
+    inset: 0;
+    transition: all 3000ms ease-in-out;
+    opacity: 1;
+}
+
+/* Animated gradient themes that cycle */
+.bg-gradient-overlay.theme-0 {
+    background: linear-gradient(to bottom right,
+        hsla(234, 70%, 15%, 0.4) 0%,
+        transparent 50%,
+        hsla(280, 70%, 15%, 0.4) 100%);
+}
+
+.bg-gradient-overlay.theme-1 {
+    background: linear-gradient(to bottom right,
+        hsla(210, 70%, 15%, 0.4) 0%,
+        transparent 50%,
+        hsla(190, 70%, 15%, 0.4) 100%);
+}
+
+.bg-gradient-overlay.theme-2 {
+    background: linear-gradient(to bottom right,
+        hsla(270, 70%, 15%, 0.4) 0%,
+        transparent 50%,
+        hsla(300, 70%, 15%, 0.4) 100%);
+}
+
+.bg-gradient-overlay.theme-3 {
+    background: linear-gradient(to bottom right,
+        hsla(215, 30%, 15%, 0.4) 0%,
+        transparent 50%,
+        hsla(234, 70%, 15%, 0.4) 100%);
+}
+
+/* Animated gradient orbs */
+.bg-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    animation: pulse-slow 4s ease-in-out infinite;
+    transition: all 3000ms ease-in-out;
+}
+
+.bg-orb-1 {
+    top: 25%;
+    left: -15%;
+    width: 600px;
+    height: 600px;
+    background: hsla(234, 80%, 55%, 0.15);
+}
+
+.bg-orb-2 {
+    bottom: 25%;
+    right: -15%;
+    width: 500px;
+    height: 500px;
+    background: hsla(280, 80%, 55%, 0.10);
+    animation-delay: 2s;
+}
+
+/* Floating particles */
+.particles-container {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+    animation: float 8s ease-in-out infinite;
+}
+
+/* Theme indicator dots */
+.theme-dots {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 20;
+}
+
+.theme-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    border: none;
+    cursor: pointer;
+    transition: all 500ms ease;
+    padding: 0;
+}
+
+.theme-dot:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.theme-dot.active {
+    background: rgba(255, 255, 255, 0.8);
+    transform: scale(1.25);
+}
+
+/* ============ MAIN CONTENT ============ */
+.login-content {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 440px;
+    margin: 0 16px;
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 700ms ease, transform 700ms ease;
+}
+
+.login-content.mounted {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ============ GLASS CARD ============ */
+.glass-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--card-border);
+    border-radius: 1rem;
+    padding: 2rem 2.5rem;
+    box-shadow:
+        0 8px 32px hsla(222, 47%, 4%, 0.4),
+        inset 0 1px 0 hsla(210, 40%, 98%, 0.05);
+}
+
+@media (min-width: 768px) {
+    .glass-card {
+        padding: 2.5rem;
+    }
+}
+
+/* ============ HEADER & AVATAR ============ */
+.login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+/* ============ LOGO CROSSFADE ANIMATION ============ */
+.logo-crossfade {
+    position: relative;
+    width: 220px;
+    height: 60px;
+    margin: 0 auto 1.5rem;
+    overflow: hidden;
+}
+
+.logo-crossfade .login-logo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    pointer-events: none;
+    will-change: opacity, transform, filter;
+    filter: blur(0px);
+    transition: none;
+}
+
+/* Resting active state */
+.logo-crossfade .login-logo.active {
+    opacity: 1;
+    pointer-events: auto;
+    filter: blur(0px);
+}
+
+/* Entering: elegant dissolve in with soft focus */
+.logo-crossfade .login-logo.entering {
+    animation: logoEnter 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Leaving: graceful dissolve out */
+.logo-crossfade .login-logo.leaving {
+    animation: logoLeave 2.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes logoEnter {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.98);
+        filter: blur(6px);
+    }
+    40% {
+        opacity: 0.6;
+        filter: blur(2px);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+        filter: blur(0px);
+    }
+}
+
+@keyframes logoLeave {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+        filter: blur(0px);
+    }
+    60% {
+        opacity: 0.4;
+        filter: blur(2px);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.98);
+        filter: blur(6px);
+    }
+}
+
+/* Logo base */
+.login-logo {
+    max-width: 200px;
+    max-height: 56px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+}
+
+/* Avatar container */
+.avatar-container {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 1.5rem;
+}
+
+.avatar-box {
+    width: 80px;
+    height: 80px;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    box-shadow: 0 0 40px -10px var(--primary-glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: all 500ms ease;
+    position: relative;
+}
+
+.avatar-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 300ms ease;
+}
+
+.avatar-box .avatar-icon {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 300ms ease;
+    color: var(--fg-color);
+}
+
+.avatar-box .avatar-icon svg {
+    width: 40px;
+    height: 40px;
+}
+
+/* Typing indicator ring */
+.avatar-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 1rem;
+    border: 2px solid hsla(234, 89%, 64%, 0.5);
+    animation: pulse 2s ease-in-out infinite;
+    opacity: 0;
+    transition: opacity 300ms ease;
+}
+
+.avatar-container.has-email .avatar-ring {
+    opacity: 1;
+}
+
+/* Avatar placeholder with initials */
+.avatar-initials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    border-radius: 1rem;
+}
+
+/* Greeting text */
+.login-greeting {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--fg-color);
+    margin-bottom: 0.5rem;
+    transition: all 300ms ease;
+}
+
+@media (min-width: 768px) {
+    .login-greeting {
+        font-size: 1.75rem;
+    }
+}
+
+.login-subtitle {
+    color: var(--muted-fg);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+@media (min-width: 768px) {
+    .login-subtitle {
+        font-size: 1rem;
+    }
+}
+
+/* ============ FORM ============ */
+.login-form-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* Form group */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--fg-color);
+}
+
+.label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.forgot-link {
+    font-size: 0.75rem;
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+}
+
+.forgot-link:hover {
+    color: hsla(234, 89%, 64%, 0.8);
+}
+
+/* Input wrapper */
+.input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-wrapper .input-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    color: var(--muted-fg);
+    transition: color var(--transition-fast);
+    pointer-events: none;
+    z-index: 1;
+}
+
+.input-wrapper:focus-within .input-icon {
+    color: var(--primary);
+}
+
+.form-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 1rem 0 3rem;
+    background: var(--input-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius);
+    color: var(--fg-color);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    outline: none;
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.form-input::placeholder {
+    color: hsla(215, 20%, 65%, 0.6);
+}
+
+.form-input:focus {
+    border-color: var(--input-focus);
+    box-shadow: 0 0 0 3px hsla(234, 89%, 64%, 0.15);
+}
+
+.form-input.has-error {
+    border-color: var(--destructive);
+}
+
+.form-input.has-error:focus {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 3px hsla(0, 84%, 60%, 0.15);
+}
+
+/* Password input has extra right padding for toggle button */
+.form-input.password-input {
+    padding-right: 3rem;
+}
+
+/* Password toggle */
+.password-toggle-btn {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted-fg);
+    transition: color var(--transition-fast);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.password-toggle-btn:hover {
+    color: var(--fg-color);
+}
+
+.password-toggle-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Error messages */
+.field-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    color: var(--destructive);
+    font-size: 0.75rem;
+    animation: fadeIn 300ms ease forwards;
+}
+
+.field-error svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+/* Global error/success message */
+.login-message {
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    animation: fadeIn 300ms ease forwards;
+}
+
+.login-message.visible {
+    display: flex;
+}
+
+.login-message.error {
+    background: hsla(0, 84%, 60%, 0.15);
+    border: 1px solid hsla(0, 84%, 60%, 0.3);
+    color: hsl(0, 84%, 70%);
+}
+
+.login-message.success {
+    background: hsla(142, 76%, 45%, 0.15);
+    border: 1px solid hsla(142, 76%, 45%, 0.3);
+    color: hsl(142, 76%, 55%);
+}
+
+/* ============ REMEMBER ME ============ */
+.remember-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.custom-checkbox {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    z-index: 1;
+    margin: 0;
+}
+
+.checkbox-visual {
+    position: absolute;
+    inset: 0;
+    border: 1.5px solid hsla(222, 30%, 50%, 0.5);
+    border-radius: 4px;
+    background: transparent;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-checkbox input:checked + .checkbox-visual {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.checkbox-visual svg {
+    width: 12px;
+    height: 12px;
+    color: white;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all var(--transition-fast);
+}
+
+.custom-checkbox input:checked + .checkbox-visual svg {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.remember-label {
+    font-size: 0.875rem;
+    color: var(--muted-fg);
+    cursor: pointer;
+    transition: color var(--transition-fast);
+    user-select: none;
+}
+
+.remember-label:hover {
+    color: var(--fg-color);
+}
+
+/* ============ SUBMIT BUTTON ============ */
+.login-submit-btn {
+    width: 100%;
+    height: 48px;
+    border: none;
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--fg-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, var(--primary), hsla(234, 89%, 64%, 0.8));
+    box-shadow: 0 0 40px -10px var(--primary-glow);
+    transition: all var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.login-submit-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, hsla(234, 89%, 64%, 0.9), hsla(234, 89%, 64%, 0.7));
+    opacity: 0;
+    transition: opacity var(--transition-base);
+}
+
+.login-submit-btn:hover:not(:disabled)::before {
+    opacity: 1;
+}
+
+.login-submit-btn:hover:not(:disabled) {
+    box-shadow: 0 0 60px -10px var(--primary-glow);
+    transform: translateY(-1px);
+}
+
+.login-submit-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.login-submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.login-submit-btn .btn-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.login-submit-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* Loading state */
+.login-submit-btn.loading .btn-text-default {
+    display: none;
+}
+
+.login-submit-btn .btn-text-loading {
+    display: none;
+}
+
+.login-submit-btn.loading .btn-text-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.login-submit-btn .btn-text-success {
+    display: none;
+}
+
+.login-submit-btn.success {
+    background: var(--success) !important;
+}
+
+.login-submit-btn.success .btn-text-default,
+.login-submit-btn.success .btn-text-loading {
+    display: none;
+}
+
+.login-submit-btn.success .btn-text-success {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Spinner animation */
+.spinner-icon {
+    animation: spin 1s linear infinite;
+}
+
+/* ============ FOOTER ============ */
+.login-footer {
+    text-align: center;
+    margin-top: 2rem;
+    font-size: 0.75rem;
+    color: hsla(215, 20%, 65%, 0.6);
+}
+
+.login-footer a,
+.login-footer button {
+    color: hsla(215, 20%, 65%, 0.6);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+    transition: color var(--transition-fast);
+}
+
+.login-footer a:hover,
+.login-footer button:hover {
+    color: var(--muted-fg);
+}
+
+/* ============ FORGOT PASSWORD MODAL ============ */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 300ms ease;
+}
+
+.modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background: hsla(222, 47%, 10%, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--card-border);
+    border-radius: 1.25rem;
+    padding: 2rem;
+    max-width: 420px;
+    width: 90%;
+    position: relative;
+    transform: translateY(20px) scale(0.95);
+    transition: all 300ms ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.modal-overlay.show .modal-content {
+    transform: translateY(0) scale(1);
+}
+
+.modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: var(--muted-fg);
+    font-size: 1.5rem;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all var(--transition-fast);
+}
+
+.modal-close:hover {
+    background: hsla(210, 40%, 98%, 0.1);
+    color: var(--fg-color);
+}
+
+.modal-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-header h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--fg-color);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.modal-header p {
+    color: var(--muted-fg);
+    font-size: 0.875rem;
+}
+
+.step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--border-color);
+    transition: all 300ms ease;
+}
+
+.step-dot.active {
+    background: var(--primary);
+    box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.modal-step {
+    display: none;
+}
+
+.modal-step.active {
+    display: block;
+    animation: fadeIn 300ms ease forwards;
+}
+
+.modal-form-group {
+    margin-bottom: 1rem;
+}
+
+.modal-form-group label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--fg-color);
+    margin-bottom: 0.5rem;
+}
+
+.modal-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 1rem;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: var(--radius);
+    color: var(--fg-color);
+    font-family: inherit;
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.modal-input:focus {
+    border-color: var(--input-focus);
+    box-shadow: 0 0 0 3px hsla(234, 89%, 64%, 0.15);
+}
+
+select.modal-input {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 2.5rem;
+}
+
+select.modal-input option {
+    background: hsl(222, 47%, 10%);
+    color: var(--fg-color);
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.modal-btn {
+    flex: 1;
+    height: 42px;
+    border: none;
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all var(--transition-base);
+}
+
+.modal-btn-primary {
+    background: var(--primary);
+    color: var(--fg-color);
+}
+
+.modal-btn-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.modal-btn-secondary {
+    background: var(--secondary-bg);
+    color: var(--muted-fg);
+    border: 1px solid var(--border-color);
+}
+
+.modal-btn-secondary:hover {
+    color: var(--fg-color);
+    border-color: var(--muted-fg);
+}
+
+.modal-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Password strength meter */
+.password-strength {
+    margin-top: 0.5rem;
+}
+
+.strength-bar {
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.strength-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 2px;
+    transition: all 300ms ease;
+}
+
+.strength-text {
+    font-size: 0.75rem;
+    color: var(--muted-fg);
+}
+
+.password-strength.strength-weak .strength-fill { width: 25%; background: var(--destructive); }
+.password-strength.strength-fair .strength-fill { width: 50%; background: var(--warning); }
+.password-strength.strength-good .strength-fill { width: 75%; background: var(--primary); }
+.password-strength.strength-strong .strength-fill { width: 100%; background: var(--success); }
+
+/* Modal message */
+.modal-message {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
+    margin-bottom: 1rem;
+    animation: fadeIn 300ms ease forwards;
+}
+
+.modal-message.error-message {
+    background: hsla(0, 84%, 60%, 0.15);
+    border: 1px solid hsla(0, 84%, 60%, 0.3);
+    color: hsl(0, 84%, 70%);
+}
+
+.modal-message.success-message {
+    background: hsla(142, 76%, 45%, 0.15);
+    border: 1px solid hsla(142, 76%, 45%, 0.3);
+    color: hsl(142, 76%, 55%);
+}
+
+/* ============ ANIMATIONS ============ */
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-20px);
+    }
+}
+
+@keyframes pulse-slow {
+    0%, 100% {
+        opacity: 0.4;
+    }
+    50% {
+        opacity: 0.8;
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.5;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.02);
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* ============ AUTOFILL STYLES ============ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px hsl(222, 47%, 10%) inset !important;
+    -webkit-text-fill-color: hsl(210, 40%, 98%) !important;
+    caret-color: hsl(210, 40%, 98%) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* ============ SCROLLBAR ============ */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: hsl(222, 47%, 8%);
+}
+::-webkit-scrollbar-thumb {
+    background: hsl(222, 30%, 25%);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(222, 30%, 35%);
+}
+
+/* Focus visible */
+*:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+    background: hsla(234, 89%, 64%, 0.3);
+    color: var(--fg-color);
+}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 480px) {
+    .glass-card {
+        padding: 1.5rem 1.25rem;
+        border-radius: 0.875rem;
+    }
+
+    .login-greeting {
+        font-size: 1.25rem;
+    }
+
+    .avatar-box {
+        width: 64px;
+        height: 64px;
+    }
+
+    .login-logo {
+        max-width: 160px;
+        max-height: 48px;
+    }
+
+    .logo-crossfade {
+        width: 180px;
+        height: 52px;
+    }
+
+    .form-input {
+        height: 44px;
+        font-size: 0.875rem;
+    }
+
+    .login-submit-btn {
+        height: 44px;
+        font-size: 0.9375rem;
+    }
+
+    .theme-dots {
+        bottom: 16px;
+    }
+}
+
+@media (max-height: 700px) {
+    .login-page {
+        padding: 1rem 0;
+    }
+
+    .glass-card {
+        padding: 1.5rem;
+    }
+
+    .login-header {
+        margin-bottom: 1.25rem;
+    }
+
+    .avatar-container {
+        margin-bottom: 1rem;
+    }
+
+    .login-form-content {
+        gap: 1rem;
+    }
+}
+
+/* ============ REDUCED MOTION ============ */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
+    .particle {
+        display: none;
+    }
+}
+
+/* ============ HIGH CONTRAST ============ */
+@media (prefers-contrast: high) {
+    .form-input {
+        border-color: var(--fg-color);
+    }
+
+    .glass-card {
+        border-color: hsla(210, 40%, 98%, 0.3);
+    }
+}

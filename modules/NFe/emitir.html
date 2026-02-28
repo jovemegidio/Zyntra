@@ -1,0 +1,1026 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Emitir NFe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/auth-unified.js?v=20260204"></script>
+    <script src="/js/csp-fix.js"></script>
+    <style>
+        :root {
+            --fat-primary: #10b981;
+            --fat-secondary: #059669;
+            --bg-page: #f9fafb;
+            --bg-card: #ffffff;
+            --border-color: #e5e7eb;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --radius: 10px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { height: 100%; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg-page); color: var(--text-primary); height: 100%; min-height: 100vh; }
+
+        .page-content {
+            padding: 24px;
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+            flex: 1;
+            min-height: 0;
+        }
+
+        /* ── Steps Indicator ── */
+        .steps {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 28px;
+            flex-wrap: wrap;
+        }
+        .step {
+            flex: 1;
+            min-width: 180px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.25s ease;
+        }
+        .step.active {
+            border-left-color: var(--fat-primary);
+            background: #f0fdf4;
+        }
+        .step.completed {
+            border-left-color: var(--fat-secondary);
+        }
+        .step-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--border-color);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        .step.active .step-number {
+            background: var(--fat-primary);
+            color: #fff;
+        }
+        .step.completed .step-number {
+            background: var(--fat-secondary);
+            color: #fff;
+        }
+        .step-info { display: flex; flex-direction: column; }
+        .step-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+        .step-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        /* ── Alert ── */
+        .alert-container {
+            margin-bottom: 20px;
+        }
+        .alert {
+            padding: 12px 18px;
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 500;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            animation: alertIn 0.3s ease;
+        }
+        .alert.show { display: flex; }
+        .alert-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+        .alert-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        .alert-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+        @keyframes alertIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ── Form Sections ── */
+        .form-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+        .form-section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .form-section-title i {
+            color: var(--fat-primary);
+            font-size: 14px;
+        }
+        .form-subsection-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin: 20px 0 14px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 9px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+            background: #fff;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: var(--fat-primary);
+            box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
+        }
+
+        /* ── Itens Table ── */
+        .itens-section { overflow-x: auto; }
+        .itens-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .itens-table thead th {
+            background: #f9fafb;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--border-color);
+            white-space: nowrap;
+        }
+        .itens-table tbody td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+        .itens-table tbody td input {
+            width: 100%;
+            padding: 7px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+        }
+        .itens-table tbody td input:focus {
+            border-color: var(--fat-primary);
+        }
+        .itens-table .col-acoes { text-align: center; width: 60px; }
+
+        /* ── Totais ── */
+        .totais {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+            padding: 20px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: var(--radius);
+        }
+        .total-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .total-item label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .total-item span {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--fat-secondary);
+        }
+
+        /* ── Preview ── */
+        .preview-area {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: var(--radius);
+            overflow-x: auto;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        /* ── Resultado ── */
+        .resultado-content {
+            padding: 20px;
+            text-align: center;
+        }
+        .resultado-content .success-icon {
+            font-size: 48px;
+            color: var(--fat-primary);
+            margin-bottom: 16px;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn:active { transform: translateY(0); }
+        .btn-primary { background: var(--fat-primary); color: #fff; }
+        .btn-primary:hover { background: var(--fat-secondary); }
+        .btn-secondary { background: #f3f4f6; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .btn-success { background: #059669; color: #fff; }
+        .btn-success:hover { background: #047857; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .page-content { padding: 16px; }
+            .steps { flex-direction: column; }
+            .form-row { grid-template-columns: 1fr; }
+            .actions { justify-content: stretch; }
+            .actions .btn { flex: 1; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+
+    <!-- ══════════════ SIDEBAR ══════════════ -->
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+            <a href="emitir.html" class="sidebar-btn active" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+        </div>
+    </aside>
+
+    <!-- ══════════════ MAIN AREA ══════════════ -->
+    <main class="main-area">
+
+    <!-- ══════════════ HEADER ══════════════ -->
+    <header class="header">
+        <div class="header-left">
+            <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+            <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Emitir NFe</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+            <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+            <div class="user-greeting">
+                <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                <div class="user-avatar" id="user-avatar">
+                    <img alt="Foto" id="user-photo" style="display:none">
+                    <span id="user-initials">U</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══════════════ MAIN CONTENT ══════════════ -->
+        <div class="page-content">
+
+                <!-- Steps Indicator -->
+                <div class="steps">
+                    <div class="step active" id="step-1">
+                        <div class="step-number">1</div>
+                        <div class="step-info">
+                            <span class="step-title">Dados da NFe</span>
+                            <span class="step-desc">Informações gerais e destinatário</span>
+                        </div>
+                    </div>
+                    <div class="step" id="step-2">
+                        <div class="step-number">2</div>
+                        <div class="step-info">
+                            <span class="step-title">Itens</span>
+                            <span class="step-desc">Produtos e serviços</span>
+                        </div>
+                    </div>
+                    <div class="step" id="step-3">
+                        <div class="step-number">3</div>
+                        <div class="step-info">
+                            <span class="step-title">Preview</span>
+                            <span class="step-desc">Visualizar XML gerado</span>
+                        </div>
+                    </div>
+                    <div class="step" id="step-4">
+                        <div class="step-number">4</div>
+                        <div class="step-info">
+                            <span class="step-title">Emitir</span>
+                            <span class="step-desc">Enviar para SEFAZ</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Container -->
+                <div class="alert-container">
+                    <div class="alert" id="alertBox">
+                        <i class="fas fa-info-circle"></i>
+                        <span id="alertMessage"></span>
+                    </div>
+                </div>
+
+                <!-- NFe Form -->
+                <form id="nfeForm" onsubmit="return false;">
+
+                    <!-- Section 1: Dados Gerais -->
+                    <div class="form-section" id="section-dados">
+                        <div class="form-section-title"><i class="fas fa-file-alt"></i> Dados Gerais</div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label for="naturezaOperacao">Natureza da Operação</label>
+                                <input type="text" id="naturezaOperacao" name="naturezaOperacao" value="Venda de mercadoria" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="tipoOperacao">Tipo de Operação</label>
+                                <select id="tipoOperacao" name="tipoOperacao" required>
+                                    <option value="1">Saída</option>
+                                    <option value="0">Entrada</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="dataEmissao">Data de Emissão</label>
+                                <input type="datetime-local" id="dataEmissao" name="dataEmissao" required>
+                            </div>
+                        </div>
+
+                        <!-- Destinatário -->
+                        <div class="form-subsection-title"><i class="fas fa-user"></i> Destinatário</div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="tipoDocDestinatario">Tipo de Documento</label>
+                                <select id="tipoDocDestinatario" name="tipoDocDestinatario">
+                                    <option value="CNPJ">CNPJ</option>
+                                    <option value="CPF">CPF</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="destinatarioDoc">Documento</label>
+                                <input type="text" id="destinatarioDoc" name="destinatarioDoc" placeholder="00.000.000/0000-00" required>
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label for="destinatarioNome">Razão Social / Nome</label>
+                                <input type="text" id="destinatarioNome" name="destinatarioNome" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label for="destinatarioEndereco">Endereço (Logradouro)</label>
+                                <input type="text" id="destinatarioEndereco" name="destinatarioEndereco" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="destinatarioNumero">Número</label>
+                                <input type="text" id="destinatarioNumero" name="destinatarioNumero" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="destinatarioComplemento">Complemento</label>
+                                <input type="text" id="destinatarioComplemento" name="destinatarioComplemento">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="destinatarioBairro">Bairro</label>
+                                <input type="text" id="destinatarioBairro" name="destinatarioBairro" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="destinatarioMunicipio">Município</label>
+                                <input type="text" id="destinatarioMunicipio" name="destinatarioMunicipio" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="destinatarioCodigoMunicipio">Código IBGE Município</label>
+                                <input type="text" id="destinatarioCodigoMunicipio" name="destinatarioCodigoMunicipio" placeholder="0000000">
+                            </div>
+                            <div class="form-group">
+                                <label for="destinatarioUF">UF</label>
+                                <select id="destinatarioUF" name="destinatarioUF" required>
+                                    <option value="">Selecione</option>
+                                    <option value="AC">AC</option>
+                                    <option value="AL">AL</option>
+                                    <option value="AP">AP</option>
+                                    <option value="AM">AM</option>
+                                    <option value="BA">BA</option>
+                                    <option value="CE">CE</option>
+                                    <option value="DF">DF</option>
+                                    <option value="ES">ES</option>
+                                    <option value="GO">GO</option>
+                                    <option value="MA">MA</option>
+                                    <option value="MT">MT</option>
+                                    <option value="MS">MS</option>
+                                    <option value="MG">MG</option>
+                                    <option value="PA">PA</option>
+                                    <option value="PB">PB</option>
+                                    <option value="PR">PR</option>
+                                    <option value="PE">PE</option>
+                                    <option value="PI">PI</option>
+                                    <option value="RJ">RJ</option>
+                                    <option value="RN">RN</option>
+                                    <option value="RS">RS</option>
+                                    <option value="RO">RO</option>
+                                    <option value="RR">RR</option>
+                                    <option value="SC">SC</option>
+                                    <option value="SP">SP</option>
+                                    <option value="SE">SE</option>
+                                    <option value="TO">TO</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="destinatarioCEP">CEP</label>
+                                <input type="text" id="destinatarioCEP" name="destinatarioCEP" placeholder="00000-000" required>
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label for="destinatarioEmail">E-mail</label>
+                                <input type="email" id="destinatarioEmail" name="destinatarioEmail" placeholder="email@exemplo.com.br">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Itens da NFe -->
+                    <div class="form-section" id="section-itens">
+                        <div class="form-section-title"><i class="fas fa-boxes-stacked"></i> Itens da NFe</div>
+
+                        <div class="itens-section">
+                            <table class="itens-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Descrição</th>
+                                        <th>NCM</th>
+                                        <th>CFOP</th>
+                                        <th>Unid.</th>
+                                        <th>Qtd</th>
+                                        <th>Valor Unit.</th>
+                                        <th>Total</th>
+                                        <th class="col-acoes">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="itensTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="margin-top:14px;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarItem()">
+                                <i class="fas fa-plus"></i> Adicionar Item
+                            </button>
+                        </div>
+
+                        <!-- Totais -->
+                        <div class="totais">
+                            <div class="total-item">
+                                <label>Total Produtos</label>
+                                <span id="totalProdutos">R$ 0,00</span>
+                            </div>
+                            <div class="total-item">
+                                <label>Total Desconto</label>
+                                <span id="totalDesconto">R$ 0,00</span>
+                            </div>
+                            <div class="total-item">
+                                <label>Total Frete</label>
+                                <span id="totalFrete">R$ 0,00</span>
+                            </div>
+                            <div class="total-item">
+                                <label>Valor Total NFe</label>
+                                <span id="valorTotalNFe">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Preview XML (hidden) -->
+                    <div class="form-section" id="section-preview" style="display:none;">
+                        <div class="form-section-title"><i class="fas fa-code"></i> Preview XML</div>
+                        <pre class="preview-area" id="xmlPreview">Clique em "Gerar Preview" para visualizar o XML.</pre>
+                    </div>
+
+                    <!-- Section 4: Resultado (hidden) -->
+                    <div class="form-section" id="section-resultado" style="display:none;">
+                        <div class="form-section-title"><i class="fas fa-check-circle"></i> Resultado</div>
+                        <div class="resultado-content" id="resultadoContent"></div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="actions">
+                        <button type="button" class="btn btn-secondary" onclick="gerarPreview()">
+                            <i class="fas fa-eye"></i> Gerar Preview
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="validarXML()">
+                            <i class="fas fa-check-double"></i> Validar XML
+                        </button>
+                        <button type="submit" class="btn btn-success" id="btnEmitir" onclick="emitirNFe()">
+                            <i class="fas fa-paper-plane"></i> Emitir NFe
+                        </button>
+                    </div>
+
+                </form>
+
+        </div>
+    </main>
+    </div>
+
+    <!-- ══════════════ SCRIPTS ══════════════ -->
+    <script>
+        // ── Mobile Sidebar & Notification Toggles ──
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            if (sidebar) sidebar.classList.toggle('mobile-open');
+        }
+
+        function toggleNotificacoes() {
+            if (typeof window.NotificationManager !== 'undefined' && window.NotificationManager.toggle) {
+                window.NotificationManager.toggle();
+            }
+        }
+
+        function abrirModalConfiguracoes() {
+            showAlert('Configurações em desenvolvimento.', 'warning');
+        }
+
+        // ── Avatar Name Map ──
+        const avatarNameMap = {
+            'clemerson': 'Clemerson',
+            'isabela': 'Isabela',
+            'thaina': 'Thainá',
+            'thiago': 'Thiago',
+            'nicolas': 'Nicolas',
+            'nicolasdaniel': 'Nicolas Daniel',
+            'rh': 'RH',
+            'admin': 'Administrador',
+            'ti': 'TI',
+            'tialuforce': 'TI Aluforce',
+            'antonio': 'Antônio',
+            'andreia': 'Andréia',
+            'guilherme': 'Guilherme',
+            'marcelo': 'Marcelo',
+            'financeiro': 'Financeiro',
+            'douglas': 'Douglas',
+            'hellen': 'Hellen',
+            'helen': 'Helen',
+            'marcia': 'Márcia',
+            'augusto': 'Augusto',
+            'renata': 'Renata',
+            'fabiano': 'Fabiano',
+            'fabiola': 'Fabíola'
+        };
+
+        // ── Carregar Usuário ──
+        async function carregarUsuario() {
+            try {
+                const resp = await fetch('/api/me', { credentials: 'include' });
+                if (!resp.ok) throw new Error('Não autenticado');
+                const user = await resp.json();
+
+                // Greeting based on hour
+                const h = new Date().getHours();
+                const greetEl = document.getElementById('greeting-text');
+                if (greetEl) {
+                    greetEl.textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                }
+
+                // User name
+                const nameEl = document.getElementById('user-name');
+                const username = (user.username || user.nome || user.login || 'Usuário').toLowerCase();
+                const displayName = avatarNameMap[username] || user.nome || user.username || 'Usuário';
+                if (nameEl) nameEl.textContent = displayName.split(' ')[0];
+
+                // Initials
+                const initialsEl = document.getElementById('user-initials');
+                if (initialsEl) {
+                    const parts = displayName.split(' ');
+                    initialsEl.textContent = parts.length > 1
+                        ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+                        : displayName.substring(0, 2).toUpperCase();
+                }
+
+                // Avatar photo
+                const photoEl = document.getElementById('user-photo');
+                if (photoEl && user.foto) {
+                    photoEl.src = user.foto;
+                    photoEl.style.display = 'block';
+                    photoEl.onerror = () => { photoEl.style.display = 'none'; };
+                    if (initialsEl) initialsEl.style.display = 'none';
+                }
+            } catch (e) {
+                console.warn('Erro ao carregar usuário:', e);
+            }
+        }
+
+        // ── Itens Array ──
+        let itens = [];
+
+        function adicionarItem() {
+            itens.push({
+                codigo: '',
+                descricao: '',
+                ncm: '',
+                cfop: '5102',
+                unidade: 'UN',
+                quantidade: 1,
+                valorUnitario: 0,
+                total: 0
+            });
+            renderizarItens();
+        }
+
+        function renderizarItens() {
+            const tbody = document.getElementById('itensTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            itens.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${item.codigo}" onchange="atualizarItem(${index},'codigo',this.value)" placeholder="Código"></td>
+                    <td><input type="text" value="${item.descricao}" onchange="atualizarItem(${index},'descricao',this.value)" placeholder="Descrição do produto"></td>
+                    <td><input type="text" value="${item.ncm}" onchange="atualizarItem(${index},'ncm',this.value)" placeholder="00000000" style="width:100px;"></td>
+                    <td><input type="text" value="${item.cfop}" onchange="atualizarItem(${index},'cfop',this.value)" placeholder="5102" style="width:80px;"></td>
+                    <td><input type="text" value="${item.unidade}" onchange="atualizarItem(${index},'unidade',this.value)" placeholder="UN" style="width:60px;"></td>
+                    <td><input type="number" value="${item.quantidade}" onchange="atualizarItem(${index},'quantidade',this.value)" min="0" step="0.01" style="width:80px;"></td>
+                    <td><input type="number" value="${item.valorUnitario}" onchange="atualizarItem(${index},'valorUnitario',this.value)" min="0" step="0.01" style="width:110px;"></td>
+                    <td style="font-weight:600;white-space:nowrap;">R$ ${item.total.toFixed(2)}</td>
+                    <td class="col-acoes">
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removerItem(${index})" title="Remover item">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            calcularTotais();
+        }
+
+        function atualizarItem(index, campo, valor) {
+            if (campo === 'quantidade' || campo === 'valorUnitario') {
+                itens[index][campo] = parseFloat(valor) || 0;
+                itens[index].total = itens[index].quantidade * itens[index].valorUnitario;
+            } else {
+                itens[index][campo] = valor;
+            }
+            renderizarItens();
+        }
+
+        function removerItem(index) {
+            itens.splice(index, 1);
+            renderizarItens();
+        }
+
+        function calcularTotais() {
+            const totalProd = itens.reduce((sum, i) => sum + i.total, 0);
+            const totalDesc = 0;
+            const totalFrete = 0;
+            const valorTotal = totalProd - totalDesc + totalFrete;
+
+            document.getElementById('totalProdutos').textContent = 'R$ ' + totalProd.toFixed(2).replace('.', ',');
+            document.getElementById('totalDesconto').textContent = 'R$ ' + totalDesc.toFixed(2).replace('.', ',');
+            document.getElementById('totalFrete').textContent = 'R$ ' + totalFrete.toFixed(2).replace('.', ',');
+            document.getElementById('valorTotalNFe').textContent = 'R$ ' + valorTotal.toFixed(2).replace('.', ',');
+        }
+
+        // ── Construir NFe Data ──
+        function construirNFeData() {
+            return {
+                naturezaOperacao: document.getElementById('naturezaOperacao').value,
+                tipoOperacao: document.getElementById('tipoOperacao').value,
+                dataEmissao: document.getElementById('dataEmissao').value,
+                destinatario: {
+                    tipoDocumento: document.getElementById('tipoDocDestinatario').value,
+                    documento: document.getElementById('destinatarioDoc').value,
+                    nome: document.getElementById('destinatarioNome').value,
+                    endereco: document.getElementById('destinatarioEndereco').value,
+                    numero: document.getElementById('destinatarioNumero').value,
+                    complemento: document.getElementById('destinatarioComplemento').value,
+                    bairro: document.getElementById('destinatarioBairro').value,
+                    municipio: document.getElementById('destinatarioMunicipio').value,
+                    codigoMunicipio: document.getElementById('destinatarioCodigoMunicipio').value,
+                    uf: document.getElementById('destinatarioUF').value,
+                    cep: document.getElementById('destinatarioCEP').value,
+                    email: document.getElementById('destinatarioEmail').value
+                },
+                itens: itens.map((item, idx) => ({
+                    numero: idx + 1,
+                    codigo: item.codigo,
+                    descricao: item.descricao,
+                    ncm: item.ncm,
+                    cfop: item.cfop,
+                    unidade: item.unidade,
+                    quantidade: item.quantidade,
+                    valorUnitario: item.valorUnitario,
+                    valorTotal: item.total
+                })),
+                totais: {
+                    totalProdutos: itens.reduce((s, i) => s + i.total, 0),
+                    totalDesconto: 0,
+                    totalFrete: 0,
+                    valorTotal: itens.reduce((s, i) => s + i.total, 0)
+                }
+            };
+        }
+
+        // ── Gerar Preview ──
+        async function gerarPreview() {
+            try {
+                const nfeData = construirNFeData();
+                if (!nfeData.itens.length) {
+                    showAlert('Adicione ao menos um item à NFe.', 'warning');
+                    return;
+                }
+
+                showAlert('Gerando preview do XML...', 'warning');
+
+                const resp = await fetch('/api/api.php?action=preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(nfeData)
+                });
+
+                const result = await resp.json();
+
+                if (result.success && result.xml) {
+                    document.getElementById('section-preview').style.display = 'block';
+                    document.getElementById('xmlPreview').textContent = formatXML(result.xml);
+                    document.getElementById('step-3').classList.add('active');
+                    document.getElementById('step-1').classList.add('completed');
+                    document.getElementById('step-2').classList.add('completed');
+                    showAlert('Preview gerado com sucesso!', 'success');
+                } else {
+                    showAlert(result.message || 'Erro ao gerar preview.', 'danger');
+                }
+            } catch (e) {
+                console.error('Erro ao gerar preview:', e);
+                showAlert('Erro de conexão ao gerar preview.', 'danger');
+            }
+        }
+
+        // ── Validar XML ──
+        async function validarXML() {
+            try {
+                const nfeData = construirNFeData();
+                if (!nfeData.itens.length) {
+                    showAlert('Adicione ao menos um item à NFe.', 'warning');
+                    return;
+                }
+
+                showAlert('Validando XML...', 'warning');
+
+                const resp = await fetch('/api/nfe/validar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(nfeData)
+                });
+
+                const result = await resp.json();
+
+                if (result.valid || result.success) {
+                    showAlert('XML validado com sucesso! Nenhum erro encontrado.', 'success');
+                } else {
+                    const erros = result.errors || result.erros || [];
+                    showAlert('Erros de validação: ' + (erros.join(', ') || result.message || 'Verifique os dados.'), 'danger');
+                }
+            } catch (e) {
+                console.error('Erro ao validar XML:', e);
+                showAlert('Erro de conexão ao validar XML.', 'danger');
+            }
+        }
+
+        // ── Emitir NFe (form submit) ──
+        async function emitirNFe() {
+            try {
+                const nfeData = construirNFeData();
+                if (!nfeData.itens.length) {
+                    showAlert('Adicione ao menos um item à NFe.', 'warning');
+                    return;
+                }
+
+                const btnEmitir = document.getElementById('btnEmitir');
+                btnEmitir.disabled = true;
+                btnEmitir.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Emitindo...';
+
+                showAlert('Enviando NFe para SEFAZ...', 'warning');
+
+                const resp = await fetch('/api/api.php?action=emitir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(nfeData)
+                });
+
+                const result = await resp.json();
+
+                if (result.success) {
+                    document.getElementById('step-4').classList.add('active', 'completed');
+                    document.getElementById('step-3').classList.add('completed');
+                    document.getElementById('section-resultado').style.display = 'block';
+                    document.getElementById('resultadoContent').innerHTML = `
+                        <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+                        <h3 style="margin-bottom:8px;color:var(--fat-secondary);">NFe Emitida com Sucesso!</h3>
+                        <p style="color:var(--text-secondary);margin-bottom:12px;">Chave de acesso:</p>
+                        <p style="font-family:monospace;font-size:14px;font-weight:600;word-break:break-all;">${result.chave || result.chaveAcesso || '—'}</p>
+                        <p style="margin-top:8px;color:var(--text-muted);font-size:12px;">Protocolo: ${result.protocolo || result.nProtocolo || '—'}</p>
+                        <div style="margin-top:20px;">
+                            <a href="consultar.html" class="btn btn-primary"><i class="fas fa-search"></i> Consultar NFe</a>
+                            <button type="button" class="btn btn-secondary" onclick="location.reload()" style="margin-left:8px;">
+                                <i class="fas fa-plus"></i> Nova NFe
+                            </button>
+                        </div>
+                    `;
+                    showAlert('NFe emitida com sucesso!', 'success');
+                } else {
+                    showAlert(result.message || result.erro || 'Erro ao emitir NFe. Verifique os dados.', 'danger');
+                }
+            } catch (e) {
+                console.error('Erro ao emitir NFe:', e);
+                showAlert('Erro de conexão ao emitir NFe.', 'danger');
+            } finally {
+                const btnEmitir = document.getElementById('btnEmitir');
+                if (btnEmitir) {
+                    btnEmitir.disabled = false;
+                    btnEmitir.innerHTML = '<i class="fas fa-paper-plane"></i> Emitir NFe';
+                }
+            }
+        }
+
+        // ── Format XML ──
+        function formatXML(xml) {
+            if (!xml) return '';
+            try {
+                let formatted = '';
+                let indent = '';
+                const tab = '  ';
+                xml.split(/>\s*</).forEach(function (node) {
+                    if (node.match(/^\/\w/)) indent = indent.substring(tab.length);
+                    formatted += indent + '<' + node + '>\n';
+                    if (node.match(/^<?\w[^>]*[^\/]$/) && !node.startsWith('?')) indent += tab;
+                });
+                return formatted.substring(1, formatted.length - 2);
+            } catch (e) {
+                return xml;
+            }
+        }
+
+        // ── Show Alert ──
+        function showAlert(message, type) {
+            const box = document.getElementById('alertBox');
+            const msg = document.getElementById('alertMessage');
+            if (!box || !msg) return;
+
+            box.className = 'alert alert-' + (type || 'warning') + ' show';
+            msg.textContent = message;
+
+            // Icon
+            const icon = box.querySelector('i');
+            if (icon) {
+                icon.className = type === 'success' ? 'fas fa-check-circle'
+                    : type === 'danger' ? 'fas fa-exclamation-triangle'
+                    : 'fas fa-info-circle';
+            }
+
+            clearTimeout(window._alertTimeout);
+            window._alertTimeout = setTimeout(() => {
+                box.classList.remove('show');
+            }, 5000);
+        }
+
+        // ── Carregar Emitente ──
+        async function carregarEmitente() {
+            try {
+                const resp = await fetch('/api/nfe/configuracoes', { credentials: 'include' });
+                if (!resp.ok) throw new Error('Sem config');
+                const config = await resp.json();
+                console.log('Emitente carregado:', config.emitente || config);
+            } catch (e) {
+                console.warn('Usando dados de emitente padrão (fallback).');
+            }
+        }
+
+        // ── Init ──
+        document.addEventListener('DOMContentLoaded', function () {
+            // Set current datetime
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            const local = new Date(now - offset);
+            const dtField = document.getElementById('dataEmissao');
+            if (dtField) dtField.value = local.toISOString().slice(0, 16);
+
+            // Add first item
+            adicionarItem();
+
+            // Steps activation
+            document.getElementById('step-1').classList.add('active');
+            document.getElementById('step-2').classList.add('active');
+
+            // Load emitente config
+            carregarEmitente();
+
+            // Load user
+            carregarUsuario();
+        });
+    </script>
+
+    <!-- External scripts -->
+    <script src="/js/notification-manager.js"></script>
+    <script src="../_shared/connection-monitor.js"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260131c"></script><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218"></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

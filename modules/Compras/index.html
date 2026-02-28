@@ -1,0 +1,579 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Compras</title>
+
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260216" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- CSS Padrão Global -->
+    <link rel="stylesheet" href="css/compras-layout.css?v=20260216">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260214">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/js/anti-copy-protection.js"></script>
+
+    <!-- Garantir ícones Font Awesome -->
+    <style>
+        .fas, .far, .fab, .fa {
+            font-family: 'Font Awesome 6 Free', 'Font Awesome 6 Brands', FontAwesome !important;
+            font-style: normal;
+            display: inline-block !important;
+            visibility: visible !important;
+        }
+        .fas { font-weight: 900; }
+        .far { font-weight: 400; }
+    </style>
+
+    <!-- Funções stub para evitar erros antes do carregamento -->
+    <script>
+        function toggleNotificacoes() {
+            const panel = document.getElementById('notification-panel');
+            if (panel) panel.classList.toggle('active');
+        }
+        function marcarTodasLidas() { console.log('Carregando...'); }
+        function limparNotificacoes() { console.log('Carregando...'); }
+    </script>
+
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR - PADRÃO INSTITUCIONAL -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn active" title="Dashboard" onclick="window.location.href='index.html'">
+                    <i class="fas fa-chart-line"></i>
+                </button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'">
+                    <i class="fas fa-shopping-cart"></i>
+                </button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'">
+                    <i class="fas fa-users"></i>
+                </button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'">
+                    <i class="fas fa-clipboard-list"></i>
+                </button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'">
+                    <i class="fas fa-truck-loading"></i>
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'">
+                    <i class="fas fa-boxes"></i>
+                </button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER - PADRÃO INSTITUCIONAL -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Compras</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge hidden" id="notification-count">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas"><i class="fas fa-check-double"></i></button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas"><i class="fas fa-trash-alt"></i></button>
+                                </div>
+                            </div>
+                            <div class="notification-tabs">
+                                <button class="notif-tab active" onclick="filtrarNotificacoes('todas', this)">Todas</button>
+                                <button class="notif-tab" onclick="filtrarNotificacoes('nao-lidas', this)">Não lidas</button>
+                                <button class="notif-tab" onclick="filtrarNotificacoes('importantes', this)">Importantes</button>
+                            </div>
+                            <div class="notification-list" id="notification-list"></div>
+                            <div class="notification-footer">
+                                <a href="#" onclick="verTodasNotificacoes(); return false;">Ver histórico completo</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo" style="display:none;">
+                            <span id="user-initial">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- PAGE CONTENT -->
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="window.location.href='relatorios.html'">
+                                <i class="fas fa-chart-bar"></i> Relatórios
+                            </button>
+                            <button class="btn btn-primary" onclick="window.location.href='requisicoes.html?action=new'">
+                                <i class="fas fa-plus"></i> Nova Requisição
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Grid (KPIs) -->
+                <div class="stats-grid">
+                    <div class="stat-card amber">
+                        <div class="stat-header">
+                            <div class="stat-icon amber"><i class="fas fa-clipboard-list"></i></div>
+                            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 8%</span>
+                        </div>
+                        <div class="stat-value" id="kpi-requisicoes">--</div>
+                        <div class="stat-label">Requisições Pendentes</div>
+                        <div class="stat-footer">
+                            <a href="requisicoes.html">Ver todas <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+
+                    <div class="stat-card indigo">
+                        <div class="stat-header">
+                            <div class="stat-icon indigo"><i class="fas fa-file-invoice-dollar"></i></div>
+                            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 12%</span>
+                        </div>
+                        <div class="stat-value" id="kpi-cotacoes">--</div>
+                        <div class="stat-label">Cotações em Análise</div>
+                        <div class="stat-footer">
+                            <a href="cotacoes.html">Ver cotações <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+
+                    <div class="stat-card green">
+                        <div class="stat-header">
+                            <div class="stat-icon green"><i class="fas fa-shopping-cart"></i></div>
+                            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 5%</span>
+                        </div>
+                        <div class="stat-value" id="kpi-pedidos">R$ --</div>
+                        <div class="stat-label">Volume Este Mês</div>
+                        <div class="stat-footer">
+                            <a href="pedidos.html">Ver pedidos <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+
+                    <div class="stat-card purple">
+                        <div class="stat-header">
+                            <div class="stat-icon purple"><i class="fas fa-building"></i></div>
+                            <span class="stat-trend up"><i class="fas fa-arrow-up"></i> 3</span>
+                        </div>
+                        <div class="stat-value" id="kpi-fornecedores">--</div>
+                        <div class="stat-label">Fornecedores Ativos</div>
+                        <div class="stat-footer">
+                            <a href="fornecedores.html">Gerenciar <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Grid -->
+                <div class="main-grid">
+                    <!-- Left Column -->
+                    <div>
+                        <!-- Requisições Recentes -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-clipboard-list"></i> Requisições Recentes</h3>
+                                <a href="requisicoes.html" class="card-link">Ver Todas <i class="fas fa-arrow-right"></i></a>
+                            </div>
+                            <div class="card-body no-padding">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Descrição</th>
+                                            <th>Solicitante</th>
+                                            <th>Data</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-requisicoes">
+                                        <tr>
+                                            <td colspan="5" style="text-align:center;padding:40px;">
+                                                <i class="fas fa-spinner fa-spin fa-2x" style="color:var(--primary-500);"></i>
+                                                <p style="margin-top:12px;color:var(--gray-400);">Carregando requisições...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Chart -->
+                        <div class="card mt-6">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-chart-area"></i> Volume de Compras — Últimos 6 Meses</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="purchaseChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div>
+                        <!-- Quick Actions -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-bolt"></i> Ações Rápidas</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="quick-actions">
+                                    <a href="requisicoes.html?action=new" class="quick-action">
+                                        <div class="icon"><i class="fas fa-plus-circle"></i></div>
+                                        <span>Nova Requisição</span>
+                                    </a>
+                                    <a href="cotacoes.html?action=new" class="quick-action">
+                                        <div class="icon"><i class="fas fa-search-dollar"></i></div>
+                                        <span>Nova Cotação</span>
+                                    </a>
+                                    <a href="pedidos.html?action=new" class="quick-action">
+                                        <div class="icon"><i class="fas fa-shopping-cart"></i></div>
+                                        <span>Novo Pedido</span>
+                                    </a>
+                                    <a href="fornecedores.html?action=new" class="quick-action">
+                                        <div class="icon"><i class="fas fa-user-plus"></i></div>
+                                        <span>Novo Fornecedor</span>
+                                    </a>
+                                </div>
+
+                                <!-- Progress (placeholder, atualizado pelo JS) -->
+                                <div class="progress-section" id="progress-section" style="display:none;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Activity -->
+                        <div class="card mt-6">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-history"></i> Atividades Recentes</h3>
+                            </div>
+                            <div class="card-body">
+                                <ul class="activity-list" id="activity-list">
+                                    <li class="activity-item">
+                                        <div class="activity-icon amber"><i class="fas fa-spinner fa-spin"></i></div>
+                                        <div class="activity-content">
+                                            <div class="activity-title">Carregando atividades...</div>
+                                            <div class="activity-time"></div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // === Saudação ===
+        function atualizarSaudacao() {
+            const hora = new Date().getHours();
+            let saudacao = 'Bom dia';
+            if (hora >= 12 && hora < 18) saudacao = 'Boa tarde';
+            else if (hora >= 18 || hora < 6) saudacao = 'Boa noite';
+            document.getElementById('greeting-text').textContent = saudacao;
+        }
+
+        // === Carregar KPIs ===
+        async function carregarKPIs() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/compras/dashboard', {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const stats = data.stats || data.data || data;
+                    document.getElementById('kpi-requisicoes').textContent = stats.pedidos_pendentes || stats.requisicoes_pendentes || 0;
+                    document.getElementById('kpi-cotacoes').textContent = stats.total_pedidos || stats.cotacoes_analise || 0;
+                    document.getElementById('kpi-pedidos').textContent = formatarMoeda(stats.compras_mes || stats.total_mes_atual || stats.volume_mes || 0);
+                    document.getElementById('kpi-fornecedores').textContent = stats.fornecedores_ativos || 0;
+
+                    // Atualizar atividades recentes com pedidos reais
+                    if (data.pedidos_recentes && data.pedidos_recentes.length) {
+                        renderizarAtividades(data.pedidos_recentes);
+                    }
+                    // Atualizar gráfico com dados reais
+                    if (data.pedidos_por_status) {
+                        atualizarGraficoReal(data);
+                    }
+                } else {
+                    document.getElementById('kpi-requisicoes').textContent = '0';
+                    document.getElementById('kpi-cotacoes').textContent = '0';
+                    document.getElementById('kpi-pedidos').textContent = 'R$ 0';
+                    document.getElementById('kpi-fornecedores').textContent = '0';
+                }
+            } catch(e) {
+                console.log('Erro ao carregar KPIs:', e);
+                document.getElementById('kpi-requisicoes').textContent = '0';
+                document.getElementById('kpi-cotacoes').textContent = '0';
+                document.getElementById('kpi-pedidos').textContent = 'R$ 0';
+                document.getElementById('kpi-fornecedores').textContent = '0';
+            }
+        }
+
+        // === Renderizar atividades reais ===
+        function renderizarAtividades(pedidos) {
+            const list = document.getElementById('activity-list');
+            if (!list || !pedidos.length) return;
+            const iconMap = {
+                'pendente': { icon: 'fa-clock', color: 'amber' },
+                'aprovado': { icon: 'fa-check', color: 'green' },
+                'recebido': { icon: 'fa-truck', color: 'blue' },
+                'cancelado': { icon: 'fa-times', color: 'red' },
+                'em_cotacao': { icon: 'fa-file-alt', color: 'indigo' }
+            };
+            list.innerHTML = pedidos.slice(0, 5).map(p => {
+                const cfg = iconMap[(p.status || '').toLowerCase()] || iconMap['pendente'];
+                const tempo = p.created_at ? tempoRelativo(p.created_at) : '';
+                return `<li class="activity-item">
+                    <div class="activity-icon ${cfg.color}"><i class="fas ${cfg.icon}"></i></div>
+                    <div class="activity-content">
+                        <div class="activity-title">Pedido ${p.numero || '#' + p.id} — ${p.fornecedor_nome || 'Fornecedor'} (${p.status || 'pendente'})</div>
+                        <div class="activity-time">${tempo}</div>
+                    </div>
+                </li>`;
+            }).join('');
+        }
+
+        function tempoRelativo(data) {
+            const diff = Date.now() - new Date(data).getTime();
+            const min = Math.floor(diff / 60000);
+            if (min < 1) return 'Agora';
+            if (min < 60) return `Há ${min} minuto${min > 1 ? 's' : ''}`;
+            const hrs = Math.floor(min / 60);
+            if (hrs < 24) return `Há ${hrs} hora${hrs > 1 ? 's' : ''}`;
+            const dias = Math.floor(hrs / 24);
+            return `Há ${dias} dia${dias > 1 ? 's' : ''}`;
+        }
+
+        // === Carregar Requisições ===
+        async function carregarRequisicoes() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch('/api/compras/requisicoes?limite=5', {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    renderizarRequisicoes(data.requisicoes || data || []);
+                } else {
+                    renderizarRequisicoes([]);
+                }
+            } catch(e) {
+                console.log('Erro ao carregar requisições:', e);
+                renderizarRequisicoes([]);
+            }
+        }
+
+        function renderizarRequisicoes(requisicoes) {
+            const tbody = document.getElementById('tbody-requisicoes');
+            if (!requisicoes.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><i class="fas fa-inbox"></i><p>Nenhuma requisição encontrada</p></td></tr>';
+                return;
+            }
+            tbody.innerHTML = requisicoes.slice(0, 5).map(req => `
+                <tr>
+                    <td class="code">${req.numero || req.codigo || req.id}</td>
+                    <td>${req.descricao || req.material || '-'}</td>
+                    <td>${req.solicitante || req.usuario_nome || '-'}</td>
+                    <td>${formatarData(req.data || req.created_at)}</td>
+                    <td><span class="badge ${getStatusClass(req.status)}">${req.status || 'Pendente'}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function getStatusClass(status) {
+            const s = (status || '').toLowerCase();
+            if (s.includes('pend') || s.includes('aguard')) return 'pending';
+            if (s.includes('aprov')) return 'approved';
+            if (s.includes('cota') || s.includes('proces') || s.includes('analis')) return 'in-progress';
+            if (s.includes('urgent')) return 'urgent';
+            return 'pending';
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            return new Date(data).toLocaleDateString('pt-BR');
+        }
+
+        function formatarMoeda(valor) {
+            if (typeof ComprasUtils !== 'undefined') {
+                if (valor >= 1000000) return 'R$ ' + (valor / 1000000).toFixed(1) + 'M';
+                if (valor >= 1000) return 'R$ ' + Math.round(valor / 1000) + 'K';
+                return ComprasUtils.formatMoeda(valor);
+            }
+            if (valor >= 1000000) return 'R$ ' + (valor / 1000000).toFixed(1) + 'M';
+            if (valor >= 1000) return 'R$ ' + Math.round(valor / 1000) + 'K';
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+        }
+
+        // === Gráfico de Compras ===
+        let purchaseChartInstance = null;
+        function inicializarGrafico() {
+            const ctx = document.getElementById('purchaseChart').getContext('2d');
+            purchaseChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Volume de Compras',
+                        data: [],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#f59e0b',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1f2937',
+                            titleColor: '#fff',
+                            bodyColor: '#e5e7eb',
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: (ctx) => 'R$ ' + ctx.raw.toLocaleString('pt-BR')
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f3f4f6' },
+                            ticks: {
+                                callback: (v) => 'R$ ' + (v / 1000) + 'K',
+                                color: '#9ca3af',
+                                font: { size: 11, family: 'Inter' }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#9ca3af',
+                                font: { size: 11, family: 'Inter' }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // === Atualizar gráfico com dados reais do backend ===
+        function atualizarGraficoReal(data) {
+            if (!purchaseChartInstance) return;
+            // Usar top_fornecedores para gráfico de barras ou pedidos_por_status
+            if (data.top_fornecedores && data.top_fornecedores.length) {
+                purchaseChartInstance.config.type = 'bar';
+                purchaseChartInstance.data.labels = data.top_fornecedores.map(f => (f.razao_social || '').substring(0, 15));
+                purchaseChartInstance.data.datasets[0].data = data.top_fornecedores.map(f => f.total_valor || 0);
+                purchaseChartInstance.data.datasets[0].label = 'Volume por Fornecedor';
+                purchaseChartInstance.data.datasets[0].backgroundColor = 'rgba(245, 158, 11, 0.6)';
+                purchaseChartInstance.data.datasets[0].borderColor = '#f59e0b';
+                purchaseChartInstance.update();
+            }
+        }
+
+        // === Mobile Sidebar ===
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar) sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('active');
+        }
+
+        // === Inicialização ===
+        document.addEventListener('DOMContentLoaded', function() {
+            atualizarSaudacao();
+            carregarKPIs();
+            carregarRequisicoes();
+            inicializarGrafico();
+        });
+    </script>
+
+    <!-- Utilitários Centralizados -->
+    <script src="/modules/Compras/js/compras-utils.js?v=20260216"></script>
+    <!-- Carregador de Usuário -->
+    <script src="/modules/Compras/compras-user-loader.js?v=20260216"></script>
+
+    <!-- Mobile Enterprise -->
+    <script src="/js/mobile-enterprise.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

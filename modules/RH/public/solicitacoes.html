@@ -1,0 +1,740 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Solicitações</title>
+
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 12px 0; z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; cursor: pointer; text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s; text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ margin-top: 0; padding: 0; }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; background: #ffffff; }
+
+        .page-header { margin-bottom: 24px; }
+
+        .page-title {
+            font-size: 1.75rem; font-weight: 700; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 12px;
+        }
+
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* Cards */
+        .card {
+            background: white; border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9; overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            padding: 20px 24px; border-bottom: 1px solid #f1f5f9;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem; font-weight: 600; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 8px;
+        }
+
+        .card-title i { color: var(--primary-pink); }
+        .card-body { padding: 24px; }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px; border: none; border-radius: 10px;
+            font-size: 0.875rem; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 8px;
+            transition: all 0.2s; text-decoration: none;
+        }
+
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: #db2777; }
+        .btn-outline { background: transparent; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; color: #1e293b; }
+
+        .controls-bar {
+            display: flex; gap: 16px; align-items: center;
+            margin-bottom: 24px; flex-wrap: wrap;
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .content-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Form */
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
+
+        .form-input, .form-select, .form-textarea {
+            padding: 12px 16px; border: 1px solid #e2e8f0;
+            border-radius: 10px; font-size: 0.875rem;
+            color: #1e293b; background: white;
+            font-family: inherit;
+        }
+
+        .form-textarea { resize: vertical; min-height: 120px; }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none; border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        .form-actions {
+            display: flex; gap: 12px; justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        /* Requests List */
+        .request-item {
+            display: flex; align-items: center; gap: 16px;
+            padding: 16px; background: #f8fafc;
+            border-radius: 12px; margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+
+        .request-item:hover { background: #f1f5f9; }
+
+        .request-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .request-icon.pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .request-icon.approved { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .request-icon.rejected { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .request-icon.processing { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+
+        .request-content { flex: 1; }
+        .request-title { font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+        .request-date { font-size: 0.8rem; color: #64748b; }
+        .request-description { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+
+        .request-status {
+            padding: 6px 14px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 500;
+        }
+
+        .request-status.pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .request-status.approved { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .request-status.rejected { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .request-status.processing { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+
+        /* Stats */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 16px; margin-bottom: 24px;
+        }
+
+        @media (max-width: 900px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        .stat-card {
+            background: white; border-radius: 12px;
+            border: 1px solid #f1f5f9; padding: 16px;
+            text-align: center;
+        }
+
+        .stat-value { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
+        .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+
+        .stat-card.pending .stat-value { color: #eab308; }
+        .stat-card.approved .stat-value { color: #10b981; }
+        .stat-card.rejected .stat-value { color: #ef4444; }
+        .stat-card.total .stat-value { color: var(--primary-pink); }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center; padding: 40px; color: #64748b;
+        }
+
+        .empty-state i { font-size: 2.5rem; color: #e2e8f0; margin-bottom: 12px; }
+        .empty-state h3 { font-size: 1rem; color: #1e293b; margin-bottom: 4px; }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="pages/funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="pages/ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="pages/beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Solicitações</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-envelope"></i>
+                        Solicitações
+                    </h1>
+                    <p class="page-subtitle">Faça solicitações e acompanhe o status</p>
+                </div>
+
+                <div class="controls-bar">
+                    <a href="funcionario.html" class="btn btn-outline">
+                        <i class="fas fa-arrow-left"></i>
+                        Voltar
+                    </a>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card total">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total de Solicitações</div>
+                    </div>
+                    <div class="stat-card pending">
+                        <div class="stat-value" id="stat-pending">0</div>
+                        <div class="stat-label">Pendentes</div>
+                    </div>
+                    <div class="stat-card approved">
+                        <div class="stat-value" id="stat-approved">0</div>
+                        <div class="stat-label">Aprovadas</div>
+                    </div>
+                    <div class="stat-card rejected">
+                        <div class="stat-value" id="stat-rejected">0</div>
+                        <div class="stat-label">Recusadas</div>
+                    </div>
+                </div>
+
+                <!-- Content Grid -->
+                <div class="content-grid">
+                    <!-- New Request Form -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-plus-circle"></i>
+                                Nova Solicitação
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="solicitacao-form">
+                                <div class="form-group">
+                                    <label class="form-label">Tipo de Solicitação</label>
+                                    <select class="form-select" id="tipo-solicitacao" required>
+                                        <option value="">Selecione o tipo</option>
+                                        <option value="ferias">Férias</option>
+                                        <option value="folga">Folga / Abono</option>
+                                        <option value="holerite">2ª Via de Holerite</option>
+                                        <option value="declaracao">Declaração</option>
+                                        <option value="alteracao-dados">Alteração de Dados Cadastrais</option>
+                                        <option value="adiantamento">Adiantamento Salarial</option>
+                                        <option value="cs_saude">CS Saúde</option>
+                                        <option value="outros">Outros</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Assunto</label>
+                                    <input type="text" class="form-input" id="assunto" placeholder="Resumo da solicitação" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Descrição</label>
+                                    <textarea class="form-textarea" id="descricao" placeholder="Descreva sua solicitação em detalhes..." required></textarea>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="form-label">Prioridade</label>
+                                    <select class="form-select" id="prioridade">
+                                        <option value="normal">Normal</option>
+                                        <option value="alta">Alta</option>
+                                        <option value="urgente">Urgente</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-actions">
+                                    <button type="button" class="btn btn-outline" onclick="limparFormulario()">
+                                        <i class="fas fa-eraser"></i>
+                                        Limpar
+                                    </button>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-paper-plane"></i>
+                                        Enviar Solicitação
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Requests History -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-history"></i>
+                                Minhas Solicitações
+                            </h3>
+                        </div>
+                        <div class="card-body" id="requests-list">
+                            <div class="empty-state">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <h3>Carregando...</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        function formatarData(dataStr) {
+            if (!dataStr) return '-';
+            const d = new Date(dataStr);
+            return d.toLocaleDateString('pt-BR');
+        }
+
+        function getStatusClass(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'pendente') return 'pending';
+            if (s === 'em análise' || s === 'em analise') return 'processing';
+            if (s === 'aprovada' || s === 'aprovado') return 'approved';
+            if (s === 'recusada' || s === 'recusado') return 'rejected';
+            return 'pending';
+        }
+
+        function getStatusIcon(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'pendente') return 'fa-clock';
+            if (s === 'em análise' || s === 'em analise') return 'fa-spinner';
+            if (s === 'aprovada' || s === 'aprovado') return 'fa-check';
+            if (s === 'recusada' || s === 'recusado') return 'fa-times';
+            return 'fa-clock';
+        }
+
+        function getStatusLabel(status) {
+            const s = (status || '').toLowerCase();
+            if (s === 'pendente') return 'Pendente';
+            if (s === 'em análise' || s === 'em analise') return 'Em Análise';
+            if (s === 'aprovada' || s === 'aprovado') return 'Aprovada';
+            if (s === 'recusada' || s === 'recusado') return 'Recusada';
+            return status || 'Pendente';
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                ...additionalHeaders
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const user = await response.json();
+
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    // Verificar múltiplos campos de foto
+                    let userAvatar = (user.avatar || user.foto || user.foto_perfil_url);
+                    if (userAvatar === '/avatars/default.webp') userAvatar = null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, userName);
+
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+
+                    // Mostrar botão admin apenas para usuários específicos
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    const btnAdmin = document.getElementById('btn-admin');
+                    if (btnAdmin && user.email && adminEmails.includes(user.email.toLowerCase())) {
+                        btnAdmin.style.display = 'flex';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        async function carregarSolicitacoes() {
+            try {
+                const response = await fetch('/api/rh/solicitacoes', { credentials: 'include' });
+                if (!response.ok) throw new Error('Erro ao carregar solicitações');
+
+                const data = await response.json();
+                const solicitacoes = data.solicitacoes || [];
+                const stats = data.stats || {};
+
+                // Atualizar estatísticas
+                document.getElementById('stat-total').textContent = stats.total || 0;
+                document.getElementById('stat-pending').textContent = (stats.pendentes || 0) + (stats.em_analise || 0);
+                document.getElementById('stat-approved').textContent = stats.aprovadas || 0;
+                document.getElementById('stat-rejected').textContent = stats.recusadas || 0;
+
+                // Renderizar lista de solicitações
+                renderizarSolicitacoes(solicitacoes);
+
+            } catch (error) {
+                console.error('Erro ao carregar solicitações:', error);
+            }
+        }
+
+        function renderizarSolicitacoes(solicitacoes) {
+            const requestsList = document.getElementById('requests-list');
+
+            if (!solicitacoes || solicitacoes.length === 0) {
+                requestsList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <h3>Nenhuma solicitação encontrada</h3>
+                        <p>Suas solicitações aparecerão aqui</p>
+                    </div>
+                `;
+                return;
+            }
+
+            requestsList.innerHTML = solicitacoes.map(sol => {
+                const statusClass = getStatusClass(sol.status);
+                const statusIcon = getStatusIcon(sol.status);
+                const statusLabel = getStatusLabel(sol.status);
+                const titulo = sol.assunto || sol.tipo || 'Solicitação';
+                const descricao = sol.descricao ? sol.descricao.substring(0, 100) + (sol.descricao.length > 100 ? '...' : '') : (sol.categoria || '');
+
+                return `
+                    <div class="request-item">
+                        <div class="request-icon ${statusClass}">
+                            <i class="fas ${statusIcon}"></i>
+                        </div>
+                        <div class="request-content">
+                            <div class="request-title">${titulo}</div>
+                            <div class="request-date">Enviado em ${formatarData(sol.created_at)}</div>
+                            <div class="request-description">${descricao}</div>
+                        </div>
+                        <span class="request-status ${statusClass}">${statusLabel}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function limparFormulario() {
+            document.getElementById('solicitacao-form').reset();
+        }
+
+        function showToast(message, type = 'success') {
+            // Criar toast se não existir
+            let toast = document.getElementById('toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast';
+                toast.innerHTML = '<i class="fas fa-check-circle"></i><span id="toast-message"></span>';
+                toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;color:white;padding:16px 24px;border-radius:12px;display:none;align-items:center;gap:12px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+                document.body.appendChild(toast);
+            }
+
+            const icon = toast.querySelector('i');
+            const msg = document.getElementById('toast-message') || toast.querySelector('span');
+
+            if (type === 'success') {
+                toast.style.background = '#10b981';
+                icon.className = 'fas fa-check-circle';
+            } else if (type === 'error') {
+                toast.style.background = '#ef4444';
+                icon.className = 'fas fa-exclamation-circle';
+            }
+
+            msg.textContent = message;
+            toast.style.display = 'flex';
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 4000);
+        }
+
+        document.getElementById('solicitacao-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const tipo = document.getElementById('tipo-solicitacao').value;
+            const assunto = document.getElementById('assunto').value;
+            const descricao = document.getElementById('descricao').value;
+            const prioridade = document.getElementById('prioridade').value;
+
+            if (!tipo || !descricao) {
+                showToast('Preencha todos os campos obrigatórios', 'error');
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('tipo', tipo);
+                formData.append('assunto', assunto);
+                formData.append('descricao', descricao);
+                formData.append('prioridade', prioridade);
+
+                const response = await fetch('/api/rh/solicitacoes', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Erro ao enviar solicitação');
+
+                showToast('Solicitação enviada com sucesso!', 'success');
+                limparFormulario();
+
+                // Recarregar lista de solicitações
+                await carregarSolicitacoes();
+
+            } catch (error) {
+                console.error('Erro ao enviar solicitação:', error);
+                showToast('Erro ao enviar solicitação. Tente novamente.', 'error');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            carregarSolicitacoes();
+        });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/unsaved-changes.js?v=20260108"></script>
+    <script src="/js/modal-integration.js?v=20260108"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+        <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+

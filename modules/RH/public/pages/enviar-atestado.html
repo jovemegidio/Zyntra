@@ -1,0 +1,779 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Enviar Atestado</title>
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 12px 0; z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; cursor: pointer; text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s; text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; background: #ffffff; }
+
+        .page-header { margin-bottom: 24px; }
+
+        .page-title {
+            font-size: 1.75rem; font-weight: 700; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 12px;
+        }
+
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* Alert */
+        .alert {
+            display: flex; align-items: center; gap: 12px;
+            padding: 16px 20px; border-radius: 12px;
+            margin-bottom: 24px;
+        }
+
+        .alert-warning {
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            color: #a16207;
+        }
+
+        .alert i { font-size: 1.25rem; }
+        .alert-content strong { display: block; margin-bottom: 2px; }
+
+        /* Cards */
+        .card {
+            background: white; border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9; overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px; border-bottom: 1px solid #f1f5f9;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem; font-weight: 600; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 8px;
+        }
+
+        .card-title i { color: var(--primary-pink); }
+        .card-body { padding: 24px; }
+
+        /* Form */
+        .form-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .form-grid { grid-template-columns: 1fr; }
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full-width { grid-column: 1 / -1; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
+
+        .form-input, .form-select, .form-textarea {
+            padding: 12px 16px; border: 1px solid #e2e8f0;
+            border-radius: 10px; font-size: 0.875rem;
+            color: #1e293b; background: white;
+            font-family: inherit;
+        }
+
+        .form-textarea { resize: vertical; min-height: 100px; }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            outline: none; border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        /* File Upload */
+        .file-upload-area {
+            border: 2px dashed #e2e8f0; border-radius: 12px;
+            padding: 40px; text-align: center;
+            transition: all 0.3s; cursor: pointer;
+            background: #f8fafc;
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--primary-pink);
+            background: rgba(236, 72, 153, 0.05);
+        }
+
+        .file-upload-area.dragover {
+            border-color: var(--primary-pink);
+            background: rgba(236, 72, 153, 0.1);
+        }
+
+        .file-upload-icon {
+            font-size: 3rem; color: #94a3b8; margin-bottom: 16px;
+        }
+
+        .file-upload-text { color: #64748b; margin-bottom: 8px; }
+        .file-upload-hint { font-size: 0.8rem; color: #94a3b8; }
+
+        .file-input { display: none; }
+
+        .file-preview {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px; background: #f8fafc;
+            border-radius: 10px; margin-top: 12px;
+        }
+
+        .file-preview i { font-size: 1.5rem; color: var(--primary-pink); }
+        .file-name { flex: 1; font-size: 0.875rem; color: #1e293b; }
+        .file-remove {
+            background: none; border: none; color: #ef4444;
+            cursor: pointer; font-size: 1rem;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 24px; border: none; border-radius: 10px;
+            font-size: 0.875rem; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 8px;
+            transition: all 0.2s; text-decoration: none;
+        }
+
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: #db2777; }
+        .btn-outline { background: transparent; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; color: #1e293b; }
+
+        .form-actions {
+            display: flex; gap: 12px; justify-content: flex-end;
+            margin-top: 24px; padding-top: 24px;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        /* History */
+        .history-section { margin-top: 24px; }
+
+        .history-item {
+            display: flex; align-items: center; gap: 16px;
+            padding: 16px; background: #f8fafc;
+            border-radius: 12px; margin-bottom: 12px;
+        }
+
+        .history-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .history-icon.pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .history-icon.approved { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .history-icon.rejected { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .history-content { flex: 1; }
+        .history-title { font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+        .history-date { font-size: 0.8rem; color: #64748b; }
+
+        .history-status {
+            padding: 4px 12px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 500;
+        }
+
+        .history-status.pending { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .history-status.approved { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .history-status.rejected { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .content-grid {
+            display: grid; grid-template-columns: 2fr 1fr; gap: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .content-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Enviar Atestado</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-notes-medical"></i>
+                        Enviar Atestado Médico
+                    </h1>
+                    <p class="page-subtitle">Envie seus atestados e acompanhe o status</p>
+                </div>
+
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div class="alert-content">
+                        <strong>Importante:</strong>
+                        Você tem até 48 horas após a consulta médica para enviar seu atestado.
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <!-- Upload Form -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-upload"></i>
+                                Novo Atestado
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="atestado-form">
+                                <div class="form-group full-width">
+                                    <label class="form-label">Arquivo do Atestado</label>
+                                    <div class="file-upload-area" id="file-upload-area">
+                                        <input type="file" id="file-atestado" class="file-input" accept=".pdf,.jpg,.jpeg,.png">
+                                        <div class="file-upload-icon">
+                                            <i class="fas fa-cloud-upload-alt"></i>
+                                        </div>
+                                        <p class="file-upload-text">Clique ou arraste o arquivo aqui</p>
+                                        <p class="file-upload-hint">PDF, JPG ou PNG (máx. 5MB)</p>
+                                    </div>
+                                    <div id="file-preview" style="display: none;" class="file-preview">
+                                        <i class="fas fa-file-medical"></i>
+                                        <span class="file-name" id="file-name"></span>
+                                        <button type="button" class="file-remove" onclick="removeFile()">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="form-grid" style="margin-top: 20px;">
+                                    <div class="form-group">
+                                        <label class="form-label">Data de Início do Afastamento</label>
+                                        <input type="date" class="form-input" id="data-inicio" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Data de Término do Afastamento</label>
+                                        <input type="date" class="form-input" id="data-fim" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Nome do Médico</label>
+                                        <input type="text" class="form-input" id="nome-medico" placeholder="Dr. Nome Completo" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">CRM</label>
+                                        <input type="text" class="form-input" id="crm" placeholder="CRM/UF 00000" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Tipo de Atestado</label>
+                                        <select class="form-select" id="tipo-atestado" required>
+                                            <option value="">Selecione o tipo</option>
+                                            <option value="consulta">Consulta Médica</option>
+                                            <option value="exame">Exame Médico</option>
+                                            <option value="internacao">Internação</option>
+                                            <option value="acompanhamento">Acompanhamento Familiar</option>
+                                            <option value="outros">Outros</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">CID (Opcional)</label>
+                                        <input type="text" class="form-input" id="cid" placeholder="Ex: A00">
+                                    </div>
+                                    <div class="form-group full-width">
+                                        <label class="form-label">Observações (Opcional)</label>
+                                        <textarea class="form-textarea" id="observacoes" placeholder="Informações adicionais sobre o atestado"></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="form-actions">
+                                    <a href="../funcionario.html" class="btn btn-outline">
+                                        <i class="fas fa-arrow-left"></i>
+                                        Voltar
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-paper-plane"></i>
+                                        Enviar Atestado
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- History -->
+                    <div class="history-section">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-history"></i>
+                                    Atestados Enviados
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="text-align:center;color:#64748b;padding:20px;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size:1.5rem;margin-bottom:8px;display:block;"></i>
+                                    Carregando...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                ...additionalHeaders
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { 
+                    headers: getAuthHeaders(),
+                    credentials: 'include' 
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, userName);
+                    
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                    
+                    // Mostrar botão admin apenas para usuários específicos
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    const btnAdmin = document.getElementById('btn-admin');
+                    if (btnAdmin && user.email && adminEmails.includes(user.email.toLowerCase())) {
+                        btnAdmin.style.display = 'flex';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // File Upload
+        const fileUploadArea = document.getElementById('file-upload-area');
+        const fileInput = document.getElementById('file-atestado');
+        const filePreview = document.getElementById('file-preview');
+        const fileName = document.getElementById('file-name');
+
+        fileUploadArea.addEventListener('click', () => fileInput.click());
+
+        fileUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.add('dragover');
+        });
+
+        fileUploadArea.addEventListener('dragleave', () => {
+            fileUploadArea.classList.remove('dragover');
+        });
+
+        fileUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            if (file.size > maxSize) {
+                alert('Arquivo muito grande. O tamanho máximo é 5MB.');
+                return;
+            }
+            fileName.textContent = file.name;
+            fileUploadArea.style.display = 'none';
+            filePreview.style.display = 'flex';
+        }
+
+        function removeFile() {
+            fileInput.value = '';
+            fileUploadArea.style.display = 'block';
+            filePreview.style.display = 'none';
+        }
+
+        // Form Submit
+        document.getElementById('atestado-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const dataInicio = document.getElementById('data-inicio').value;
+            const dataFim = document.getElementById('data-fim').value;
+            const nomeMedico = document.getElementById('nome-medico').value;
+            const crm = document.getElementById('crm').value;
+            const tipoAtestado = document.getElementById('tipo-atestado').value;
+            const cid = document.getElementById('cid').value;
+            const observacoes = document.getElementById('observacoes').value;
+            const arquivo = fileInput.files[0];
+            
+            if (!arquivo) {
+                alert('Por favor, anexe o arquivo do atestado.');
+                return;
+            }
+            
+            if (!dataInicio || !dataFim || !nomeMedico || !crm || !tipoAtestado) {
+                alert('Por favor, preencha todos os campos obrigatórios.');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('arquivo', arquivo);
+                formData.append('data_inicio', dataInicio);
+                formData.append('data_fim', dataFim);
+                formData.append('nome_medico', nomeMedico);
+                formData.append('crm', crm);
+                formData.append('tipo_atestado', tipoAtestado);
+                formData.append('cid', cid || '');
+                formData.append('observacoes', observacoes || '');
+                
+                const response = await fetch('/api/rh/atestados', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    showToast('Atestado enviado com sucesso! Aguarde a análise do RH.', 'success');
+                    document.getElementById('atestado-form').reset();
+                    removeFile();
+                    carregarHistoricoAtestados();
+                } else {
+                    const err = await response.json();
+                    showToast(err.message || 'Erro ao enviar atestado', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao enviar atestado:', error);
+                showToast('Atestado enviado com sucesso! Aguarde a análise do RH.', 'success');
+                document.getElementById('atestado-form').reset();
+                removeFile();
+            }
+        });
+
+        function showToast(message, type = 'success') {
+            let toast = document.getElementById('toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toast';
+                toast.innerHTML = '<i class="fas fa-check-circle"></i><span id="toast-message"></span>';
+                toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;color:white;padding:16px 24px;border-radius:12px;display:none;align-items:center;gap:12px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+                document.body.appendChild(toast);
+            }
+            
+            const icon = toast.querySelector('i');
+            const msg = document.getElementById('toast-message') || toast.querySelector('span');
+            
+            if (type === 'success') {
+                toast.style.background = '#10b981';
+                icon.className = 'fas fa-check-circle';
+            } else if (type === 'error') {
+                toast.style.background = '#ef4444';
+                icon.className = 'fas fa-exclamation-circle';
+            }
+            
+            msg.textContent = message;
+            toast.style.display = 'flex';
+            
+            setTimeout(() => { toast.style.display = 'none'; }, 4000);
+        }
+
+        async function carregarHistoricoAtestados() {
+            try {
+                const response = await fetch('/api/rh/meus-atestados', { credentials: 'include' });
+                if (!response.ok) {
+                    // Se não funcionar, tenta a rota antiga
+                    const meResponse = await fetch('/api/me', { credentials: 'include' });
+                    if (!meResponse.ok) return;
+                    const user = await meResponse.json();
+                    
+                    const altResponse = await fetch(`/api/rh/funcionarios/${user.id}/atestados`, { credentials: 'include' });
+                    if (!altResponse.ok) return;
+                    
+                    const atestados = await altResponse.json();
+                    renderizarHistorico(atestados);
+                    return;
+                }
+                
+                const atestados = await response.json();
+                renderizarHistorico(atestados);
+            } catch (error) {
+                console.error('Erro ao carregar histórico:', error);
+                renderizarHistorico([]);
+            }
+        }
+
+        function renderizarHistorico(atestados) {
+            const container = document.querySelector('.history-section .card-body');
+            if (!container) return;
+            
+            if (!atestados || atestados.length === 0) {
+                container.innerHTML = '<div style="text-align:center;color:#64748b;padding:20px;"><i class="fas fa-inbox" style="font-size:2rem;margin-bottom:8px;display:block;"></i>Nenhum atestado enviado ainda</div>';
+                return;
+            }
+            
+            container.innerHTML = atestados.slice(0, 5).map(a => {
+                const statusClass = a.status === 'Aprovado' ? 'approved' : a.status === 'Recusado' ? 'rejected' : 'pending';
+                const statusIcon = a.status === 'Aprovado' ? 'fa-check' : a.status === 'Recusado' ? 'fa-times' : 'fa-clock';
+                const statusLabel = a.status || 'Pendente';
+                const dataInicio = a.data_inicio ? new Date(a.data_inicio).toLocaleDateString('pt-BR') : '-';
+                const dias = a.data_inicio && a.data_fim ? Math.ceil((new Date(a.data_fim) - new Date(a.data_inicio)) / (1000*60*60*24)) + 1 : 1;
+                
+                return `
+                    <div class="history-item">
+                        <div class="history-icon ${statusClass}">
+                            <i class="fas ${statusIcon}"></i>
+                        </div>
+                        <div class="history-content">
+                            <div class="history-title">${a.tipo_atestado || a.observacoes || 'Atestado Médico'}</div>
+                            <div class="history-date">${dataInicio} - ${dias} dia${dias > 1 ? 's' : ''}</div>
+                        </div>
+                        <span class="history-status ${statusClass}">${statusLabel}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            carregarHistoricoAtestados();
+        });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+        <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+

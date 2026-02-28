@@ -1,0 +1,56 @@
+name: Remote Apply Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: 'Run smoke tests after migration? (true/false)'
+        required: false
+        default: 'true'
+
+jobs:
+  apply-migration:
+    name: Apply migration to remote host
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start SSH agent and add key
+        uses: webfactory/ssh-agent@v0.8.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Copy migration to remote
+        run: |
+          scp -o StrictHostKeyChecking=no migrations/20250819_add_personal_fields.sql ${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/tmp/20250819_add_personal_fields.sql
+
+      - name: Run backup and apply migration on remote
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }} bash -s << 'EOF'
+          set -euo pipefail
+          MIGRATION="/tmp/20250819_add_personal_fields.sql"
+          BACKUP="/tmp/funcionarios.backup.sql"
+          if [ -n "${DB_PASS}" ]; then
+            mysqldump -u "${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" funcionarios > "${BACKUP}"
+            mysql -u "${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" < "${MIGRATION}"
+          else
+            mysqldump -u "${DB_USER}" "${DB_NAME}" funcionarios > "${BACKUP}"
+            mysql -u "${DB_USER}" "${DB_NAME}" < "${MIGRATION}"
+          fi
+          echo "Migration applied, backup at ${BACKUP}"
+          EOF
+
+      - name: Run smoke tests (optional)
+        if: ${{ github.event.inputs.run_smoke == 'true' }}
+        env:
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_PASS: ${{ secrets.TEST_PASS }}
+          TEST_ID: ${{ secrets.TEST_ID }}
+        run: |
+          npm ci --silent
+          npm run smoke:full -- $TEST_EMAIL $TEST_PASS $TEST_ID

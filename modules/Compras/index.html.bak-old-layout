@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <!-- Favicon e ícones PWA -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260127">
+    
+    <!-- CSS PWA Mobile -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1a2744">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ALUFORCE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="ALUFORCE">
+    <meta name="msapplication-TileColor" content="#1a2744">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>ALUFORCE - Dashboard Compras</title>
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/modules/Compras/compras-minimalista.css?v=20260114">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --sidebar-width: 56px;
+            --header-height: 48px;
+            --primary-purple: #38bdf8;
+            --primary-purple-dark: #0ea5e9;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e7eb;
+            --text-primary: #0f172a;
+            --text-secondary: #6b7280;
+            --success-green: #10b981;
+            --warning-yellow: #f59e0b;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-gray);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-purple);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .sidebar-logo:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            position: relative;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .sidebar-btn.active {
+            background: var(--primary-purple);
+            color: white;
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4);
+        }
+
+        .sidebar-btn .badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: var(--danger-red);
+            color: white;
+            font-size: 9px;
+            padding: 2px 5px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* Main Area */
+        .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-gray); }
+
+        /* Header - Minimalista como Vendas */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 16px; }
+
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 13px; font-weight: 500; color: #8b8b9a; }
+
+        .header-right { display: flex; align-items: center; gap: 10px; }
+
+        .header-btn {
+            width: 34px;
+            height: 34px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .header-btn .notification-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            background: var(--danger-red);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .user-greeting {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: 8px;
+            color: #8b8b9a;
+            font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        .user-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-purple), var(--primary-purple-dark));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            overflow: hidden;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; position: absolute; top: 0; left: 0; }
+        .user-avatar span { display: flex; align-items: center; justify-content: center; }
+        .user-avatar { position: relative; }
+
+        /* Content Area */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px;
+            background: #ffffff;
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 28px;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .page-header-left h1 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+
+        .page-header-left h1 i { color: var(--primary-purple); }
+        .page-header-left p { color: var(--text-secondary); font-size: 0.9375rem; }
+
+        .page-header-right { display: flex; gap: 12px; }
+
+        .btn-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn-header.primary {
+            background: linear-gradient(135deg, var(--primary-purple), var(--primary-purple-dark));
+            color: white;
+            box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);
+        }
+
+        .btn-header.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.5);
+        }
+
+        .btn-header.secondary {
+            background: white;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-header.secondary:hover { background: #f8fafc; }
+
+        /* KPI Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+
+        @media (max-width: 1400px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .kpi-grid { grid-template-columns: 1fr; } }
+        
+        /* Responsividade Tablet Portrait */
+        @media (min-width: 768px) and (max-width: 1024px) and (orientation: portrait) {
+            .sidebar { width: 56px; }
+            .main-area { margin-left: 56px; }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+            .main-grid { grid-template-columns: 1fr; }
+            .card-header { padding: 16px; }
+            .card-body { padding: 16px; }
+            .header-actions { gap: 8px; }
+            .btn-header { padding: 8px 14px; font-size: 0.8rem; }
+        }
+        
+        /* Responsividade Tablet Landscape */
+        @media (min-width: 768px) and (max-width: 1280px) and (orientation: landscape) {
+            .sidebar { width: 56px; }
+            .main-area { margin-left: 56px; }
+            .kpi-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
+            .main-grid { grid-template-columns: 1fr 320px; }
+        }
+        
+        /* Responsividade Mobile */
+        @media (max-width: 767px) {
+            .sidebar { 
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+                height: 56px;
+                flex-direction: row;
+                justify-content: space-around;
+                padding: 8px 0;
+                z-index: 1000;
+            }
+            .main-area { 
+                margin-left: 0; 
+                padding-bottom: 70px;
+            }
+            .header { padding: 12px 16px; }
+            .header-title { font-size: 1.1rem; }
+            .header-actions { display: none; }
+            .main-content { padding: 16px; }
+            .kpi-grid { gap: 12px; }
+            .kpi-card { padding: 16px; }
+            .kpi-value { font-size: 1.75rem; }
+            .main-grid { gap: 16px; }
+            .card-header { padding: 14px 16px; }
+            .card-body { padding: 16px; }
+            .card-title { font-size: 0.9rem; }
+        }
+
+        .kpi-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .kpi-card:nth-child(1) { animation-delay: 0.1s; }
+        .kpi-card:nth-child(2) { animation-delay: 0.2s; }
+        .kpi-card:nth-child(3) { animation-delay: 0.3s; }
+        .kpi-card:nth-child(4) { animation-delay: 0.4s; }
+
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .kpi-card.purple::before { background: linear-gradient(90deg, #38bdf8, #7dd3fc); }
+        .kpi-card.green::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .kpi-card.blue::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .kpi-card.orange::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .kpi-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .kpi-icon.purple { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
+        .kpi-icon.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .kpi-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .kpi-icon.orange { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+
+        .kpi-trend {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .kpi-trend.up { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .kpi-trend.down { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .kpi-value {
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            letter-spacing: -0.02em;
+        }
+
+        .kpi-label { color: var(--text-secondary); font-size: 0.875rem; font-weight: 500; }
+
+        .kpi-footer {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .kpi-footer a {
+            color: var(--primary-purple);
+            text-decoration: none;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .kpi-footer a:hover { text-decoration: underline; }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+        }
+
+        @media (max-width: 1200px) { .main-grid { grid-template-columns: 1fr; } }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.05);
+            overflow: hidden;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-title i { color: var(--primary-purple); font-size: 1.125rem; }
+        .card-body { padding: 24px; }
+
+        .btn-link {
+            color: var(--primary-purple);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-link:hover { gap: 10px; }
+
+        /* Table */
+        .table-pro { width: 100%; border-collapse: collapse; }
+
+        .table-pro th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .table-pro td {
+            padding: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            font-size: 0.875rem;
+        }
+
+        .table-pro tbody tr { transition: background 0.2s; }
+        .table-pro tbody tr:hover { background: #f8fafc; }
+        .table-pro .code { font-weight: 600; color: var(--primary-purple); }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            gap: 6px;
+        }
+
+        .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+
+        .status-badge.pending { background: rgba(251, 191, 36, 0.1); color: #d97706; }
+        .status-badge.pending::before { background: #d97706; }
+        .status-badge.approved { background: rgba(16, 185, 129, 0.1); color: #059669; }
+        .status-badge.approved::before { background: #059669; }
+        .status-badge.processing { background: rgba(59, 130, 246, 0.1); color: #2563eb; }
+        .status-badge.processing::before { background: #2563eb; }
+        .status-badge.urgent { background: rgba(239, 68, 68, 0.1); color: #dc2626; }
+        .status-badge.urgent::before { background: #dc2626; }
+
+        /* Quick Actions */
+        .quick-actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+        .quick-action-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 16px;
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .quick-action-card:hover {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(56, 189, 248, 0.04));
+            border-color: var(--primary-purple);
+            transform: translateY(-2px);
+        }
+
+        .quick-action-card .icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            color: var(--primary-purple);
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .quick-action-card span {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        /* Activity List */
+        .activity-list { list-style: none; }
+
+        .activity-item {
+            display: flex;
+            gap: 14px;
+            padding: 14px 0;
+            border-bottom: 1px solid #f1f5f9;
+            transition: all 0.2s;
+        }
+
+        .activity-item:last-child { border-bottom: none; }
+        .activity-item:hover { background: #fafafa; margin: 0 -24px; padding: 14px 24px; }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .activity-content { flex: 1; }
+        .activity-title { font-weight: 500; color: var(--text-primary); font-size: 0.875rem; margin-bottom: 3px; }
+        .activity-time { font-size: 0.75rem; color: #94a3b8; }
+
+        /* Chart Container */
+        .chart-container { position: relative; height: 320px; }
+
+        /* Progress Bar */
+        .progress-section { margin-top: 24px; }
+        .progress-item { margin-bottom: 20px; }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.875rem;
+        }
+
+        .progress-label { color: var(--text-secondary); font-weight: 500; }
+        .progress-value { color: var(--text-primary); font-weight: 600; }
+
+        .progress-bar {
+            height: 8px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill { height: 100%; border-radius: 10px; transition: width 1s ease; }
+        .progress-fill.purple { background: linear-gradient(90deg, #38bdf8, #7dd3fc); }
+        .progress-fill.green { background: linear-gradient(90deg, #10b981, #34d399); }
+
+        /* Fornecedor Item */
+        .fornecedor-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .fornecedor-item:last-child { border-bottom: none; }
+
+        .fornecedor-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 0.875rem;
+        }
+
+        /* Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; border-radius: 16px; width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .modal-header h2 i { color: var(--primary-purple); }
+        .modal-close { width: 36px; height: 36px; border: none; background: #f1f5f9; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--text-secondary); transition: all 0.2s; }
+        .modal-close:hover { background: #e2e8f0; color: var(--text-primary); }
+        .modal-body { padding: 24px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; font-family: inherit; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary-purple); box-shadow: 0 0 0 3px rgba(56,189,248,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .modal-footer { padding: 20px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
+        .btn-modal { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+        .btn-modal.primary { background: var(--primary-purple); color: white; }
+        .btn-modal.primary:hover { background: var(--primary-purple-dark); }
+        .btn-modal.secondary { background: white; color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-modal.secondary:hover { background: #f8fafc; }
+
+        .fornecedor-info { flex: 1; }
+        .fornecedor-nome { font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+        .fornecedor-categoria { font-size: 0.75rem; color: var(--text-secondary); }
+        .fornecedor-stats { text-align: right; }
+        .fornecedor-pedidos { font-weight: 700; color: var(--primary-purple); }
+        .fornecedor-total { font-size: 0.75rem; color: var(--text-secondary); }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <!-- Correções Mobile - DEVE SER O ÚLTIMO CSS -->
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Lateral -->
+        <aside class="sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn active" title="Dashboard"><i class="fas fa-chart-line"></i></a>
+                <a href="fornecedores.html" class="sidebar-btn" title="Fornecedores"><i class="fas fa-users"></i></a>
+                <a href="gestao-estoque.html" class="sidebar-btn" title="Estoque MP"><i class="fas fa-boxes"></i></a>
+                <a href="pedidos.html" class="sidebar-btn" title="Pedidos"><i class="fas fa-shopping-cart"></i></a>
+                <a href="recebimento.html" class="sidebar-btn" title="Recebimento"><i class="fas fa-truck-loading"></i></a>
+                <a href="cotacoes.html" class="sidebar-btn" title="Cotações"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="requisicoes.html" class="sidebar-btn" title="Requisições"><i class="fas fa-clipboard-list"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+                <div class="header-left">
+                    <div class="header-brand">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE">
+                        <span>|</span>
+                        <span>Módulo Compras</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Pesquisar">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button class="header-btn" title="Notificações">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-dot"></span>
+                    </button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto" id="user-photo">
+                            <span id="user-initial">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- KPI Grid -->
+                <div class="kpi-grid">
+                    <div class="kpi-card purple">
+                        <div class="kpi-header">
+                            <div class="kpi-icon purple"><i class="fas fa-file-alt"></i></div>
+                            <span class="kpi-trend up" id="trend-requisicoes"></span>
+                        </div>
+                        <div class="kpi-value" id="kpi-requisicoes"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="kpi-label">Requisições Pendentes</div>
+                        <div class="kpi-footer">
+                            <a href="requisicoes.html">Ver todas <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card green">
+                        <div class="kpi-header">
+                            <div class="kpi-icon green"><i class="fas fa-tags"></i></div>
+                            <span class="kpi-trend up" id="trend-cotacoes"></span>
+                        </div>
+                        <div class="kpi-value" id="kpi-cotacoes"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="kpi-label">Cotações em Análise</div>
+                        <div class="kpi-footer">
+                            <a href="cotacoes.html">Ver cotações <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card blue">
+                        <div class="kpi-header">
+                            <div class="kpi-icon blue"><i class="fas fa-shopping-cart"></i></div>
+                            <span class="kpi-trend" id="trend-volume"></span>
+                        </div>
+                        <div class="kpi-value" id="kpi-pedidos"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="kpi-label">Volume Este Mês</div>
+                        <div class="kpi-footer">
+                            <a href="pedidos.html">Ver pedidos <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card orange">
+                        <div class="kpi-header">
+                            <div class="kpi-icon orange"><i class="fas fa-truck"></i></div>
+                            <span class="kpi-trend up" id="trend-fornecedores"></span>
+                        </div>
+                        <div class="kpi-value" id="kpi-fornecedores"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="kpi-label">Fornecedores Ativos</div>
+                        <div class="kpi-footer">
+                            <a href="fornecedores.html">Gerenciar <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Grid -->
+                <div class="main-grid">
+                    <!-- Left Column -->
+                    <div class="left-column">
+                        <!-- Requisições Recentes -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-clipboard-list"></i> Requisições Recentes</h3>
+                                <a href="requisicoes.html" class="btn-link">Ver Todas <i class="fas fa-arrow-right"></i></a>
+                            </div>
+                            <div class="card-body" style="padding: 0;">
+                                <table class="table-pro">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Descrição</th>
+                                            <th>Solicitante</th>
+                                            <th>Data</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-requisicoes">
+                                        <tr>
+                                            <td colspan="5" style="text-align: center; padding: 30px;">
+                                                <i class="fas fa-spinner fa-spin fa-2x" style="color: #6366f1;"></i>
+                                                <p style="margin-top: 10px; color: #888;">Carregando requisições...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Gráfico -->
+                        <div class="card" style="margin-top: 24px;">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-chart-bar"></i> Volume de Compras - Últimos 6 Meses</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="purchaseChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div class="right-column">
+                        <!-- Ações Rápidas -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-bolt"></i> Ações Rápidas</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="quick-actions-grid">
+                                    <a href="requisicoes.html?action=new" class="quick-action-card">
+                                        <div class="icon"><i class="fas fa-plus-circle"></i></div>
+                                        <span>Nova Requisição</span>
+                                    </a>
+                                    <a href="cotacoes.html?action=new" class="quick-action-card">
+                                        <div class="icon"><i class="fas fa-search-dollar"></i></div>
+                                        <span>Nova Cotação</span>
+                                    </a>
+                                    <div class="quick-action-card" onclick="abrirModalNovoPedido()">
+                                        <div class="icon"><i class="fas fa-shopping-cart"></i></div>
+                                        <span>Novo Pedido</span>
+                                    </div>
+                                    <div class="quick-action-card" onclick="abrirModalNovoFornecedor()">
+                                        <div class="icon"><i class="fas fa-user-plus"></i></div>
+                                        <span>Novo Fornecedor</span>
+                                    </div>
+                                </div>
+
+                                <div class="progress-section">
+                                    <div class="progress-item" id="progress-meta">
+                                        <div class="progress-header">
+                                            <span class="progress-label">Meta Mensal</span>
+                                            <span class="progress-value" id="meta-valor">Carregando...</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill purple" id="meta-fill" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="progress-item" id="progress-requisicoes">
+                                        <div class="progress-header">
+                                            <span class="progress-label">Requisições Atendidas</span>
+                                            <span class="progress-value" id="requisicoes-atendidas-valor">Carregando...</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill green" id="requisicoes-atendidas-fill" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Atividades Recentes -->
+                        <div class="card" style="margin-top: 24px;">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-history"></i> Atividades Recentes</h3>
+                            </div>
+                            <div class="card-body">
+                                <ul class="activity-list" id="activity-list">
+                                    <li class="activity-item">
+                                        <div style="text-align: center; width: 100%; padding: 20px;">
+                                            <i class="fas fa-spinner fa-spin fa-2x" style="color: #6366f1;"></i>
+                                            <p style="margin-top: 10px; color: #888;">Carregando atividades...</p>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Top Fornecedores -->
+                        <div class="card" style="margin-top: 24px;">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-trophy"></i> Top Fornecedores</h3>
+                            </div>
+                            <div class="card-body" id="top-fornecedores-container">
+                                <div style="text-align: center; padding: 30px;">
+                                    <i class="fas fa-spinner fa-spin fa-2x" style="color: #6366f1;"></i>
+                                    <p style="margin-top: 10px; color: #888;">Carregando fornecedores...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Novo Pedido - Profissional -->
+    <div class="modal-overlay" id="modalNovoPedido">
+        <div class="modal" style="max-width: 700px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
+                <h2><i class="fas fa-shopping-cart"></i> Nova Ordem de Compra</h2>
+                <button class="modal-close" onclick="fecharModalNovoPedido()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <form id="formNovoPedido">
+                    <!-- Seção: Informações do Fornecedor -->
+                    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+                        <h3 style="margin: 0 0 16px; font-size: 14px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-building" style="color: #3b82f6;"></i> Dados do Fornecedor
+                        </h3>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-weight: 500; color: #334155;">Fornecedor <span style="color: #ef4444;">*</span></label>
+                            <select id="selectFornecedor" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                                <option value="">Selecione o fornecedor...</option>
+                            </select>
+                        </div>
+                        <div id="infoFornecedor" style="display: none; margin-top: 12px; padding: 12px; background: #fff; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px;">
+                                <div><strong style="color: #64748b;">CNPJ:</strong> <span id="fornCnpj">-</span></div>
+                                <div><strong style="color: #64748b;">Telefone:</strong> <span id="fornTelefone">-</span></div>
+                                <div><strong style="color: #64748b;">Email:</strong> <span id="fornEmail">-</span></div>
+                                <div><strong style="color: #64748b;">Cidade:</strong> <span id="fornCidade">-</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Itens do Pedido -->
+                    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+                        <h3 style="margin: 0 0 16px; font-size: 14px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-boxes" style="color: #10b981;"></i> Itens da Compra
+                        </h3>
+                        <div class="form-row" style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #334155;">Material <span style="color: #ef4444;">*</span></label>
+                                <select id="selectMaterial" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                                    <option value="">Selecione o material...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #334155;">Quantidade <span style="color: #ef4444;">*</span></label>
+                                <input type="number" id="inputQuantidade" min="1" placeholder="0" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                            </div>
+                        </div>
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #334155;">Valor Unitário <span style="color: #ef4444;">*</span></label>
+                                <div style="position: relative;">
+                                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #64748b; font-weight: 500;">R$</span>
+                                    <input type="text" id="inputValorUnitario" placeholder="0,00" required style="padding: 12px 12px 12px 40px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; width: 100%; box-sizing: border-box;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #334155;">Prazo de Entrega <span style="color: #ef4444;">*</span></label>
+                                <input type="date" id="inputPrazoEntrega" required style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Condições -->
+                    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #e2e8f0;">
+                        <h3 style="margin: 0 0 16px; font-size: 14px; font-weight: 600; color: #475569; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-credit-card" style="color: #f59e0b;"></i> Condições de Pagamento
+                        </h3>
+                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #334155;">Forma de Pagamento</label>
+                                <select id="selectPagamento" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                                    <option value="">Selecione...</option>
+                                    <option value="avista">À Vista</option>
+                                    <option value="boleto">Boleto Bancário</option>
+                                    <option value="pix">PIX</option>
+                                    <option value="deposito">Depósito Bancário</option>
+                                    <option value="cartao">Cartão de Crédito</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-weight: 500; color: #334155;">Prazo de Pagamento</label>
+                                <select id="selectPrazoPagamento" style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px;">
+                                    <option value="">Selecione...</option>
+                                    <option value="avista">À Vista</option>
+                                    <option value="7dias">7 Dias</option>
+                                    <option value="15dias">15 Dias</option>
+                                    <option value="30dias">30 Dias</option>
+                                    <option value="30-60">30/60 Dias</option>
+                                    <option value="30-60-90">30/60/90 Dias</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Observações -->
+                    <div class="form-group">
+                        <label style="font-weight: 500; color: #334155;">Observações</label>
+                        <textarea id="inputObservacoes" rows="3" placeholder="Informações adicionais sobre o pedido..." style="padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 14px; resize: vertical;"></textarea>
+                    </div>
+
+                    <!-- Resumo do Pedido -->
+                    <div id="resumoPedido" style="display: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px; padding: 16px; color: white;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span style="font-size: 13px; opacity: 0.9;">Valor Total Estimado</span>
+                                <div style="font-size: 24px; font-weight: 700;" id="valorTotalPedido">R$ 0,00</div>
+                            </div>
+                            <i class="fas fa-calculator" style="font-size: 32px; opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
+                <button class="btn-modal secondary" onclick="fecharModalNovoPedido()" style="padding: 12px 20px; border-radius: 8px;">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn-modal primary" onclick="salvarPedidoCompra()" style="padding: 12px 24px; border-radius: 8px; background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
+                    <i class="fas fa-save"></i> Criar Ordem de Compra
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Novo Fornecedor -->
+    <div class="modal-overlay" id="modalNovoFornecedor">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-user-plus"></i> Novo Fornecedor</h2>
+                <button class="modal-close" onclick="fecharModalNovoFornecedor()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNovoFornecedor">
+                    <div class="form-group">
+                        <label>Razão Social *</label>
+                        <input type="text" placeholder="Digite a razão social" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>CNPJ *</label>
+                            <input type="text" placeholder="00.000.000/0000-00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Inscrição Estadual</label>
+                            <input type="text" placeholder="Inscrição Estadual">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Telefone *</label>
+                            <input type="text" placeholder="(00) 00000-0000" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Email *</label>
+                            <input type="email" placeholder="email@empresa.com" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Categoria</label>
+                        <select>
+                            <option value="">Selecione...</option>
+                            <option value="materiaprima">Matéria Prima</option>
+                            <option value="componentes">Componentes</option>
+                            <option value="servicos">Serviços</option>
+                            <option value="equipamentos">Equipamentos</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cidade</label>
+                            <input type="text" placeholder="Cidade">
+                        </div>
+                        <div class="form-group">
+                            <label>UF</label>
+                            <select>
+                                <option value="">Selecione...</option>
+                                <option value="AC">AC</option>
+                                <option value="AL">AL</option>
+                                <option value="AM">AM</option>
+                                <option value="AP">AP</option>
+                                <option value="BA">BA</option>
+                                <option value="CE">CE</option>
+                                <option value="DF">DF</option>
+                                <option value="ES">ES</option>
+                                <option value="GO">GO</option>
+                                <option value="MA">MA</option>
+                                <option value="MG">MG</option>
+                                <option value="MS">MS</option>
+                                <option value="MT">MT</option>
+                                <option value="PA">PA</option>
+                                <option value="PB">PB</option>
+                                <option value="PE">PE</option>
+                                <option value="PI">PI</option>
+                                <option value="PR">PR</option>
+                                <option value="RJ">RJ</option>
+                                <option value="RN">RN</option>
+                                <option value="RO">RO</option>
+                                <option value="RR">RR</option>
+                                <option value="RS">RS</option>
+                                <option value="SC">SC</option>
+                                <option value="SE">SE</option>
+                                <option value="SP">SP</option>
+                                <option value="TO">TO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea rows="2" placeholder="Observações adicionais..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal secondary" onclick="fecharModalNovoFornecedor()">Cancelar</button>
+                <button class="btn-modal primary" onclick="salvarFornecedor()"><i class="fas fa-save"></i> Cadastrar Fornecedor</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mapa de avatares
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Função para obter headers de autenticação
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { 
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = userName.split(' ')[0];
+                    const inicial = primeiroNome.charAt(0).toUpperCase();
+                    
+                    // Determinar foto (prioridade: foto > avatar > foto_perfil_url > mapa de avatares)
+                    let fotoUrl = user.foto || user.avatar || user.foto_perfil_url;
+                    const temFotoValida = fotoUrl && 
+                                         fotoUrl !== '/avatars/default.webp' && 
+                                         fotoUrl !== '' && 
+                                         fotoUrl !== 'null' &&
+                                         !fotoUrl.includes('undefined');
+                    
+                    // Fallback para mapa de avatares
+                    if (!temFotoValida) {
+                        fotoUrl = getAvatarFromEmail(user.email, userName);
+                    }
+                    
+                    // Atualizar nome
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    
+                    // Atualizar foto/iniciais
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    
+                    if (fotoUrl && userPhotoEl) {
+                        userPhotoEl.src = fotoUrl;
+                        userPhotoEl.alt = userName;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        userPhotoEl.style.width = '100%';
+                        userPhotoEl.style.height = '100%';
+                        userPhotoEl.style.objectFit = 'cover';
+                        userPhotoEl.style.borderRadius = '50%';
+                        
+                        userPhotoEl.onerror = function() {
+                            this.style.display = 'none';
+                            this.classList.remove('visible');
+                            if (userInitialEl) {
+                                userInitialEl.textContent = inicial;
+                                userInitialEl.style.display = 'flex';
+                            }
+                        };
+                        
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = inicial;
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                    
+                    // Atualizar elementos .user-avatar
+                    const userAvatars = document.querySelectorAll('.user-avatar');
+                    userAvatars.forEach(avatar => {
+                        let img = avatar.querySelector('img');
+                        const span = avatar.querySelector('span, .user-initial');
+                        
+                        if (fotoUrl) {
+                            if (!img) {
+                                img = document.createElement('img');
+                                img.style.cssText = 'width: 100%; height: 100%; border-radius: 50%; object-fit: cover;';
+                                avatar.insertBefore(img, avatar.firstChild);
+                            }
+                            img.src = fotoUrl;
+                            img.alt = userName;
+                            img.style.display = 'block';
+                            img.classList.add('visible');
+                            img.onerror = function() {
+                                this.style.display = 'none';
+                                if (span) {
+                                    span.textContent = inicial;
+                                    span.style.display = 'flex';
+                                }
+                            };
+                            if (span) span.style.display = 'none';
+                        } else {
+                            if (img) img.style.display = 'none';
+                            if (span) {
+                                span.textContent = inicial;
+                                span.style.display = 'flex';
+                            }
+                        }
+                    });
+                    
+                    console.log('✅ [Compras] Usuário carregado:', primeiroNome, '| Foto:', fotoUrl || 'sem foto');
+                }
+            } catch (error) {
+                console.error('❌ [Compras] Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Gráfico de compras
+        function initChart() {
+            const ctx = document.getElementById('purchaseChart').getContext('2d');
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+                    datasets: [{
+                        label: 'Volume de Compras',
+                        data: [185000, 210000, 195000, 240000, 225000, 245000],
+                        backgroundColor: 'rgba(56, 189, 248, 0.8)',
+                        borderColor: '#38bdf8',
+                        borderWidth: 0,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }, {
+                        label: 'Meta',
+                        data: [200000, 200000, 200000, 220000, 220000, 300000],
+                        type: 'line',
+                        borderColor: '#10b981',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: { usePointStyle: true, padding: 20, font: { size: 12, family: 'Inter' } }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleFont: { size: 13, family: 'Inter' },
+                            bodyFont: { size: 12, family: 'Inter' },
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': R$ ' + (context.raw / 1000).toFixed(0) + 'K';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9', drawBorder: false },
+                            ticks: {
+                                font: { size: 11, family: 'Inter' },
+                                color: '#94a3b8',
+                                callback: function(value) { return 'R$ ' + (value / 1000) + 'K'; }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, family: 'Inter' }, color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Animação de números
+        function animateValue(element, start, end, duration) {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                const value = Math.floor(progress * (end - start) + start);
+                element.textContent = value;
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        // Cache de dados
+        let fornecedoresCache = [];
+        let materiaisCache = [];
+
+        // Carregar fornecedores do banco
+        async function carregarFornecedores() {
+            try {
+                const response = await fetch('/api/compras/fornecedores', { headers: getAuthHeaders() });
+                const result = await response.json();
+                fornecedoresCache = result.fornecedores || result.data || result || [];
+                
+                const select = document.getElementById('selectFornecedor');
+                if (select) {
+                    select.innerHTML = '<option value="">Selecione o fornecedor...</option>';
+                    fornecedoresCache.forEach(f => {
+                        select.innerHTML += `<option value="${f.id}">${f.razao_social || f.nome || f.nome_fantasia}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar fornecedores:', error);
+            }
+        }
+
+        // Carregar materiais do banco
+        async function carregarMateriais() {
+            try {
+                const response = await fetch('/api/compras/materiais', { headers: getAuthHeaders() });
+                const result = await response.json();
+                materiaisCache = result.materiais || result.data || result || [];
+                
+                const select = document.getElementById('selectMaterial');
+                if (select) {
+                    select.innerHTML = '<option value="">Selecione o material...</option>';
+                    materiaisCache.forEach(m => {
+                        const preco = m.custo_unitario ? ` - R$ ${parseFloat(m.custo_unitario).toFixed(2)}` : '';
+                        select.innerHTML += `<option value="${m.id}" data-preco="${m.custo_unitario || 0}">${m.descricao || m.nome}${preco}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar materiais:', error);
+            }
+        }
+
+        // Exibir info do fornecedor selecionado
+        function exibirInfoFornecedor() {
+            const select = document.getElementById('selectFornecedor');
+            const infoDiv = document.getElementById('infoFornecedor');
+            const fornecedor = fornecedoresCache.find(f => f.id == select.value);
+            
+            if (fornecedor) {
+                document.getElementById('fornCnpj').textContent = fornecedor.cnpj || '-';
+                document.getElementById('fornTelefone').textContent = fornecedor.telefone || '-';
+                document.getElementById('fornEmail').textContent = fornecedor.email || '-';
+                document.getElementById('fornCidade').textContent = (fornecedor.cidade || '-') + (fornecedor.estado ? '/' + fornecedor.estado : '');
+                infoDiv.style.display = 'block';
+            } else {
+                infoDiv.style.display = 'none';
+            }
+        }
+
+        // Atualizar valor total
+        function atualizarValorTotal() {
+            const quantidade = parseFloat(document.getElementById('inputQuantidade')?.value) || 0;
+            const valorStr = document.getElementById('inputValorUnitario')?.value || '0';
+            const valorUnitario = parseFloat(valorStr.replace(/\./g, '').replace(',', '.')) || 0;
+            
+            const total = quantidade * valorUnitario;
+            const resumoDiv = document.getElementById('resumoPedido');
+            const valorTotalSpan = document.getElementById('valorTotalPedido');
+            
+            if (total > 0) {
+                valorTotalSpan.textContent = 'R$ ' + total.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                resumoDiv.style.display = 'block';
+            } else {
+                resumoDiv.style.display = 'none';
+            }
+        }
+
+        // Auto-preencher valor unitário ao selecionar material
+        function preencherValorMaterial() {
+            const select = document.getElementById('selectMaterial');
+            const option = select.options[select.selectedIndex];
+            const preco = parseFloat(option?.dataset?.preco || 0);
+            
+            if (preco > 0) {
+                document.getElementById('inputValorUnitario').value = preco.toFixed(2).replace('.', ',');
+                atualizarValorTotal();
+            }
+        }
+
+        // Funções Modal Novo Pedido
+        function abrirModalNovoPedido() {
+            carregarFornecedores();
+            carregarMateriais();
+            document.getElementById('formNovoPedido').reset();
+            document.getElementById('infoFornecedor').style.display = 'none';
+            document.getElementById('resumoPedido').style.display = 'none';
+            document.getElementById('modalNovoPedido').classList.add('active');
+            
+            // Definir data mínima para hoje
+            const hoje = new Date().toISOString().split('T')[0];
+            document.getElementById('inputPrazoEntrega').min = hoje;
+        }
+
+        function fecharModalNovoPedido() {
+            document.getElementById('modalNovoPedido').classList.remove('active');
+        }
+
+        // Salvar pedido de compra no banco
+        async function salvarPedidoCompra() {
+            const fornecedorId = document.getElementById('selectFornecedor').value;
+            const materialId = document.getElementById('selectMaterial').value;
+            const quantidade = document.getElementById('inputQuantidade').value;
+            const valorStr = document.getElementById('inputValorUnitario').value;
+            const prazoEntrega = document.getElementById('inputPrazoEntrega').value;
+            const pagamento = document.getElementById('selectPagamento').value;
+            const prazoPagamento = document.getElementById('selectPrazoPagamento').value;
+            const observacoes = document.getElementById('inputObservacoes').value;
+
+            // Validações
+            if (!fornecedorId || !materialId || !quantidade || !valorStr || !prazoEntrega) {
+                showNotification('Preencha todos os campos obrigatórios', 'warning');
+                return;
+            }
+
+            const valorUnitario = parseFloat(valorStr.replace(/\./g, '').replace(',', '.'));
+            const valorTotal = parseFloat(quantidade) * valorUnitario;
+
+            try {
+                const response = await fetch('/api/compras/pedidos', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        fornecedor_id: parseInt(fornecedorId),
+                        data_entrega_prevista: prazoEntrega,
+                        valor_total: valorTotal,
+                        observacoes: observacoes,
+                        condicao_pagamento: prazoPagamento,
+                        forma_pagamento: pagamento,
+                        itens: [{
+                            material_id: parseInt(materialId),
+                            quantidade: parseInt(quantidade),
+                            valor_unitario: valorUnitario,
+                            valor_total: valorTotal
+                        }]
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification('Ordem de compra criada com sucesso!', 'success');
+                    fecharModalNovoPedido();
+                    // Recarregar dados do dashboard
+                    if (typeof carregarDashboard === 'function') carregarDashboard();
+                } else {
+                    throw new Error(result.error || 'Erro ao criar pedido');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showNotification(error.message || 'Erro ao criar ordem de compra', 'error');
+            }
+        }
+
+        // Função de notificação
+        function showNotification(message, type = 'info') {
+            const colors = {
+                success: '#10b981',
+                error: '#ef4444',
+                warning: '#f59e0b',
+                info: '#3b82f6'
+            };
+            
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 16px 24px;
+                background: ${colors[type]};
+                color: white;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                animation: slideIn 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        function salvarPedido() {
+            salvarPedidoCompra();
+        }
+
+        // Funções Modal Novo Fornecedor
+        function abrirModalNovoFornecedor() {
+            document.getElementById('modalNovoFornecedor').classList.add('active');
+        }
+
+        function fecharModalNovoFornecedor() {
+            document.getElementById('modalNovoFornecedor').classList.remove('active');
+        }
+
+        function salvarFornecedor() {
+            // Implementar salvamento
+            alert('Fornecedor cadastrado com sucesso!');
+            fecharModalNovoFornecedor();
+        }
+
+        // Fechar modal ao clicar fora
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('active');
+                }
+            });
+        });
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            carregarDashboardCompras(); // Carregar dados reais
+            
+            // Event listeners para o modal de novo pedido
+            const selectFornecedor = document.getElementById('selectFornecedor');
+            const selectMaterial = document.getElementById('selectMaterial');
+            const inputQuantidade = document.getElementById('inputQuantidade');
+            const inputValorUnitario = document.getElementById('inputValorUnitario');
+            
+            if (selectFornecedor) selectFornecedor.addEventListener('change', exibirInfoFornecedor);
+            if (selectMaterial) selectMaterial.addEventListener('change', preencherValorMaterial);
+            if (inputQuantidade) inputQuantidade.addEventListener('input', atualizarValorTotal);
+            if (inputValorUnitario) inputValorUnitario.addEventListener('input', atualizarValorTotal);
+        });
+
+        // ==================== CARREGAR DADOS REAIS DO DASHBOARD ====================
+        async function carregarDashboardCompras() {
+            try {
+                // Buscar dados do dashboard
+                const response = await fetch('/api/compras/dashboard', { headers: getAuthHeaders() });
+                
+                if (!response.ok) {
+                    console.warn('Falha ao carregar dashboard de compras');
+                    carregarDadosDemoCompras();
+                    return;
+                }
+                
+                const data = await response.json();
+                console.log('Dashboard Compras:', data);
+                
+                // Atualizar KPIs
+                const stats = data.stats || data.data || data;
+                
+                // Requisições Pendentes
+                const reqPendentes = stats.requisicoes_pendentes || stats.pedidos_pendentes || 0;
+                animateValue(document.getElementById('kpi-requisicoes'), 0, reqPendentes, 800);
+                
+                // Cotações em Análise
+                const cotacoes = stats.cotacoes_abertas || stats.cotacoes_analise || 0;
+                animateValue(document.getElementById('kpi-cotacoes'), 0, cotacoes, 800);
+                
+                // Volume do Mês
+                const volume = stats.compras_mes || stats.total_mes_atual || stats.valor_mes || 0;
+                const volumeFormatado = formatarVolume(volume);
+                document.getElementById('kpi-pedidos').textContent = volumeFormatado;
+                
+                // Fornecedores Ativos
+                const fornecedores = stats.fornecedores_ativos || 0;
+                animateValue(document.getElementById('kpi-fornecedores'), 0, fornecedores, 800);
+                
+                // Atualizar tabela de requisições recentes
+                await carregarRequisicoesRecentes();
+                
+                // Atualizar gráfico
+                await carregarGraficoCompras();
+                
+                // Atualizar top fornecedores
+                if (data.top_fornecedores && data.top_fornecedores.length > 0) {
+                    renderizarTopFornecedores(data.top_fornecedores);
+                } else {
+                    await carregarTopFornecedores();
+                }
+                
+                // Atualizar atividades recentes
+                await carregarAtividadesRecentes();
+                
+                // Atualizar progresso
+                atualizarProgressoMetas(stats);
+                
+            } catch (error) {
+                console.error('Erro ao carregar dashboard:', error);
+                carregarDadosDemoCompras();
+            }
+        }
+
+        function formatarVolume(valor) {
+            if (valor >= 1000000) {
+                return 'R$ ' + (valor / 1000000).toFixed(1) + 'M';
+            } else if (valor >= 1000) {
+                return 'R$ ' + (valor / 1000).toFixed(0) + 'K';
+            } else {
+                return 'R$ ' + valor.toLocaleString('pt-BR');
+            }
+        }
+
+        async function carregarRequisicoesRecentes() {
+            try {
+                const response = await fetch('/api/compras/requisicoes?limit=5', { headers: getAuthHeaders() });
+                if (!response.ok) return;
+                
+                const result = await response.json();
+                const requisicoes = result.data || result.requisicoes || result || [];
+                
+                const tbody = document.getElementById('tbody-requisicoes');
+                if (!tbody) return;
+                
+                if (requisicoes.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 20px; color: #64748b;">
+                                Nenhuma requisição encontrada
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                tbody.innerHTML = requisicoes.map(req => {
+                    const statusClass = getStatusClass(req.status);
+                    const statusText = getStatusText(req.status);
+                    const data = req.data_solicitacao ? new Date(req.data_solicitacao).toLocaleDateString('pt-BR') : '-';
+                    
+                    return `
+                        <tr>
+                            <td><span class="code">${req.numero || 'REQ-' + req.id}</span></td>
+                            <td>${req.descricao || req.justificativa || '-'}</td>
+                            <td>${req.solicitante || '-'}</td>
+                            <td>${data}</td>
+                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Erro ao carregar requisições:', error);
+            }
+        }
+
+        function getStatusClass(status) {
+            const classes = {
+                'pendente': 'pending',
+                'aprovado': 'approved',
+                'aprovada': 'approved',
+                'em_cotacao': 'processing',
+                'cotacao': 'processing',
+                'urgente': 'urgent',
+                'cancelado': 'cancelled',
+                'rejeitado': 'cancelled'
+            };
+            return classes[status] || 'pending';
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                'pendente': 'Pendente',
+                'aprovado': 'Aprovada',
+                'aprovada': 'Aprovada',
+                'em_cotacao': 'Em Cotação',
+                'cotacao': 'Em Cotação',
+                'urgente': 'Urgente',
+                'cancelado': 'Cancelada',
+                'rejeitado': 'Rejeitada'
+            };
+            return texts[status] || status;
+        }
+
+        async function carregarTopFornecedores() {
+            try {
+                const response = await fetch('/api/compras/fornecedores?limit=3&orderBy=pedidos', { headers: getAuthHeaders() });
+                if (!response.ok) {
+                    renderizarTopFornecedoresVazio();
+                    return;
+                }
+                
+                const result = await response.json();
+                const fornecedores = result.data?.fornecedores || result.fornecedores || result || [];
+                
+                if (fornecedores.length > 0) {
+                    renderizarTopFornecedores(fornecedores.slice(0, 3));
+                } else {
+                    renderizarTopFornecedoresVazio();
+                }
+            } catch (error) {
+                console.error('Erro ao carregar top fornecedores:', error);
+                renderizarTopFornecedoresVazio();
+            }
+        }
+        
+        function renderizarTopFornecedoresVazio() {
+            const container = document.getElementById('top-fornecedores-container');
+            if (container) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 30px; color: #64748b;">
+                        <i class="fas fa-users" style="font-size: 32px; margin-bottom: 10px; opacity: 0.5;"></i>
+                        <p>Nenhum fornecedor encontrado</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderizarTopFornecedores(fornecedores) {
+            const container = document.getElementById('top-fornecedores-container');
+            if (!container) return;
+            
+            const cores = [
+                'linear-gradient(135deg, #38bdf8, #0ea5e9)',
+                'linear-gradient(135deg, #10b981, #059669)',
+                'linear-gradient(135deg, #3b82f6, #2563eb)'
+            ];
+            
+            container.innerHTML = fornecedores.map((f, i) => {
+                const nome = f.nome_fantasia || f.razao_social || f.nome || 'Fornecedor';
+                const iniciais = nome.substring(0, 2).toUpperCase();
+                const categoria = f.categoria || 'Geral';
+                const pedidos = f.total_pedidos || f.pedidos || 0;
+                
+                return `
+                    <div class="fornecedor-item">
+                        <div class="fornecedor-avatar" style="background: ${cores[i]}">${iniciais}</div>
+                        <div class="fornecedor-info">
+                            <div class="fornecedor-nome">${nome}</div>
+                            <div class="fornecedor-categoria">${categoria}</div>
+                        </div>
+                        <div class="fornecedor-stats">
+                            <div class="fornecedor-pedidos">${pedidos}</div>
+                            <div class="fornecedor-total">pedidos</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function carregarAtividadesRecentes() {
+            try {
+                const response = await fetch('/api/compras/atividades?limit=4', { headers: getAuthHeaders() });
+                if (!response.ok) {
+                    renderizarAtividadesVazias();
+                    return;
+                }
+                
+                const result = await response.json();
+                const atividades = result.data || result.atividades || result || [];
+                
+                const container = document.getElementById('activity-list');
+                if (!container) return;
+                
+                if (atividades.length === 0) {
+                    renderizarAtividadesVazias();
+                    return;
+                }
+                
+                container.innerHTML = atividades.map(a => {
+                    const icone = getAtividadeIcone(a.tipo);
+                    const tempo = formatarTempoRelativo(a.created_at || a.data);
+                    
+                    return `
+                        <li class="activity-item">
+                            <div class="activity-icon" style="background: ${icone.bg}; color: ${icone.color};">
+                                <i class="fas ${icone.icon}"></i>
+                            </div>
+                            <div class="activity-content">
+                                <div class="activity-title">${a.descricao || a.titulo}</div>
+                                <div class="activity-time">${tempo}</div>
+                            </div>
+                        </li>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Erro ao carregar atividades:', error);
+                renderizarAtividadesVazias();
+            }
+        }
+        
+        function renderizarAtividadesVazias() {
+            const container = document.getElementById('activity-list');
+            if (container) {
+                container.innerHTML = `
+                    <li class="activity-item">
+                        <div style="text-align: center; width: 100%; padding: 20px; color: #64748b;">
+                            <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
+                            Nenhuma atividade recente
+                        </div>
+                    </li>
+                `;
+            }
+        }
+
+        function getAtividadeIcone(tipo) {
+            const icones = {
+                'pedido_aprovado': { icon: 'fa-check', bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981' },
+                'cotacao_recebida': { icon: 'fa-file-invoice', bg: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' },
+                'fornecedor_cadastrado': { icon: 'fa-user-plus', bg: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8' },
+                'estoque_atualizado': { icon: 'fa-boxes', bg: 'rgba(249, 115, 22, 0.1)', color: '#f97316' }
+            };
+            return icones[tipo] || icones['pedido_aprovado'];
+        }
+
+        function formatarTempoRelativo(data) {
+            if (!data) return 'Agora';
+            const agora = new Date();
+            const dataEvento = new Date(data);
+            const diff = agora - dataEvento;
+            const minutos = Math.floor(diff / 60000);
+            const horas = Math.floor(diff / 3600000);
+            const dias = Math.floor(diff / 86400000);
+            
+            if (minutos < 1) return 'Agora';
+            if (minutos < 60) return `Há ${minutos} minutos`;
+            if (horas < 24) return `Há ${horas} hora${horas > 1 ? 's' : ''}`;
+            return `Há ${dias} dia${dias > 1 ? 's' : ''}`;
+        }
+
+        function atualizarProgressoMetas(stats) {
+            const metaMensal = 300000;
+            const volumeAtual = stats.compras_mes || stats.total_mes_atual || 0;
+            const percentualMeta = Math.min((volumeAtual / metaMensal) * 100, 100);
+            
+            // Atualizar Meta Mensal - usando IDs específicos
+            const progressFillMeta = document.getElementById('meta-fill');
+            if (progressFillMeta) {
+                progressFillMeta.style.width = `${percentualMeta}%`;
+            }
+            
+            const labelMeta = document.getElementById('meta-valor');
+            if (labelMeta) {
+                const volumeK = volumeAtual >= 1000 ? (volumeAtual/1000).toFixed(0) + 'K' : volumeAtual.toLocaleString('pt-BR');
+                const metaK = (metaMensal/1000).toFixed(0) + 'K';
+                labelMeta.textContent = `R$ ${volumeK} / R$ ${metaK}`;
+            }
+            
+            // Atualizar Requisições Atendidas - usando IDs específicos
+            const totalRequisicoes = stats.total_requisicoes || stats.requisicoes_pendentes || 1;
+            const reqAtendidas = stats.requisicoes_atendidas || 0;
+            const percentualReq = totalRequisicoes > 0 ? Math.min((reqAtendidas / totalRequisicoes) * 100, 100) : 0;
+            
+            const progressFillReq = document.getElementById('requisicoes-atendidas-fill');
+            if (progressFillReq) {
+                progressFillReq.style.width = `${percentualReq}%`;
+            }
+            
+            const labelReq = document.getElementById('requisicoes-atendidas-valor');
+            if (labelReq) {
+                labelReq.textContent = `${reqAtendidas} / ${totalRequisicoes}`;
+            }
+        }
+
+        let purchaseChart = null;
+
+        async function carregarGraficoCompras() {
+            try {
+                const response = await fetch('/api/compras/volume-mensal?meses=6', { headers: getAuthHeaders() });
+                
+                let labels = [];
+                let valores = [];
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.labels && result.valores) {
+                        labels = result.labels;
+                        valores = result.valores;
+                    }
+                }
+                
+                // Se não conseguiu dados, gerar labels dos últimos 6 meses
+                if (labels.length === 0) {
+                    const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                    const hoje = new Date();
+                    for (let i = 5; i >= 0; i--) {
+                        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+                        labels.push(meses[d.getMonth()]);
+                        valores.push(0);
+                    }
+                }
+                
+                renderizarGraficoCompras(labels, valores);
+                
+            } catch (error) {
+                console.error('Erro ao carregar gráfico:', error);
+                // Renderizar com dados vazios
+                initChart();
+            }
+        }
+
+        function renderizarGraficoCompras(labels, valores) {
+            const ctx = document.getElementById('purchaseChart').getContext('2d');
+            
+            if (purchaseChart) {
+                purchaseChart.destroy();
+            }
+            
+            purchaseChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Volume de Compras',
+                        data: valores,
+                        backgroundColor: 'rgba(56, 189, 248, 0.8)',
+                        borderColor: '#38bdf8',
+                        borderWidth: 0,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }, {
+                        label: 'Meta',
+                        data: Array(labels.length).fill(300000),
+                        type: 'line',
+                        borderColor: '#10b981',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: { usePointStyle: true, padding: 20, font: { size: 12, family: 'Inter' } }
+                        },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleFont: { size: 13, family: 'Inter' },
+                            bodyFont: { size: 12, family: 'Inter' },
+                            padding: 12,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': R$ ' + (context.raw / 1000).toFixed(0) + 'K';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9', drawBorder: false },
+                            ticks: {
+                                font: { size: 11, family: 'Inter' },
+                                color: '#94a3b8',
+                                callback: function(value) { return 'R$ ' + (value / 1000) + 'K'; }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, family: 'Inter' }, color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function carregarDadosDemoCompras() {
+            console.log('Carregando dados de fallback (sem conexão com o banco)...');
+            
+            // KPIs com valores zerados (sem dados)
+            document.getElementById('kpi-requisicoes').textContent = '0';
+            document.getElementById('kpi-cotacoes').textContent = '0';
+            document.getElementById('kpi-pedidos').textContent = 'R$ 0';
+            document.getElementById('kpi-fornecedores').textContent = '0';
+            
+            // Mostrar mensagem na tabela de requisições
+            const tbody = document.getElementById('tbody-requisicoes');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 30px; color: #64748b;">
+                            <i class="fas fa-database" style="margin-right: 8px;"></i>
+                            Não foi possível carregar os dados
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            // Atualizar progresso com zeros
+            const metaValor = document.getElementById('meta-valor');
+            if (metaValor) metaValor.textContent = 'R$ 0 / R$ 300K';
+            
+            const metaFill = document.getElementById('meta-fill');
+            if (metaFill) metaFill.style.width = '0%';
+            
+            const reqValor = document.getElementById('requisicoes-atendidas-valor');
+            if (reqValor) reqValor.textContent = '0 / 0';
+            
+            const reqFill = document.getElementById('requisicoes-atendidas-fill');
+            if (reqFill) reqFill.style.width = '0%';
+            
+            // Iniciar gráfico com dados vazios
+            initChart();
+        }
+        </script>
+        
+        <!-- Compras Completo -->
+        <script src="/js/compras-completo.js?v=20260107"></script>
+        
+        <!-- Carregador de Usuário -->
+        <script src="/modules/Compras/compras-user-loader.js?v=20260111"></script>
+        
+    <!-- PWA Manager - DESABILITADO -->
+    <!-- <script src="/js/pwa-manager.js"></script> -->
+</body>
+</html>
+

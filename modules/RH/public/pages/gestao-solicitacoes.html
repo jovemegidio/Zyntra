@@ -1,0 +1,1167 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Gestão de Solicitações</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/responsive-complete.css?v=20260121">
+
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow: global-header-sidebar.css */ }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; background: #f8fafc; }
+
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .page-title { font-size: 1.5rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-pink); }
+        .page-subtitle { color: #64748b; margin-top: 4px; font-size: 14px; }
+
+        /* STATS GRID */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-left: 4px solid var(--primary-pink);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .stat-card.pending { border-left-color: var(--warning-yellow); }
+        .stat-card.approved { border-left-color: var(--success-green); }
+        .stat-card.rejected { border-left-color: var(--danger-red); }
+        .stat-label { color: #64748b; font-size: 13px; margin-bottom: 4px; font-weight: 500; }
+        .stat-value { font-size: 28px; font-weight: 700; color: #1e293b; }
+
+        /* FILTERS */
+        .filters-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .filter-group { display: flex; flex-direction: column; gap: 6px; }
+        .filter-group label { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-group select, .filter-group input {
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 160px;
+            background: white;
+            transition: all 0.2s;
+        }
+        .filter-group select:focus, .filter-group input:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: var(--primary-pink); color: white; }
+        .btn-primary:hover { background: #db2777; transform: translateY(-1px); }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-success { background: var(--success-green); color: white; }
+        .btn-success:hover { background: #16a34a; }
+        .btn-danger { background: var(--danger-red); color: white; }
+        .btn-danger:hover { background: #dc2626; }
+
+        /* TABLE */
+        .table-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-title { font-size: 16px; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+        .table-title i { color: var(--primary-pink); }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 14px 16px; text-align: left; }
+        th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: #475569;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        tr { border-bottom: 1px solid #f1f5f9; transition: background 0.2s; }
+        tr:hover { background: #fafbfc; }
+        td { font-size: 14px; color: #1e293b; }
+
+        /* BADGES */
+        .status-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-badge.pendente { background: #fef3c7; color: #92400e; }
+        .status-badge.em-analise { background: #dbeafe; color: #1e40af; }
+        .status-badge.aprovado { background: #dcfce7; color: #166534; }
+        .status-badge.rejeitado { background: #fee2e2; color: #991b1b; }
+        .status-badge.concluido { background: #d1fae5; color: #047857; }
+
+        .priority-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .priority-badge.normal { background: #e2e8f0; color: #475569; }
+        .priority-badge.alta { background: #fed7aa; color: #9a3412; }
+        .priority-badge.urgente { background: #fecaca; color: #991b1b; }
+
+        /* ACTION BUTTONS */
+        .actions { display: flex; gap: 8px; }
+        .btn-action {
+            width: 34px; height: 34px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        .btn-view { background: #dbeafe; color: #1e40af; }
+        .btn-view:hover { background: #bfdbfe; transform: scale(1.05); }
+        .btn-approve { background: #dcfce7; color: #166534; }
+        .btn-approve:hover { background: #bbf7d0; transform: scale(1.05); }
+        .btn-reject { background: #fee2e2; color: #991b1b; }
+        .btn-reject:hover { background: #fecaca; transform: scale(1.05); }
+
+        /* MODAL PROFISSIONAL */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 560px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+
+        .modal-header h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-header h3 i { color: var(--primary-pink); }
+
+        .modal-close {
+            width: 36px; height: 36px;
+            border: none;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #64748b;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .modal-close:hover { background: #fee2e2; color: var(--danger-red); }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            max-height: calc(90vh - 180px);
+        }
+
+        .detail-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .detail-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 10px;
+            transition: background 0.2s;
+        }
+
+        .detail-item:hover { background: #f1f5f9; }
+
+        .detail-icon {
+            width: 36px; height: 36px;
+            border-radius: 8px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-pink);
+            font-size: 14px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+        }
+
+        .detail-content { flex: 1; }
+        .detail-label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+        .detail-value { font-size: 14px; color: #1e293b; font-weight: 500; }
+
+        .detail-description {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 8px;
+        }
+
+        .detail-description-label {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .detail-description-text {
+            font-size: 14px;
+            color: #1e293b;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .resposta-section {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .resposta-section label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 8px;
+        }
+
+        .resposta-section textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            transition: all 0.2s;
+        }
+
+        .resposta-section textarea:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            background: #f8fafc;
+        }
+
+        /* MODAL DE CONFIRMAÇÃO */
+        .confirm-modal {
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .confirm-modal .modal-body {
+            padding: 32px 24px;
+        }
+
+        .confirm-icon {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 28px;
+        }
+
+        .confirm-icon.success { background: #dcfce7; color: #166534; }
+        .confirm-icon.danger { background: #fee2e2; color: #991b1b; }
+        .confirm-icon.warning { background: #fef3c7; color: #92400e; }
+
+        .confirm-modal h4 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .confirm-modal p {
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .confirm-modal .modal-footer {
+            justify-content: center;
+            background: white;
+            border-top: none;
+            padding-top: 0;
+        }
+
+        /* INPUT NO MODAL */
+        .confirm-input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-top: 16px;
+            transition: all 0.2s;
+        }
+
+        .confirm-input:focus {
+            outline: none;
+            border-color: var(--primary-pink);
+            box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+        }
+
+        /* EMPTY STATE */
+        .empty-state {
+            padding: 60px 20px;
+            text-align: center;
+            color: #64748b;
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; color: #cbd5e1; }
+        .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: #475569; }
+
+        /* TOAST */
+        .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+        .toast {
+            background: #1e293b;
+            color: white;
+            padding: 14px 20px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: toastIn 0.3s ease;
+        }
+        .toast.success { background: var(--success-green); }
+        .toast.error { background: var(--danger-red); }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .content-area { padding: 16px; }
+            .page-title { font-size: 1.25rem; }
+            .filters-card { flex-direction: column; }
+            .filter-group { width: 100%; }
+            .filter-group select, .filter-group input { width: 100%; }
+            table { display: block; overflow-x: auto; }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- MAIN AREA -->
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Solicitações</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="content-area">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title">
+                            <i class="fas fa-inbox"></i>
+                            Gestão de Solicitações
+                        </h1>
+                        <p class="page-subtitle">Gerencie as solicitações dos colaboradores</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="carregarSolicitacoes()">
+                        <i class="fas fa-sync-alt"></i> Atualizar
+                    </button>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total de Solicitações</div>
+                        <div class="stat-value" id="statTotal">0</div>
+                    </div>
+                    <div class="stat-card pending">
+                        <div class="stat-label">Pendentes</div>
+                        <div class="stat-value" id="statPendente">0</div>
+                    </div>
+                    <div class="stat-card approved">
+                        <div class="stat-label">Aprovadas</div>
+                        <div class="stat-value" id="statAprovado">0</div>
+                    </div>
+                    <div class="stat-card rejected">
+                        <div class="stat-label">Rejeitadas</div>
+                        <div class="stat-value" id="statRejeitado">0</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-card">
+                    <div class="filter-group">
+                        <label>Status</label>
+                        <select id="filterStatus">
+                            <option value="">Todos os status</option>
+                            <option value="Pendente">Pendente</option>
+                            <option value="Em Análise">Em Análise</option>
+                            <option value="Aprovado">Aprovado</option>
+                            <option value="Rejeitado">Rejeitado</option>
+                            <option value="Concluído">Concluído</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Tipo</label>
+                        <select id="filterTipo">
+                            <option value="">Todos os tipos</option>
+                            <option value="Alteração de Dados Cadastrais">Alteração de Dados</option>
+                            <option value="Atestado Médico">Atestado Médico</option>
+                            <option value="Férias">Férias</option>
+                            <option value="Folga">Folga</option>
+                            <option value="Hora Extra">Hora Extra</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Prioridade</label>
+                        <select id="filterPrioridade">
+                            <option value="">Todas</option>
+                            <option value="normal">Normal</option>
+                            <option value="alta">Alta</option>
+                            <option value="urgente">Urgente</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="carregarSolicitacoes()">
+                        <i class="fas fa-search"></i> Filtrar
+                    </button>
+                </div>
+
+                <!-- Table -->
+                <div class="table-card">
+                    <div class="table-header">
+                        <span class="table-title"><i class="fas fa-list"></i> Lista de Solicitações</span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Colaborador</th>
+                                <th>Tipo</th>
+                                <th>Assunto</th>
+                                <th>Prioridade</th>
+                                <th>Data</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabelaSolicitacoes"></tbody>
+                    </table>
+                    <div class="empty-state" id="emptyState" style="display: none;">
+                        <i class="fas fa-inbox"></i>
+                        <h3>Nenhuma solicitação encontrada</h3>
+                        <p>Não há solicitações com os filtros selecionados.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Detalhes -->
+    <div class="modal-overlay" id="modalDetalhes">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-alt"></i> Detalhes da Solicitação</h3>
+                <button class="modal-close" onclick="fecharModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter">
+                <button class="btn btn-outline" onclick="fecharModal()">
+                    <i class="fas fa-times"></i> Fechar
+                </button>
+                <button class="btn btn-danger" onclick="mostrarConfirmRejeitar()">
+                    <i class="fas fa-times-circle"></i> Rejeitar
+                </button>
+                <button class="btn btn-success" onclick="mostrarConfirmAprovar()">
+                    <i class="fas fa-check-circle"></i> Aprovar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Aprovação -->
+    <div class="modal-overlay" id="modalAprovar">
+        <div class="modal confirm-modal">
+            <div class="modal-body">
+                <div class="confirm-icon success">
+                    <i class="fas fa-check"></i>
+                </div>
+                <h4>Aprovar Solicitação</h4>
+                <p>Tem certeza que deseja aprovar esta solicitação?</p>
+                <textarea id="respostaAprovar" class="confirm-input" placeholder="Observação (opcional)..." rows="3" style="resize: vertical;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="fecharModalAprovar()">Cancelar</button>
+                <button class="btn btn-success" onclick="confirmarAprovacao()">
+                    <i class="fas fa-check"></i> Confirmar Aprovação
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Rejeição -->
+    <div class="modal-overlay" id="modalRejeitar">
+        <div class="modal confirm-modal">
+            <div class="modal-body">
+                <div class="confirm-icon danger">
+                    <i class="fas fa-times"></i>
+                </div>
+                <h4>Rejeitar Solicitação</h4>
+                <p>Informe o motivo da rejeição para o colaborador.</p>
+                <textarea id="motivoRejeicao" class="confirm-input" placeholder="Motivo da rejeição..." rows="3" style="resize: vertical;" required></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="fecharModalRejeitar()">Cancelar</button>
+                <button class="btn btn-danger" onclick="confirmarRejeicao()">
+                    <i class="fas fa-times"></i> Confirmar Rejeição
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        let solicitacoes = [];
+        let solicitacaoAtual = null;
+
+        // Obter token de autenticação
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
+        // Carregar dados do usuário
+        function carregarUsuario() {
+            try {
+                const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+                const nome = userData.nome || userData.nome_completo || 'Administrador';
+                const primeiroNome = nome.split(' ')[0];
+                document.getElementById('userName').textContent = primeiroNome;
+                document.getElementById('userAvatar').textContent = primeiroNome.charAt(0).toUpperCase();
+            } catch (e) {}
+        }
+
+        // Mostrar toast
+        function showToast(type, message) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // Formatar data
+        function formatarData(data) {
+            if (!data) return '-';
+            const d = new Date(data);
+            return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Obter classe do status
+        function getStatusClass(status) {
+            const s = (status || '').toLowerCase().replace(/\s+/g, '-');
+            if (s.includes('pendente')) return 'pendente';
+            if (s.includes('analise') || s.includes('análise')) return 'em-analise';
+            if (s.includes('aprovad')) return 'aprovado';
+            if (s.includes('rejeitad')) return 'rejeitado';
+            if (s.includes('conclu')) return 'concluido';
+            return 'pendente';
+        }
+
+        // Carregar solicitações
+        async function carregarSolicitacoes() {
+            try {
+                const status = document.getElementById('filterStatus').value;
+                const tipo = document.getElementById('filterTipo').value;
+                const prioridade = document.getElementById('filterPrioridade').value;
+
+                let url = '/api/rh/solicitacoes/todas?';
+                if (status) url += `status=${encodeURIComponent(status)}&`;
+                if (tipo) url += `tipo=${encodeURIComponent(tipo)}&`;
+                if (prioridade) url += `prioridade=${encodeURIComponent(prioridade)}&`;
+
+                const response = await fetch(url, {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+
+                if (!response.ok) throw new Error('Erro ao carregar');
+
+                solicitacoes = await response.json();
+                renderizarTabela();
+                atualizarStats();
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('error', 'Erro ao carregar solicitações');
+            }
+        }
+
+        // Atualizar estatísticas
+        function atualizarStats() {
+            const total = solicitacoes.length;
+            const pendentes = solicitacoes.filter(s => s.status === 'Pendente' || s.status === 'Em Análise').length;
+            const aprovados = solicitacoes.filter(s => s.status === 'Aprovado' || s.status === 'Concluído').length;
+            const rejeitados = solicitacoes.filter(s => s.status === 'Rejeitado').length;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statPendente').textContent = pendentes;
+            document.getElementById('statAprovado').textContent = aprovados;
+            document.getElementById('statRejeitado').textContent = rejeitados;
+        }
+
+        // Renderizar tabela
+        function renderizarTabela() {
+            const tbody = document.getElementById('tabelaSolicitacoes');
+            const empty = document.getElementById('emptyState');
+
+            if (solicitacoes.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+            tbody.innerHTML = solicitacoes.map(s => `
+                <tr>
+                    <td><strong>#${s.id}</strong></td>
+                    <td>
+                        <div style="font-weight: 500;">${s.funcionario_nome || '-'}</div>
+                        <small style="color: #64748b;">${s.funcionario_email || ''}</small>
+                    </td>
+                    <td>${s.tipo || '-'}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${s.assunto || '-'}</td>
+                    <td><span class="priority-badge ${s.prioridade || 'normal'}">${(s.prioridade || 'normal').toUpperCase()}</span></td>
+                    <td>${formatarData(s.created_at)}</td>
+                    <td><span class="status-badge ${getStatusClass(s.status)}">${s.status || 'Pendente'}</span></td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn-action btn-view" onclick="verDetalhes(${s.id})" title="Ver detalhes">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            ${s.status === 'Pendente' || s.status === 'Em Análise' ? `
+                                <button class="btn-action btn-approve" onclick="aprovarRapido(${s.id})" title="Aprovar">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn-action btn-reject" onclick="rejeitarRapido(${s.id})" title="Rejeitar">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Ver detalhes
+        function verDetalhes(id) {
+            solicitacaoAtual = solicitacoes.find(s => s.id === id);
+            if (!solicitacaoAtual) return;
+
+            const body = document.getElementById('modalBody');
+            const footer = document.getElementById('modalFooter');
+            const isPendente = solicitacaoAtual.status === 'Pendente' || solicitacaoAtual.status === 'Em Análise';
+
+            body.innerHTML = `
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-hashtag"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">ID da Solicitação</div>
+                            <div class="detail-value">#${solicitacaoAtual.id}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-user"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Colaborador</div>
+                            <div class="detail-value">${solicitacaoAtual.funcionario_nome || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-envelope"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Email</div>
+                            <div class="detail-value">${solicitacaoAtual.funcionario_email || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-tag"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Tipo</div>
+                            <div class="detail-value">${solicitacaoAtual.tipo || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-folder"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Categoria</div>
+                            <div class="detail-value">${solicitacaoAtual.categoria || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-heading"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Assunto</div>
+                            <div class="detail-value">${solicitacaoAtual.assunto || '-'}</div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-flag"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Prioridade</div>
+                            <div class="detail-value"><span class="priority-badge ${solicitacaoAtual.prioridade || 'normal'}">${(solicitacaoAtual.prioridade || 'normal').toUpperCase()}</span></div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-info-circle"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Status</div>
+                            <div class="detail-value"><span class="status-badge ${getStatusClass(solicitacaoAtual.status)}">${solicitacaoAtual.status || 'Pendente'}</span></div>
+                        </div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-icon"><i class="fas fa-calendar"></i></div>
+                        <div class="detail-content">
+                            <div class="detail-label">Data da Solicitação</div>
+                            <div class="detail-value">${formatarData(solicitacaoAtual.created_at)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-description">
+                    <div class="detail-description-label"><i class="fas fa-align-left"></i> Descrição</div>
+                    <div class="detail-description-text">${solicitacaoAtual.descricao || 'Sem descrição'}</div>
+                </div>
+                ${solicitacaoAtual.resposta ? `
+                <div class="detail-description" style="background: #dcfce7; margin-top: 12px;">
+                    <div class="detail-description-label" style="color: #166534;"><i class="fas fa-reply"></i> Resposta do RH</div>
+                    <div class="detail-description-text" style="color: #166534;">${solicitacaoAtual.resposta}</div>
+                </div>
+                ` : ''}
+            `;
+
+            // Mostrar/ocultar botões de ação baseado no status
+            footer.innerHTML = `
+                <button class="btn btn-outline" onclick="fecharModal()">
+                    <i class="fas fa-times"></i> Fechar
+                </button>
+                ${isPendente ? `
+                <button class="btn btn-danger" onclick="mostrarConfirmRejeitar()">
+                    <i class="fas fa-times-circle"></i> Rejeitar
+                </button>
+                <button class="btn btn-success" onclick="mostrarConfirmAprovar()">
+                    <i class="fas fa-check-circle"></i> Aprovar
+                </button>
+                ` : ''}
+            `;
+
+            document.getElementById('modalDetalhes').classList.add('show');
+        }
+
+        // Fechar modais
+        function fecharModal() {
+            document.getElementById('modalDetalhes').classList.remove('show');
+        }
+
+        function fecharModalAprovar() {
+            document.getElementById('modalAprovar').classList.remove('show');
+            document.getElementById('respostaAprovar').value = '';
+        }
+
+        function fecharModalRejeitar() {
+            document.getElementById('modalRejeitar').classList.remove('show');
+            document.getElementById('motivoRejeicao').value = '';
+        }
+
+        // Mostrar modais de confirmação
+        function mostrarConfirmAprovar() {
+            document.getElementById('modalAprovar').classList.add('show');
+        }
+
+        function mostrarConfirmRejeitar() {
+            document.getElementById('modalRejeitar').classList.add('show');
+        }
+
+        // Confirmar aprovação
+        async function confirmarAprovacao() {
+            if (!solicitacaoAtual) return;
+
+            const resposta = document.getElementById('respostaAprovar').value;
+
+            try {
+                const response = await fetch(`/api/rh/solicitacoes/${solicitacaoAtual.id}/status`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    credentials: 'include',
+                    body: JSON.stringify({ status: 'Aprovado', resposta })
+                });
+
+                if (!response.ok) throw new Error('Erro');
+
+                showToast('success', 'Solicitação aprovada com sucesso!');
+                fecharModalAprovar();
+                fecharModal();
+                carregarSolicitacoes();
+            } catch (error) {
+                showToast('error', 'Erro ao aprovar solicitação');
+            }
+        }
+
+        // Confirmar rejeição
+        async function confirmarRejeicao() {
+            if (!solicitacaoAtual) return;
+
+            const motivo = document.getElementById('motivoRejeicao').value.trim();
+            if (!motivo) {
+                showToast('error', 'Informe o motivo da rejeição');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/rh/solicitacoes/${solicitacaoAtual.id}/status`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    credentials: 'include',
+                    body: JSON.stringify({ status: 'Rejeitado', resposta: motivo })
+                });
+
+                if (!response.ok) throw new Error('Erro');
+
+                showToast('success', 'Solicitação rejeitada');
+                fecharModalRejeitar();
+                fecharModal();
+                carregarSolicitacoes();
+            } catch (error) {
+                showToast('error', 'Erro ao rejeitar solicitação');
+            }
+        }
+
+        // Aprovar rápido (da tabela)
+        async function aprovarRapido(id) {
+            solicitacaoAtual = solicitacoes.find(s => s.id === id);
+            mostrarConfirmAprovar();
+        }
+
+        // Rejeitar rápido (da tabela)
+        async function rejeitarRapido(id) {
+            solicitacaoAtual = solicitacoes.find(s => s.id === id);
+            mostrarConfirmRejeitar();
+        }
+
+        // Fechar modal com ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                fecharModal();
+                fecharModalAprovar();
+                fecharModalRejeitar();
+            }
+        });
+
+        // Fechar modal clicando fora
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    fecharModal();
+                    fecharModalAprovar();
+                    fecharModalRejeitar();
+                }
+            });
+        });
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            carregarSolicitacoes();
+
+            // WebSocket para atualização em tempo real
+            if (typeof io !== 'undefined') {
+                const socket = io();
+                socket.on('solicitacao-created', () => carregarSolicitacoes());
+                socket.on('solicitacao-updated', () => carregarSolicitacoes());
+            }
+        });
+    </script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+        <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

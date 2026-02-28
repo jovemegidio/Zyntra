@@ -1,0 +1,491 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Relatórios de Compras</title>
+    <link rel="icon" type="image/png" href="/images/favicon-aluforce.png">
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260215">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260215">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260201">
+    <style>
+        .fa-duotone { font-family: "Font Awesome 6 Free" !important; font-weight: 900 !important; }
+        /* Report cards grid */
+        .reports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
+        .report-card { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: var(--space-5); cursor: pointer; transition: var(--transition-base); position: relative; overflow: hidden; }
+        .report-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+        .report-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .report-card .report-icon { width: 48px; height: 48px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #fff; margin-bottom: var(--space-3); }
+        .report-card h3 { font-size: 0.95rem; font-weight: 600; color: var(--gray-800); margin-bottom: 4px; }
+        .report-card p { font-size: 0.8rem; color: var(--gray-500); line-height: 1.4; }
+        .report-card .report-action { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--space-3); font-size: 0.75rem; font-weight: 600; color: var(--primary-500); }
+        .rc-pedidos::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .rc-pedidos .report-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .rc-fornecedores::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .rc-fornecedores .report-icon { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .rc-estoque::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .rc-estoque .report-icon { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .rc-movimentacoes::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .rc-movimentacoes .report-icon { background: linear-gradient(135deg, #10b981, #059669); }
+        .rc-criticos::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .rc-criticos .report-icon { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .rc-cotacoes::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+        .rc-cotacoes .report-icon { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+        /* Tables section */
+        .tables-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+        @media (max-width: 1024px) { .tables-grid { grid-template-columns: 1fr; } }
+        /* Loading overlay */
+        .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+        .loading-overlay .spinner { width: 48px; height: 48px; border: 4px solid var(--gray-200); border-top-color: var(--primary-500); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Toast */
+        .toast-container { position: fixed; top: 60px; right: 16px; z-index: 10001; }
+        .toast { padding: 10px 16px; border-radius: var(--radius-md); font-size: 0.8rem; color: #fff; margin-bottom: 8px; animation: fadeInUp 0.3s ease; box-shadow: var(--shadow-lg); }
+        .toast.success { background: var(--success-500); }
+        .toast.error { background: var(--danger-500); }
+        .toast.info { background: var(--info-500); }
+    </style>
+    <script>
+        function toggleNotificacoes() { const p = document.getElementById('notification-panel'); if (p) p.classList.toggle('active'); }
+        function marcarTodasLidas() {}
+        function limparNotificacoes() {}
+    </script>
+    <script src="/js/anti-copy-protection.js" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn active" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Relatórios</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge hidden" id="notification-count">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header"><h3><i class="fas fa-bell"></i> Notificações</h3><div class="notification-actions"><button onclick="marcarTodasLidas()" title="Marcar todas como lidas"><i class="fas fa-check-double"></i></button><button onclick="limparNotificacoes()" title="Limpar todas"><i class="fas fa-trash-alt"></i></button></div></div>
+                            <div class="notification-tabs"><button class="notif-tab active" onclick="filtrarNotificacoes('todas', this)">Todas</button><button class="notif-tab" onclick="filtrarNotificacoes('nao-lidas', this)">Não lidas</button><button class="notif-tab" onclick="filtrarNotificacoes('importantes', this)">Importantes</button></div>
+                            <div class="notification-list" id="notification-list"></div>
+                            <div class="notification-footer"><a href="#" onclick="verTodasNotificacoes(); return false;">Ver histórico completo</a></div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar"><img src="" alt="" id="user-photo" style="display:none;"><span id="user-initial">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- PAGE CONTENT -->
+            <div class="page-content">
+
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div>
+                            <h1 class="page-title"><i class="fas fa-chart-bar"></i> Relatórios de Compras</h1>
+                            <p class="page-subtitle">Geração e exportação de relatórios do módulo de compras</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <div class="stat-header"><div class="stat-icon blue"><i class="fas fa-shopping-cart"></i></div></div>
+                        <div class="stat-value" id="stat-total-pedidos">0</div>
+                        <div class="stat-label">Total Pedidos</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-header"><div class="stat-icon green"><i class="fas fa-dollar-sign"></i></div></div>
+                        <div class="stat-value" id="stat-valor-total">R$ 0</div>
+                        <div class="stat-label">Valor Total</div>
+                    </div>
+                    <div class="stat-card purple">
+                        <div class="stat-header"><div class="stat-icon purple"><i class="fas fa-users"></i></div></div>
+                        <div class="stat-value" id="stat-fornecedores">0</div>
+                        <div class="stat-label">Fornecedores Ativos</div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="stat-header"><div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div></div>
+                        <div class="stat-value" id="stat-criticos">0</div>
+                        <div class="stat-label">Mat. Críticos</div>
+                    </div>
+                </div>
+
+                <!-- Report Cards -->
+                <div class="reports-grid">
+                    <div class="report-card rc-pedidos" onclick="RelatoriosCompras.abrirModalRelatorio('pedidos')">
+                        <div class="report-icon"><i class="fas fa-shopping-cart"></i></div>
+                        <h3>Relatório de Pedidos</h3>
+                        <p>Histórico completo de pedidos de compra com valores, fornecedores e status.</p>
+                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                    </div>
+                    <div class="report-card rc-fornecedores" onclick="RelatoriosCompras.abrirModalRelatorio('fornecedores')">
+                        <div class="report-icon"><i class="fas fa-users"></i></div>
+                        <h3>Relatório de Fornecedores</h3>
+                        <p>Cadastro de fornecedores, avaliações, categorias e dados de contato.</p>
+                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                    </div>
+                    <div class="report-card rc-estoque" onclick="RelatoriosCompras.abrirModalRelatorio('estoque')">
+                        <div class="report-icon"><i class="fas fa-boxes"></i></div>
+                        <h3>Relatório de Estoque</h3>
+                        <p>Posição de estoque, materiais críticos, custos e níveis de reposição.</p>
+                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                    </div>
+                    <div class="report-card rc-movimentacoes" onclick="RelatoriosCompras.abrirModalRelatorio('movimentacoes')">
+                        <div class="report-icon"><i class="fas fa-exchange-alt"></i></div>
+                        <h3>Movimentações</h3>
+                        <p>Entradas, saídas e ajustes de estoque por período com rastreabilidade.</p>
+                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                    </div>
+                    <div class="report-card rc-criticos" onclick="RelatoriosCompras.abrirModalRelatorio('criticos')">
+                        <div class="report-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <h3>Materiais Críticos</h3>
+                        <p>Materiais abaixo do estoque mínimo que necessitam de reposição urgente.</p>
+                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                    </div>
+                    <div class="report-card rc-cotacoes" onclick="RelatoriosCompras.abrirModalRelatorio('cotacoes')">
+                        <div class="report-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                        <h3>Relatório de Cotações</h3>
+                        <p>Análise comparativa de cotações, economia obtida e fornecedores selecionados.</p>
+                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                    </div>
+                </div>
+
+                <!-- Data Tables -->
+                <div class="tables-grid">
+            <div class="card">
+                <div class="card-header" style="padding:var(--space-3) var(--space-4); border-bottom:1px solid var(--gray-100);">
+                    <h3 style="font-size:0.85rem; font-weight:600; color:var(--gray-800);"><i class="fas fa-clock"></i> Últimos Pedidos</h3>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <table class="data-table" id="tabela-pedidos">
+                        <thead>
+                            <tr><th>Nº</th><th>Fornecedor</th><th>Valor</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="tbody-pedidos">
+                            <tr><td colspan="4" style="text-align:center; padding:var(--space-6); color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header" style="padding:var(--space-3) var(--space-4); border-bottom:1px solid var(--gray-100);">
+                    <h3 style="font-size:0.85rem; font-weight:600; color:var(--gray-800);"><i class="fas fa-exclamation-triangle" style="color:var(--danger-500);"></i> Materiais Críticos</h3>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <table class="data-table" id="tabela-criticos">
+                        <thead>
+                            <tr><th>Material</th><th>Atual</th><th>Mínimo</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="tbody-criticos">
+                            <tr><td colspan="4" style="text-align:center; padding:var(--space-6); color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+                </div>
+            </div><!-- /page-content -->
+        </main><!-- /main-area -->
+    </div><!-- /app-container -->
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+    function toggleMobileSidebar() {
+        const sidebar = document.getElementById('mobile-sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar) sidebar.classList.toggle('open');
+        if (overlay) overlay.classList.toggle('active');
+    }
+
+    /* ========== RelatoriosCompras ========== */
+    const RelatoriosCompras = {
+        init() {
+            this.carregarDados();
+            this.configurarBotoes();
+        },
+
+        getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+        },
+
+        async carregarDados() {
+            await Promise.all([this.carregarEstatisticas(), this.carregarMateriaisCriticos()]);
+        },
+
+        async carregarEstatisticas() {
+            try {
+                const r = await fetch('/api/compras/dashboard', { headers: this.getAuthHeaders() });
+                if (!r.ok) return;
+                const d = await r.json();
+                document.getElementById('stat-total-pedidos').textContent = d.total_pedidos || d.pedidos?.total || 0;
+                document.getElementById('stat-valor-total').textContent = this.formatarMoeda(d.valor_total || d.pedidos?.valor_total || 0);
+                document.getElementById('stat-fornecedores').textContent = d.fornecedores_ativos || d.fornecedores?.ativos || 0;
+                // Render recent orders
+                const pedidos = d.ultimos_pedidos || d.pedidos?.recentes || [];
+                this.carregarUltimosPedidos(pedidos);
+            } catch (e) { console.log('Erro stats:', e); }
+        },
+
+        carregarUltimosPedidos(pedidos) {
+            const tbody = document.getElementById('tbody-pedidos');
+            if (!pedidos.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:var(--space-4); color:var(--gray-400);">Nenhum pedido recente</td></tr>';
+                return;
+            }
+            tbody.innerHTML = pedidos.slice(0, 10).map(p =>
+                `<tr>
+                    <td><strong>${p.numero || p.id}</strong></td>
+                    <td>${p.fornecedor || p.fornecedor_nome || '-'}</td>
+                    <td>${this.formatarMoeda(p.valor_total)}</td>
+                    <td><span class="badge badge-${this.getStatusClass(p.status)}">${this.formatarStatus(p.status)}</span></td>
+                </tr>`
+            ).join('');
+        },
+
+        async carregarMateriaisCriticos() {
+            try {
+                const r = await fetch('/api/pcp/materias-primas', { headers: this.getAuthHeaders() });
+                if (!r.ok) return;
+                const d = await r.json();
+                const materiais = (d.materiais || d || []).filter(m => {
+                    const atual = m.estoque_atual || m.quantidade || 0;
+                    const min = m.estoque_minimo || m.minimo || 0;
+                    return min > 0 && atual <= min;
+                });
+                document.getElementById('stat-criticos').textContent = materiais.length;
+                const tbody = document.getElementById('tbody-criticos');
+                if (!materiais.length) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:var(--space-4); color:var(--gray-400);">Nenhum material crítico</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = materiais.slice(0, 10).map(m => {
+                    const atual = m.estoque_atual || m.quantidade || 0;
+                    const min = m.estoque_minimo || m.minimo || 0;
+                    const pct = min > 0 ? (atual / min * 100) : 0;
+                    return `<tr>
+                        <td>${m.nome || m.descricao}</td>
+                        <td style="font-weight:600; color:var(--danger-500);">${atual}</td>
+                        <td>${min}</td>
+                        <td><span class="badge badge-${pct <= 50 ? 'urgent' : 'pending'}">${pct <= 50 ? 'Crítico' : 'Baixo'}</span></td>
+                    </tr>`;
+                }).join('');
+            } catch (e) { console.log('Erro materiais:', e); }
+        },
+
+        formatarMoeda(v) { return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); },
+        formatarData(d) { if (!d) return '-'; try { return new Date(d).toLocaleDateString('pt-BR'); } catch(e) { return d; } },
+        formatarStatus(s) {
+            const map = { pendente: 'Pendente', aprovado: 'Aprovado', recebido: 'Recebido', cancelado: 'Cancelado', parcial: 'Parcial' };
+            return map[s] || s || '-';
+        },
+        getStatusClass(s) {
+            const map = { pendente: 'pending', aprovado: 'approved', recebido: 'approved', cancelado: 'cancelled', parcial: 'in-progress' };
+            return map[s] || 'pending';
+        },
+        getStatusStyle(s) {
+            const map = { pendente: '#f59e0b', aprovado: '#10b981', recebido: '#10b981', cancelado: '#ef4444' };
+            return `color:${map[s] || '#64748b'}`;
+        },
+
+        configurarBotoes() { /* Report cards use onclick directly */ },
+
+        abrirModalRelatorio(tipo) {
+            const configs = this.getConfigRelatorio(tipo);
+            // Remove existing
+            document.getElementById('modal-relatorio')?.remove();
+            const html = `
+            <div class="modal-overlay active" id="modal-relatorio" onclick="if(event.target===this) RelatoriosCompras.fecharModal();">
+                <div class="modal" style="max-width:500px;">
+                    <div class="modal-header">
+                        <h3><i class="${configs.icon}"></i> ${configs.titulo}</h3>
+                        <button class="modal-close" onclick="RelatoriosCompras.fecharModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="font-size:0.85rem; color:var(--gray-600); margin-bottom:var(--space-4);">${configs.descricao}</p>
+                        <div class="form-grid cols-2">
+                            <div class="form-group"><label>Data Início</label><input type="date" id="data-inicio"></div>
+                            <div class="form-group"><label>Data Fim</label><input type="date" id="data-fim"></div>
+                        </div>
+                        <div class="form-group" style="margin-top:var(--space-3);">
+                            <label>Formato de Exportação</label>
+                            <div style="display:flex; gap:var(--space-3); margin-top:var(--space-1);">
+                                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer;">
+                                    <input type="radio" name="formato" value="pdf" checked style="accent-color:var(--primary-500);"> <i class="fas fa-file-pdf" style="color:#ef4444;"></i> PDF
+                                </label>
+                                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer;">
+                                    <input type="radio" name="formato" value="xlsx" style="accent-color:var(--primary-500);"> <i class="fas fa-file-excel" style="color:#10b981;"></i> Excel
+                                </label>
+                                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer;">
+                                    <input type="radio" name="formato" value="csv" style="accent-color:var(--primary-500);"> <i class="fas fa-file-csv" style="color:#3b82f6;"></i> CSV
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="RelatoriosCompras.fecharModal()">Cancelar</button>
+                        <button class="btn btn-primary" onclick="RelatoriosCompras.gerarRelatorio('${tipo}')"><i class="fas fa-download"></i> Gerar e Baixar</button>
+                    </div>
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+            // Set default dates
+            const hoje = new Date();
+            const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+            document.getElementById('data-fim').value = hoje.toISOString().split('T')[0];
+            document.getElementById('data-inicio').value = inicio.toISOString().split('T')[0];
+        },
+
+        getConfigRelatorio(tipo) {
+            const configs = {
+                pedidos: { titulo: 'Relatório de Pedidos', descricao: 'Exportar histórico de pedidos de compra com valores, fornecedores e status.', icon: 'fas fa-shopping-cart' },
+                fornecedores: { titulo: 'Relatório de Fornecedores', descricao: 'Exportar cadastro de fornecedores com contatos, categorias e avaliações.', icon: 'fas fa-users' },
+                estoque: { titulo: 'Relatório de Estoque', descricao: 'Exportar posição atual de estoque com custos e níveis de reposição.', icon: 'fas fa-boxes' },
+                movimentacoes: { titulo: 'Movimentações de Estoque', descricao: 'Exportar entradas, saídas e ajustes de estoque por período.', icon: 'fas fa-exchange-alt' },
+                criticos: { titulo: 'Materiais Críticos', descricao: 'Exportar materiais abaixo do estoque mínimo que precisam de reposição.', icon: 'fas fa-exclamation-triangle' },
+                cotacoes: { titulo: 'Relatório de Cotações', descricao: 'Exportar análise comparativa de cotações e economia obtida.', icon: 'fas fa-file-invoice-dollar' }
+            };
+            return configs[tipo] || configs.pedidos;
+        },
+
+        fecharModal() {
+            document.getElementById('modal-relatorio')?.remove();
+        },
+
+        gerarRelatorio(tipo) {
+            const formato = document.querySelector('input[name="formato"]:checked')?.value || 'csv';
+            this.mostrarLoading();
+            setTimeout(() => {
+                try {
+                    if (formato === 'csv') this.exportarCSV(tipo);
+                    else if (formato === 'xlsx') this.exportarExcel(tipo);
+                    else this.exportarPDF(tipo);
+                    this.fecharModal();
+                    this.mostrarToast('Relatório gerado com sucesso!', 'success');
+                } catch (e) {
+                    this.mostrarToast('Erro ao gerar relatório: ' + e.message, 'error');
+                }
+                this.esconderLoading();
+            }, 500);
+        },
+
+        exportarCSV(tipo) {
+            const bom = '\uFEFF';
+            let csv = bom;
+            const config = this.getConfigRelatorio(tipo);
+            csv += config.titulo + '\n';
+            csv += 'Gerado em: ' + new Date().toLocaleString('pt-BR') + '\n\n';
+            csv += 'Dados disponíveis para exportação no servidor\n';
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            this.downloadBlob(blob, `relatorio-${tipo}-${new Date().toISOString().split('T')[0]}.csv`);
+        },
+
+        exportarExcel(tipo) {
+            const config = this.getConfigRelatorio(tipo);
+            let html = '<html><head><meta charset="UTF-8"></head><body>';
+            html += '<h2>' + config.titulo + '</h2>';
+            html += '<p>Gerado em: ' + new Date().toLocaleString('pt-BR') + '</p>';
+            html += '<table border="1"><tr><th>Dados disponíveis para exportação no servidor</th></tr></table>';
+            html += '</body></html>';
+            const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+            this.downloadBlob(blob, `relatorio-${tipo}-${new Date().toISOString().split('T')[0]}.xls`);
+        },
+
+        exportarPDF(tipo) {
+            const config = this.getConfigRelatorio(tipo);
+            const win = window.open('', '_blank');
+            win.document.write(`
+                <html><head><title>${config.titulo}</title>
+                <style>body { font-family: Arial, sans-serif; padding: 40px; } h1 { color: #1e1e1e; } p { color: #666; }</style>
+                </head><body>
+                <h1>${config.titulo}</h1>
+                <p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
+                <p>ALUFORCE — Módulo de Compras</p>
+                <hr>
+                <p>Dados do relatório serão exibidos aqui.</p>
+                <script>window.print();<\/script>
+</body></html>`);
+        },
+
+        downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+        },
+
+        mostrarLoading() {
+            const el = document.createElement('div');
+            el.id = 'loading-overlay';
+            el.className = 'loading-overlay';
+            el.innerHTML = '<div class="spinner"></div>';
+            document.body.appendChild(el);
+        },
+
+        esconderLoading() {
+            document.getElementById('loading-overlay')?.remove();
+        },
+
+        mostrarToast(msg, type) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + (type || 'info');
+            toast.innerHTML = '<i class="fas fa-' + (type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle') + '"></i> ' + msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => RelatoriosCompras.init());
+    </script>
+
+    <script src="notifications.js"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/modules/Compras/compras-user-loader.js?v=20260214"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

@@ -1,0 +1,1161 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <title>Aluforce: Gerar DANFE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <style>
+        /* ============================================
+           VARIÁVEIS CSS — FATURAMENTO (DANFE)
+           ============================================ */
+        :root {
+            --fat-primary: #10b981;
+            --fat-secondary: #059669;
+            --fat-accent: #047857;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+            --text-primary: #111827;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --bg-page: #f9fafb;
+            --bg-card: #ffffff;
+        }
+
+        /* ============================================
+           RESET E BASE
+           ============================================ */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { font-size: 16px; scroll-behavior: smooth; height: 100%; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            line-height: 1.5;
+            height: 100%;
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           ALERT
+           ============================================ */
+        .alert-container {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 420px;
+        }
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: alertSlideIn 0.3s ease;
+        }
+        .alert-item.success { background: var(--success-green); }
+        .alert-item.error { background: var(--danger-red); }
+        .alert-item.warning { background: var(--warning-yellow); color: #111827; }
+        .alert-item.info { background: var(--info-blue); }
+        @keyframes alertSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* ============================================
+           PAGE CONTENT
+           ============================================ */
+        .page-content {
+            flex: 1;
+        }
+
+        /* ============================================
+           CARDS
+           ============================================ */
+        .card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title i {
+            color: var(--fat-primary);
+            font-size: 16px;
+        }
+
+        /* ============================================
+           FORM GRID
+           ============================================ */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .form-group input,
+        .form-group select {
+            height: 36px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 0 10px;
+            font-size: 13px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: #fff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--fat-primary);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        /* ============================================
+           BUTTONS
+           ============================================ */
+        .btn {
+            height: 36px;
+            padding: 0 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: inherit;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: var(--fat-primary);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: var(--fat-secondary);
+            box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+        }
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+        .btn-whatsapp {
+            background: #25D366;
+            color: #fff;
+        }
+        .btn-whatsapp:hover {
+            background: #1da851;
+            box-shadow: 0 2px 8px rgba(37,211,102,0.3);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* ============================================
+           SECTION TITLE
+           ============================================ */
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title i {
+            color: var(--fat-primary);
+            font-size: 16px;
+        }
+
+        /* ============================================
+           FORMATO GRID (SELECTION CARDS)
+           ============================================ */
+        .formato-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+        .formato-card {
+            background: var(--bg-card);
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .formato-card:hover {
+            border-color: var(--fat-primary);
+            box-shadow: 0 4px 12px rgba(16,185,129,0.12);
+        }
+        .formato-card.selected {
+            border-color: var(--fat-primary);
+            background: #f0fdf4;
+        }
+        .formato-card i {
+            font-size: 28px;
+            color: var(--fat-primary);
+            margin-bottom: 8px;
+            display: block;
+        }
+        .formato-card h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 4px;
+        }
+        .formato-card p {
+            font-size: 12px;
+            color: #6b7280;
+            margin: 0;
+        }
+
+        /* ============================================
+           DANFE PREVIEW
+           ============================================ */
+        .danfe-preview {
+            background: #fff;
+            border: 1px solid #d1d5db;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        .danfe-header {
+            border: 2px solid #000;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 0;
+        }
+        .danfe-header-left {
+            border-right: 2px solid #000;
+            padding-right: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .danfe-header-left .empresa-nome {
+            font-size: 13px;
+            font-weight: 700;
+            color: #000;
+        }
+        .danfe-header-left .empresa-cnpj {
+            font-size: 10px;
+            color: #333;
+            margin-top: 2px;
+        }
+        .danfe-header-left .empresa-endereco {
+            font-size: 9px;
+            color: #555;
+            margin-top: 2px;
+        }
+        .danfe-header-center {
+            padding: 0 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .danfe-header-center .danfe-title {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .danfe-header-center .danfe-subtitle {
+            font-size: 8px;
+            color: #555;
+            margin-top: 2px;
+        }
+        .danfe-header-center .danfe-tipo {
+            font-size: 10px;
+            margin-top: 6px;
+            padding: 2px 8px;
+            border: 1px solid #000;
+        }
+        .danfe-header-right {
+            border-left: 2px solid #000;
+            padding-left: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        .danfe-header-right .nfe-numero {
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .danfe-header-right .nfe-serie {
+            font-size: 9px;
+            color: #333;
+        }
+        .danfe-section {
+            border: 1px solid #000;
+            padding: 6px 10px;
+            margin-top: -1px;
+        }
+        .danfe-section-grid {
+            display: grid;
+            gap: 0;
+        }
+        .danfe-section-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+        .danfe-section-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .danfe-field {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            margin: -0.5px;
+        }
+        .danfe-label {
+            font-size: 9px;
+            color: #666;
+            text-transform: uppercase;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.3px;
+        }
+        .danfe-value {
+            font-size: 12px;
+            font-weight: 600;
+            color: #000;
+        }
+        .danfe-chave-section {
+            border: 1px solid #000;
+            padding: 8px 10px;
+            margin-top: -1px;
+            text-align: center;
+        }
+        .danfe-chave-label {
+            font-size: 9px;
+            color: #666;
+            text-transform: uppercase;
+            font-family: 'Inter', sans-serif;
+        }
+        .danfe-chave-value {
+            font-size: 11px;
+            font-weight: 700;
+            color: #000;
+            letter-spacing: 1px;
+            word-break: break-all;
+        }
+
+        /* DANFE Table */
+        .danfe-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-top: -1px;
+        }
+        .danfe-table th,
+        .danfe-table td {
+            border: 1px solid #000;
+            padding: 4px 6px;
+        }
+        .danfe-table th {
+            background: #f3f4f6;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+        }
+        .danfe-table td {
+            font-size: 11px;
+        }
+        .danfe-table .text-right {
+            text-align: right;
+        }
+
+        .danfe-totais {
+            border: 1px solid #000;
+            margin-top: -1px;
+            padding: 8px 10px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 30px;
+        }
+        .danfe-total-item {
+            text-align: right;
+        }
+        .danfe-total-item .danfe-label {
+            font-size: 9px;
+        }
+        .danfe-total-item .danfe-value {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .preview-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .hidden-section {
+            display: none;
+        }
+
+        .danfe-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        .danfe-empty i {
+            font-size: 40px;
+            color: #d1d5db;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 768px) {
+            .formato-grid {
+                grid-template-columns: 1fr;
+            }
+            .danfe-preview {
+                padding: 15px;
+            }
+            .danfe-header {
+                grid-template-columns: 1fr;
+            }
+            .danfe-header-left,
+            .danfe-header-right {
+                border: none;
+                padding: 8px 0;
+                border-bottom: 1px solid #000;
+            }
+            .danfe-header-right {
+                border-bottom: none;
+            }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .preview-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .preview-actions .btn {
+                justify-content: center;
+            }
+        }
+
+        /* ============================================
+           PRINT STYLES
+           ============================================ */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .danfe-preview,
+            .danfe-preview * {
+                visibility: visible;
+            }
+            .danfe-preview {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+                padding: 20px;
+                border: none;
+                box-shadow: none;
+            }
+            .preview-actions,
+            .sidebar,
+            .header,
+            .sidebar-overlay,
+            .alert-container {
+                display: none !important;
+            }
+        }
+    </style>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- ===== SIDEBAR ===== -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="emitir.html" class="sidebar-btn" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+                <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
+                <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+                <a href="danfe.html" class="sidebar-btn active" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+                <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
+                <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+                <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- ===== MAIN AREA ===== -->
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gerar DANFE</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- MAIN CONTENT -->
+            <div class="main-content">
+                <div class="page-content">
+
+                    <!-- ALERT CONTAINER -->
+                    <div class="alert-container" id="alert-container"></div>
+
+                    <!-- CARD: BUSCAR NOTA FISCAL -->
+                    <div class="card">
+                        <div class="card-title"><i class="fas fa-search"></i> Buscar Nota Fiscal</div>
+                        <div class="form-grid">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label for="chaveAcesso">Chave de Acesso</label>
+                                <input type="text" id="chaveAcesso" placeholder="Informe a chave de acesso (44 dígitos)" maxlength="44">
+                            </div>
+                            <div class="form-group">
+                                <label for="numeroNFe">Número da NFe</label>
+                                <input type="text" id="numeroNFe" placeholder="Número">
+                            </div>
+                            <div class="form-group">
+                                <label for="serieNFe">Série</label>
+                                <input type="text" id="serieNFe" placeholder="Série">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" onclick="buscarNFe()" id="btnBuscar"><i class="fas fa-search"></i> Buscar NFe</button>
+                            <button class="btn btn-secondary" onclick="limparBusca()"><i class="fas fa-eraser"></i> Limpar</button>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: FORMATO DE IMPRESSÃO -->
+                    <div class="card hidden-section" id="formatoSection">
+                        <div class="section-title"><i class="fas fa-print"></i> Formato de Impressão</div>
+                        <div class="formato-grid">
+                            <div class="formato-card selected" onclick="selecionarFormato('retrato', this)" data-formato="retrato">
+                                <i class="fas fa-file-alt"></i>
+                                <h4>DANFE Retrato</h4>
+                                <p>Formato padrão A4 retrato</p>
+                            </div>
+                            <div class="formato-card" onclick="selecionarFormato('paisagem', this)" data-formato="paisagem">
+                                <i class="fas fa-file"></i>
+                                <h4>DANFE Paisagem</h4>
+                                <p>Formato A4 paisagem</p>
+                            </div>
+                            <div class="formato-card" onclick="selecionarFormato('simplificado', this)" data-formato="simplificado">
+                                <i class="fas fa-file-contract"></i>
+                                <h4>DANFE Simplificado</h4>
+                                <p>Versão resumida</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: PREVIEW DO DANFE -->
+                    <div class="card hidden-section" id="previewSection">
+                        <div class="section-title"><i class="fas fa-eye"></i> Preview do DANFE</div>
+
+                        <div class="danfe-preview" id="danfe-preview">
+                            <!-- DANFE HEADER -->
+                            <div class="danfe-header">
+                                <div class="danfe-header-left">
+                                    <div class="empresa-nome" id="danfeEmpresa">—</div>
+                                    <div class="empresa-cnpj" id="danfeCNPJ">CNPJ: —</div>
+                                    <div class="empresa-endereco" id="danfeEndereco">—</div>
+                                </div>
+                                <div class="danfe-header-center">
+                                    <div class="danfe-title">DANFE</div>
+                                    <div class="danfe-subtitle">Documento Auxiliar da Nota Fiscal Eletrônica</div>
+                                    <div class="danfe-tipo">0 - ENTRADA &nbsp;/&nbsp; 1 - SAÍDA</div>
+                                </div>
+                                <div class="danfe-header-right">
+                                    <div class="nfe-numero" id="danfeNumero">Nº —</div>
+                                    <div class="nfe-serie" id="danfeSerie">Série —</div>
+                                </div>
+                            </div>
+
+                            <!-- CHAVE DE ACESSO -->
+                            <div class="danfe-chave-section">
+                                <div class="danfe-chave-label">Chave de Acesso</div>
+                                <div class="danfe-chave-value" id="danfeChave">— — — — — — — — — — —</div>
+                            </div>
+
+                            <!-- NATUREZA / PROTOCOLO -->
+                            <div class="danfe-section-grid cols-2">
+                                <div class="danfe-field">
+                                    <div class="danfe-label">Natureza da Operação</div>
+                                    <div class="danfe-value" id="danfeNatureza">—</div>
+                                </div>
+                                <div class="danfe-field">
+                                    <div class="danfe-label">Protocolo de Autorização</div>
+                                    <div class="danfe-value" id="danfeProtocolo">—</div>
+                                </div>
+                            </div>
+
+                            <!-- DESTINATÁRIO -->
+                            <div class="danfe-section" style="margin-top:-1px;">
+                                <div class="danfe-label" style="margin-bottom:4px;font-weight:600;font-size:10px;color:#000;">DESTINATÁRIO / REMETENTE</div>
+                            </div>
+                            <div class="danfe-section-grid cols-3">
+                                <div class="danfe-field" style="grid-column: 1 / 3;">
+                                    <div class="danfe-label">Nome / Razão Social</div>
+                                    <div class="danfe-value" id="danfeDestinatario">—</div>
+                                </div>
+                                <div class="danfe-field">
+                                    <div class="danfe-label">CNPJ/CPF</div>
+                                    <div class="danfe-value" id="danfeDocDest">—</div>
+                                </div>
+                            </div>
+                            <div class="danfe-section-grid cols-2" style="margin-top:-1px;">
+                                <div class="danfe-field" style="grid-column: 1 / -1;">
+                                    <div class="danfe-label">Endereço</div>
+                                    <div class="danfe-value" id="danfeEnderecoDest">—</div>
+                                </div>
+                            </div>
+
+                            <!-- ITENS -->
+                            <div class="danfe-section" style="margin-top:8px;">
+                                <div class="danfe-label" style="font-weight:600;font-size:10px;color:#000;">DADOS DOS PRODUTOS / SERVIÇOS</div>
+                            </div>
+                            <table class="danfe-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:50%;">Descrição</th>
+                                        <th style="width:12%;" class="text-right">Qtd</th>
+                                        <th style="width:19%;" class="text-right">Valor Unit.</th>
+                                        <th style="width:19%;" class="text-right">Valor Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="danfeItensBody">
+                                    <tr>
+                                        <td colspan="4" style="text-align:center;color:#999;padding:20px;">Nenhum item carregado</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <!-- TOTAIS -->
+                            <div class="danfe-totais">
+                                <div class="danfe-total-item">
+                                    <div class="danfe-label">Total dos Produtos</div>
+                                    <div class="danfe-value" id="danfeTotalProdutos">R$ 0,00</div>
+                                </div>
+                                <div class="danfe-total-item">
+                                    <div class="danfe-label">Valor Total da NFe</div>
+                                    <div class="danfe-value" id="danfeTotalNFe">R$ 0,00</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PREVIEW ACTIONS -->
+                        <div class="preview-actions">
+                            <button class="btn btn-primary" onclick="gerarPDF()"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                            <button class="btn btn-primary" onclick="imprimir()"><i class="fas fa-print"></i> Imprimir</button>
+                            <button class="btn btn-secondary" onclick="enviarEmail()"><i class="fas fa-envelope"></i> Enviar por Email</button>
+                            <button class="btn btn-whatsapp" onclick="enviarWhatsApp()"><i class="fab fa-whatsapp"></i> Enviar WhatsApp</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ===== SIDEBAR/HEADER — FUNÇÕES PADRÃO =====
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        function toggleNotificacoes() {
+            const panel = document.getElementById('notification-panel');
+            if (panel) panel.classList.toggle('active');
+        }
+
+        // ===== MAPEAMENTO DE AVATARES =====
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp',
+            'marcia': '/avatars/Marcia.webp',
+            'augusto': '/avatars/Augusto.webp',
+            'renata': '/avatars/Renata.jpg',
+            'fabiano': '/avatars/Fabiano.webp',
+            'fabiola': '/avatars/Fabiola.webp'
+        };
+
+        // ===== CARREGAR USUÁRIO =====
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.apelido || user.nome || user.name || 'Usuário';
+                    const primeiroNome = user.apelido || (userName ? userName.split(' ')[0] : 'Usuário');
+
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    document.getElementById('user-name').textContent = primeiroNome;
+
+                    const initialsEl = document.getElementById('user-initials');
+                    const avatarImg = document.getElementById('user-photo');
+
+                    let avatarUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    if (!avatarUrl || avatarUrl === '/avatars/default.webp') {
+                        if (user.email) {
+                            const username = user.email.split('@')[0].split('.')[0].toLowerCase();
+                            avatarUrl = avatarNameMap[username];
+                        }
+                        if (!avatarUrl) avatarUrl = avatarNameMap[primeiroNome.toLowerCase()];
+                    }
+
+                    if (avatarUrl && avatarImg) {
+                        avatarImg.src = avatarUrl;
+                        avatarImg.onload = () => {
+                            avatarImg.style.display = 'block';
+                            if (initialsEl) initialsEl.style.display = 'none';
+                        };
+                        avatarImg.onerror = () => {
+                            avatarImg.style.display = 'none';
+                            if (initialsEl) {
+                                initialsEl.style.display = 'flex';
+                                const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                                initialsEl.textContent = initials;
+                            }
+                        };
+                    } else {
+                        if (avatarImg) avatarImg.style.display = 'none';
+                        if (initialsEl) {
+                            initialsEl.style.display = 'flex';
+                            const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                            initialsEl.textContent = initials;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('[DANFE] Erro ao carregar usuário:', error);
+            }
+        }
+
+        // ===== ESTADO DA PÁGINA =====
+        let formatoSelecionado = 'retrato';
+        let nfeData = null;
+
+        // ===== SELECIONAR FORMATO =====
+        function selecionarFormato(formato, el) {
+            formatoSelecionado = formato;
+            document.querySelectorAll('.formato-card').forEach(card => card.classList.remove('selected'));
+            if (el) {
+                el.classList.add('selected');
+            } else {
+                const card = document.querySelector(`.formato-card[data-formato="${formato}"]`);
+                if (card) card.classList.add('selected');
+            }
+        }
+
+        // ===== BUSCAR NFE =====
+        async function buscarNFe() {
+            const chave = document.getElementById('chaveAcesso').value.trim();
+            const numero = document.getElementById('numeroNFe').value.trim();
+            const serie = document.getElementById('serieNFe').value.trim();
+
+            if (!chave && !numero) {
+                showAlert('Informe a chave de acesso ou o número da NFe.', 'warning');
+                return;
+            }
+
+            const btnBuscar = document.getElementById('btnBuscar');
+            btnBuscar.disabled = true;
+            btnBuscar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
+
+            try {
+                let url;
+                if (chave) {
+                    url = `/api/nfe/${encodeURIComponent(chave)}`;
+                } else {
+                    url = `/api/nfe/buscar?numero=${encodeURIComponent(numero)}&serie=${encodeURIComponent(serie)}`;
+                }
+
+                const response = await fetch(url, { credentials: 'include' });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.message || errData.error || `Erro ${response.status}: Nota fiscal não encontrada`);
+                }
+
+                nfeData = await response.json();
+                preencherPreview();
+
+                // Mostrar seções
+                document.getElementById('formatoSection').classList.remove('hidden-section');
+                document.getElementById('previewSection').classList.remove('hidden-section');
+
+                showAlert('Nota fiscal carregada com sucesso!', 'success');
+
+            } catch (error) {
+                console.error('[DANFE] Erro ao buscar NFe:', error);
+                showAlert(error.message || 'Erro ao buscar nota fiscal.', 'error');
+                document.getElementById('formatoSection').classList.add('hidden-section');
+                document.getElementById('previewSection').classList.add('hidden-section');
+                nfeData = null;
+            } finally {
+                btnBuscar.disabled = false;
+                btnBuscar.innerHTML = '<i class="fas fa-search"></i> Buscar NFe';
+            }
+        }
+
+        // ===== PREENCHER PREVIEW =====
+        function preencherPreview() {
+            if (!nfeData) return;
+
+            // Emitente
+            const emit = nfeData.emitente || nfeData.emit || {};
+            document.getElementById('danfeEmpresa').textContent = emit.razaoSocial || emit.xNome || emit.nome || '—';
+            document.getElementById('danfeCNPJ').textContent = 'CNPJ: ' + (emit.cnpj || emit.CNPJ || '—');
+            const endEmit = emit.endereco || emit.enderEmit || {};
+            document.getElementById('danfeEndereco').textContent = [
+                endEmit.logradouro || endEmit.xLgr || '',
+                endEmit.numero || endEmit.nro || '',
+                endEmit.bairro || endEmit.xBairro || '',
+                endEmit.cidade || endEmit.xMun || '',
+                endEmit.uf || endEmit.UF || ''
+            ].filter(Boolean).join(', ') || '—';
+
+            // Número e série
+            document.getElementById('danfeNumero').textContent = 'Nº ' + (nfeData.numero || nfeData.nNF || '—');
+            document.getElementById('danfeSerie').textContent = 'Série ' + (nfeData.serie || '—');
+
+            // Chave de acesso
+            const chave = nfeData.chaveAcesso || nfeData.chave || nfeData.chNFe || '—';
+            document.getElementById('danfeChave').textContent = chave.replace(/(\d{4})/g, '$1 ').trim();
+
+            // Natureza e protocolo
+            document.getElementById('danfeNatureza').textContent = nfeData.naturezaOperacao || nfeData.natOp || '—';
+            document.getElementById('danfeProtocolo').textContent = nfeData.protocolo || nfeData.nProt || '—';
+
+            // Destinatário
+            const dest = nfeData.destinatario || nfeData.dest || {};
+            document.getElementById('danfeDestinatario').textContent = dest.razaoSocial || dest.xNome || dest.nome || '—';
+            document.getElementById('danfeDocDest').textContent = dest.cnpj || dest.cpf || dest.CNPJ || dest.CPF || '—';
+            const endDest = dest.endereco || dest.enderDest || {};
+            document.getElementById('danfeEnderecoDest').textContent = [
+                endDest.logradouro || endDest.xLgr || '',
+                endDest.numero || endDest.nro || '',
+                endDest.bairro || endDest.xBairro || '',
+                endDest.cidade || endDest.xMun || '',
+                endDest.uf || endDest.UF || ''
+            ].filter(Boolean).join(', ') || '—';
+
+            // Itens
+            const itens = nfeData.itens || nfeData.det || nfeData.produtos || [];
+            const tbody = document.getElementById('danfeItensBody');
+            tbody.innerHTML = '';
+
+            if (itens.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999;padding:20px;">Nenhum item</td></tr>';
+            } else {
+                itens.forEach(item => {
+                    const prod = item.prod || item;
+                    const desc = prod.descricao || prod.xProd || prod.nome || '—';
+                    const qtd = prod.quantidade || prod.qCom || prod.qtd || 0;
+                    const vUnit = prod.valorUnitario || prod.vUnCom || prod.vlrUnit || 0;
+                    const vTotal = prod.valorTotal || prod.vProd || (parseFloat(qtd) * parseFloat(vUnit)) || 0;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${escapeHtml(desc)}</td>
+                        <td class="text-right">${formatNumber(qtd)}</td>
+                        <td class="text-right">${formatCurrency(vUnit)}</td>
+                        <td class="text-right">${formatCurrency(vTotal)}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // Totais
+            const totalProd = nfeData.totalProdutos || nfeData.vProd ||
+                itens.reduce((sum, item) => {
+                    const prod = item.prod || item;
+                    return sum + parseFloat(prod.valorTotal || prod.vProd || 0);
+                }, 0);
+            const totalNFe = nfeData.totalNFe || nfeData.vNF || totalProd;
+
+            document.getElementById('danfeTotalProdutos').textContent = formatCurrency(totalProd);
+            document.getElementById('danfeTotalNFe').textContent = formatCurrency(totalNFe);
+        }
+
+        // ===== GERAR PDF =====
+        function gerarPDF() {
+            if (!nfeData) {
+                showAlert('Nenhuma nota fiscal carregada.', 'warning');
+                return;
+            }
+            window.print();
+        }
+
+        // ===== IMPRIMIR =====
+        function imprimir() {
+            if (!nfeData) {
+                showAlert('Nenhuma nota fiscal carregada.', 'warning');
+                return;
+            }
+            window.print();
+        }
+
+        // ===== ENVIAR EMAIL =====
+        async function enviarEmail() {
+            if (!nfeData) {
+                showAlert('Nenhuma nota fiscal carregada.', 'warning');
+                return;
+            }
+
+            const email = prompt('Informe o e-mail do destinatário:');
+            if (!email || !email.trim()) return;
+
+            const chave = nfeData.chaveAcesso || nfeData.chave || nfeData.chNFe;
+            if (!chave) {
+                showAlert('Chave de acesso não disponível.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/nfe/${encodeURIComponent(chave)}/email`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email: email.trim() })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json().catch(() => ({}));
+                    throw new Error(err.message || 'Erro ao enviar e-mail.');
+                }
+
+                showAlert('DANFE enviado por e-mail com sucesso!', 'success');
+            } catch (error) {
+                console.error('[DANFE] Erro ao enviar email:', error);
+                showAlert(error.message || 'Erro ao enviar e-mail.', 'error');
+            }
+        }
+
+        // ===== ENVIAR WHATSAPP =====
+        function enviarWhatsApp() {
+            if (!nfeData) {
+                showAlert('Nenhuma nota fiscal carregada.', 'warning');
+                return;
+            }
+
+            const telefone = prompt('Informe o número do WhatsApp (com DDD):');
+            if (!telefone || !telefone.trim()) return;
+
+            const numero = telefone.replace(/\D/g, '');
+            const chave = nfeData.chaveAcesso || nfeData.chave || nfeData.chNFe || '';
+            const nfNumero = nfeData.numero || nfeData.nNF || '';
+            const empresa = (nfeData.emitente || nfeData.emit || {}).razaoSocial || 'Aluforce';
+
+            const mensagem = encodeURIComponent(
+                `📄 *DANFE - Nota Fiscal Eletrônica*\n\n` +
+                `Empresa: ${empresa}\n` +
+                `NF-e Nº: ${nfNumero}\n` +
+                `Chave: ${chave}\n\n` +
+                `Consulte em: https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx`
+            );
+
+            const whatsappUrl = `https://wa.me/55${numero}?text=${mensagem}`;
+            window.open(whatsappUrl, '_blank');
+        }
+
+        // ===== LIMPAR BUSCA =====
+        function limparBusca() {
+            document.getElementById('chaveAcesso').value = '';
+            document.getElementById('numeroNFe').value = '';
+            document.getElementById('serieNFe').value = '';
+            document.getElementById('formatoSection').classList.add('hidden-section');
+            document.getElementById('previewSection').classList.add('hidden-section');
+            nfeData = null;
+        }
+
+        // ===== SHOW ALERT =====
+        function showAlert(msg, type) {
+            type = type || 'info';
+            const container = document.getElementById('alert-container');
+            if (!container) return;
+
+            const iconMap = {
+                success: 'fa-check-circle',
+                error: 'fa-times-circle',
+                warning: 'fa-exclamation-triangle',
+                info: 'fa-info-circle'
+            };
+
+            const alertEl = document.createElement('div');
+            alertEl.className = `alert-item ${type}`;
+            alertEl.innerHTML = `<i class="fas ${iconMap[type] || iconMap.info}"></i> <span>${msg}</span>`;
+            container.appendChild(alertEl);
+
+            setTimeout(() => {
+                alertEl.style.opacity = '0';
+                alertEl.style.transform = 'translateX(100%)';
+                alertEl.style.transition = 'all 0.3s ease';
+                setTimeout(() => alertEl.remove(), 300);
+            }, 4000);
+        }
+
+        // ===== MODAL CONFIGURAÇÕES (STUB) =====
+        function abrirModalConfiguracoes() {
+            showAlert('Módulo de configurações em desenvolvimento.', 'info');
+        }
+
+        // ===== UTIL: FORMAT =====
+        function formatCurrency(value) {
+            const num = parseFloat(value) || 0;
+            return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function formatNumber(value) {
+            const num = parseFloat(value) || 0;
+            return num.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ===== CHECK URL PARAMS =====
+        function checkUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const chave = params.get('chave');
+            if (chave) {
+                document.getElementById('chaveAcesso').value = chave;
+                buscarNFe();
+            }
+        }
+
+        // ===== INIT =====
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            checkUrlParams();
+        });
+    </script>
+
+    <script src="/js/notification-manager.js" defer></script>
+    <script src="../_shared/connection-monitor.js" defer></script>
+    <script src="/js/popup-confirmacao.js" defer></script>
+    <script src="/js/auth-unified.js?v=20260131c" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

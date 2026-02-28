@@ -1,0 +1,1057 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Permissões</title>
+    <link rel="icon" href="/favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/skeleton-loader.css">
+    <script defer src="/js/performance-utils.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f5f5f5; min-height: 100vh; }
+
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-dark: #1a1a2e;
+            --primary-blue: #225cfa;
+            --primary-green: #10b981;
+            --primary-orange: #f97316;
+            --primary-red: #ef4444;
+            --primary-purple: #8b5cf6;
+            --text-primary: #1a1a2e;
+            --text-secondary: #64748b;
+            --text-muted: #8b8b9a;
+            --border-color: #e2e8f0;
+            --bg-card: #ffffff;
+            --bg-hover: #f8fafc;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+            --radius: 8px;
+            --radius-lg: 12px;
+        }
+
+        .app-container { display: flex; min-height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width); background: var(--primary-dark); display: flex; flex-direction: column;
+            align-items: center; padding: 12px 0; position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
+        }
+        .sidebar-logo {
+            width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 16px; text-decoration: none; margin-bottom: 16px; background: rgba(255,255,255,0.1);
+            transition: all 0.2s;
+        }
+        .sidebar-logo:hover { background: var(--primary-blue); transform: scale(1.05); }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; width: 100%; align-items: center; }
+        .sidebar-btn {
+            width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            color: var(--text-muted); font-size: 16px; text-decoration: none; transition: all 0.2s; position: relative;
+            border: none; background: none; cursor: pointer;
+        }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-blue); color: white; }
+        .sidebar-btn[title]::after {
+            content: attr(title); position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+            background: #333; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .sidebar-btn:hover::after { opacity: 1; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+
+        /* MAIN */
+        .main-area { margin-left: var(--sidebar-width); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center;
+            justify-content: space-between; padding: 0 20px; color: white; /* position: global-header-sidebar.css */ top: 0; z-index: 50;
+        }
+        .header-brand { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .header-brand span:first-child { color: var(--text-muted); }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .user-greeting { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%; background: var(--primary-blue); display: flex;
+            align-items: center; justify-content: center; font-size: 13px; font-weight: 600; overflow: hidden;
+        }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+
+        /* CONTENT */
+        .content-area { flex: 1; padding: 24px; overflow-y: auto; }
+
+        /* PAGE HEADER */
+        .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .page-header h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+        .page-header h1 i { color: var(--primary-blue); }
+        .page-header p { color: var(--text-secondary); font-size: 13px; margin-top: 4px; }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* SEARCH & FILTER BAR */
+        .filter-bar {
+            display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap;
+            background: var(--bg-card); padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border-color);
+        }
+        .search-box {
+            display: flex; align-items: center; gap: 8px; background: #f1f5f9; border-radius: var(--radius);
+            padding: 8px 12px; flex: 1; min-width: 200px;
+        }
+        .search-box i { color: var(--text-muted); font-size: 14px; }
+        .search-box input {
+            border: none; outline: none; background: transparent; font-family: inherit; font-size: 13px;
+            color: var(--text-primary); width: 100%;
+        }
+        .filter-select {
+            padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border-color); font-family: inherit;
+            font-size: 13px; color: var(--text-primary); background: white; cursor: pointer; outline: none;
+        }
+        .filter-select:focus { border-color: var(--primary-blue); }
+
+        /* USERS TABLE */
+        .users-table-wrapper {
+            background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid var(--border-color);
+            overflow: hidden; box-shadow: var(--shadow-sm);
+        }
+        .users-table { width: 100%; border-collapse: collapse; }
+        .users-table thead th {
+            padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.05em; background: #f8fafc; border-bottom: 1px solid var(--border-color);
+        }
+        .users-table tbody tr { border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; }
+        .users-table tbody tr:hover { background: var(--bg-hover); }
+        .users-table tbody tr:last-child { border-bottom: none; }
+        .users-table td { padding: 10px 16px; font-size: 13px; color: var(--text-primary); }
+        .user-name-cell { display: flex; align-items: center; gap: 10px; }
+        .user-mini-avatar {
+            width: 32px; height: 32px; border-radius: 50%; background: var(--primary-blue); color: white;
+            display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0;
+        }
+        .user-info .name { font-weight: 500; }
+        .user-info .email { color: var(--text-muted); font-size: 12px; }
+
+        /* BADGES */
+        .badge {
+            display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px;
+            font-size: 11px; font-weight: 500;
+        }
+        .badge-admin { background: #fef3c7; color: #92400e; }
+        .badge-comercial { background: #dbeafe; color: #1e40af; }
+        .badge-user { background: #f1f5f9; color: #475569; }
+        .badge-rh { background: #ede9fe; color: #6d28d9; }
+        .badge-consultoria { background: #d1fae5; color: #065f46; }
+        .badge-profile { background: #e0f2fe; color: #0369a1; font-size: 11px; }
+        .badge-count { background: #f1f5f9; color: #334155; font-weight: 600; min-width: 28px; text-align: center; }
+
+        .areas-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+        .area-tag {
+            display: inline-flex; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;
+            background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0;
+        }
+
+        /* DETAIL PANEL */
+        .detail-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; display: none; align-items: stretch;
+            justify-content: flex-end;
+        }
+        .detail-overlay.active { display: flex; }
+        .detail-panel {
+            width: 720px; max-width: 100%; background: white; display: flex; flex-direction: column;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        .detail-header {
+            display: flex; align-items: center; justify-content: space-between; padding: 16px 24px;
+            border-bottom: 1px solid var(--border-color); background: #f8fafc;
+        }
+        .detail-header h2 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .detail-close {
+            width: 32px; height: 32px; border-radius: 50%; border: none; background: transparent;
+            cursor: pointer; font-size: 16px; color: var(--text-secondary); display: flex; align-items: center;
+            justify-content: center; transition: all 0.2s;
+        }
+        .detail-close:hover { background: #fee2e2; color: var(--primary-red); }
+
+        .detail-body { flex: 1; overflow-y: auto; padding: 24px; }
+
+        /* PROFILE SELECTOR */
+        .profile-section { margin-bottom: 24px; }
+        .profile-section h3 {
+            font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .profile-section h3 i { color: var(--primary-blue); }
+        .profile-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+        .profile-card {
+            padding: 10px 14px; border-radius: var(--radius); border: 2px solid var(--border-color);
+            cursor: pointer; transition: all 0.2s; background: white;
+        }
+        .profile-card:hover { border-color: var(--primary-blue); background: #eff6ff; }
+        .profile-card.selected { border-color: var(--primary-blue); background: #eff6ff; }
+        .profile-card .pc-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+        .profile-card .pc-desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* MODULE PERMISSIONS */
+        .module-section { margin-bottom: 20px; }
+        .module-header {
+            display: flex; align-items: center; justify-content: space-between; padding: 10px 14px;
+            background: #f8fafc; border-radius: var(--radius); cursor: pointer; transition: all 0.2s;
+            border: 1px solid var(--border-color);
+        }
+        .module-header:hover { background: #f1f5f9; }
+        .module-header .mh-left { display: flex; align-items: center; gap: 8px; }
+        .module-header .mh-icon {
+            width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center;
+            justify-content: center; font-size: 13px; color: white;
+        }
+        .module-header .mh-title { font-size: 13px; font-weight: 600; }
+        .module-header .mh-count { font-size: 12px; color: var(--text-muted); }
+        .module-header .mh-toggle { font-size: 12px; color: var(--text-muted); transition: transform 0.2s; }
+        .module-header.expanded .mh-toggle { transform: rotate(180deg); }
+
+        .module-body {
+            border: 1px solid var(--border-color); border-top: none; border-radius: 0 0 var(--radius) var(--radius);
+            padding: 12px 14px; display: none;
+        }
+        .module-body.expanded { display: block; }
+
+        .perm-group { margin-bottom: 12px; }
+        .perm-group-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .perm-list { display: flex; flex-wrap: wrap; gap: 6px; }
+        .perm-checkbox {
+            display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px;
+            background: #f8fafc; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.15s;
+            font-size: 12px; color: var(--text-primary); user-select: none;
+        }
+        .perm-checkbox:hover { background: #eff6ff; border-color: var(--primary-blue); }
+        .perm-checkbox.checked { background: #dbeafe; border-color: var(--primary-blue); color: #1e40af; }
+        .perm-checkbox input[type="checkbox"] { display: none; }
+        .perm-checkbox .check-icon { font-size: 10px; color: var(--primary-blue); display: none; }
+        .perm-checkbox.checked .check-icon { display: inline; }
+        .perm-checkbox .uncheck-icon { font-size: 10px; color: var(--text-muted); }
+        .perm-checkbox.checked .uncheck-icon { display: none; }
+
+        .module-actions-bar {
+            display: flex; gap: 8px; margin-bottom: 8px; align-items: center;
+        }
+        .btn-all, .btn-none {
+            padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); background: white;
+            cursor: pointer; font-size: 11px; font-family: inherit; color: var(--text-secondary); transition: all 0.15s;
+        }
+        .btn-all:hover { background: #dbeafe; color: var(--primary-blue); border-color: var(--primary-blue); }
+        .btn-none:hover { background: #fee2e2; color: var(--primary-red); border-color: var(--primary-red); }
+
+        /* AREAS SECTION */
+        .areas-section { margin-bottom: 24px; }
+        .area-toggle {
+            display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px;
+            background: #f1f5f9; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.15s;
+            font-size: 12px; color: var(--text-primary); user-select: none;
+        }
+        .area-toggle:hover { background: #e2e8f0; }
+        .area-toggle.active { background: #dcfce7; border-color: #86efac; color: #15803d; }
+        .area-toggle input { display: none; }
+
+        /* DETAIL FOOTER */
+        .detail-footer {
+            padding: 16px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between;
+            align-items: center; background: #f8fafc;
+        }
+        .btn-primary {
+            padding: 8px 20px; border-radius: var(--radius); border: none; background: var(--primary-blue);
+            color: white; font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .btn-primary:hover { background: #1d4fd8; }
+        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-secondary {
+            padding: 8px 20px; border-radius: var(--radius); border: 1px solid var(--border-color); background: white;
+            color: var(--text-primary); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .btn-secondary:hover { background: #f1f5f9; }
+
+        /* MODULE COLOR MAP */
+        .mc-vendas { background: var(--primary-orange); }
+        .mc-rh { background: var(--primary-purple); }
+        .mc-pcp { background: #0ea5e9; }
+        .mc-financeiro { background: var(--primary-green); }
+        .mc-nfe { background: #f59e0b; }
+        .mc-compras { background: #06b6d4; }
+
+        /* STAT CARDS */
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-card {
+            background: var(--bg-card); border-radius: var(--radius); padding: 16px; border: 1px solid var(--border-color);
+            display: flex; align-items: center; gap: 12px;
+        }
+        .stat-icon {
+            width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            font-size: 16px; color: white;
+        }
+        .stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary); line-height: 1; }
+        .stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* TOAST */
+        .toast {
+            position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: var(--radius);
+            color: white; font-size: 13px; font-weight: 500; z-index: 999; opacity: 0; transform: translateY(10px);
+            transition: all 0.3s; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-lg);
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background: var(--primary-green); }
+        .toast.error { background: var(--primary-red); }
+        .toast.info { background: var(--primary-blue); }
+
+        /* LOADING */
+        .loading-overlay {
+            position: absolute; inset: 0; background: rgba(255,255,255,0.8); display: flex; align-items: center;
+            justify-content: center; z-index: 10;
+        }
+        .spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: var(--primary-blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .detail-panel { width: 100%; }
+            .profile-cards { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: 1fr 1fr; }
+        }
+
+        /* CUSTOM LABEL */
+        .custom-badge {
+            display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px;
+            font-size: 10px; font-weight: 600; background: #fef3c7; color: #92400e; margin-left: 4px;
+        }
+    </style>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/tooltips-professional.js?v=20260216"></script>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+            <i class="fas fa-home"></i>
+        </a>
+        <nav class="sidebar-nav">
+            <a href="/admin/usuarios" class="sidebar-btn" title="Usuários">
+                <i class="fas fa-users"></i>
+            </a>
+            <a href="/admin/permissoes" class="sidebar-btn active" title="Permissões">
+                <i class="fas fa-shield-halved"></i>
+            </a>
+            <a href="/admin/logs" class="sidebar-btn" title="Logs">
+                <i class="fas fa-clipboard-list"></i>
+            </a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="/dashboard" class="sidebar-btn" title="Dashboard">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main-area">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                    <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Administração</span>
+                </div>
+            </div>
+            <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Olá</span>, <strong id="user-name">Admin</strong></span>
+                    <div class="user-avatar">
+                        <img src="" alt="" id="user-photo">
+                        <span id="user-initials">A</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- CONTENT -->
+        <div class="content-area">
+            <!-- PAGE HEADER -->
+            <div class="page-header">
+                <div>
+                    <h1><i class="fas fa-shield-halved"></i> Gerenciamento de Permissões</h1>
+                    <p>Configure o que cada usuário pode acessar, visualizar, editar e executar no sistema</p>
+                </div>
+            </div>
+
+            <!-- STATS -->
+            <div class="stats-row" id="stats-row">
+                <div class="stat-card">
+                    <div class="stat-icon mc-vendas"><i class="fas fa-users"></i></div>
+                    <div><div class="stat-value" id="stat-total">-</div><div class="stat-label">Usuários</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon mc-pcp"><i class="fas fa-user-shield"></i></div>
+                    <div><div class="stat-value" id="stat-admins">-</div><div class="stat-label">Admins</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon mc-financeiro"><i class="fas fa-id-badge"></i></div>
+                    <div><div class="stat-value" id="stat-profiles">-</div><div class="stat-label">Perfis Ativos</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon mc-rh"><i class="fas fa-key"></i></div>
+                    <div><div class="stat-value" id="stat-custom">-</div><div class="stat-label">Customizados</div></div>
+                </div>
+            </div>
+
+            <!-- FILTER BAR -->
+            <div class="filter-bar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Buscar por nome ou email..." id="search-input">
+                </div>
+                <select class="filter-select" id="filter-role">
+                    <option value="">Todos os Cargos</option>
+                    <option value="admin">Admin</option>
+                    <option value="comercial">Comercial</option>
+                    <option value="rh">RH</option>
+                    <option value="user">Usuário</option>
+                </select>
+                <select class="filter-select" id="filter-area">
+                    <option value="">Todas as Áreas</option>
+                    <option value="vendas">Vendas</option>
+                    <option value="rh">RH</option>
+                    <option value="pcp">PCP</option>
+                    <option value="financeiro">Financeiro</option>
+                    <option value="nfe">NF-e</option>
+                    <option value="compras">Compras</option>
+                    <option value="logistica">Logística</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+
+            <!-- USERS TABLE -->
+            <div class="users-table-wrapper" style="position:relative;">
+                <div class="loading-overlay" id="loading-overlay">
+                    <div class="spinner"></div>
+                </div>
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Usuário</th>
+                            <th>Cargo</th>
+                            <th>Perfil</th>
+                            <th>Áreas</th>
+                            <th>Permissões</th>
+                            <th style="width:60px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-overlay" id="detail-overlay">
+    <div style="flex:1;" onclick="closeDetail()"></div>
+    <div class="detail-panel" id="detail-panel">
+        <div class="detail-header">
+            <h2><i class="fas fa-user-cog" style="color:var(--primary-blue)"></i> <span id="detail-user-name">Usuário</span></h2>
+            <button class="detail-close" onclick="closeDetail()" title="Fechar"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="detail-body" id="detail-body">
+            <!-- Dynamic content -->
+        </div>
+        <div class="detail-footer">
+            <button class="btn-secondary" onclick="closeDetail()"><i class="fas fa-times"></i> Cancelar</button>
+            <button class="btn-primary" id="btn-save" onclick="savePermissions()"><i class="fas fa-save"></i> Salvar Permissões</button>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="/modules/_shared/connection-monitor.js?v=20260216"></script>
+<script src="/js/popup-confirmacao.js"></script>
+<script src="/js/auth-unified.js?v=20260211"></script>
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let allUsers = [];
+let allProfiles = {};
+let allActions = {};
+let selectedUser = null;
+let editingPermissions = {};
+let editingAreas = [];
+let editingProfile = null;
+let isDirty = false; // Rastreia se há alterações não salvas
+let _originalSnapshot = ''; // Snapshot das permissões ao abrir
+
+// ============================================================
+// UTILS — Segurança + Performance
+// ============================================================
+function escapeHtml(str) {
+    if (!str) return '';
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return String(str).replace(/[&<>"']/g, c => map[c]);
+}
+function debounce(fn, delay = 250) {
+    let timer;
+    return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+}
+function markDirty() {
+    isDirty = true;
+    const btn = document.getElementById('btn-save');
+    if (btn && !btn.classList.contains('has-changes')) {
+        btn.classList.add('has-changes');
+        btn.style.boxShadow = '0 0 0 3px rgba(34,92,250,0.3)';
+    }
+}
+function getCurrentSnapshot() {
+    return JSON.stringify({ profile: editingProfile, areas: editingAreas.sort(), perms: editingPermissions });
+}
+
+const MODULE_LABELS = {
+    vendas: { label: 'Vendas', icon: 'fa-chart-line', colorClass: 'mc-vendas' },
+    rh: { label: 'RH', icon: 'fa-users', colorClass: 'mc-rh' },
+    pcp: { label: 'PCP', icon: 'fa-industry', colorClass: 'mc-pcp' },
+    financeiro: { label: 'Financeiro', icon: 'fa-dollar-sign', colorClass: 'mc-financeiro' },
+    nfe: { label: 'NF-e', icon: 'fa-file-invoice', colorClass: 'mc-nfe' },
+    compras: { label: 'Compras', icon: 'fa-cart-shopping', colorClass: 'mc-compras' },
+    logistica: { label: 'Logística', icon: 'fa-truck', colorClass: 'mc-pcp' },
+    admin: { label: 'Admin', icon: 'fa-cog', colorClass: 'mc-vendas' }
+};
+
+const ACTION_GROUPS = {
+    'page': 'Páginas',
+    'pedido': 'Pedidos',
+    'orcamento': 'Orçamentos',
+    'cliente': 'Clientes',
+    'relatorio': 'Relatórios',
+    'kanban': 'Kanban',
+    'exportar': 'Exportação',
+    'config': 'Configurações',
+    'funcionario': 'Funcionários',
+    'ponto': 'Ponto',
+    'ferias': 'Férias',
+    'op': 'Ordens de Produção',
+    'material': 'Materiais',
+    'apontamento': 'Apontamentos',
+    'planejamento': 'Planejamento',
+    'titulo': 'Títulos',
+    'fluxo': 'Fluxo de Caixa',
+    'dre': 'DRE',
+    'conciliacao': 'Conciliação',
+    'nota': 'Notas Fiscais',
+    'compra': 'Compras',
+    'fornecedor': 'Fornecedores',
+    'cotacao': 'Cotações'
+};
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadUserInfo();
+    await Promise.all([loadProfiles(), loadActions()]);
+    await loadUsers();
+});
+
+async function loadUserInfo() {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) { window.location.href = '/login.html'; return; }
+        const data = await res.json();
+        
+        if (data.role !== 'admin' && !data.is_admin) {
+            window.location.href = '/dashboard';
+            return;
+        }
+
+        document.getElementById('user-name').textContent = data.nome?.split(' ')[0] || 'Admin';
+        const initial = (data.nome || 'A')[0].toUpperCase();
+        document.getElementById('user-initial').textContent = initial;
+        if (data.foto_url) {
+            const img = document.getElementById('user-photo');
+            img.src = data.foto_url;
+            img.style.display = 'block';
+            document.getElementById('user-initial').style.display = 'none';
+        }
+        updateGreeting();
+    } catch (err) {
+        console.error('Erro ao carregar info do usuário:', err);
+    }
+}
+
+function updateGreeting() {
+    const h = new Date().getHours();
+    const greet = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    document.getElementById('greeting-text').textContent = greet;
+}
+
+async function loadProfiles() {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/permissions/profiles', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) allProfiles = await res.json();
+    } catch (err) { console.error('Erro ao carregar perfis:', err); }
+}
+
+async function loadActions() {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/permissions/actions', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) allActions = await res.json();
+    } catch (err) { console.error('Erro ao carregar ações:', err); }
+}
+
+async function loadUsers() {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/permissions/users', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Falha ao carregar usuários');
+        allUsers = await res.json();
+        renderUsers();
+        updateStats();
+        document.getElementById('loading-overlay').style.display = 'none';
+    } catch (err) {
+        console.error('Erro ao carregar usuários:', err);
+        showToast('Erro ao carregar usuários', 'error');
+    }
+}
+
+// ============================================================
+// RENDER USERS TABLE
+// ============================================================
+function renderUsers() {
+    const tbody = document.getElementById('users-tbody');
+    const search = document.getElementById('search-input').value.toLowerCase().trim();
+    const roleFilter = document.getElementById('filter-role').value;
+    const areaFilter = document.getElementById('filter-area').value;
+
+    let filtered = allUsers.filter(u => {
+        if (search && !u.nome?.toLowerCase().includes(search) && !u.email?.toLowerCase().includes(search)) return false;
+        if (roleFilter && u.role !== roleFilter) return false;
+        if (areaFilter && !u.areas?.includes(areaFilter)) return false;
+        return true;
+    });
+
+    tbody.innerHTML = filtered.map(u => {
+        const roleBadge = getRoleBadge(u.role);
+        const nome = escapeHtml(u.nome) || 'Sem nome';
+        const email = escapeHtml(u.email) || '';
+        const initial = (u.nome || '?')[0].toUpperCase();
+        const areas = (u.areas || []).map(a => `<span class="area-tag">${escapeHtml(a.toUpperCase())}</span>`).join('');
+        const profileLabel = u.profile ? `<span class="badge badge-profile"><i class="fas fa-id-badge"></i> ${escapeHtml(u.profile.label)}</span>` : '<span style="color:var(--text-muted);font-size:12px;">—</span>';
+
+        return `<tr onclick="openDetail(${parseInt(u.id)})">
+            <td>
+                <div class="user-name-cell">
+                    <div class="user-mini-avatar">${escapeHtml(initial)}</div>
+                    <div class="user-info">
+                        <div class="name">${nome}</div>
+                        <div class="email">${email}</div>
+                    </div>
+                </div>
+            </td>
+            <td>${roleBadge}</td>
+            <td>${profileLabel}</td>
+            <td><div class="areas-tags">${areas || '<span style="color:var(--text-muted);font-size:12px;">Nenhuma</span>'}</div></td>
+            <td><span class="badge badge-count">${parseInt(u.permissionCount) || 0}</span></td>
+            <td><button class="sidebar-btn" style="width:28px;height:28px;color:var(--text-muted);" title="Editar"><i class="fas fa-pen"></i></button></td>
+        </tr>`;
+    }).join('');
+
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">
+            <i class="fas fa-search" style="font-size:24px;margin-bottom:8px;display:block;"></i>
+            Nenhum usuário encontrado
+        </td></tr>`;
+    }
+}
+
+function getRoleBadge(role) {
+    const map = {
+        admin: ['badge-admin', 'fa-crown', 'Admin'],
+        comercial: ['badge-comercial', 'fa-briefcase', 'Comercial'],
+        rh: ['badge-rh', 'fa-id-card', 'RH'],
+        consultoria: ['badge-consultoria', 'fa-star', 'Consultoria'],
+        user: ['badge-user', 'fa-user', 'Usuário']
+    };
+    const [cls, icon, label] = map[role] || map['user'];
+    return `<span class="badge ${cls}"><i class="fas ${icon}"></i> ${label}</span>`;
+}
+
+function updateStats() {
+    document.getElementById('stat-total').textContent = allUsers.length;
+    document.getElementById('stat-admins').textContent = allUsers.filter(u => u.role === 'admin' || u.is_admin).length;
+    const profilesUsed = new Set(allUsers.filter(u => u.profile).map(u => u.profile.id));
+    document.getElementById('stat-profiles').textContent = profilesUsed.size;
+    document.getElementById('stat-custom').textContent = allUsers.filter(u => u.permissionCount > 0 && !u.profile).length;
+}
+
+// ============================================================
+// FILTER EVENTS
+// ============================================================
+document.getElementById('search-input').addEventListener('input', debounce(renderUsers, 200));
+document.getElementById('filter-role').addEventListener('change', renderUsers);
+document.getElementById('filter-area').addEventListener('change', renderUsers);
+
+// ============================================================
+// DETAIL PANEL
+// ============================================================
+async function openDetail(userId) {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/permissions/user/${parseInt(userId)}`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Falha ao carregar');
+        const data = await res.json();
+        
+        selectedUser = data;
+        editingPermissions = JSON.parse(JSON.stringify(data.permissions || {}));
+        editingAreas = [...(data.areas || [])];
+        editingProfile = data.profile ? data.profile.id : null;
+        isDirty = false;
+        _originalSnapshot = getCurrentSnapshot();
+
+        document.getElementById('detail-user-name').textContent = escapeHtml(data.user.nome) || 'Usuário';
+        renderDetailBody();
+        document.getElementById('detail-overlay').classList.add('active');
+        const btn = document.getElementById('btn-save');
+        if (btn) { btn.classList.remove('has-changes'); btn.style.boxShadow = ''; }
+    } catch (err) {
+        console.error('Erro ao abrir detalhe:', err);
+        showToast('Erro ao carregar permissões', 'error');
+    }
+}
+
+function closeDetail(force) {
+    if (!force && _originalSnapshot && getCurrentSnapshot() !== _originalSnapshot) {
+        if (!confirm('Existem alterações não salvas. Deseja realmente fechar?')) return;
+    }
+    document.getElementById('detail-overlay').classList.remove('active');
+    selectedUser = null;
+    isDirty = false;
+    _originalSnapshot = '';
+}
+
+function renderDetailBody() {
+    const body = document.getElementById('detail-body');
+    const u = selectedUser;
+    if (!u) return;
+
+    let html = '';
+
+    // User info bar
+    const userName = escapeHtml(u.user.nome) || 'Sem nome';
+    const userEmail = escapeHtml(u.user.email) || '';
+    html += `<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:12px 16px;background:#f8fafc;border-radius:var(--radius);border:1px solid var(--border-color);">
+        <div class="user-mini-avatar" style="width:40px;height:40px;font-size:16px;">${escapeHtml((u.user.nome||'?')[0].toUpperCase())}</div>
+        <div>
+            <div style="font-weight:600;font-size:14px;">${userName}</div>
+            <div style="font-size:12px;color:var(--text-muted);">${userEmail} · ${getRoleBadge(u.user.role)} ${u.hasCustomPermissions ? '<span class="custom-badge"><i class="fas fa-wrench"></i> Custom</span>' : ''}</div>
+        </div>
+    </div>`;
+
+    // Areas section
+    const allAreasList = ['vendas', 'rh', 'pcp', 'financeiro', 'nfe', 'compras', 'logistica', 'admin'];
+    html += `<div class="areas-section">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-layer-group" style="color:var(--primary-blue)"></i> Áreas de Acesso
+        </h3>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${allAreasList.map(a => `
+                <label class="area-toggle ${editingAreas.includes(a) ? 'active' : ''}" onclick="toggleArea('${a}', this)">
+                    <input type="checkbox" ${editingAreas.includes(a) ? 'checked' : ''}>
+                    <i class="fas ${MODULE_LABELS[a]?.icon || 'fa-circle'}"></i> ${a.toUpperCase()}
+                </label>
+            `).join('')}
+        </div>
+    </div>`;
+
+    // Profile selection
+    html += `<div class="profile-section">
+        <h3><i class="fas fa-id-badge"></i> Perfil de Permissão</h3>
+        <div class="profile-cards">
+            <div class="profile-card ${!editingProfile ? 'selected' : ''}" onclick="selectProfile(null, this)">
+                <div class="pc-label"><i class="fas fa-wrench"></i> Personalizado</div>
+                <div class="pc-desc">Permissões configuradas manualmente</div>
+            </div>
+            ${Object.entries(allProfiles).map(([key, p]) => `
+                <div class="profile-card ${editingProfile === key ? 'selected' : ''}" onclick="selectProfile('${key}', this)">
+                    <div class="pc-label">${p.label || key}</div>
+                    <div class="pc-desc">${p.description || ''}</div>
+                </div>
+            `).join('')}
+        </div>
+    </div>`;
+
+    // Module permissions
+    html += `<div style="margin-bottom:12px;">
+        <h3 style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;">
+            <i class="fas fa-key" style="color:var(--primary-blue)"></i> Permissões por Módulo
+        </h3>
+    </div>`;
+
+    for (const [mod, actions] of Object.entries(allActions)) {
+        const meta = MODULE_LABELS[mod] || { label: mod, icon: 'fa-circle', colorClass: '' };
+        const userPerms = editingPermissions[mod] || [];
+        const totalActions = Object.keys(actions).length;
+        const activeCount = userPerms.length;
+
+        // Group actions
+        const groups = {};
+        for (const [actionKey, actionLabel] of Object.entries(actions)) {
+            const prefix = actionKey.split('.')[0];
+            if (!groups[prefix]) groups[prefix] = [];
+            groups[prefix].push({ key: actionKey, label: actionLabel });
+        }
+
+        html += `<div class="module-section" data-module="${mod}">
+            <div class="module-header" onclick="toggleModule(this)">
+                <div class="mh-left">
+                    <div class="mh-icon ${meta.colorClass}"><i class="fas ${meta.icon}"></i></div>
+                    <span class="mh-title">${meta.label}</span>
+                    <span class="mh-count">${activeCount}/${totalActions}</span>
+                </div>
+                <i class="fas fa-chevron-down mh-toggle"></i>
+            </div>
+            <div class="module-body" data-module="${mod}">
+                <div class="module-actions-bar">
+                    <button class="btn-all" onclick="selectAllModule('${mod}')"><i class="fas fa-check-double"></i> Marcar Todos</button>
+                    <button class="btn-none" onclick="selectNoneModule('${mod}')"><i class="fas fa-times"></i> Desmarcar Todos</button>
+                </div>`;
+
+        for (const [prefix, items] of Object.entries(groups)) {
+            const groupLabel = ACTION_GROUPS[prefix] || prefix.charAt(0).toUpperCase() + prefix.slice(1);
+            html += `<div class="perm-group">
+                <div class="perm-group-title">${groupLabel}</div>
+                <div class="perm-list">
+                    ${items.map(a => {
+                        const checked = userPerms.includes(a.key);
+                        return `<label class="perm-checkbox ${checked ? 'checked' : ''}" onclick="togglePerm('${mod}', '${a.key}', this)">
+                            <input type="checkbox" ${checked ? 'checked' : ''}>
+                            <i class="fas fa-check check-icon"></i>
+                            <i class="far fa-square uncheck-icon"></i>
+                            ${a.label}
+                        </label>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        }
+
+        html += `</div></div>`;
+    }
+
+    body.innerHTML = html;
+}
+
+// ============================================================
+// INTERACTION HANDLERS
+// ============================================================
+function toggleArea(area, el) {
+    const idx = editingAreas.indexOf(area);
+    if (idx >= 0) {
+        editingAreas.splice(idx, 1);
+        el.classList.remove('active');
+        el.querySelector('input').checked = false;
+    } else {
+        editingAreas.push(area);
+        el.classList.add('active');
+        el.querySelector('input').checked = true;
+    }
+    markDirty();
+}
+
+function selectProfile(profileId, el) {
+    editingProfile = profileId;
+    document.querySelectorAll('.profile-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    markDirty();
+
+    // Se perfil selecionado, aplicar suas áreas e permissões
+    if (profileId && allProfiles[profileId]) {
+        const prof = allProfiles[profileId];
+
+        // Atualizar áreas do perfil
+        if (prof.areas) {
+            editingAreas = [...prof.areas];
+            document.querySelectorAll('.area-toggle').forEach(at => {
+                const input = at.querySelector('input');
+                const onclickAttr = at.getAttribute('onclick') || '';
+                const match = onclickAttr.match(/toggleArea\('([^']+)'/);
+                if (match) {
+                    const areaKey = match[1];
+                    if (editingAreas.includes(areaKey)) {
+                        at.classList.add('active');
+                        if (input) input.checked = true;
+                    } else {
+                        at.classList.remove('active');
+                        if (input) input.checked = false;
+                    }
+                }
+            });
+        }
+
+        // Atualizar permissões do perfil
+        if (prof.permissions) {
+            editingPermissions = JSON.parse(JSON.stringify(prof.permissions));
+            // Atualizar visualmente cada módulo
+            for (const mod of Object.keys(allActions)) {
+                const section = document.querySelector(`.module-body[data-module="${mod}"]`);
+                if (!section) continue;
+                const modPerms = editingPermissions[mod] || [];
+                section.querySelectorAll('.perm-checkbox').forEach(cb => {
+                    const onclickAttr = cb.getAttribute('onclick') || '';
+                    const match = onclickAttr.match(/togglePerm\('[^']+',\s*'([^']+)'/);
+                    if (match) {
+                        if (modPerms.includes(match[1])) {
+                            cb.classList.add('checked');
+                        } else {
+                            cb.classList.remove('checked');
+                        }
+                    }
+                });
+                updateModuleCount(mod);
+            }
+        }
+    }
+}
+
+function toggleModule(headerEl) {
+    headerEl.classList.toggle('expanded');
+    const body = headerEl.nextElementSibling;
+    body.classList.toggle('expanded');
+}
+
+function togglePerm(mod, action, el) {
+    if (!editingPermissions[mod]) editingPermissions[mod] = [];
+    const idx = editingPermissions[mod].indexOf(action);
+    if (idx >= 0) {
+        editingPermissions[mod].splice(idx, 1);
+        el.classList.remove('checked');
+    } else {
+        editingPermissions[mod].push(action);
+        el.classList.add('checked');
+    }
+    updateModuleCount(mod);
+    markDirty();
+}
+
+function selectAllModule(mod) {
+    if (!allActions[mod]) return;
+    editingPermissions[mod] = Object.keys(allActions[mod]);
+    const section = document.querySelector(`.module-body[data-module="${mod}"]`);
+    section.querySelectorAll('.perm-checkbox').forEach(cb => cb.classList.add('checked'));
+    updateModuleCount(mod);
+    markDirty();
+}
+
+function selectNoneModule(mod) {
+    editingPermissions[mod] = [];
+    const section = document.querySelector(`.module-body[data-module="${mod}"]`);
+    section.querySelectorAll('.perm-checkbox').forEach(cb => cb.classList.remove('checked'));
+    updateModuleCount(mod);
+    markDirty();
+}
+
+function updateModuleCount(mod) {
+    const section = document.querySelector(`.module-section[data-module="${mod}"]`);
+    if (!section) return;
+    const count = (editingPermissions[mod] || []).length;
+    const total = allActions[mod] ? Object.keys(allActions[mod]).length : 0;
+    const countEl = section.querySelector('.mh-count');
+    if (countEl) countEl.textContent = `${count}/${total}`;
+}
+
+// ============================================================
+// SAVE
+// ============================================================
+async function savePermissions() {
+    if (!selectedUser) return;
+
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando...';
+
+    try {
+        const token = localStorage.getItem('token');
+        const payload = {
+            profile: editingProfile,
+            areas: editingAreas,
+            permissions: editingPermissions
+        };
+
+        const res = await fetch(`/api/permissions/user/${selectedUser.user.id}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.message || 'Erro ao salvar');
+        }
+
+        showToast('Permissões salvas com sucesso!', 'success');
+        closeDetail(true);
+        await loadUsers();
+    } catch (err) {
+        console.error('Erro ao salvar permissões:', err);
+        showToast('Erro: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save"></i> Salvar Permissões';
+    }
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+    toast.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i> ${message}`;
+    toast.className = `toast ${type} show`;
+    setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+// ESC to close
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && selectedUser) closeDetail(); });
+// Prevenir saída acidental com alterações não salvas
+window.addEventListener('beforeunload', e => {
+    if (selectedUser && _originalSnapshot && getCurrentSnapshot() !== _originalSnapshot) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+</script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+</body>
+</html>

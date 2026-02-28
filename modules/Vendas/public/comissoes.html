@@ -1,0 +1,1373 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Comissões</title>
+    
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #225cfa;
+            --primary-dark: #1a1a2e;
+            --bg-dark: #0f0f1a;
+            --text-light: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255,255,255,0.1);
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f5f6f8;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-orange);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 16px;
+            margin-bottom: 20px;
+            text-decoration: none;
+        }
+
+        .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+        .sidebar-btn {
+            width: 34px; height: 34px;
+            min-height: 34px;
+            border: none; background: transparent;
+            color: var(--text-muted);
+            border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-orange); color: white; }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* Animações */
+        @keyframes slideIn {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Modal melhorado */
+        #modalEditarComissao .modal {
+            animation: modalSlideIn 0.3s ease;
+        }
+        
+        @keyframes modalSlideIn {
+            from { transform: translateY(-20px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        
+        #editarPercentualInput:focus {
+            color: #764ba2;
+        }
+
+        /* Main Content */
+        .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* TABS */
+        .tabs-bar {
+            height: 40px;
+            background: white;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex; align-items: center;
+            padding: 0 16px; gap: 8px;
+        }
+        .tab {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px;
+            background: #f5f5f5; border: none; border-radius: 6px;
+            color: #666; font-size: 13px;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .tab:hover { background: #e5e5e5; }
+        .tab.active { background: var(--primary-orange); color: white; }
+        .tabs-actions { margin-left: auto; display: flex; gap: 8px; }
+        .tab-action-btn {
+            width: 32px; height: 32px;
+            border: none; background: transparent; color: #666;
+            border-radius: 6px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; transition: all 0.2s;
+        }
+        .tab-action-btn:hover { background: #f5f5f5; }
+
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent; color: #8b8b9a;
+            border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px;
+            overflow: hidden;
+        }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+        .user-greeting strong { color: white; }
+
+        .content-area {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            background: #f5f6f8;
+        }
+
+        /* Cards de Estatísticas */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .stat-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .stat-card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .stat-card-icon.blue { background: rgba(34, 92, 250, 0.1); color: var(--primary-orange); }
+        .stat-card-icon.green { background: rgba(34, 197, 94, 0.1); color: var(--success); }
+        .stat-card-icon.orange { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+        .stat-card-icon.purple { background: rgba(139, 92, 246, 0.1); color: #8b5cf6; }
+
+        .stat-card-value { font-size: 28px; font-weight: 700; color: #1e293b; }
+        .stat-card-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+        /* Filtros */
+        .filters-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-group label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+        .filter-group input, .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 160px;
+        }
+
+        .btn-primary {
+            background: var(--primary-orange);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-secondary:hover { background: #e2e8f0; }
+
+        /* Tabela */
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-header h3 { font-size: 16px; font-weight: 600; color: #1e293b; }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        th, td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        th {
+            background: #f8fafc;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        td { font-size: 14px; color: #334155; }
+
+        .vendedor-info { display: flex; align-items: center; gap: 12px; }
+        .vendedor-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .vendedor-avatar img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .vendedor-nome { font-weight: 500; color: #1e293b; }
+        .vendedor-email { font-size: 12px; color: var(--text-muted); }
+
+        .valor-comissao { font-weight: 600; color: var(--success); }
+        .valor-pendente { color: var(--warning); }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .badge.success { background: rgba(34,197,94,0.1); color: var(--success); }
+        .badge.warning { background: rgba(245,158,11,0.1); color: var(--warning); }
+        .badge.primary { background: rgba(34,92,250,0.1); color: var(--primary-orange); }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-fill { height: 100%; background: var(--success); border-radius: 3px; }
+
+        .actions { display: flex; gap: 8px; }
+        .action-btn {
+            width: 32px; height: 32px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .action-btn.edit { background: rgba(34,92,250,0.1); color: var(--primary-orange); }
+        .action-btn.edit:hover { background: var(--primary-orange); color: white; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { font-size: 18px; font-weight: 600; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b; }
+
+        .modal-body { padding: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px; }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .modal-footer { padding: 16px 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 12px; justify-content: flex-end; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+        .tab-btn {
+            padding: 10px 20px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { background: #f8fafc; }
+        .tab-btn.active { background: var(--primary-orange); color: white; border-color: var(--primary-orange); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .filters-bar { flex-direction: column; }
+            .filter-group { width: 100%; }
+            .filter-group input, .filter-group select { width: 100%; }
+        }
+    </style>
+
+
+
+    <!-- Verificação de Admin (Gestão de Vendas) -->
+    <script src="js/vendas-admin-check.js"></script>
+
+    <!-- Controle de Acesso por Permissões -->
+    <script src="js/vendas-access-control.js?v=20260114" defer></script>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" onclick="window.location.href='index.html'" title="Kanban">
+                    <i class="fas fa-columns"></i>
+                </button>
+                <button class="sidebar-btn" onclick="window.location.href='pedidos.html'" title="Pedidos">
+                    <i class="fas fa-clipboard-list"></i>
+                </button>
+                <button class="sidebar-btn" onclick="window.location.href='clientes.html'" title="Clientes">
+                    <i class="fas fa-users"></i>
+                </button>
+                <button class="sidebar-btn" title="Prospecções & Leads" onclick="window.location.href='prospeccao.html'">
+                    <i class="fas fa-crosshairs"></i>
+                </button>
+                <button class="sidebar-btn" onclick="window.location.href='estoque.html'" title="Estoque">
+                    <i class="fas fa-boxes-stacked"></i>
+                </button>
+                <button class="sidebar-btn" onclick="window.location.href='dashboard.html'" title="Meu Dashboard">
+                    <i class="fas fa-chart-pie"></i>
+                </button>
+                <button class="sidebar-btn" onclick="window.location.href='dashboard-admin.html'" title="Gestão de Vendas">
+                    <i class="fas fa-chart-line"></i>
+                </button>
+                <button class="sidebar-btn" onclick="window.location.href='relatorios.html'" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+                <button class="sidebar-btn active" title="Comissões">
+                    <i class="fas fa-percentage"></i>
+                </button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Comissões</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" onclick="exportarComissoes()" title="Exportar">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <button class="header-btn" onclick="abrirModalConfigurar()" title="Configurar">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Tabs -->
+            <div class="tabs-bar">
+                <button class="tab" onclick="window.location.href='index.html'">Vendas e NF-e</button>
+                <button class="tab active">Comissões</button>
+                <div class="tabs-actions">
+                    <button class="tab-action-btn" title="Atualizar" onclick="carregarDados()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="tab-action-btn" title="Configurações" onclick="abrirModalConfigurar()"><i class="fas fa-cog"></i></button>
+                </div>
+            </div>
+
+            <div class="content-area">
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-card-value" id="totalFaturado">R$ 0</div>
+                                <div class="stat-card-label">Total Faturado</div>
+                            </div>
+                            <div class="stat-card-icon blue"><i class="fas fa-dollar-sign"></i></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-card-value" id="totalComissao">R$ 0</div>
+                                <div class="stat-card-label">Total em Comissões</div>
+                            </div>
+                            <div class="stat-card-icon green"><i class="fas fa-hand-holding-usd"></i></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-card-value" id="comissaoPendente">R$ 0</div>
+                                <div class="stat-card-label">Comissão Pendente</div>
+                            </div>
+                            <div class="stat-card-icon orange"><i class="fas fa-clock"></i></div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div>
+                                <div class="stat-card-value" id="qtdVendedores">0</div>
+                                <div class="stat-card-label">Vendedores Ativos</div>
+                            </div>
+                            <div class="stat-card-icon purple"><i class="fas fa-user-tie"></i></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="filters-bar">
+                    <div class="filter-group">
+                        <label>Período</label>
+                        <input type="month" id="filtroPeriodo" onchange="carregarDados()">
+                    </div>
+                    <div class="filter-group">
+                        <label>Vendedor</label>
+                        <select id="filtroVendedor" onchange="carregarDados()">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div style="margin-left: auto;">
+                        <button class="btn-primary" onclick="carregarDados()">
+                            <i class="fas fa-sync-alt"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="mudarTab('resumo')">
+                        <i class="fas fa-chart-pie"></i> Resumo por Vendedor
+                    </button>
+                    <button class="tab-btn" onclick="mudarTab('detalhes')">
+                        <i class="fas fa-list"></i> Detalhes por Venda
+                    </button>
+                    <button class="tab-btn" onclick="mudarTab('historico')">
+                        <i class="fas fa-history"></i> Histórico
+                    </button>
+                </div>
+
+                <!-- Tab Resumo -->
+                <div class="tab-content active" id="tabResumo">
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>Comissões por Vendedor</h3>
+                            <span id="periodoLabel" style="color: var(--text-muted); font-size: 14px;">-</span>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Vendedor</th>
+                                    <th>Vendas</th>
+                                    <th>Faturado</th>
+                                    <th>%</th>
+                                    <th>Comissão</th>
+                                    <th>Pendente</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaResumo">
+                                <tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab Detalhes -->
+                <div class="tab-content" id="tabDetalhes">
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>Detalhes das Vendas</h3>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Pedido</th>
+                                    <th>Data</th>
+                                    <th>Cliente</th>
+                                    <th>Vendedor</th>
+                                    <th>Valor</th>
+                                    <th>%</th>
+                                    <th>Comissão</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaDetalhes">
+                                <tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8;">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab Histórico -->
+                <div class="tab-content" id="tabHistorico">
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3>Histórico de Comissões</h3>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Período</th>
+                                    <th>Vendedor</th>
+                                    <th>Vendas</th>
+                                    <th>Total Faturado</th>
+                                    <th>Comissão</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaHistorico">
+                                <tr><td colspan="5" style="text-align:center;padding:40px;color:#94a3b8;">Carregando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Editar Comissão Individual -->
+    <div class="modal-overlay" id="modalEditarComissao">
+        <div class="modal" style="max-width: 420px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px 12px 0 0;">
+                <h2 style="color: white; font-size: 18px;">
+                    <i class="fas fa-percentage" style="margin-right: 10px;"></i>
+                    Editar Comissão
+                </h2>
+                <button class="modal-close" onclick="fecharModalEditar()" style="color: white; opacity: 0.8;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div id="editarVendedorAvatar" style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: 600; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);"></div>
+                    <h3 id="editarVendedorNome" style="font-size: 18px; color: #1e293b; margin: 0 0 4px;">Nome do Vendedor</h3>
+                    <p style="font-size: 13px; color: #64748b; margin: 0;">Defina o percentual de comissão</p>
+                </div>
+                
+                <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px;">
+                        <i class="fas fa-coins" style="color: #f59e0b; margin-right: 6px;"></i>
+                        Percentual de Comissão
+                    </label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <input type="range" id="editarPercentualRange" min="0" max="10" step="0.5" value="1" 
+                               style="flex: 1; height: 8px; cursor: pointer; accent-color: #667eea;"
+                               oninput="document.getElementById('editarPercentualInput').value = this.value; atualizarPreviewComissao();">
+                        <div style="display: flex; align-items: center; background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; min-width: 80px;">
+                            <input type="number" id="editarPercentualInput" min="0" max="100" step="0.5" value="1" 
+                                   style="width: 50px; border: none; font-size: 18px; font-weight: 700; color: #667eea; text-align: center; outline: none;"
+                                   oninput="document.getElementById('editarPercentualRange').value = Math.min(this.value, 10); atualizarPreviewComissao();">
+                            <span style="font-size: 18px; font-weight: 600; color: #94a3b8;">%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="previewComissao" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 12px; padding: 16px; display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 40px; height: 40px; background: #10b981; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-calculator" style="color: white; font-size: 18px;"></i>
+                    </div>
+                    <div>
+                        <p style="font-size: 12px; color: #059669; margin: 0; font-weight: 500;">Exemplo de comissão</p>
+                        <p style="font-size: 16px; color: #047857; margin: 0; font-weight: 700;">R$ 10.000 → <span id="previewValor">R$ 100,00</span></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 16px 24px; background: #f8fafc; border-radius: 0 0 12px 12px; gap: 12px;">
+                <button class="btn-secondary" onclick="fecharModalEditar()" style="flex: 1;">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn-primary" onclick="salvarComissaoEditada()" style="flex: 1; background: linear-gradient(135deg, #667eea, #764ba2);">
+                    <i class="fas fa-check"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configurar Comissão -->
+    <div class="modal-overlay" id="modalConfigurar">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-cog" style="color: var(--primary-orange); margin-right: 8px;"></i> Configurar Comissões</h2>
+                <button class="modal-close" onclick="fecharModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 16px; color: #64748b; font-size: 14px;">
+                    Defina o percentual de comissão para cada vendedor. A comissão é calculada automaticamente sobre o valor das vendas faturadas.
+                </p>
+                <div id="listaVendedoresConfig">
+                    <p style="text-align:center;color:#94a3b8;">Carregando vendedores...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="fecharModal()">Cancelar</button>
+                <button class="btn-primary" onclick="salvarConfiguracoes()">
+                    <i class="fas fa-save"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Lista de admins autorizados a ver TODAS as comissões
+        const ADMINS_AUTORIZADOS = ['ti', 'douglas', 'andreia', 'fernando', 'consultoria', 'admin', 'antonio', 'tialuforce'];
+        
+        // Somente Andreia e Antonio (T.I.) podem alterar comissões
+        const USERS_PODE_EDITAR_COMISSAO = ['andreia', 'antonio', 'ti', 'tialuforce'];
+        let podeEditarComissao = false;
+        let isAdminComissao = false;
+        let usuarioLogadoId = null;
+        let usuarioLogadoNome = '';
+        
+        // Verificar se usuário tem permissão
+        async function verificarPermissao() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (!response.ok) {
+                    window.location.href = '/login';
+                    return false;
+                }
+                const user = await response.json();
+                const username = (user.email || '').split('@')[0].toLowerCase();
+                usuarioLogadoId = user.id;
+                const _partesNome1 = user.nome ? user.nome.split(/\s+/) : [];
+                usuarioLogadoNome = user.apelido || (_partesNome1.length > 1 ? _partesNome1[0] + ' ' + _partesNome1[_partesNome1.length - 1] : (_partesNome1[0] || 'Usuário'));
+                isAdminComissao = user.is_admin === 1 || user.role === 'admin' || ADMINS_AUTORIZADOS.includes(username);
+                
+                // Verificar se pode editar comissão
+                podeEditarComissao = USERS_PODE_EDITAR_COMISSAO.includes(username);
+                
+                // Se não é admin, esconder controles de administração
+                if (!isAdminComissao) {
+                    // Esconder botão de configuração
+                    const configBtn = document.querySelector('.header-btn[onclick="abrirModalConfigurar()"]');
+                    if (configBtn) configBtn.style.display = 'none';
+                    // Esconder botão de exportar
+                    const exportBtn = document.querySelector('.header-btn[onclick="exportarComissoes()"]');
+                    if (exportBtn) exportBtn.style.display = 'none';
+                    // Esconder filtro de vendedor (não faz sentido se só vê o próprio)
+                    const filtroVendedor = document.getElementById('filtroVendedor');
+                    if (filtroVendedor) filtroVendedor.closest('.filter-group').style.display = 'none';
+                    // Mudar título para "Minha Comissão"
+                    const headerBrand = document.querySelector('.header-brand span');
+                    if (headerBrand) headerBrand.textContent = 'Minha Comissão';
+                    document.title = 'Aluforce: Minha Comissão';
+                    // Esconder aba de histórico geral (se desejado, manter pois já filtra no backend)
+                } else if (!podeEditarComissao) {
+                    // Admin que não pode editar: esconder botão de configuração apenas
+                    const configBtn = document.querySelector('.header-btn[onclick="abrirModalConfigurar()"]');
+                    if (configBtn) configBtn.style.display = 'none';
+                }
+                
+                // Vendedores do departamento Comercial podem acessar para ver a própria comissão
+                // Admins podem ver todas
+                // Outros departamentos não têm acesso
+                const isComercial = (user.departamento === 'Comercial' || user.departamento_nome === 'Comercial' || user.role === 'comercial' || user.role === 'vendedor');
+                
+                if (!isAdminComissao && !isComercial) {
+                    alert('Acesso restrito a administradores e vendedores');
+                    window.location.href = 'dashboard.html';
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                console.error('Erro ao verificar permissão:', error);
+                window.location.href = '/login';
+                return false;
+            }
+        }
+        
+        // Mapeamento de avatares por nome de usuário
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcia': '/avatars/Marcia.webp',
+            'augusto': '/avatars/Augusto.jpg',
+            'renata': '/avatars/Renata.jpg',
+            'fabiano': '/avatars/Fabiano.webp',
+            'fabiola': '/avatars/Fabiola.webp',
+            'ronaldo': '/avatars/RonaldoTorres.jpg',
+            'joao': '/avatars/JoaoVictor.jpg',
+            'douglas': '/avatars/Douglas.webp',
+            'fernando': '/avatars/Fernando.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+        
+        // Gerar cor baseada no nome (para avatares sem foto)
+        function gerarCorAvatar(nome) {
+            const cores = [
+                ['#f97316', '#ea580c'], // laranja
+                ['#3b82f6', '#2563eb'], // azul
+                ['#22c55e', '#16a34a'], // verde
+                ['#a855f7', '#9333ea'], // roxo
+                ['#ec4899', '#db2777'], // rosa
+                ['#06b6d4', '#0891b2'], // cyan
+                ['#f59e0b', '#d97706'], // amarelo
+                ['#8b5cf6', '#7c3aed']  // violeta
+            ];
+            let hash = 0;
+            for (let i = 0; i < (nome || '').length; i++) {
+                hash = nome.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return cores[Math.abs(hash) % cores.length];
+        }
+        
+        // Gerar HTML do avatar (foto ou iniciais coloridas)
+        function gerarAvatarHtml(email, nome, tamanho = 36) {
+            const avatarUrl = getAvatarFromEmail(email, nome);
+            const iniciais = (nome || 'VD').split(' ')
+                .filter((_, i, arr) => i === 0 || i === arr.length - 1)
+                .map(n => (n || '').charAt(0).toUpperCase()).join('');
+            const [cor1, cor2] = gerarCorAvatar(nome);
+            
+            // Lista de avatares válidos (fotos reais)
+            const avatarsValidos = ['ti', 'antonio', 'clemerson', 'isabela', 'thaina', 'thiago', 'nicolasdaniel', 'rh', 'guilherme', 'andreia', 'marcia', 'renata', 'fabiola', 'fabiano'];
+            // Avatares em formato .jpg (importados recentemente)
+            const avatarsJpg = ['marcia', 'renata', 'fabiola', 'fabiano'];
+            const username = email ? email.split('@')[0].split('.')[0].toLowerCase() : '';
+            
+            if (avatarsValidos.includes(username)) {
+                const ext = avatarsJpg.includes(username) ? 'jpg' : 'webp';
+                const nomeCapitalizado = username.charAt(0).toUpperCase() + username.slice(1);
+                const imgUrl = `/avatars/${nomeCapitalizado}.${ext}`;
+                return `<img src="${imgUrl}" alt="${nome}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            }
+            
+            // Avatar com iniciais coloridas
+            return `<div style="width:${tamanho}px;height:${tamanho}px;border-radius:50%;background:linear-gradient(135deg,${cor1},${cor2});display:flex;align-items:center;justify-content:center;color:white;font-size:${tamanho * 0.4}px;font-weight:600;">${iniciais}</div>`;
+        }
+
+        // Carregar dados do usuário logado via API
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const _partesNome = user.nome ? user.nome.split(/\s+/) : [];
+                    const primeiroNome = user.apelido || (_partesNome.length > 1 ? _partesNome[0] + ' ' + _partesNome[_partesNome.length - 1] : (_partesNome[0] || 'Usuário'));
+                    // Verificar múltiplos campos de foto
+                    let userAvatar = (user.avatar || user.foto || user.foto_perfil_url);
+                    if (userAvatar === '/avatars/default.webp') userAvatar = null;
+                    if (!userAvatar) {
+                        userAvatar = getAvatarFromEmail(user.email, userName);
+                    }
+                    
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    
+                    // Atualizar nome na saudação do header
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) {
+                        userNameEl.textContent = primeiroNome;
+                    }
+                    
+                    // Atualizar avatar/foto
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initials');
+                    
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Formatar moeda
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        // Formatar data
+        function formatarData(data) {
+            return new Date(data).toLocaleDateString('pt-BR');
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Verificar permissão antes de tudo
+            const permitido = await verificarPermissao();
+            if (!permitido) return;
+            
+            // Carregar dados do usuário logado
+            carregarUsuarioLogado();
+            
+            // Definir período atual
+            const agora = new Date();
+            document.getElementById('filtroPeriodo').value = agora.toISOString().substring(0, 7);
+            
+            carregarVendedores();
+            carregarDados();
+        });
+
+        // Carregar vendedores para filtro (apenas para admins)
+        async function carregarVendedores() {
+            if (!isAdminComissao) return; // Vendedor comum não precisa de filtro
+            try {
+                const response = await fetch('/api/vendas/vendedores', { credentials: 'include' });
+                if (response.ok) {
+                    const vendedores = await response.json();
+                    const select = document.getElementById('filtroVendedor');
+                    select.innerHTML = '<option value="">Todos</option>';
+                    vendedores.forEach(v => {
+                        select.innerHTML += `<option value="${v.id}">${v.nome || v.apelido}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar vendedores:', error);
+            }
+        }
+
+        // Carregar dados principais
+        async function carregarDados() {
+            const periodo = document.getElementById('filtroPeriodo').value;
+            let vendedor = document.getElementById('filtroVendedor').value;
+            
+            // Se NÃO é admin, forçar filtro para o próprio ID do usuário
+            if (!isAdminComissao && usuarioLogadoId) {
+                vendedor = usuarioLogadoId;
+            }
+            
+            // Atualizar label do período
+            const [ano, mes] = periodo.split('-');
+            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                          'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            document.getElementById('periodoLabel').textContent = `${meses[parseInt(mes) - 1]} ${ano}`;
+            
+            await Promise.all([
+                carregarResumo(periodo, vendedor),
+                carregarDetalhes(periodo, vendedor),
+                carregarHistorico()
+            ]);
+        }
+
+        // Carregar resumo por vendedor
+        async function carregarResumo(periodo, vendedor) {
+            try {
+                let url = `/api/vendas/comissoes/resumo?periodo=${periodo}`;
+                if (vendedor) url += `&vendedor_id=${vendedor}`;
+                
+                const response = await fetch(url, { credentials: 'include' });
+                if (!response.ok) throw new Error('Erro ao carregar resumo');
+                
+                const data = await response.json();
+                const { vendedores, totais } = data;
+                
+                // Atualizar cards
+                document.getElementById('totalFaturado').textContent = formatarMoeda(totais.total_faturado);
+                document.getElementById('totalComissao').textContent = formatarMoeda(totais.total_comissao_faturada);
+                document.getElementById('comissaoPendente').textContent = formatarMoeda(totais.total_comissao_pendente);
+                document.getElementById('qtdVendedores').textContent = isAdminComissao ? vendedores.length : (vendedores.length > 0 ? '1' : '0');
+                
+                // Atualizar tabela
+                const tbody = document.getElementById('tabelaResumo');
+                
+                if (vendedores.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:#94a3b8;">
+                        <i class="fas fa-inbox" style="font-size:32px;margin-bottom:10px;display:block;"></i>
+                        Nenhum dado encontrado para este período
+                    </td></tr>`;
+                    return;
+                }
+                
+                tbody.innerHTML = vendedores.map(v => {
+                    // Gerar avatar bonito (foto ou iniciais coloridas)
+                    const avatarHtml = gerarAvatarHtml(v.email, v.vendedor_nome, 36);
+                    
+                    return `
+                        <tr>
+                            <td>
+                                <div class="vendedor-info">
+                                    <div class="vendedor-avatar">${avatarHtml}</div>
+                                    <div>
+                                        <div class="vendedor-nome">${v.vendedor_nome || 'Vendedor'}</div>
+                                        <div class="vendedor-email">${v.email || ''}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>${v.qtd_faturados || 0}</td>
+                            <td>${formatarMoeda(v.valor_faturado)}</td>
+                            <td><span class="badge primary">${v.percentual_comissao}%</span></td>
+                            <td class="valor-comissao">${formatarMoeda(v.comissao_faturada)}</td>
+                            <td class="valor-pendente">${formatarMoeda(v.comissao_pendente)}</td>
+                            <td>
+                                <div class="actions">
+                                    ${podeEditarComissao ? `<button class="action-btn edit" onclick="editarComissao(${v.vendedor_id}, '${v.vendedor_nome}', ${v.percentual_comissao})" title="Editar %">
+                                        <i class="fas fa-percentage"></i>
+                                    </button>` : `<span style="color:#94a3b8;font-size:12px;" title="Comissão fixa em 1% - Somente Andreia/Antonio (T.I.) podem alterar"><i class="fas fa-lock" style="color:#cbd5e1;"></i></span>`}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Erro ao carregar resumo:', error);
+                document.getElementById('tabelaResumo').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:#ef4444;">Erro ao carregar dados</td></tr>`;
+            }
+        }
+
+        // Carregar detalhes por venda
+        async function carregarDetalhes(periodo, vendedor) {
+            try {
+                let url = `/api/vendas/comissoes?periodo=${periodo}`;
+                if (vendedor) url += `&vendedor_id=${vendedor}`;
+                
+                const response = await fetch(url, { credentials: 'include' });
+                if (!response.ok) throw new Error('Erro ao carregar detalhes');
+                
+                const vendas = await response.json();
+                const tbody = document.getElementById('tabelaDetalhes');
+                
+                if (vendas.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#94a3b8;">
+                        Nenhuma venda encontrada
+                    </td></tr>`;
+                    return;
+                }
+                
+                tbody.innerHTML = vendas.slice(0, 50).map(v => {
+                    const status = v.status || 'pendente';
+                    const statusClass = status === 'faturado' ? 'success' : 'warning';
+                    const statusLabel = status === 'faturado' ? 'Faturado' : status.charAt(0).toUpperCase() + status.slice(1);
+                    const percentual = v.percentual_comissao || v.comissao_percentual || 1;
+                    
+                    return `
+                        <tr>
+                            <td><strong>#${v.numero_pedido || v.pedido_id}</strong></td>
+                            <td>${formatarData(v.created_at)}</td>
+                            <td>${v.cliente_nome || '-'}</td>
+                            <td>${v.vendedor_nome || '-'}</td>
+                            <td>${formatarMoeda(v.valor)}</td>
+                            <td>${percentual}%</td>
+                            <td class="${status === 'faturado' ? 'valor-comissao' : 'valor-pendente'}">${formatarMoeda(v.valor_comissao)}</td>
+                            <td><span class="badge ${statusClass}">${statusLabel}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Erro ao carregar detalhes:', error);
+            }
+        }
+
+        // Carregar histórico
+        async function carregarHistorico() {
+            try {
+                const response = await fetch('/api/vendas/comissoes/historico', { credentials: 'include' });
+                if (!response.ok) throw new Error('Erro ao carregar histórico');
+                
+                const historico = await response.json();
+                const tbody = document.getElementById('tabelaHistorico');
+                
+                if (historico.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:40px;color:#94a3b8;">
+                        Nenhum histórico encontrado
+                    </td></tr>`;
+                    return;
+                }
+                
+                tbody.innerHTML = historico.map(h => {
+                    const [ano, mes] = h.periodo.split('-');
+                    const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                    
+                    return `
+                        <tr>
+                            <td><strong>${meses[parseInt(mes) - 1]}/${ano}</strong></td>
+                            <td>${h.vendedor_nome || '-'}</td>
+                            <td>${h.qtd_vendas}</td>
+                            <td>${formatarMoeda(h.valor_total)}</td>
+                            <td class="valor-comissao">${formatarMoeda(h.comissao_total)}</td>
+                        </tr>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('Erro ao carregar histórico:', error);
+            }
+        }
+
+        // Mudar tab
+        function mudarTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+        }
+
+        // Modal configurar
+        async function abrirModalConfigurar() {
+            if (!podeEditarComissao) {
+                alert('Apenas Andreia e Antonio (T.I.) podem alterar comissões.');
+                return;
+            }
+            document.getElementById('modalConfigurar').classList.add('active');
+            
+            try {
+                const response = await fetch('/api/vendas/comissoes/configuracao', { credentials: 'include' });
+                if (response.ok) {
+                    const vendedores = await response.json();
+                    const container = document.getElementById('listaVendedoresConfig');
+                    
+                    container.innerHTML = vendedores.map(v => `
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid #e2e8f0;">
+                            <div>
+                                <div style="font-weight:500;">${v.nome}</div>
+                                <div style="font-size:12px;color:#94a3b8;">${v.email || ''}</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <input type="number" id="comissao_${v.id}" value="${v.comissao_percentual || 5}" 
+                                       style="width:70px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;text-align:center;"
+                                       min="0" max="100" step="0.5">
+                                <span style="color:#64748b;">%</span>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar configurações:', error);
+            }
+        }
+
+        function fecharModal() {
+            document.getElementById('modalConfigurar').classList.remove('active');
+        }
+
+        async function salvarConfiguracoes() {
+            const inputs = document.querySelectorAll('[id^="comissao_"]');
+            let sucesso = 0;
+            
+            for (const input of inputs) {
+                const vendedorId = input.id.replace('comissao_', '');
+                const percentual = input.value;
+                
+                try {
+                    const response = await fetch(`/api/vendas/comissoes/configuracao/${vendedorId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ comissao_percentual: percentual })
+                    });
+                    if (response.ok) sucesso++;
+                } catch (e) {
+                    console.error('Erro ao salvar:', e);
+                }
+            }
+            
+            alert(`${sucesso} configurações salvas com sucesso!`);
+            fecharModal();
+            carregarDados();
+        }
+
+        // Variáveis para o modal de edição
+        let editarVendedorIdAtual = null;
+        
+        function editarComissao(vendedorId, nome, percentualAtual) {
+            if (!podeEditarComissao) {
+                alert('Apenas Andreia e Antonio (T.I.) podem alterar comissões.');
+                return;
+            }
+            editarVendedorIdAtual = vendedorId;
+            
+            // Preencher dados no modal
+            const iniciais = nome.split(' ')
+                .filter((_, i, arr) => i === 0 || i === arr.length - 1)
+                .map(n => n.charAt(0).toUpperCase()).join('');
+            
+            document.getElementById('editarVendedorAvatar').textContent = iniciais;
+            document.getElementById('editarVendedorNome').textContent = nome;
+            document.getElementById('editarPercentualInput').value = percentualAtual;
+            document.getElementById('editarPercentualRange').value = Math.min(percentualAtual, 10);
+            atualizarPreviewComissao();
+            
+            // Abrir modal com animação
+            const modal = document.getElementById('modalEditarComissao');
+            modal.classList.add('active');
+            setTimeout(() => document.getElementById('editarPercentualInput').focus(), 100);
+        }
+        
+        function fecharModalEditar() {
+            document.getElementById('modalEditarComissao').classList.remove('active');
+            editarVendedorIdAtual = null;
+        }
+        
+        function atualizarPreviewComissao() {
+            const percentual = parseFloat(document.getElementById('editarPercentualInput').value) || 0;
+            const comissaoExemplo = 10000 * (percentual / 100);
+            document.getElementById('previewValor').textContent = formatarMoeda(comissaoExemplo);
+        }
+        
+        async function salvarComissaoEditada() {
+            if (!editarVendedorIdAtual) return;
+            
+            const novoPercentual = parseFloat(document.getElementById('editarPercentualInput').value);
+            if (isNaN(novoPercentual) || novoPercentual < 0) {
+                alert('Digite um percentual válido');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/vendas/comissoes/configuracao/${editarVendedorIdAtual}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ comissao_percentual: novoPercentual })
+                });
+                
+                if (response.ok) {
+                    fecharModalEditar();
+                    // Toast de sucesso
+                    const toast = document.createElement('div');
+                    toast.innerHTML = '<i class="fas fa-check-circle"></i> Comissão atualizada com sucesso!';
+                    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#10b981,#059669);color:white;padding:16px 24px;border-radius:12px;font-weight:600;box-shadow:0 10px 40px rgba(16,185,129,0.4);z-index:10000;display:flex;align-items:center;gap:10px;animation:slideIn 0.3s ease;';
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                    carregarDados();
+                } else {
+                    alert('Erro ao atualizar comissão');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao salvar comissão');
+            }
+        }
+
+        function exportarComissoes() {
+            const periodo = document.getElementById('filtroPeriodo').value;
+            window.open(`/api/vendas/comissoes/exportar?periodo=${periodo}&formato=csv`, '_blank');
+        }
+    </script>
+    <script src="/js/auth-unified.js?v=20260131"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/js/user-dropdown.js?v=20260223" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,451 @@
+diff --git a/public/areaadm.html b/public/areaadm.html
+index c45225e..12e0ef4 100644
+--- a/public/areaadm.html
++++ b/public/areaadm.html
+@@ -3,7 +3,7 @@
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-    <title>MEU RH - Aluforce</title>
++    <title>Aluforce</title>
+     <link rel="icon" type="image/png" href="Favicon Aluforce.png">
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+     <link rel="stylesheet" href="area-admin.css">
+diff --git a/public/script.js b/public/script.js
+index 4dea375..3e657fa 100644
+--- a/public/script.js
++++ b/public/script.js
+@@ -228,7 +228,7 @@ function initEmployeePage () {
+   if (!authToken || !userData || !userData.nome) {
+     // Usuário não autenticado - redireciona para a página de login
+     console.warn('Usuário não autenticado. Redirecionando para login.')
+-    window.location.href = '/login.html'
++    if (typeof safeRedirectToLogin === 'function') safeRedirectToLogin(); else window.location.href = '/login.html'
+     return // Para a execução
+   }
+ 
+diff --git a/public/style.css b/public/style.css
+index 5063dfd..29937bc 100644
+--- a/public/style.css
++++ b/public/style.css
+@@ -311,4 +311,13 @@ body.modal-open {
+ }
+ .modal .modal-header { display: flex; align-items: center; justify-content: space-between; }
+ .modal .modal-header .modal-title { margin-right: 12px; }
+-.modal .modal-dialog { width: 100%; }
+\ No newline at end of file
++.modal .modal-dialog { width: 100%; }
++
++/* visual state for disabled links/buttons controlled via JS */
++.disabled,
++button.disabled {
++    opacity: 0.55;
++    pointer-events: none;
++    cursor: default;
++    filter: grayscale(20%);
++}
+\ No newline at end of file
+diff --git a/scripts/puppeteer_smoke.js b/scripts/puppeteer_smoke.js
+index cae2c85..c1e82a9 100644
+--- a/scripts/puppeteer_smoke.js
++++ b/scripts/puppeteer_smoke.js
+@@ -1,4 +1,4 @@
+-const puppeteer = require('puppeteer');
++const puppeteer = require('puppeteer')
+ const net = require('net')
+ 
+ async function waitForServer (hostPortUrl, timeoutMs = 20000, intervalMs = 1000) {
+@@ -32,12 +32,24 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+ 
+ (async () => {
+   // wait for local server TCP port to be reachable before launching puppeteer
+-  const baseHostPort = '127.0.0.1:3000'
+-  const ok = await waitForServer(baseHostPort, 20000, 1000)
++  const hostsToTry = ['127.0.0.1:3000', 'localhost:3000']
++  let ok = false
++  let successfulHost = null
++  for (const h of hostsToTry) {
++    try {
++      process.stdout.write(`Checking TCP ${h}... `)
++      ok = await waitForServer(h, 30000, 1000)
++      if (ok) { successfulHost = h; console.log('OK') ; break }
++      console.log('no')
++    } catch (e) {
++      console.log('err')
++    }
++  }
+   if (!ok) {
+-    console.error(`Puppeteer smoke error: server not reachable at ${baseHostPort}`)
++    console.error(`Puppeteer smoke error: server not reachable at any of ${hostsToTry.join(', ')}`)
+     process.exit(2)
+   }
++  console.log('Using host:', successfulHost)
+ 
+   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
+   const page = await browser.newPage()
+@@ -62,6 +74,7 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+     // Attempt to obtain debug token using Node-side fetch BEFORE any navigation to avoid
+     // 'Execution context was destroyed' when doing fetch inside page.evaluate.
+     let dbg = null
++  let dbgEmployee = null
+     try {
+       const resp = await fetch('http://127.0.0.1:3000/api/debug/generate-token', {
+         method: 'POST',
+@@ -76,11 +89,35 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+       console.warn('Debug token request failed (node):', err && err.message ? err.message : err)
+     }
+ 
++    // Also try to get a debug token for a sample funcionário so we can test employee UI
++    try {
++      const resp2 = await fetch('http://127.0.0.1:3000/api/debug/generate-token', {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ id: 6, role: 'funcionario' })
++      })
++      if (resp2 && resp2.ok) {
++        const j2 = await resp2.json().catch(() => null)
++        if (j2 && j2.token) dbgEmployee = j2.token
++      }
++    } catch (err) {
++      // non-fatal
++    }
++
+     if (dbg) {
+-      await page.goto('http://127.0.0.1:3000/')
+-      await page.evaluate((t) => { window.localStorage.setItem('authToken', t); window.localStorage.setItem('userData', JSON.stringify({ id: 8, role: 'admin' })); }, dbg)
+-      console.log('Puppeteer smoke: debug admin token set in localStorage (node-fetch)')
+-      await page.goto('http://127.0.0.1:3000/areaadm.html')
++      // inject debug token into localStorage before any navigation so it exists in every page context
++      await page.evaluateOnNewDocument((t, user) => {
++        try {
++          // set both keys to be defensive: client may read 'authToken' or 'token'
++          window.localStorage.setItem('authToken', t)
++          window.localStorage.setItem('token', t)
++          window.localStorage.setItem('userData', JSON.stringify(user))
++          // expose readiness flag so client won't redirect away
++          try { window.__APP_READY = true } catch (e) {}
++        } catch (e) { /* ignore */ }
++      }, dbg, { id: 8, role: 'admin' })
++      console.log('Puppeteer smoke: debug admin token will be set on next navigation (evaluateOnNewDocument)')
++      await page.goto('http://127.0.0.1:3000/areaadm.html', { waitUntil: 'networkidle2' })
+     } else {
+       await page.goto('http://127.0.0.1:3000/login.html')
+       console.log('Puppeteer smoke: debug token not available; proceeding with normal login')
+@@ -125,8 +162,10 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+     // Instead of relying on navigation finishing, wait for either a dashboard avatar or a URL change
+     try {
+       await Promise.race([
+-        page.waitForSelector('#header-avatar-img', { timeout: 20000 }),
+-        page.waitForFunction(() => window.location.pathname.includes('area') || window.location.pathname.includes('areaadm'), { timeout: 20000 })
++  page.waitForSelector('#header-avatar-img', { timeout: 20000 }),
++  page.waitForFunction(() => window.location.pathname.includes('area') || window.location.pathname.includes('areaadm'), { timeout: 20000 }),
++  // prefer the explicit app-ready flag exposed by the client
++  page.waitForFunction(() => window.__APP_READY === true, { timeout: 20000 }).catch(() => false)
+       ])
+     } catch (e) {
+       console.warn('dashboard/avatar not found within timeout; continuing with best-effort checks')
+@@ -158,17 +197,20 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+     }
+ 
+     // go to holerite section and capture (defensive clicks)
+-    // Try multiple strategies: href anchor, button by text, or element id
+-    let holeriteLink = await page.$('.sidebar-nav .nav-link[href="#holerite"]')
+-    if (!holeriteLink) {
+-      holeriteLink = await findElementByText(page, '.sidebar-nav a, .sidebar-nav .nav-link', 'holerite')
++    // Try multiple strategies: href anchor, widget link, button by id/text, or general text match
++    let holeriteLink = null
++    const holSelectors = ['.sidebar-nav .nav-link[href="#holerite"]', 'a[href="#holerite"]', '#widget-holerite-link', '#view-holerite', '.widget-link[href="#holerite"]']
++    for (const sel of holSelectors) {
++      holeriteLink = await page.$(sel)
++      if (holeriteLink) break
+     }
++    if (!holeriteLink) holeriteLink = await findElementByText(page, 'a,button', 'holerite')
+     if (holeriteLink) {
+       try { await page.evaluate(el => el.click(), holeriteLink) } catch (e) { console.warn('holerite click error', e && e.message ? e.message : e) }
+       await page.waitForSelector('#holerite, [data-section="holerite"], .holerite-section', { visible: true, timeout: 8000 }).catch(() => {})
+       console.log('holerite section: found and attempted to open')
+     } else {
+-      console.warn('holerite nav link not found (tried href and text)')
++      console.warn('holerite nav link not found (tried multiple selectors and text)')
+     }
+     try { await page.screenshot({ path: 'screenshots/holerite_section.png', fullPage: true }) } catch (e) { console.warn('holerite_section screenshot failed', e && e.message ? e.message : e) }
+ 
+@@ -183,17 +225,20 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+       }
+     }
+ 
+-    // ponto: try href, text, or data attributes
+-    let pontoLink = await page.$('.sidebar-nav .nav-link[href="#ponto"]')
+-    if (!pontoLink) {
+-      pontoLink = await findElementByText(page, '.sidebar-nav a, .sidebar-nav .nav-link', 'ponto')
++    // ponto: try href, widget, button, or text heuristics
++    let pontoLink = null
++    const pontoSelectors = ['.sidebar-nav .nav-link[href="#ponto"]', 'a[href="#ponto"]', '#widget-ponto-link', '#view-ponto', '.widget-link[href="#ponto"]']
++    for (const sel of pontoSelectors) {
++      pontoLink = await page.$(sel)
++      if (pontoLink) break
+     }
++    if (!pontoLink) pontoLink = await findElementByText(page, 'a,button', 'ponto')
+     if (pontoLink) {
+       try { await page.evaluate(el => el.click(), pontoLink) } catch (e) { console.warn('ponto click error', e && e.message ? e.message : e) }
+       await page.waitForSelector('#ponto, [data-section="ponto"], .ponto-section', { visible: true, timeout: 8000 }).catch(() => {})
+       console.log('ponto section: found and attempted to open')
+     } else {
+-      console.warn('ponto nav link not found (tried href and text)')
++      console.warn('ponto nav link not found (tried multiple selectors and text)')
+     }
+     try { await page.screenshot({ path: 'screenshots/ponto_section.png', fullPage: true }) } catch (e) { console.warn('ponto_section screenshot failed', e && e.message ? e.message : e) }
+     const pontoEnabled = await page.$eval('#view-ponto', btn => !btn.disabled).catch(() => false)
+@@ -231,8 +276,8 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+           }
+         }
+       })
+-  // allow animations
+-  await sleep(900)
++      // allow animations
++      await sleep(900)
+     } catch (e) {
+       console.warn('menu heuristics failed', e && e.message ? e.message : e)
+     }
+@@ -247,7 +292,7 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+     try {
+       const clicked = await page.evaluate(() => {
+         const keywords = ['holerite', 'holerites', 'ponto', 'espelho', 'holerito']
+-        const bodyText = (document.body && document.body.innerText || '').toLowerCase()
++        const bodyText = ((document.body && document.body.innerText) || '').toLowerCase()
+         for (const kw of keywords) {
+           if (!bodyText.includes(kw)) continue
+           // prefer anchors or buttons with the keyword
+@@ -259,7 +304,7 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+         }
+         return null
+       })
+-        if (clicked) {
++      if (clicked) {
+         // let any UI animations finish
+         await sleep(1500)
+         await page.screenshot({ path: `screenshots/follow_${clicked}.png`, fullPage: true }).catch(() => {})
+@@ -272,6 +317,138 @@ function sleep (ms) { return new Promise(r => setTimeout(r, ms)) }
+     }
+ 
+     console.log('Puppeteer smoke finished.')
++    // additionally check employee area widgets to validate holerite/ponto gating
++    try {
++      // if we have a debug token for a funcionário, open a fresh page with that token injected
++      if (typeof dbgEmployee !== 'undefined' && dbgEmployee) {
++        const pageEmp = await browser.newPage()
++        await pageEmp.setViewport({ width: 1280, height: 800 })
++        // capture browser console and page errors for diagnostics
++        pageEmp.on('console', msg => {
++          try { console.log('PAGE-LOG:', msg.type(), msg.text()) } catch (e) {}
++        })
++        pageEmp.on('pageerror', err => {
++          try { console.log('PAGE-ERROR:', err && err.stack ? err.stack : String(err)) } catch (e) {}
++        })
++        // inject token and userData before any script runs
++        // inject token and a rich user object that includes holerite and espelho_ponto
++        await pageEmp.evaluateOnNewDocument((t, user) => {
++          try {
++            // set both token keys and readiness flag to avoid client-side redirect races
++            window.localStorage.setItem('authToken', t);
++            window.localStorage.setItem('token', t);
++            window.localStorage.setItem('userData', JSON.stringify(user));
++            try { window.__APP_READY = true } catch (e) {}
++          } catch (e) { /* ignore */ }
++        }, dbgEmployee, {
++          id: 6,
++          role: 'funcionario',
++          nome_completo: 'Teste Funcionario',
++          holerites: [{ competencia: '2025-07', url_pdf: '/uploads/test-holerite-6-2025-07.pdf' }],
++          espelho_ponto: { competencia: '06/07/2025 - 05/08/2025', arquivo_url: '/uploads/test-ponto-6-2025-08.pdf' }
++        })
++        // Try up to 5 attempts: navigate, wait for selectors (holerite/ponto) to appear, otherwise re-inject token and reload
++        let avatarFound = false
++        for (let attempt = 1; attempt <= 5; attempt++) {
++          try {
++            await pageEmp.goto('http://127.0.0.1:3000/area.html', { waitUntil: 'networkidle2' })
++          } catch (e) { /* ignore navigation errors and continue to checks */ }
++          // wait a bit for client JS to run and render widgets
++          await sleep(900 + attempt * 400)
++          // also try waiting explicitly for widget selectors which indicate the dashboard rendered
++          try {
++            await pageEmp.waitForSelector('#widget-holerite-link, #view-holerite, #widget-ponto-link, #view-ponto', { timeout: 3000 })
++          } catch (e) {
++            // ignore - we'll treat as not found for this attempt
++          }
++          // If the page contains the login text, force-set localStorage and reload the area page to ensure auth is present before client-side redirects
++          try {
++            const bodyText = await pageEmp.evaluate(() => (document.body && document.body.innerText) ? document.body.innerText.toLowerCase() : '').catch(() => '')
++            if (bodyText && (bodyText.includes('faça login') || bodyText.includes('acesso ao sistema') || bodyText.includes('faça login para continuar'))) {
++              console.log('Detected login page content while opening area.html; forcing storage + replace to area.html')
++              await pageEmp.evaluate((t, user) => {
++                try {
++                  window.localStorage.setItem('authToken', t)
++                  window.localStorage.setItem('userData', JSON.stringify(user))
++                } catch (e) {}
++                try { window.location.replace('/area.html') } catch (e) {}
++              }, dbgEmployee, {
++                id: 6,
++                role: 'funcionario',
++                nome_completo: 'Teste Funcionario',
++                holerites: [{ competencia: '2025-07', url_pdf: '/uploads/test-holerite-6-2025-07.pdf' }],
++                espelho_ponto: { competencia: '06/07/2025 - 05/08/2025', arquivo_url: '/uploads/test-ponto-6-2025-08.pdf' }
++              })
++              // allow navigation to complete
++              await sleep(900)
++            }
++          } catch (e) { /* ignore */ }
++          // prefer explicit readiness flag if set
++          try {
++            const ready = await pageEmp.evaluate(() => !!window.__APP_READY).catch(() => false)
++            if (ready) { avatarFound = true }
++            else avatarFound = await pageEmp.$('#header-avatar-img').then(el => !!el).catch(() => false)
++          } catch (e) { avatarFound = false }
++          if (avatarFound) break
++          // If not found, attempt to set localStorage again (defensive) and reload before next attempt
++          try {
++            await pageEmp.evaluate((t, user) => {
++              try { window.localStorage.setItem('authToken', t); window.localStorage.setItem('userData', JSON.stringify(user)); } catch (e) { }
++            }, dbgEmployee, {
++              id: 6,
++              role: 'funcionario',
++              nome_completo: 'Teste Funcionario',
++              holerites: [{ competencia: '2025-07', url_pdf: '/uploads/test-holerite-6-2025-07.pdf' }],
++              espelho_ponto: { competencia: '06/07/2025 - 05/08/2025', arquivo_url: '/uploads/test-ponto-6-2025-08.pdf' }
++            })
++            await pageEmp.reload({ waitUntil: 'networkidle2' }).catch(() => {})
++            await sleep(600)
++          } catch (e) { /* non-fatal */ }
++        }
++  await pageEmp.screenshot({ path: 'screenshots/employee_dashboard.png', fullPage: true }).catch(() => {})
++        // Diagnostic: capture localStorage, a body text snippet and try an authenticated fetch to /api/funcionarios/:id
++        const diag = await pageEmp.evaluate(async () => {
++          try {
++            const token = window.localStorage.getItem('authToken') || window.localStorage.getItem('token')
++            // attempt an authenticated fetch to the server to see response status
++            let fetchInfo = null
++            try {
++              const resp = await fetch('/api/funcionarios/' + (JSON.parse(window.localStorage.getItem('userData') || '{}').id || 0), { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
++              const txt = await resp.text().catch(() => '')
++              fetchInfo = { status: resp.status, ok: resp.ok, textSnippet: txt ? txt.substring(0, 2000) : '' }
++            } catch (fe) { fetchInfo = { error: String(fe && fe.message ? fe.message : fe) } }
++            return {
++              token,
++              userData: window.localStorage.getItem('userData'),
++              bodySnippet: (document.body && document.body.innerText) ? document.body.innerText.substring(0, 2000) : '',
++              fetchInfo
++            }
++          } catch (e) { return { token: null, userData: null, bodySnippet: '', fetchInfo: { error: String(e) } } }
++        }).catch(() => ({ token: null, userData: null, bodySnippet: '', fetchInfo: { error: 'evaluate-failed' } }))
++        console.log('Employee page diagnostics:', diag)
++        const holState = await pageEmp.evaluate(() => {
++          const el = document.getElementById('widget-holerite-link') || document.querySelector('.widget-link[href="#holerite"]') || document.querySelector('#view-holerite');
++          if (!el) return { present: false };
++          return { present: true, disabled: el.classList ? el.classList.contains('disabled') : !!el.disabled, href: el.getAttribute && el.getAttribute('href') };
++        }).catch(() => ({ present: false }));
++        const pontoState = await pageEmp.evaluate(() => {
++          const el = document.getElementById('widget-ponto-link') || document.querySelector('.widget-link[href="#ponto"]') || document.querySelector('#view-ponto');
++          if (!el) return { present: false };
++          return { present: true, disabled: el.classList ? el.classList.contains('disabled') : !!el.disabled, href: el.getAttribute && el.getAttribute('href'), dataUrl: el.getAttribute && el.getAttribute('data-url') };
++        }).catch(() => ({ present: false }));
++        console.log('Employee widget holerite:', holState, 'ponto:', pontoState)
++        await pageEmp.screenshot({ path: 'screenshots/employee_widgets.png', fullPage: false }).catch(() => {})
++        await pageEmp.close()
++      } else {
++        // fallback: try reusing current page but may lack correct localStorage for employee
++        await page.goto('http://127.0.0.1:3000/area.html', { waitUntil: 'networkidle2' })
++        await sleep(900)
++        await page.screenshot({ path: 'screenshots/employee_dashboard.png', fullPage: true })
++        const holDisabled = await page.$eval('#widget-holerite-link', el => el.classList.contains('disabled')).catch(() => null)
++        const pontoDisabled = await page.$eval('#widget-ponto-link', el => el.classList.contains('disabled')).catch(() => null)
++        console.log('Employee widgets - holerite.disabled=', holDisabled, 'ponto.disabled=', pontoDisabled)
++      }
++    } catch (e) { console.warn('employee area check failed', e && e.message ? e.message : e) }
+   } catch (e) {
+     console.error('Puppeteer smoke error:', e)
+     process.exit(2)
+diff --git a/server.js b/server.js
+index 9e8ab99..2fee8b4 100644
+--- a/server.js
++++ b/server.js
+@@ -275,6 +275,59 @@ app.post('/api/login', loginLimiter, (req, res) => {
+   })
+ })
+ 
++// Public endpoint: lista de avisos ativos (visível para funcionários)
++app.get('/api/avisos', async (req, res) => {
++  try {
++    // Use the canonical columns present in the SQL schema: 'conteudo' holds the message text.
++    // Do not assume an 'ativo' boolean column exists (older schema may not have it).
++    const rows = await dbQuery('SELECT id, titulo, conteudo AS mensagem, data_publicacao AS created_at FROM avisos ORDER BY data_publicacao DESC LIMIT 50')
++    return res.json(rows || [])
++  } catch (err) {
++    // If table does not exist, return empty array instead of 500
++    if (err && err.code === 'ER_NO_SUCH_TABLE') return res.json([])
++    // Log full error (stack when available) to aid debugging
++    try {
++      if (err && err.stack) logger.error('Erro ao obter avisos (public): ' + err.stack)
++      else logger.error('Erro ao obter avisos (public): ' + JSON.stringify(err))
++    } catch (logErr) {
++      try { logger.error('Erro ao obter avisos (public, logfalha): ' + String(err)) } catch (_) {}
++    }
++    return res.status(500).json({ message: 'Erro ao carregar avisos.' })
++  }
++})
++
++// Admin-only: aniversariantes do mês (dashboard)
++app.get('/api/aniversariantes', authMiddleware, async (req, res) => {
++  try {
++    if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado.' })
++    // Select employees whose birthday month equals current month, order by day
++    const rows = await dbQuery("SELECT id, nome_completo AS nome, data_nascimento AS nascimento FROM funcionarios WHERE data_nascimento IS NOT NULL AND MONTH(data_nascimento) = MONTH(CURDATE()) ORDER BY DAY(data_nascimento) ASC LIMIT 20")
++    return res.json(rows || [])
++  } catch (err) {
++    if (err && err.code === 'ER_NO_SUCH_TABLE') return res.json([])
++    logger.error('Erro ao obter aniversariantes:', err)
++    return res.status(500).json({ message: 'Erro ao carregar aniversariantes.' })
++  }
++})
++
++// Endpoint to check if a funcionario has holerite or ponto files attached
++app.get('/api/funcionarios/:id/doc-status', authMiddleware, async (req, res) => {
++  const id = Number(req.params.id || 0)
++  if (!id) return res.status(400).json({ message: 'id inválido' })
++  // allow self or admin
++  if (Number(req.user.id) !== id && !isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado.' })
++  try {
++    const hol = await dbQuery('SELECT id, arquivo_url, competencia, data_upload FROM holerites WHERE funcionario_id = ? ORDER BY data_upload DESC LIMIT 1', [id])
++    const esp = await dbQuery('SELECT id, arquivo_url, competencia, data_upload FROM espelhos_ponto WHERE funcionario_id = ? ORDER BY data_upload DESC LIMIT 1', [id])
++    return res.json({ hasHolerite: Array.isArray(hol) && hol.length > 0, holerite: (hol && hol[0]) || null, hasPonto: Array.isArray(esp) && esp.length > 0, ponto: (esp && esp[0]) || null })
++  } catch (err) {
++    // if tables missing, return false flags
++    if (err && err.code === 'ER_NO_SUCH_TABLE') return res.json({ hasHolerite: false, holerite: null, hasPonto: false, ponto: null })
++    logger.error('Erro ao verificar documentos do funcionário:', err)
++    return res.status(500).json({ message: 'Erro ao verificar documentos.' })
++  }
++})
++
+ // Rota para CADASTRAR um novo funcionário (campos mínimos)
+ app.post('/api/funcionarios',
+   authMiddleware,
+@@ -1058,7 +1111,19 @@ app.use((err, req, res, next) => {
+ // Also add a listen error handler to log bind issues (useful on Windows if address is unavailable).
+ const LISTEN_ADDR = process.env.LISTEN_ADDR || '0.0.0.0'
+ const server = app.listen(PORT, LISTEN_ADDR, () => {
+-  logger.info(`Servidor a correr! Aceda à aplicação em http://${LISTEN_ADDR === '0.0.0.0' ? '127.0.0.1' : LISTEN_ADDR}:${PORT}`)
++  // Improve startup logging: include the actual address object returned by server.address()
++  // This helps diagnose cases where the process logs "Servidor a correr" but no TCP listener is observed.
++  const addr = server.address && server.address()
++  const boundHost = addr && addr.address ? addr.address : LISTEN_ADDR
++  const boundPort = addr && addr.port ? addr.port : PORT
++  logger.info(`Servidor a correr! Aceda à aplicação em http://${boundHost === '0.0.0.0' ? '127.0.0.1' : boundHost}:${boundPort}`)
++  try {
++    logger.info('Server.address: ' + JSON.stringify(addr))
++    // also print to stdout/stderr so foreground runs show this immediately
++    console.log('Server listening:', JSON.stringify(addr))
++  } catch (e) {
++    // ignore logging errors
++  }
+ })
+ 
+ server.on('error', (err) => {

@@ -1,0 +1,1283 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: Benefícios</title>
+
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f8fafc;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; width: 100vw; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 12px 0; z-index: 100;
+            position: relative;
+            height: 100vh;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-pink); border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px; cursor: pointer; text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s; text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-pink); color: white; }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; /* overflow handled by global-header-sidebar.css */ }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding: 32px; background: #f8fafc; }
+
+        .page-header { margin-bottom: 28px; }
+
+        .page-title {
+            font-size: 1.5rem; font-weight: 700; color: #0f172a;
+            margin: 0; display: flex; align-items: center; gap: 12px;
+        }
+
+        .page-title i {
+            color: var(--primary-pink);
+            width: 40px; height: 40px;
+            background: rgba(236, 72, 153, 0.1);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.125rem;
+        }
+        .page-subtitle { color: #64748b; margin-top: 6px; font-size: 0.875rem; }
+
+        .controls-bar {
+            display: flex; gap: 12px; align-items: center;
+            margin-bottom: 28px;
+        }
+
+        .btn {
+            padding: 10px 20px; border: none; border-radius: 10px;
+            font-size: 0.875rem; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 8px;
+            transition: all 0.2s; text-decoration: none;
+        }
+
+        .btn-primary { background: var(--primary-pink); color: white; box-shadow: 0 2px 8px rgba(236, 72, 153, 0.3); }
+        .btn-primary:hover { background: #db2777; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4); }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; color: #1e293b; border-color: #cbd5e1; }
+
+        /* Benefits Grid */
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+
+        .benefit-card {
+            background: white; border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden; transition: all 0.3s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            position: relative;
+        }
+
+        .benefit-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            border-radius: 16px 16px 0 0;
+        }
+        .benefit-card.type-transport::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .benefit-card.type-health::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .benefit-card.type-dental::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .benefit-card.type-food::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+        .benefit-card.type-gym::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .benefit-card.type-life::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
+        .benefit-card.type-education::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+        .benefit-card.type-other::before { background: linear-gradient(90deg, #6b7280, #9ca3af); }
+
+        .benefit-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            transform: translateY(-3px);
+            border-color: #cbd5e1;
+        }
+
+        .benefit-header {
+            padding: 20px 24px;
+            display: flex; align-items: center; gap: 14px;
+        }
+
+        .benefit-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem; flex-shrink: 0;
+        }
+
+        .benefit-icon.health { background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05)); color: #ef4444; }
+        .benefit-icon.dental { background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05)); color: #3b82f6; }
+        .benefit-icon.food { background: linear-gradient(135deg, rgba(249, 115, 22, 0.15), rgba(249, 115, 22, 0.05)); color: #f97316; }
+        .benefit-icon.transport { background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05)); color: #10b981; }
+        .benefit-icon.gym { background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(236, 72, 153, 0.05)); color: #8b5cf6; }
+        .benefit-icon.life { background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(236, 72, 153, 0.05)); color: #ec4899; }
+        .benefit-icon.education { background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(99, 102, 241, 0.05)); color: #6366f1; }
+        .benefit-icon.other { background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(107, 114, 128, 0.05)); color: #6b7280; }
+
+        .benefit-info { flex: 1; min-width: 0; }
+        .benefit-title { font-size: 1rem; font-weight: 600; color: #0f172a; margin-bottom: 2px; }
+        .benefit-provider { font-size: 0.75rem; color: #94a3b8; font-weight: 500; }
+
+        .benefit-status {
+            padding: 5px 12px; border-radius: 20px;
+            font-size: 0.7rem; font-weight: 600; letter-spacing: 0.3px;
+            text-transform: uppercase; flex-shrink: 0;
+        }
+
+        .benefit-status.active { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .benefit-status.pending { background: #fefce8; color: #ca8a04; border: 1px solid #fde68a; }
+        .benefit-status.inactive { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+        .benefit-body { padding: 0 24px 20px; }
+
+        .benefit-details {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+            margin-bottom: 14px;
+            background: #f8fafc;
+            padding: 14px;
+            border-radius: 10px;
+        }
+
+        .detail-item { font-size: 0.8rem; }
+        .detail-label { color: #94a3b8; font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; }
+        .detail-value { font-weight: 600; color: #0f172a; font-size: 0.875rem; }
+
+        .benefit-description {
+            font-size: 0.8rem; color: #64748b;
+            margin-bottom: 14px; line-height: 1.6;
+        }
+
+        .benefit-actions { display: flex; gap: 8px; padding-top: 4px; }
+
+        .btn-sm {
+            padding: 8px 16px; font-size: 0.775rem;
+            border-radius: 8px;
+        }
+
+        .btn-success { background: var(--success-green); color: white; box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3); }
+        .btn-success:hover { background: #16a34a; transform: translateY(-1px); }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px; margin-bottom: 28px;
+        }
+
+        .summary-card {
+            background: white; border-radius: 14px;
+            border: 1px solid #e2e8f0; padding: 18px 20px;
+            display: flex; align-items: center; gap: 14px;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .summary-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+
+        .summary-icon {
+            width: 44px; height: 44px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.125rem; flex-shrink: 0;
+        }
+
+        .summary-icon.green { background: linear-gradient(135deg, #ecfdf5, #d1fae5); color: #059669; }
+        .summary-icon.yellow { background: linear-gradient(135deg, #fefce8, #fef9c3); color: #ca8a04; }
+        .summary-icon.purple { background: linear-gradient(135deg, #f5f3ff, #ede9fe); color: #7c3aed; }
+
+        .summary-content h4 { font-size: 0.7rem; color: #94a3b8; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .summary-content .value { font-size: 1.75rem; font-weight: 700; color: #0f172a; }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show { display: flex; }
+
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            position: relative;
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+        }
+
+        .modal-header h3 i { color: var(--primary-pink); }
+
+        .modal-close {
+            width: 36px; height: 36px;
+            border: none;
+            background: #f1f5f9;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover { background: #fee2e2; color: #ef4444; }
+
+        .modal-body { padding: 24px; overflow-y: auto; }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.875rem; color: #374151; }
+        .form-input, textarea.form-input { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.875rem; font-family: inherit; }
+        .form-input:focus { outline: none; border-color: var(--primary-pink); box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1); }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 9999;
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast.success { background: var(--success-green); }
+        .toast.error { background: var(--danger-red); }
+
+        /* Admin list */
+        .beneficio-admin-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .beneficio-admin-item:hover { background: #f1f5f9; }
+
+        .beneficio-admin-info { flex: 1; }
+        .beneficio-admin-info h4 { margin: 0 0 4px 0; font-size: 1rem; color: #1e293b; }
+        .beneficio-admin-info p { margin: 0; font-size: 0.8rem; color: #64748b; }
+
+        .beneficio-admin-actions { display: flex; gap: 8px; }
+
+        .btn-icon {
+            width: 36px; height: 36px;
+            border: none; border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-icon.edit { background: #dbeafe; color: #2563eb; }
+        .btn-icon.edit:hover { background: #bfdbfe; }
+        .btn-icon.delete { background: #fee2e2; color: #dc2626; }
+        .btn-icon.delete:hover { background: #fecaca; }
+
+        @media (max-width: 768px) {
+            .form-row { grid-template-columns: 1fr; }
+            .sidebar { display: none; }
+            .content-area { padding: 16px; }
+            .page-title { font-size: 1.25rem; }
+            .summary-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+            .summary-card { padding: 12px; flex-direction: column; text-align: center; gap: 8px; }
+            .summary-icon { width: 36px; height: 36px; font-size: 0.9rem; }
+            .summary-content .value { font-size: 1.25rem; }
+            .benefits-grid { grid-template-columns: 1fr; }
+            .benefit-details { grid-template-columns: 1fr; }
+            .header { padding: 0 12px; }
+            .user-greeting { display: none; }
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn active" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Benefícios</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-gift"></i>
+                        Meus Benefícios
+                    </h1>
+                    <p class="page-subtitle">Consulte e gerencie seus benefícios corporativos</p>
+                </div>
+
+                <div class="controls-bar">
+                    <a href="../funcionario.html" class="btn btn-outline">
+                        <i class="fas fa-arrow-left"></i>
+                        Voltar
+                    </a>
+                    <button class="btn btn-primary admin-only" id="btn-gerenciar" onclick="abrirModalGerenciar()" style="display: none;">
+                        <i class="fas fa-cog"></i>
+                        Gerenciar Benefícios
+                    </button>
+                </div>
+
+                <!-- Summary -->
+                <div class="summary-grid">
+                    <div class="summary-card">
+                        <div class="summary-icon green">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4>Benefícios Ativos</h4>
+                            <div class="value" id="count-ativos">0</div>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon yellow">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4>Pendentes</h4>
+                            <div class="value" id="count-pendentes">0</div>
+                        </div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="summary-icon purple">
+                            <i class="fas fa-plus-circle"></i>
+                        </div>
+                        <div class="summary-content">
+                            <h4>Disponíveis</h4>
+                            <div class="value" id="count-disponiveis">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Benefits Grid -->
+                <div class="benefits-grid" id="benefits-grid">
+                    <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #94a3b8;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; display: block;"></i>
+                        Carregando benefícios...
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Gerenciar Benefícios (Admin) -->
+    <div id="modalGerenciar" class="modal">
+        <div class="modal-overlay" onclick="fecharModalGerenciar()"></div>
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> Gerenciar Benefícios da Empresa</h3>
+                <button class="modal-close" onclick="fecharModalGerenciar()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <p style="color: #64748b; font-size: 0.9rem; margin: 0;">
+                        Configure os benefícios disponíveis para os funcionários.
+                    </p>
+                    <button class="btn btn-success btn-sm" onclick="abrirModalNovoBeneficio()">
+                        <i class="fas fa-plus"></i> Novo Benefício
+                    </button>
+                </div>
+                <div id="lista-beneficios-admin">
+                    <!-- Lista dinâmica -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Novo/Editar Benefício -->
+    <div id="modalBeneficio" class="modal">
+        <div class="modal-overlay" onclick="fecharModalBeneficio()"></div>
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="modal-beneficio-titulo"><i class="fas fa-gift"></i> Novo Benefício</h3>
+                <button class="modal-close" onclick="fecharModalBeneficio()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="formBeneficio">
+                    <input type="hidden" id="beneficio-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Nome do Benefício *</label>
+                            <input type="text" id="beneficio-nome" class="form-input" required placeholder="Ex: Vale Refeição">
+                        </div>
+                        <div class="form-group">
+                            <label>Fornecedor</label>
+                            <input type="text" id="beneficio-fornecedor" class="form-input" placeholder="Ex: Sodexo">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tipo *</label>
+                            <select id="beneficio-tipo" class="form-input" required>
+                                <option value="">Selecione...</option>
+                                <option value="health">Plano de Saúde</option>
+                                <option value="dental">Plano Odontológico</option>
+                                <option value="food">Vale Alimentação/Refeição</option>
+                                <option value="telemedicine">CS Saúde (Telemedicina)</option>
+                                <option value="gym">Academia/Bem-estar</option>
+                                <option value="life">Seguro de Vida</option>
+                                <option value="education">Educação</option>
+                                <option value="other">Outro</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Status *</label>
+                            <select id="beneficio-status" class="form-input" required>
+                                <option value="active">Ativo</option>
+                                <option value="pending">Pendente</option>
+                                <option value="inactive">Disponível</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Valor/Custo</label>
+                            <div style="position: relative;">
+                                <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-weight: 600; font-size: 0.85rem; pointer-events: none;">R$</span>
+                                <input type="text" id="beneficio-valor" class="form-input"
+                                    placeholder="0,00"
+                                    maxlength="14"
+                                    style="padding-left: 38px;"
+                                    oninput="mascaraMoeda(this)"
+                                    onkeypress="return somenteNumeros(event)">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Informação Adicional</label>
+                            <input type="text" id="beneficio-info" class="form-input" placeholder="Ex: Cobertura nacional">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Descrição</label>
+                        <textarea id="beneficio-descricao" class="form-input" rows="3" placeholder="Descrição detalhada do benefício..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="fecharModalBeneficio()">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="salvarBeneficio()">
+                    <i class="fas fa-save"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast">
+        <i class="fas fa-check-circle"></i>
+        <span id="toast-message">Mensagem</span>
+    </div>
+
+    <script>
+        // Configuração dos benefícios (salvos em localStorage para persistência)
+        const STORAGE_KEY = 'aluforce_beneficios_v2';
+
+        // Benefícios padrão da empresa (podem ser editados pelo admin)
+        const beneficiosPadrao = [
+            {
+                id: 1,
+                nome: 'Vale-Transporte',
+                fornecedor: 'Empresa',
+                tipo: 'transport',
+                status: 'active',
+                valor: 'R$ 11,00/dia',
+                info: 'Benefício Fixo',
+                descricao: 'Vale-transporte para deslocamento casa-trabalho-casa. Benefício fixo concedido a todos os funcionários CLT.'
+            },
+            {
+                id: 2,
+                nome: 'CS Saúde',
+                fornecedor: 'CS Saúde',
+                tipo: 'health',
+                status: 'active',
+                valor: 'Consulte o portal',
+                info: 'Telemedicina e consultas',
+                descricao: 'Plataforma de saúde com telemedicina, consultas online e presenciais. Acesse: cssaude.app.br',
+                link: 'https://www.cssaude.app.br/'
+            }
+        ];
+
+        let beneficios = [];
+        let isAdmin = false;
+
+        const tipoIcones = {
+            'health': { icon: 'fa-heartbeat', class: 'health' },
+            'dental': { icon: 'fa-tooth', class: 'dental' },
+            'food': { icon: 'fa-utensils', class: 'food' },
+            'transport': { icon: 'fa-bus', class: 'transport' },
+            'gym': { icon: 'fa-dumbbell', class: 'gym' },
+            'life': { icon: 'fa-shield-alt', class: 'life' },
+            'education': { icon: 'fa-graduation-cap', class: 'education' },
+            'other': { icon: 'fa-gift', class: 'other' }
+        };
+
+        const statusLabels = {
+            'active': { text: 'Ativo', class: 'active' },
+            'pending': { text: 'Pendente', class: 'pending' },
+            'inactive': { text: 'Disponível', class: 'inactive' }
+        };
+
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        function carregarBeneficios() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                beneficios = JSON.parse(saved);
+            } else {
+                beneficios = [...beneficiosPadrao];
+                salvarBeneficios();
+            }
+        }
+
+        function salvarBeneficios() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(beneficios));
+        }
+
+        function renderizarBeneficios() {
+            const grid = document.getElementById('benefits-grid');
+
+            if (beneficios.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 60px; color: #94a3b8;">
+                        <i class="fas fa-gift" style="font-size: 64px; margin-bottom: 20px; display: block;"></i>
+                        <p style="font-size: 1.1rem; font-weight: 600; margin-bottom: 8px;">Nenhum benefício cadastrado</p>
+                        <p style="font-size: 0.9rem;">Entre em contato com o RH para mais informações.</p>
+                    </div>
+                `;
+                atualizarContadores();
+                return;
+            }
+
+            grid.innerHTML = beneficios.map(b => {
+                const tipoInfo = tipoIcones[b.tipo] || tipoIcones.other;
+                const statusInfo = statusLabels[b.status] || statusLabels.active;
+
+                return `
+                    <div class="benefit-card type-${b.tipo || 'other'}">
+                        <div class="benefit-header">
+                            <div class="benefit-icon ${tipoInfo.class}">
+                                <i class="fas ${tipoInfo.icon}"></i>
+                            </div>
+                            <div class="benefit-info">
+                                <div class="benefit-title">${b.nome}</div>
+                                <div class="benefit-provider">${b.fornecedor || '-'}</div>
+                            </div>
+                            <span class="benefit-status ${statusInfo.class}">${statusInfo.text}</span>
+                        </div>
+                        <div class="benefit-body">
+                            ${b.valor || b.info ? `
+                            <div class="benefit-details">
+                                ${b.valor ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Valor/Custo</div>
+                                    <div class="detail-value">${formatarValorDisplay(b.valor)}</div>
+                                </div>
+                                ` : ''}
+                                ${b.info ? `
+                                <div class="detail-item">
+                                    <div class="detail-label">Informação</div>
+                                    <div class="detail-value">${b.info}</div>
+                                </div>
+                                ` : ''}
+                            </div>
+                            ` : ''}
+                            ${b.descricao ? `<p class="benefit-description">${b.descricao}</p>` : ''}
+                            <div class="benefit-actions">
+                                ${b.status === 'inactive' ? `
+                                <button class="btn btn-success btn-sm" onclick="solicitarAdesao(${b.id})">
+                                    <i class="fas fa-plus"></i>
+                                    Solicitar Adesão
+                                </button>
+                                ` : b.status === 'pending' ? `
+                                <button class="btn btn-primary btn-sm" onclick="ativarBeneficio(${b.id})">
+                                    <i class="fas fa-check"></i>
+                                    Ativar Benefício
+                                </button>
+                                ` : `
+                                <button class="btn btn-outline btn-sm" onclick="verDetalhes(${b.id})">
+                                    <i class="fas fa-eye"></i>
+                                    Ver Detalhes
+                                </button>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            atualizarContadores();
+        }
+
+        function atualizarContadores() {
+            const ativos = beneficios.filter(b => b.status === 'active').length;
+            const pendentes = beneficios.filter(b => b.status === 'pending').length;
+            const disponiveis = beneficios.filter(b => b.status === 'inactive').length;
+
+            document.getElementById('count-ativos').textContent = ativos;
+            document.getElementById('count-pendentes').textContent = pendentes;
+            document.getElementById('count-disponiveis').textContent = disponiveis;
+        }
+
+        function renderizarListaAdmin() {
+            const lista = document.getElementById('lista-beneficios-admin');
+
+            if (beneficios.length === 0) {
+                lista.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #94a3b8;">
+                        <i class="fas fa-inbox" style="font-size: 48px; margin-bottom: 12px; display: block;"></i>
+                        Nenhum benefício cadastrado
+                    </div>
+                `;
+                return;
+            }
+
+            lista.innerHTML = beneficios.map(b => {
+                const tipoInfo = tipoIcones[b.tipo] || tipoIcones.other;
+                const statusInfo = statusLabels[b.status] || statusLabels.active;
+
+                return `
+                    <div class="beneficio-admin-item">
+                        <div class="benefit-icon ${tipoInfo.class}" style="width: 48px; height: 48px; font-size: 1.25rem;">
+                            <i class="fas ${tipoInfo.icon}"></i>
+                        </div>
+                        <div class="beneficio-admin-info">
+                            <h4>${b.nome}</h4>
+                            <p>${b.fornecedor || '-'} • <span class="benefit-status ${statusInfo.class}" style="padding: 2px 8px; font-size: 0.7rem;">${statusInfo.text}</span></p>
+                        </div>
+                        <div class="beneficio-admin-actions">
+                            <button class="btn-icon edit" onclick="editarBeneficio(${b.id})" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon delete" onclick="excluirBeneficio(${b.id})" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Funções do Modal Gerenciar
+        function abrirModalGerenciar() {
+            renderizarListaAdmin();
+            document.getElementById('modalGerenciar').classList.add('show');
+        }
+
+        function fecharModalGerenciar() {
+            document.getElementById('modalGerenciar').classList.remove('show');
+        }
+
+        // === Máscara de Moeda ===
+        function somenteNumeros(e) {
+            const char = String.fromCharCode(e.which || e.keyCode);
+            if (!/[0-9]/.test(char)) {
+                e.preventDefault();
+                return false;
+            }
+            return true;
+        }
+
+        function mascaraMoeda(input) {
+            let v = input.value.replace(/\D/g, '');
+            if (v.length === 0) { input.value = ''; return; }
+            // Limitar a 12 dígitos (999.999.999,99 = R$ 9.999.999,99 max)
+            if (v.length > 12) v = v.substring(0, 12);
+            v = (parseInt(v, 10) / 100).toFixed(2);
+            v = v.replace('.', ',');
+            v = v.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            // Corrigir separador de milhares (não afetar decimais)
+            const partes = v.split(',');
+            partes[0] = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            input.value = partes.join(',');
+        }
+
+        function formatarValorParaExibicao(valor) {
+            if (!valor) return '';
+            // Remove prefixo R$ para exibir no input (que já tem R$ visual)
+            let v = String(valor).replace(/^R\$\s*/i, '').trim();
+            if (v.includes(',')) return v;
+            const num = parseFloat(v);
+            if (isNaN(num)) return v;
+            return num.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+
+        // Formata valor para exibição com prefixo R$ nos cards e detalhes
+        function formatarValorDisplay(valor) {
+            if (!valor) return 'Não informado';
+            let v = String(valor).trim();
+            // Se já começa com R$, apenas retornar
+            if (/^R\$/i.test(v)) return v;
+            // Remover qualquer coisa que não seja número, vírgula ou ponto
+            let limpo = v.replace(/[^\d.,]/g, '').trim();
+            if (!limpo) return valor;
+            return 'R$ ' + limpo;
+        }
+
+        // Funções do Modal Benefício
+        function abrirModalNovoBeneficio() {
+            document.getElementById('modal-beneficio-titulo').innerHTML = '<i class="fas fa-gift"></i> Novo Benefício';
+            document.getElementById('formBeneficio').reset();
+            document.getElementById('beneficio-id').value = '';
+            document.getElementById('modalBeneficio').classList.add('show');
+        }
+
+        function fecharModalBeneficio() {
+            document.getElementById('modalBeneficio').classList.remove('show');
+        }
+
+        function editarBeneficio(id) {
+            const b = beneficios.find(x => x.id === id);
+            if (!b) return;
+
+            document.getElementById('modal-beneficio-titulo').innerHTML = '<i class="fas fa-edit"></i> Editar Benefício';
+            document.getElementById('beneficio-id').value = b.id;
+            document.getElementById('beneficio-nome').value = b.nome || '';
+            document.getElementById('beneficio-fornecedor').value = b.fornecedor || '';
+            document.getElementById('beneficio-tipo').value = b.tipo || '';
+            document.getElementById('beneficio-status').value = b.status || 'active';
+            document.getElementById('beneficio-valor').value = formatarValorParaExibicao(b.valor || '');
+            document.getElementById('beneficio-info').value = b.info || '';
+            document.getElementById('beneficio-descricao').value = b.descricao || '';
+
+            document.getElementById('modalBeneficio').classList.add('show');
+        }
+
+        function salvarBeneficio() {
+            const id = document.getElementById('beneficio-id').value;
+            const dados = {
+                nome: document.getElementById('beneficio-nome').value,
+                fornecedor: document.getElementById('beneficio-fornecedor').value,
+                tipo: document.getElementById('beneficio-tipo').value,
+                status: document.getElementById('beneficio-status').value,
+                valor: (function() {
+                    let v = document.getElementById('beneficio-valor').value.trim();
+                    if (!v) return '';
+                    // Garantir prefixo R$
+                    if (!/^R\$/i.test(v)) v = 'R$ ' + v;
+                    return v;
+                })(),
+                info: document.getElementById('beneficio-info').value,
+                descricao: document.getElementById('beneficio-descricao').value
+            };
+
+            if (!dados.nome || !dados.tipo) {
+                showToast('Preencha os campos obrigatórios', 'error');
+                return;
+            }
+
+            if (id) {
+                // Editar
+                const index = beneficios.findIndex(b => b.id === parseInt(id));
+                if (index !== -1) {
+                    beneficios[index] = { ...beneficios[index], ...dados };
+                }
+                showToast('Benefício atualizado com sucesso!', 'success');
+            } else {
+                // Novo
+                const novoId = Math.max(0, ...beneficios.map(b => b.id)) + 1;
+                beneficios.push({ id: novoId, ...dados });
+                showToast('Benefício criado com sucesso!', 'success');
+            }
+
+            salvarBeneficios();
+            renderizarBeneficios();
+            renderizarListaAdmin();
+            fecharModalBeneficio();
+        }
+
+        function excluirBeneficio(id) {
+            const b = beneficios.find(x => x.id === id);
+            if (!b) return;
+
+            mostrarPopupConfirmacao({
+                titulo: 'Excluir Benefício',
+                mensagem: 'Deseja realmente excluir este benefício?',
+                icone: 'fa-trash-alt',
+                tipoIcone: 'danger',
+                textoBtnConfirmar: 'Sim, Excluir',
+                tipoBtnConfirmar: 'danger',
+                iconeBtnConfirmar: 'fa-trash-alt',
+                itemNome: b.nome,
+                avisoExtra: 'Esta ação não pode ser desfeita.',
+                onConfirmar: function() {
+                    beneficios = beneficios.filter(x => x.id !== id);
+                    salvarBeneficios();
+                    renderizarBeneficios();
+                    renderizarListaAdmin();
+                    showToast('Benefício excluído com sucesso!', 'success');
+                }
+            });
+        }
+
+        // Ações do funcionário
+        function solicitarAdesao(id) {
+            showToast('Solicitação de adesão enviada ao RH!', 'success');
+        }
+
+        function ativarBeneficio(id) {
+            const index = beneficios.findIndex(b => b.id === id);
+            if (index !== -1) {
+                beneficios[index].status = 'active';
+                salvarBeneficios();
+                renderizarBeneficios();
+                showToast('Benefício ativado com sucesso!', 'success');
+            }
+        }
+
+        function verDetalhes(id) {
+            const b = beneficios.find(x => x.id === id);
+            if (b) {
+                // Criar modal de detalhes estilizado
+                const tipoInfo = tipoIcones[b.tipo] || tipoIcones.other;
+                const statusInfo = statusLabels[b.status] || statusLabels.active;
+
+                // Remover modal anterior se existir
+                const existingModal = document.getElementById('modalDetalhes');
+                if (existingModal) existingModal.remove();
+
+                const modal = document.createElement('div');
+                modal.id = 'modalDetalhes';
+                modal.className = 'modal show';
+                modal.innerHTML = `
+                    <div class="modal-overlay" onclick="fecharModalDetalhes()"></div>
+                    <div class="modal-content" style="max-width: 500px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, ${tipoInfo.class === 'health' ? '#ef4444' : tipoInfo.class === 'food' ? '#f97316' : tipoInfo.class === 'transport' ? '#10b981' : '#8b5cf6'}, ${tipoInfo.class === 'health' ? '#dc2626' : tipoInfo.class === 'food' ? '#ea580c' : tipoInfo.class === 'transport' ? '#059669' : '#7c3aed'}); border: none; border-radius: 16px 16px 0 0;">
+                            <h3 style="color: white; margin: 0; display: flex; align-items: center; gap: 12px;">
+                                <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas ${tipoInfo.icon}" style="font-size: 1.5rem; color: white;"></i>
+                                </div>
+                                <div>
+                                    <span style="font-size: 1.125rem;">${b.nome}</span>
+                                    <div style="font-size: 0.75rem; opacity: 0.9; font-weight: 400; margin-top: 2px;">${b.fornecedor || 'Empresa'}</div>
+                                </div>
+                            </h3>
+                            <button class="modal-close" onclick="fecharModalDetalhes()" style="background: rgba(255,255,255,0.2); color: white;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="padding: 24px;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                                <div style="background: #f8fafc; padding: 16px; border-radius: 12px;">
+                                    <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Valor</div>
+                                    <div style="font-size: 1rem; font-weight: 600; color: #1e293b;">${formatarValorDisplay(b.valor)}</div>
+                                </div>
+                                <div style="background: #f8fafc; padding: 16px; border-radius: 12px;">
+                                    <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Status</div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span class="benefit-status ${statusInfo.class}" style="padding: 4px 12px;">${statusInfo.text}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            ${b.info ? `
+                            <div style="background: #fef3c7; padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-info-circle" style="color: #d97706;"></i>
+                                <span style="font-size: 0.875rem; color: #92400e;">${b.info}</span>
+                            </div>
+                            ` : ''}
+                            ${b.descricao ? `
+                            <div style="margin-bottom: 16px;">
+                                <div style="font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 8px;">Descrição</div>
+                                <p style="font-size: 0.875rem; color: #64748b; line-height: 1.6; margin: 0;">${b.descricao}</p>
+                            </div>
+                            ` : ''}
+                            ${b.link ? `
+                            <a href="${b.link}" target="_blank" class="btn btn-primary" style="width: 100%; justify-content: center;">
+                                <i class="fas fa-external-link-alt"></i>
+                                Acessar Portal
+                            </a>
+                            ` : ''}
+                        </div>
+                        <div class="modal-footer" style="border-top: 1px solid #f1f5f9; padding: 16px 24px;">
+                            <button class="btn btn-outline" onclick="fecharModalDetalhes()" style="flex: 1;">
+                                <i class="fas fa-check"></i>
+                                OK
+                            </button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+        }
+
+        function fecharModalDetalhes() {
+            const modal = document.getElementById('modalDetalhes');
+            if (modal) modal.remove();
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+
+            toast.className = 'toast ' + type;
+            toastMessage.textContent = message;
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4000);
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                ...additionalHeaders
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const user = await response.json();
+
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, userName);
+
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+
+                    // Mostrar botões admin apenas para usuários específicos
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    if (user.email && adminEmails.includes(user.email.toLowerCase())) {
+                        isAdmin = true;
+                        const btnAdmin = document.getElementById('btn-admin');
+                        if (btnAdmin) btnAdmin.style.display = 'flex';
+                        const btnGerenciar = document.getElementById('btn-gerenciar');
+                        if (btnGerenciar) btnGerenciar.style.display = 'inline-flex';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarBeneficios();
+            renderizarBeneficios();
+            carregarUsuarioLogado();
+        });
+
+        // Fechar modais com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                fecharModalGerenciar();
+                fecharModalBeneficio();
+            }
+        });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

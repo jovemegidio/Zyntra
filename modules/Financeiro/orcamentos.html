@@ -1,0 +1,1783 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Orçamentos</title>
+
+    <!-- Autenticacao -->
+    <script src="/js/auth-unified.js?v=20260211" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Financeiro Design System -->
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+    :root {
+        --primary-orange: #225cfa;
+        --primary-dark: #1a1a2e;
+        --bg-gray: #f8fafc;
+        --border-color: #e2e8f0;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+        --indigo: #6366f1;
+    }
+/* SIDEBAR */
+.sidebar-logo i { color: white; font-size: 18px; }
+.sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-blue); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN */
+/* HEADER */
+.header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+.header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-avatar .user-initial { display: block; }
+        .user-avatar img.visible + .user-initial { display: none; }
+
+        /* PAGE CONTENT */
+        .page-content { flex: 1; overflow-y: auto; padding: 24px; }
+
+        /* PAGE HEADER */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title-section h1 { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+        .page-title-section h1 i { color: var(--indigo); }
+        .page-title-section p { font-size: 14px; color: var(--text-secondary); }
+        .page-actions { display: flex; gap: 12px; align-items: center; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--indigo); color: white; }
+        .btn-primary:hover { background: #4f46e5; transform: translateY(-1px); }
+        .btn-secondary { background: white; color: var(--text-primary); border: 1px solid var(--border-color); }
+
+        /* PERIOD SELECTOR */
+        .period-selector { display: flex; align-items: center; gap: 8px; background: white; padding: 6px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .period-btn { padding: 8px 16px; border: none; background: transparent; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; }
+        .period-btn:hover { background: var(--bg-gray); }
+        .period-btn.active { background: var(--indigo); color: white; }
+
+        /* KPI CARDS */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .kpi-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .kpi-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .kpi-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+        .kpi-icon.indigo { background: rgba(99,102,241,0.1); color: var(--indigo); }
+        .kpi-icon.green { background: rgba(34,197,94,0.1); color: var(--success); }
+        .kpi-icon.orange { background: rgba(245,158,11,0.1); color: var(--warning); }
+        .kpi-icon.red { background: rgba(239,68,68,0.1); color: var(--danger); }
+        .kpi-content h3 { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+        .kpi-value { font-size: 28px; font-weight: 700; }
+        .kpi-trend { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 8px; }
+        .kpi-trend.up { color: var(--success); }
+        .kpi-trend.down { color: var(--danger); }
+
+        /* GRID LAYOUT */
+        .grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+        /* CHART CARD */
+        .chart-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .chart-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .chart-card h3 i { color: var(--indigo); }
+        .chart-container { height: 300px; }
+
+        /* BUDGET LIST */
+        .budget-list { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+        .budget-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+        .budget-header h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .budget-header h3 i { color: var(--indigo); }
+        .budget-items { max-height: 400px; overflow-y: auto; }
+        .budget-item { display: flex; align-items: center; padding: 16px 24px; border-bottom: 1px solid #f1f5f9; transition: all 0.2s; cursor: pointer; }
+        .budget-item:hover { background: var(--bg-gray); }
+        .budget-item:last-child { border-bottom: none; }
+        .budget-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-right: 16px; font-size: 16px; }
+        .budget-info { flex: 1; }
+        .budget-info .name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .budget-info .category { font-size: 12px; color: var(--text-secondary); }
+        .budget-progress { width: 120px; margin: 0 16px; }
+        .progress-bar { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .progress-fill.green { background: var(--success); }
+        .progress-fill.yellow { background: var(--warning); }
+        .progress-fill.red { background: var(--danger); }
+        .progress-text { font-size: 11px; color: var(--text-secondary); margin-top: 4px; text-align: right; }
+        .budget-values { text-align: right; min-width: 120px; }
+        .budget-values .spent { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+        .budget-values .limit { font-size: 12px; color: var(--text-secondary); }
+        .budget-status { width: 80px; text-align: center; }
+        .status-badge { display: inline-flex; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .status-badge.ok { background: #dcfce7; color: #166534; }
+        .status-badge.alerta { background: #fef3c7; color: #92400e; }
+        .status-badge.excedido { background: #fee2e2; color: #991b1b; }
+
+        /* ALERTS */
+        .alerts-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .alerts-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+        .alerts-card h3 i { color: var(--warning); }
+        .alert-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .alert-item:last-child { border-bottom: none; }
+        .alert-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .alert-icon.warning { background: #fef3c7; color: var(--warning); }
+        .alert-icon.danger { background: #fee2e2; color: var(--danger); }
+        .alert-content { flex: 1; }
+        .alert-content .title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+        .alert-content .desc { font-size: 12px; color: var(--text-secondary); }
+
+        /* MODAL - Design SaaS Empresarial */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(8px); }
+        .modal-overlay.active { display: flex; }
+        .modal { display: flex; flex-direction: column; background: white; border-radius: 20px; width: 100%; max-width: 720px; min-height: 580px; max-height: 90vh; overflow: hidden; box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15); animation: modalFadeIn 0.3s ease-out; }
+        @keyframes modalFadeIn { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        
+        /* Header SaaS */
+        .modal-header-saas { padding: 28px 32px; background: #ffffff; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-shrink: 0; }
+        .modal-header-saas .header-left { display: flex; align-items: center; gap: 16px; flex: 1; }
+        .modal-header-saas .header-icon { width: 56px; height: 56px; min-width: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; }
+        .modal-header-saas .header-icon i { color: white; font-size: 24px; }
+        .modal-header-saas h2 { font-size: 22px; font-weight: 700; color: #111827; margin: 0 0 4px 0; }
+        .modal-header-saas .subtitle { font-size: 14px; color: #6b7280; margin: 0; }
+        .modal-close-saas { width: 44px; height: 44px; min-width: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; color: #6b7280; font-size: 18px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; margin-left: 20px; }
+        .modal-close-saas:hover { background: #e5e7eb; color: #374151; }
+        
+        /* Body SaaS */
+        .modal-body-saas { padding: 32px; overflow-y: auto; flex: 1; min-height: 0; background: #f9fafb; }
+        
+        /* Footer SaaS */
+        .modal-footer-saas { padding: 20px 32px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px; background: #ffffff; flex-shrink: 0; }
+        
+        /* Buttons SaaS */
+        .btn-saas { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; }
+        .btn-saas-ghost { background: #ffffff; color: #6b7280; border: 1px solid #e5e7eb; }
+        .btn-saas-ghost:hover { background: #f3f4f6; color: #374151; }
+        .btn-saas-primary { background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35); }
+        .btn-saas-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4); }
+        
+        /* Form SaaS */
+        .form-card-saas { background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb; margin-bottom: 16px; }
+        .form-card-saas:last-child { margin-bottom: 0; }
+        .form-group-saas { margin-bottom: 20px; }
+        .form-group-saas:last-child { margin-bottom: 0; }
+        .form-group-saas label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .form-group-saas label i { font-size: 14px; }
+        .form-group-saas input, .form-group-saas select { width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; transition: all 0.2s; background: #ffffff; }
+        .form-group-saas input:focus, .form-group-saas select:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
+        .form-grid-saas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        
+        /* Legacy modal styles */
+        .modal-header { padding: 24px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+        .modal-close { width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: pointer; color: white; font-size: 16px; transition: all 0.2s; }
+        .modal-close:hover { background: rgba(255,255,255,0.3); transform: rotate(90deg); }
+        .modal-body { padding: 24px; overflow-y: auto; max-height: calc(90vh - 180px); }
+        .modal-footer { padding: 20px 24px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* FORM */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .form-group label .required { color: var(--danger); }
+        .form-group input, .form-group select { width: 100%; padding: 12px 14px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 14px; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .input-with-prefix { position: relative; }
+        .input-with-prefix input { padding-left: 40px; }
+        .input-prefix { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-weight: 500; }
+
+        /* TOAST */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; }
+        .toast { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); min-width: 300px; animation: toastIn 0.3s ease-out; margin-bottom: 10px; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast i { font-size: 20px; }
+        .toast.success i { color: var(--success); }
+        .toast.error i { color: var(--danger); }
+
+        @media (max-width: 1200px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+            .page-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+            .budget-item { flex-wrap: wrap; }
+            .budget-progress { width: 100%; margin: 12px 0; }
+        }
+
+        /* -------------------------------------------------------------------------------
+           ESTILOS PROFISSIONAIS DOS MODAIS - SAAS EMPRESARIAL INSTITUCIONAL
+           ------------------------------------------------------------------------------- */
+        
+        /* MODAL PROFISSIONAL - BASE */
+        .modal-profissional {
+            max-width: 700px !important;
+            border-radius: 20px !important;
+            overflow: hidden !important;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15) !important;
+        }
+        
+        /* HEADER PROFISSIONAL - LIME (Verde Lima) */
+        .modal-header-pro-indigo {
+            padding: 0 !important;
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 50%, #4d7c0f 100%) !important;
+            color: white !important;
+            position: relative !important;
+            overflow: hidden !important;
+            border-bottom: none !important;
+            box-shadow: 0 8px 32px rgba(132, 204, 22, 0.35);
+            flex-shrink: 0;
+        }
+        .modal-header-pro-indigo::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .modal-header-pro-indigo::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+        }
+        
+        /* Header Content */
+        .modal-header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 28px;
+            position: relative;
+            z-index: 1;
+            gap: 20px;
+        }
+        .modal-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+            min-width: 0;
+        }
+        .modal-header-icon {
+            width: 56px;
+            height: 56px;
+            min-width: 56px;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .modal-header-icon i {
+            font-size: 24px;
+            color: white;
+        }
+        .modal-header-text {
+            flex: 1;
+            min-width: 0;
+        }
+        .modal-header-text h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            color: white !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .modal-header-text p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin: 4px 0 0 0;
+            color: rgba(255,255,255,0.9);
+        }
+        
+        /* Botão Fechar Profissional */
+        .modal-close-pro {
+            width: 44px;
+            height: 44px;
+            min-width: 44px;
+            border: none;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            color: white;
+            flex-shrink: 0;
+        }
+        .modal-close-pro:hover {
+            background: rgba(255,255,255,0.25);
+            transform: scale(1.05);
+        }
+        .modal-close-pro i {
+            font-size: 18px;
+        }
+        
+        /* PROGRESS STEPS - TABS */
+        .modal-progress {
+            display: flex;
+            padding: 0 28px 20px 28px;
+            gap: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        .modal-progress-indigo .modal-step-pro.active .modal-step-number {
+            background: white !important;
+            color: #65a30d !important;
+        }
+        .modal-step-pro {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+        }
+        .modal-step-pro:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .modal-step-pro.active {
+            background: rgba(255,255,255,0.25);
+        }
+        .modal-step-number {
+            width: 28px;
+            height: 28px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        .modal-step-pro span {
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+        .modal-step-pro.active span {
+            opacity: 1;
+            font-weight: 600;
+        }
+        
+        /* MODAL BODY PROFISSIONAL */
+        .modal-body-pro {
+            padding: 28px !important;
+            background: #f8fafc !important;
+            overflow-y: auto !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+        }
+        .modal-body-pro::-webkit-scrollbar {
+            width: 8px;
+        }
+        .modal-body-pro::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        .modal-body-pro::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        
+        /* FORM SECTIONS PROFISSIONAIS */
+        .form-section-pro {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: all 0.2s ease;
+        }
+        .form-section-pro:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+        .form-section-pro:last-child {
+            margin-bottom: 0;
+        }
+        .form-section-pro-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+        .form-section-pro-title i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #84cc16, #65a30d);
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 4px 10px rgba(132, 204, 22, 0.25);
+        }
+        .form-section-pro-title span {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .section-badge {
+            margin-left: auto;
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+        .section-badge-indigo {
+            background: #ecfccb;
+            color: #4d7c0f;
+        }
+        .section-badge-gray {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        /* FORM GRID */
+        .form-grid-pro {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 600px) {
+            .form-grid-pro {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* FORM GROUP PROFISSIONAL */
+        .form-group-pro {
+            margin-bottom: 0;
+        }
+        .form-group-pro label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+        .form-group-pro label i {
+            color: #9ca3af;
+            font-size: 13px;
+            width: 16px;
+            text-align: center;
+        }
+        .form-group-pro label .required {
+            color: #ef4444;
+            margin-left: 2px;
+            font-weight: 700;
+        }
+        .field-hint {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .form-group-pro input,
+        .form-group-pro select,
+        .form-group-pro textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.25s;
+            background: #fafbfc;
+            color: #1e293b;
+        }
+        .form-group-pro input:focus,
+        .form-group-pro select:focus,
+        .form-group-pro textarea:focus {
+            outline: none;
+            border-color: #84cc16;
+            box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15);
+            background: white;
+        }
+        
+        /* VALOR DESTAQUE LIME */
+        .valor-destaque-pro-indigo {
+            position: relative;
+            background: linear-gradient(135deg, #f7fee7 0%, #ecfccb 100%);
+            border-radius: 12px;
+            padding: 4px;
+            border: 2px solid #bef264;
+            transition: all 0.3s ease;
+        }
+        .valor-destaque-pro-indigo:hover {
+            border-color: #84cc16;
+        }
+        .valor-destaque-pro-indigo:focus-within {
+            border-color: #65a30d;
+            box-shadow: 0 0 0 4px rgba(132, 204, 22, 0.15);
+        }
+        .valor-destaque-pro-indigo input {
+            font-size: 20px;
+            font-weight: 700;
+            color: #4d7c0f;
+            padding: 14px 14px 14px 50px;
+            background: transparent;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .valor-destaque-pro-indigo .currency-symbol {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            font-weight: 700;
+            color: #4d7c0f;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        /* MODAL FOOTER PROFISSIONAL */
+        .modal-footer-pro {
+            padding: 20px 28px !important;
+            background: white !important;
+            border-top: 1px solid #e5e7eb !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            flex-shrink: 0 !important;
+        }
+        .modal-footer-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .footer-info {
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .footer-info i {
+            color: #84cc16;
+        }
+        .modal-footer-right {
+            display: flex;
+            gap: 12px;
+        }
+        
+        /* BOTÕES PROFISSIONAIS */
+        .btn-pro {
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: none;
+        }
+        .btn-pro-ghost {
+            background: white;
+            border: 2px solid #e5e7eb;
+            color: #64748b;
+        }
+        .btn-pro-ghost:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
+        .btn-pro-primary-indigo {
+            background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+            color: white;
+            box-shadow: 0 4px 14px rgba(132, 204, 22, 0.4);
+        }
+        .btn-pro-primary-indigo:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(132, 204, 22, 0.5);
+        }
+
+        /* MODAL - Classes Padrão (Padrão SaaS Empresarial) */
+        .modal-overlay-padrão { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); display: none; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(8px); }
+        .modal-overlay-padrão.active { display: flex !important; }
+        .modal-padrão { display: flex !important; flex-direction: column !important; background: white !important; border-radius: 24px !important; width: 100% !important; max-width: 650px !important; max-height: 90vh !important; overflow: hidden !important; box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15) !important; animation: modalFadeInOrcamentos 0.25s ease-out !important; position: relative !important; margin: 16px !important; }
+        @keyframes modalFadeInOrcamentos { from { opacity: 0; transform: scale(0.95) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .modal-header-padrão { padding: 0 !important; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important; color: white !important; position: relative !important; overflow: hidden !important; flex-shrink: 0 !important; border-radius: 24px 24px 0 0 !important; }
+        .modal-header-padrão::before { content: ''; position: absolute; top: -100%; right: -50%; width: 100%; height: 300%; background: radial-gradient(ellipse, rgba(255,255,255,0.12) 0%, transparent 50%); pointer-events: none; }
+        .modal-header-content-padrão { display: flex; align-items: center; gap: 16px; padding: 24px 28px; position: relative; z-index: 1; }
+        .modal-header-icon-padrão { width: 52px; height: 52px; min-width: 52px; background: rgba(255,255,255,0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+        .modal-header-icon-padrão i { color: white; font-size: 22px; }
+        .modal-header-text-padrão { flex: 1; }
+        .modal-header-text-padrão h2 { margin: 0; font-size: 20px; font-weight: 700; color: white; }
+        .modal-header-text-padrão p { margin: 4px 0 0; font-size: 14px; color: rgba(255,255,255,0.85); }
+        .modal-close-padrão { width: 40px !important; height: 40px !important; min-width: 40px !important; border: none !important; background: rgba(255,255,255,0.15) !important; border-radius: 10px !important; cursor: pointer !important; display: flex !important; align-items: center !important; justify-content: center !important; transition: all 0.2s !important; margin-left: auto !important; }
+        .modal-close-padrão:hover { background: rgba(255,255,255,0.25) !important; transform: rotate(90deg) !important; }
+        .modal-close-padrão i { color: white; font-size: 16px; }
+        .modal-progress-padrão { display: flex; gap: 8px; padding: 16px 28px; background: rgba(0,0,0,0.1); }
+        .modal-step-padrão { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: rgba(255,255,255,0.1); border-radius: 10px; transition: all 0.2s; cursor: pointer; }
+        .modal-step-padrão.active { background: rgba(255,255,255,0.25); }
+        .modal-step-number-padrão { width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: white; }
+        .modal-step-padrão.active .modal-step-number-padrão { background: white; color: #4f46e5; }
+        .modal-step-padrão span { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); }
+        .modal-body-padrão { padding: 28px !important; overflow-y: auto !important; flex: 1 !important; min-height: 0 !important; background: #f9fafb !important; }
+        .modal-footer-padrão { padding: 20px 28px !important; border-top: 1px solid #e5e7eb !important; display: flex !important; justify-content: space-between !important; align-items: center !important; background: #ffffff !important; flex-shrink: 0 !important; }
+        .modal-footer-left-padrão { display: flex; align-items: center; }
+        .modal-footer-left-padrão .footer-info { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9ca3af; }
+        .modal-footer-left-padrão .footer-info i { color: #6366f1; }
+        .modal-footer-right-padrão { display: flex; gap: 12px; margin-left: auto; }
+        .form-section-padrão { background: #ffffff; border-radius: 16px; padding: 24px; border: 1px solid #e5e7eb; margin-bottom: 16px; }
+        .form-section-padrão:last-child { margin-bottom: 0; }
+        .form-section-title-padrão { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f1f5f9; }
+        .form-section-title-padrão i { width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .form-section-title-padrão span { font-size: 15px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; }
+        .section-badge-padrão { margin-left: auto; font-size: 11px; padding: 5px 12px; border-radius: 20px; font-weight: 600; background: #fee2e2; color: #dc2626; }
+        .form-grid-padrão { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px; }
+        .form-grid-padrão:last-child { margin-bottom: 0; }
+        .form-group-padrão { margin-bottom: 16px; }
+        .form-group-padrão:last-child { margin-bottom: 0; }
+        .form-group-padrão label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+        .form-group-padrão label i { color: #6366f1; font-size: 14px; }
+        .form-group-padrão label .required { color: #ef4444; margin-left: 2px; }
+        .form-group-padrão input, .form-group-padrão select, .form-group-padrão textarea { width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; font-family: inherit; transition: all 0.2s; background: #ffffff; }
+        .form-group-padrão input:focus, .form-group-padrão select:focus, .form-group-padrão textarea:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15); }
+        .field-hint { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9ca3af; margin-top: 6px; }
+        .field-hint i { font-size: 11px; }
+        .btn-padrão-ghost { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: 1px solid #e5e7eb; background: #ffffff; color: #6b7280; }
+        .btn-padrão-ghost:hover { background: #f3f4f6; color: #374151; }
+        .btn-padrão-primary { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); }
+        .btn-padrão-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); }
+
+        /* VALOR DESTAQUE INDIGO (R$ Input) */
+        .valor-destaque-padrão {
+            position: relative;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+            border-radius: 14px;
+            padding: 4px;
+            border: 2px solid #c7d2fe;
+            transition: all 0.3s ease;
+        }
+        .valor-destaque-padrão:hover {
+            border-color: #818cf8;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        }
+        .valor-destaque-padrão:focus-within {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+        }
+        .valor-destaque-padrão input {
+            font-size: 22px;
+            font-weight: 700;
+            color: #4338ca;
+            padding: 16px 16px 16px 58px;
+            background: transparent;
+            border: none !important;
+            box-shadow: none !important;
+            width: 100%;
+        }
+        .valor-destaque-padrão input::placeholder {
+            color: #a5b4fc;
+            font-weight: 500;
+        }
+        .valor-destaque-padrão .currency-symbol {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            font-weight: 700;
+            color: #4338ca;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 1;
+        }
+
+        /* ALERT LEVEL BADGES */
+        .alert-option-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        select#orcamento-alerta-pct option {
+            padding: 8px;
+        }
+
+        /* STEP CONNECTOR LINES */
+        .modal-step-padrão::after {
+            content: '';
+            width: 24px;
+            height: 2px;
+            background: rgba(255,255,255,0.2);
+            margin-left: 8px;
+        }
+        .modal-step-padrão:last-child::after {
+            display: none;
+        }
+        .modal-step-padrão.active::after {
+            background: rgba(255,255,255,0.4);
+        }
+        .modal-step-padrão.completed .modal-step-number-padrão {
+            background: #34d399;
+            color: white;
+        }
+    </style>
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Header & Sidebar refinado -->
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260215">
+    <!-- Global Header & Sidebar - override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <link rel="stylesheet" href="/css/modal-fix-global.css?v=20260114-fix4">
+    <link rel="stylesheet" href="css/modais-padrao.css?v=20260114-fix3">
+    <!-- CSS Unificado de Modais SaaS -->
+    <link rel="stylesheet" href="css/modais-saas-unified.css?v=20260121">
+
+
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="plano-contas.html" class="sidebar-btn" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="orcamentos.html" class="sidebar-btn active" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn" title="Centros de Custo">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <!-- Botao Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Orçamentos</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="main-content">
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header" style="justify-content: flex-end;">
+                    <div class="page-actions">
+                        <div class="period-selector">
+                            <button class="period-btn active" data-period="mes">Este Mês</button>
+                            <button class="period-btn" data-period="trimestre">Trimestre</button>
+                            <button class="period-btn" data-period="ano">Ano</button>
+                        </div>
+                        <button class="btn btn-primary" onclick="abrirModal()">
+                            <i class="fas fa-plus"></i> Novo Orçamento
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPIs -->
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon indigo"><i class="fas fa-wallet"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Orçamento Total</h3>
+                            <div class="kpi-value" id="kpi-total">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon green"><i class="fas fa-check-circle"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Gasto Realizado</h3>
+                            <div class="kpi-value" id="kpi-gasto">R$ 0,00</div>
+                            <div class="kpi-trend up" id="kpi-trend">
+                                <i class="fas fa-arrow-down"></i> 8% abaixo do limite
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon orange"><i class="fas fa-piggy-bank"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Saldo Disponível</h3>
+                            <div class="kpi-value" id="kpi-saldo">R$ 0,00</div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon red"><i class="fas fa-exclamation-triangle"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Categorias em Alerta</h3>
+                            <div class="kpi-value" id="kpi-alertas">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grid 2 colunas -->
+                <div class="grid-2">
+                    <!-- Gráfico -->
+                    <div class="chart-card">
+                        <h3><i class="fas fa-chart-bar"></i> Orçamento vs Realizado por Categoria</h3>
+                        <div class="chart-container">
+                            <canvas id="chart-orcamento"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Alertas -->
+                    <div class="alerts-card">
+                        <h3><i class="fas fa-bell"></i> Alertas de Orçamento</h3>
+                        <div id="alerts-list">
+                            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                                <i class="fas fa-check-circle" style="font-size: 32px; color: var(--success); margin-bottom: 12px;"></i>
+                                <p>Nenhum alerta no momento</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Budget List -->
+                <div class="budget-list">
+                    <div class="budget-header">
+                        <h3><i class="fas fa-list-ul"></i> Orçamentos por Categoria</h3>
+                    </div>
+                    <div class="budget-items" id="budget-items">
+                        <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                            Carregando orçamentos...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+            </div> <!-- /main-content -->
+</main>
+    </div>
+
+    <!-- Modal Novo Orçamento - Design SaaS Empresarial Institucional -->
+    <div class="modal-overlay-padrão" id="modal-orcamento" onclick="fecharModal()">
+        <div class="modal-padrão" onclick="event.stopPropagation()">
+            <!-- HEADER PROFISSIONAL COM GRADIENT VERDE LIMA -->
+            <div class="modal-header-padrão">
+                <div class="modal-header-content-padrão">
+                    <div class="modal-header-icon-padrão">
+                        <i class="fas fa-calculator"></i>
+                    </div>
+                    <div class="modal-header-text-padrão">
+                        <h2 id="modal-titulo">Novo Orçamento</h2>
+                        <p>Configure os limites e controles do orçamento</p>
+                    </div>
+                    <button class="modal-close-padrão" type="button" onclick="fecharModal()" title="Fechar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- STEPS/PROGRESS TABS -->
+            <div class="modal-progress-padrão">
+                <div class="modal-step-padrão active" data-step="1">
+                    <div class="modal-step-number-padrão">1</div>
+                    <span>Categoria</span>
+                </div>
+                <div class="modal-step-padrão" data-step="2">
+                    <div class="modal-step-number-padrão">2</div>
+                    <span>Valores</span>
+                </div>
+                <div class="modal-step-padrão" data-step="3">
+                    <div class="modal-step-number-padrão">3</div>
+                    <span>Alertas</span>
+                </div>
+            </div>
+            
+            <!-- BODY -->
+            <div class="modal-body-padrão">
+                <form id="form-orcamento">
+                    <input type="hidden" id="orcamento-id">
+                    
+                    <!-- Seção 1: Classificação -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-layer-group"></i>
+                            <span>Classificação</span>
+                            <span class="section-badge-padrão">Obrigatório</span>
+                        </div>
+                        <div class="form-grid-padrão">
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-tag"></i> 
+                                    Categoria 
+                                    <span class="required">*</span>
+                                </label>
+                                <select id="orcamento-categoria" required>
+                                    <option value="">&#128204; Selecione a categoria...</option>
+                                    <option value="Marketing">&#128226; Marketing</option>
+                                    <option value="Vendas">&#128200; Vendas</option>
+                                    <option value="Produção">&#9881; Produção</option>
+                                    <option value="Administrativo">&#128188; Administrativo</option>
+                                    <option value="RH">&#128101; Recursos Humanos</option>
+                                    <option value="TI">&#128187; Tecnologia</option>
+                                    <option value="Logística">&#128666; Logística</option>
+                                    <option value="Manutenção">&#128295; Manutenção</option>
+                                </select>
+                                <span class="field-hint"><i class="fas fa-info-circle"></i> Área do orçamento</span>
+                            </div>
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-building"></i> 
+                                    Centro de Custo
+                                </label>
+                                <select id="orcamento-centro">
+                                    <option value="">&#127970; Todos os centros</option>
+                                </select>
+                                <span class="field-hint"><i class="fas fa-info-circle"></i> Vincule a um centro específico</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção 2: Valores -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-dollar-sign"></i>
+                            <span>Limite Orçamentário</span>
+                            <span class="section-badge-padrão">Obrigatório</span>
+                        </div>
+                        <div class="form-group-padrão">
+                            <label>
+                                <i class="fas fa-wallet"></i> 
+                                Limite Mensal 
+                                <span class="required">*</span>
+                            </label>
+                            <div class="valor-destaque-padrão">
+                                <span class="currency-symbol">R$</span>
+                                <input type="text" id="orcamento-limite" placeholder="0,00" required oninput="formatarMoeda(this)">
+                            </div>
+                            <span class="field-hint"><i class="fas fa-lightbulb"></i> Valor máximo permitido para esta categoria</span>
+                        </div>
+                        <div class="form-grid-padrão" style="margin-top: 16px;">
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-calendar-alt"></i>
+                                    Mês de Referência
+                                </label>
+                                <input type="month" id="orcamento-mes-ref" style="cursor: pointer;">
+                                <span class="field-hint"><i class="fas fa-info-circle"></i> A partir de quando o orçamento vale</span>
+                            </div>
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-sync-alt"></i>
+                                    Renovação
+                                </label>
+                                <select id="orcamento-renovacao">
+                                    <option value="mensal" selected>&#128197; Renovar Mensalmente</option>
+                                    <option value="trimestral">&#128198; Renovar Trimestralmente</option>
+                                    <option value="semestral">&#128467;&#65039; Renovar Semestralmente</option>
+                                    <option value="anual">&#128198; Renovar Anualmente</option>
+                                    <option value="unico">&#9989; Período Único</option>
+                                </select>
+                                <span class="field-hint"><i class="fas fa-info-circle"></i> Frequência de renovação automática</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção 3: Alertas -->
+                    <div class="form-section-padrão">
+                        <div class="form-section-title-padrão">
+                            <i class="fas fa-bell"></i>
+                            <span>Configuração de Alertas</span>
+                            <span class="section-badge-padrão" style="background: rgba(107, 114, 128, 0.1); color: #6b7280;">Opcional</span>
+                        </div>
+                        <div class="form-grid-padrão">
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-percentage"></i> 
+                                    Gatilho de Alerta
+                                </label>
+                                <select id="orcamento-alerta-pct">
+                                    <option value="70">&#128993; 70% do limite (Atenção)</option>
+                                    <option value="80" selected>&#128992; 80% do limite (Alerta)</option>
+                                    <option value="90">&#128308; 90% do limite (Crítico)</option>
+                                    <option value="95">&#128680; 95% do limite (Urgente)</option>
+                                </select>
+                                <span class="field-hint"><i class="fas fa-info-circle"></i> Quando notificar sobre o consumo</span>
+                            </div>
+                            <div class="form-group-padrão">
+                                <label>
+                                    <i class="fas fa-comment-alt"></i> 
+                                    Mensagem do Alerta
+                                </label>
+                                <input type="text" id="orcamento-alerta-msg" placeholder="Ex: Orçamento de Marketing próximo do limite">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- FOOTER PROFISSIONAL -->
+            <div class="modal-footer-padrão">
+                <div class="modal-footer-left-padrão">
+                    <span class="footer-info"><i class="fas fa-info-circle"></i> Orçamento será aplicado ao mês atual</span>
+                </div>
+                <div class="modal-footer-right-padrão">
+                    <button class="btn-padrão-ghost" type="button" onclick="fecharModal()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn-padrão-primary" type="button" onclick="salvarOrcamento()">
+                        <i class="fas fa-save"></i> Salvar Orçamento
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Visualizar Orçamento - Design SaaS Expandido -->
+    <div class="modal-overlay-padrão" id="modal-visualizar">
+        <div class="modal-padrão" style="max-width: 700px;">
+            <div class="modal-header-padrão">
+                <div class="modal-header-content-padrão">
+                    <div id="vis-icon" class="modal-header-icon-padrão">
+                        <i class="fas fa-folder"></i>
+                    </div>
+                    <div class="modal-header-text-padrão">
+                        <h2 id="vis-categoria">Marketing</h2>
+                        <p id="vis-centro">Centro de Custo: Geral</p>
+                    </div>
+                </div>
+                <button class="modal-close-padrão" onclick="fecharModalVisualizar()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body-padrão">
+                <!-- KPIs do Orçamento -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+                    <div style="background: linear-gradient(135deg, #84cc16, #65a30d); border-radius: 16px; padding: 20px; color: white;">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Limite</div>
+                        <div id="vis-limite" style="font-size: 22px; font-weight: 700;">R$ 30.000,00</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #22c55e, #4ade80); border-radius: 16px; padding: 20px; color: white;">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Disponível</div>
+                        <div id="vis-disponivel" style="font-size: 22px; font-weight: 700;">R$ 5.500,00</div>
+                    </div>
+                    <div id="vis-gasto-card" style="background: linear-gradient(135deg, #f59e0b, #fbbf24); border-radius: 16px; padding: 20px; color: white;">
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Utilizado</div>
+                        <div id="vis-gasto" style="font-size: 22px; font-weight: 700;">R$ 24.500,00</div>
+                    </div>
+                </div>
+
+                <!-- Barra de Progresso Grande -->
+                <div class="form-card-saas" style="margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="font-weight: 600; color: #374151; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Consumo do Orçamento</span>
+                        <span id="vis-percentual" style="font-weight: 700; color: #84cc16; font-size: 18px;">81.7%</span>
+                    </div>
+                    <div style="background: #e5e7eb; border-radius: 10px; height: 28px; overflow: hidden;">
+                        <div id="vis-progress-bar" style="height: 100%; background: linear-gradient(90deg, #84cc16, #65a30d); border-radius: 10px; transition: width 0.5s ease;"></div>
+                    </div>
+                    <div id="vis-status-msg" style="margin-top: 12px; padding: 14px 16px; border-radius: 12px; background: #f7fee7; color: #4d7c0f; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Atenção: 81.7% do orçamento já foi utilizado</span>
+                    </div>
+                </div>
+
+                <!-- Informações Detalhadas -->
+                <div class="form-card-saas">
+                    <h4 style="margin: 0 0 16px; font-size: 13px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Detalhes do Orçamento</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                            <span style="color: #6b7280;">Categoria:</span>
+                            <span id="vis-det-categoria" style="color: #374151; font-weight: 600;">Marketing</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                            <span style="color: #6b7280;">Centro de Custo:</span>
+                            <span id="vis-det-centro" style="color: #374151; font-weight: 600;">Geral</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                            <span style="color: #6b7280;">% Alerta:</span>
+                            <span id="vis-det-alerta-pct" style="color: #374151; font-weight: 600;">80%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                            <span style="color: #6b7280;">Status:</span>
+                            <span id="vis-det-status" class="status-badge alerta">Em Alerta</span>
+                        </div>
+                    </div>
+                    <div id="vis-alerta-container" style="margin-top: 16px; display: none;">
+                        <span style="color: #6b7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Mensagem de Alerta:</span>
+                        <p id="vis-det-alerta" style="margin: 8px 0 0; padding: 12px 16px; background: #f9fafb; border-radius: 10px; font-size: 14px; color: #374151; border: 1px solid #e5e7eb;"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer-padrão">
+                <button class="btn-padrão-ghost" onclick="fecharModalVisualizar()">
+                    <i class="fas fa-times"></i> Fechar
+                </button>
+                <button class="btn-padrão-primary" onclick="editarOrcamentoFromView()">
+                    <i class="fas fa-edit"></i> Editar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // Estado
+        let orcamentos = [];
+        let chartOrcamento = null;
+        let editandoId = null;
+        let orcamentoVisualizando = null;
+
+        // Cores por categoria
+        const coresCategorias = {
+            'Marketing': '#8b5cf6',
+            'Vendas': '#22c55e',
+            'Produção': '#3b82f6',
+            'TI': '#06b6d4',
+            'RH': '#f59e0b',
+            'Administrativo': '#64748b',
+            'Logística': '#14b8a6',
+            'Manutenção': '#ef4444',
+            'Financeiro': '#6366f1',
+            'Compras': '#ec4899'
+        };
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async () => {
+            await carregarUsuario();
+            await carregarOrcamentos();
+            await carregarCentrosCusto();
+            setupPeriodSelector();
+        });
+
+        // Carregar usuário
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    
+                    // Saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    document.getElementById('user-name').textContent = primeiroNome;
+                    document.getElementById('user-initials').textContent = primeiroNome.charAt(0).toUpperCase();
+                    
+                    const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                    const foto = document.getElementById('user-photo');
+                    const inicialEl = document.getElementById('user-initials');
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                        foto.src = fotoUrl;
+                        foto.onload = () => { foto.style.display = 'block'; foto.classList.add('visible'); if (inicialEl) inicialEl.style.display = 'none'; };
+                        foto.onerror = () => { foto.style.display = 'none'; if (inicialEl) { inicialEl.textContent = primeiroNome.charAt(0).toUpperCase(); inicialEl.style.display = 'flex'; } };
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao carregar usuário:', e);
+            }
+        }
+
+        // Carregar orçamentos
+        async function carregarOrcamentos() {
+            try {
+                const response = await fetch('/api/financeiro/orcamentos', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    orcamentos = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+                    // Normalizar campos
+                    orcamentos = orcamentos.map(o => ({
+                        id: o.id,
+                        categoria: o.categoria || o.nome || 'Sem categoria',
+                        centro_custo: o.centro_custo || o.centro || 'Geral',
+                        limite: parseFloat(o.limite || o.valor_limite || o.orcamento || 0),
+                        gasto: parseFloat(o.gasto || o.valor_gasto || o.utilizado || 0),
+                        alerta: o.alerta || o.mensagem_alerta || null,
+                        alerta_pct: o.alerta_pct || o.percentual_alerta || 80
+                    }));
+                } else {
+                    throw new Error('API não disponível');
+                }
+            } catch (e) {
+                console.error('Erro ao carregar orçamentos:', e);
+                // Dados de exemplo
+                orcamentos = [
+                    { id: 1, categoria: 'Marketing', centro_custo: 'Geral', limite: 30000, gasto: 24500, alerta: 'Limite próximo de ser atingido', alerta_pct: 80 },
+                    { id: 2, categoria: 'Vendas', centro_custo: 'Geral', limite: 25000, gasto: 18200, alerta: null, alerta_pct: 80 },
+                    { id: 3, categoria: 'Produção', centro_custo: 'Fábrica 1', limite: 80000, gasto: 65000, alerta: null, alerta_pct: 80 },
+                    { id: 4, categoria: 'TI', centro_custo: 'Geral', limite: 20000, gasto: 19500, alerta: 'Orçamento quase esgotado!', alerta_pct: 80 },
+                    { id: 5, categoria: 'RH', centro_custo: 'Geral', limite: 15000, gasto: 12000, alerta: null, alerta_pct: 80 },
+                    { id: 6, categoria: 'Administrativo', centro_custo: 'Sede', limite: 10000, gasto: 11200, alerta: 'Orçamento EXCEDIDO!', alerta_pct: 80 },
+                    { id: 7, categoria: 'Logística', centro_custo: 'CD SP', limite: 35000, gasto: 28000, alerta: null, alerta_pct: 80 },
+                    { id: 8, categoria: 'Manutenção', centro_custo: 'Geral', limite: 12000, gasto: 8500, alerta: null, alerta_pct: 80 }
+                ];
+            }
+            renderizarOrcamentos();
+            atualizarKPIs();
+            renderizarGrafico();
+            renderizarAlertas();
+        }
+
+        // Carregar centros de custo
+        async function carregarCentrosCusto() {
+            try {
+                const response = await fetch('/api/financeiro/centros-custo', { credentials: 'include' });
+                if (response.ok) {
+                    const centros = await response.json();
+                    const select = document.getElementById('orcamento-centro');
+                    (Array.isArray(centros) ? centros : []).forEach(c => {
+                        const nome = c.nome || c.descrição || '';
+                        if (nome) {
+                            select.innerHTML += `<option value="${nome}">${nome}</option>`;
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Erro ao carregar centros de custo:', e);
+            }
+        }
+
+        // Setup period selector
+        function setupPeriodSelector() {
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    // Aqui poderia filtrar por período
+                });
+            });
+        }
+
+        // Renderizar orçamentos
+        function renderizarOrcamentos() {
+            const container = document.getElementById('budget-items');
+            
+            if (orcamentos.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 60px; color: var(--text-secondary);">
+                        <i class="fas fa-folder-open" style="font-size: 48px; margin-bottom: 16px; display: block; opacity: 0.3;"></i>
+                        <p>Nenhum orçamento cadastrado</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = orcamentos.map(orc => {
+                const percentual = orc.limite > 0 ? Math.round((orc.gasto / orc.limite) * 100) : 0;
+                const progressClass = percentual >= 100 ? 'red' : percentual >= 80 ? 'yellow' : 'green';
+                const statusClass = percentual >= 100 ? 'excedido' : percentual >= 80 ? 'alerta' : 'ok';
+                const statusText = percentual >= 100 ? 'Excedido' : percentual >= 80 ? 'Alerta' : 'OK';
+                const cor = coresCategorias[orc.categoria] || '#6366f1';
+
+                return `
+                    <div class="budget-item" onclick="visualizarOrcamento(${orc.id})">
+                        <div class="budget-icon" style="background: ${cor}20; color: ${cor};">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        <div class="budget-info">
+                            <div class="name">${orc.categoria}</div>
+                            <div class="category">${orc.centro_custo || 'Todos os centros'}</div>
+                        </div>
+                        <div class="budget-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill ${progressClass}" style="width: ${Math.min(percentual, 100)}%"></div>
+                            </div>
+                            <div class="progress-text">${percentual}% utilizado</div>
+                        </div>
+                        <div class="budget-values">
+                            <div class="spent">${formatarValor(orc.gasto)}</div>
+                            <div class="limit">de ${formatarValor(orc.limite)}</div>
+                        </div>
+                        <div class="budget-status">
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Visualizar orçamento (abre modal de visualização)
+        function visualizarOrcamento(id) {
+            const orc = orcamentos.find(o => o.id === id);
+            if (!orc) return;
+
+            orcamentoVisualizando = orc;
+            const percentual = orc.limite > 0 ? ((orc.gasto / orc.limite) * 100).toFixed(1) : 0;
+            const disponivel = Math.max(0, orc.limite - orc.gasto);
+            const cor = coresCategorias[orc.categoria] || '#6366f1';
+
+            // Header
+            document.getElementById('vis-icon').style.background = `${cor}40`;
+            document.getElementById('vis-icon').style.color = cor;
+            document.getElementById('vis-categoria').textContent = orc.categoria;
+            document.getElementById('vis-centro').textContent = `Centro de Custo: ${orc.centro_custo || 'Todos'}`;
+
+            // KPIs
+            document.getElementById('vis-limite').textContent = formatarValor(orc.limite);
+            document.getElementById('vis-gasto').textContent = formatarValor(orc.gasto);
+            document.getElementById('vis-disponivel').textContent = formatarValor(disponivel);
+
+            // Card de gasto muda cor conforme status
+            const gastoCard = document.getElementById('vis-gasto-card');
+            if (percentual >= 100) {
+                gastoCard.style.background = 'linear-gradient(135deg, #ef4444, #f87171)';
+            } else if (percentual >= 80) {
+                gastoCard.style.background = 'linear-gradient(135deg, #f59e0b, #fbbf24)';
+            } else {
+                gastoCard.style.background = 'linear-gradient(135deg, #3b82f6, #60a5fa)';
+            }
+
+            // Barra de progresso
+            document.getElementById('vis-percentual').textContent = `${percentual}%`;
+            const progressBar = document.getElementById('vis-progress-bar');
+            progressBar.style.width = `${Math.min(percentual, 100)}%`;
+            
+            if (percentual >= 100) {
+                progressBar.style.background = 'linear-gradient(90deg, #ef4444, #dc2626)';
+            } else if (percentual >= 80) {
+                progressBar.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+            } else {
+                progressBar.style.background = 'linear-gradient(90deg, #22c55e, #4ade80)';
+            }
+
+            // Mensagem de status
+            const statusMsg = document.getElementById('vis-status-msg');
+            if (percentual >= 100) {
+                statusMsg.style.background = '#fee2e2';
+                statusMsg.style.color = '#991b1b';
+                statusMsg.innerHTML = `<i class="fas fa-exclamation-circle"></i><span>ATENÇÃO: Orçamento excedido em ${(percentual - 100).toFixed(1)}%!</span>`;
+            } else if (percentual >= 80) {
+                statusMsg.style.background = '#fef3c7';
+                statusMsg.style.color = '#92400e';
+                statusMsg.innerHTML = `<i class="fas fa-exclamation-triangle"></i><span>Alerta: ${percentual}% do orçamento já foi utilizado</span>`;
+            } else {
+                statusMsg.style.background = '#d1fae5';
+                statusMsg.style.color = '#065f46';
+                statusMsg.innerHTML = `<i class="fas fa-check-circle"></i><span>Orçamento saudável: ${percentual}% utilizado, ${(100 - percentual).toFixed(1)}% disponível</span>`;
+            }
+
+            // Detalhes
+            document.getElementById('vis-det-categoria').textContent = orc.categoria;
+            document.getElementById('vis-det-centro').textContent = orc.centro_custo || 'Todos';
+            document.getElementById('vis-det-alerta-pct').textContent = `${orc.alerta_pct || 80}%`;
+
+            const statusBadge = document.getElementById('vis-det-status');
+            if (percentual >= 100) {
+                statusBadge.className = 'status-badge excedido';
+                statusBadge.textContent = 'Excedido';
+            } else if (percentual >= 80) {
+                statusBadge.className = 'status-badge alerta';
+                statusBadge.textContent = 'Em Alerta';
+            } else {
+                statusBadge.className = 'status-badge ok';
+                statusBadge.textContent = 'Saudável';
+            }
+
+            // Mensagem de alerta customizada
+            const alertaContainer = document.getElementById('vis-alerta-container');
+            if (orc.alerta) {
+                alertaContainer.style.display = 'block';
+                document.getElementById('vis-det-alerta').textContent = orc.alerta;
+            } else {
+                alertaContainer.style.display = 'none';
+            }
+
+            document.getElementById('modal-visualizar').classList.add('active');
+        }
+
+        // Fechar modal de visualização
+        function fecharModalVisualizar() {
+            document.getElementById('modal-visualizar').classList.remove('active');
+            orcamentoVisualizando = null;
+        }
+
+        // Editar a partir do modal de visualização
+        function editarOrcamentoFromView() {
+            if (orcamentoVisualizando) {
+                fecharModalVisualizar();
+                editarOrcamento(orcamentoVisualizando.id);
+            }
+        }
+
+        // Atualizar KPIs
+        function atualizarKPIs() {
+            const totalOrcamento = orcamentos.reduce((sum, o) => sum + (o.limite || 0), 0);
+            const totalGasto = orcamentos.reduce((sum, o) => sum + (o.gasto || 0), 0);
+            const saldo = totalOrcamento - totalGasto;
+            const alertas = orcamentos.filter(o => o.gasto >= o.limite * 0.8).length;
+            const percentualGeral = totalOrcamento > 0 ? Math.round((totalGasto / totalOrcamento) * 100) : 0;
+
+            document.getElementById('kpi-total').textContent = formatarValor(totalOrcamento);
+            document.getElementById('kpi-gasto').textContent = formatarValor(totalGasto);
+            document.getElementById('kpi-saldo').textContent = formatarValor(saldo);
+            document.getElementById('kpi-alertas').textContent = alertas;
+
+            const trend = document.getElementById('kpi-trend');
+            if (percentualGeral < 100) {
+                trend.className = 'kpi-trend up';
+                trend.innerHTML = `<i class="fas fa-arrow-down"></i> ${100 - percentualGeral}% abaixo do limite`;
+            } else {
+                trend.className = 'kpi-trend down';
+                trend.innerHTML = `<i class="fas fa-arrow-up"></i> ${percentualGeral - 100}% acima do limite`;
+            }
+        }
+
+        // Renderizar gráfico
+        function renderizarGrafico() {
+            const ctx = document.getElementById('chart-orcamento').getContext('2d');
+            
+            if (chartOrcamento) {
+                chartOrcamento.destroy();
+            }
+
+            const labels = orcamentos.map(o => o.categoria);
+            const limites = orcamentos.map(o => o.limite);
+            const gastos = orcamentos.map(o => o.gasto);
+
+            chartOrcamento = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Limite',
+                            data: limites,
+                            backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                            borderColor: 'rgba(99, 102, 241, 1)',
+                            borderWidth: 2
+                        },
+                        {
+                            label: 'Realizado',
+                            data: gastos,
+                            backgroundColor: gastos.map((g, i) => g > limites[i] ? 'rgba(239, 68, 68, 0.7)' : 'rgba(34, 197, 94, 0.7)'),
+                            borderColor: gastos.map((g, i) => g > limites[i] ? 'rgba(239, 68, 68, 1)' : 'rgba(34, 197, 94, 1)'),
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: value => 'R$ ' + (value / 1000) + 'k'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Renderizar alertas
+        function renderizarAlertas() {
+            const container = document.getElementById('alerts-list');
+            const alertas = orcamentos.filter(o => o.gasto >= o.limite * 0.8);
+
+            if (alertas.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                        <i class="fas fa-check-circle" style="font-size: 32px; color: var(--success); margin-bottom: 12px; display: block;"></i>
+                        <p>Nenhum alerta no momento</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = alertas.map(a => {
+                const excedido = a.gasto >= a.limite;
+                return `
+                    <div class="alert-item" onclick="visualizarOrcamento(${a.id})" style="cursor: pointer;">
+                        <div class="alert-icon ${excedido ? 'danger' : 'warning'}">
+                            <i class="fas fa-${excedido ? 'exclamation-circle' : 'exclamation-triangle'}"></i>
+                        </div>
+                        <div class="alert-content">
+                            <div class="title">${a.categoria}</div>
+                            <div class="desc">${a.alerta || (excedido ? 'Orçamento excedido!' : 'Limite próximo de ser atingido')}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Formatar valor
+        function formatarValor(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        // Formatar input moeda
+        function formatarMoeda(input) {
+            let valor = input.value.replace(/\D/g, '');
+            valor = (parseInt(valor) / 100).toFixed(2);
+            input.value = valor.replace('.', ',');
+        }
+
+        // Abrir modal
+        function abrirModal() {
+            editandoId = null;
+            document.getElementById('modal-titulo').textContent = 'Novo Orçamento';
+            document.getElementById('form-orcamento').reset();
+            document.getElementById('modal-orcamento').classList.add('active');
+        }
+
+        // Fechar modal
+        function fecharModal() {
+            document.getElementById('modal-orcamento').classList.remove('active');
+            editandoId = null;
+        }
+
+        // Editar orçamento
+        function editarOrcamento(id) {
+            const orc = orcamentos.find(o => o.id === id);
+            if (!orc) return;
+
+            editandoId = id;
+            document.getElementById('modal-titulo').textContent = 'Editar Orçamento';
+            document.getElementById('orcamento-id').value = orc.id;
+            document.getElementById('orcamento-categoria').value = orc.categoria;
+            document.getElementById('orcamento-centro').value = orc.centro_custo || '';
+            document.getElementById('orcamento-limite').value = (orc.limite / 1).toFixed(2).replace('.', ',');
+            document.getElementById('orcamento-alerta-pct').value = orc.alerta_pct || 80;
+            document.getElementById('orcamento-alerta-msg').value = orc.alerta || '';
+
+            document.getElementById('modal-orcamento').classList.add('active');
+        }
+
+        // Salvar orçamento
+        async function salvarOrcamento() {
+            const categoria = document.getElementById('orcamento-categoria').value;
+            const centro_custo = document.getElementById('orcamento-centro').value;
+            const limite = parseFloat(document.getElementById('orcamento-limite').value.replace(',', '.')) || 0;
+            const alerta_pct = parseInt(document.getElementById('orcamento-alerta-pct').value) || 80;
+            const alerta = document.getElementById('orcamento-alerta-msg').value.trim();
+
+            if (!categoria || limite <= 0) {
+                showToast('Preencha categoria e limite', 'error');
+                return;
+            }
+
+            // Preservar o gasto atual se estiver editando
+            const gastoAtual = editandoId ? (orcamentos.find(o => o.id === editandoId)?.gasto || 0) : 0;
+            const dados = { categoria, centro_custo, limite, alerta, alerta_pct, gasto: gastoAtual };
+
+            try {
+                const url = editandoId 
+                    ? `/api/financeiro/orcamentos/${editandoId}` 
+                    : '/api/financeiro/orcamentos';
+                const method = editandoId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast(editandoId ? 'Orçamento atualizado!' : 'Orçamento criado!', 'success');
+                    fecharModal();
+                    await carregarOrcamentos();
+                } else {
+                    throw new Error('Erro na API');
+                }
+            } catch (e) {
+                console.error('Erro ao salvar:', e);
+                // Fallback local
+                if (editandoId) {
+                    const idx = orcamentos.findIndex(o => o.id === editandoId);
+                    if (idx !== -1) {
+                        orcamentos[idx] = { ...orcamentos[idx], ...dados };
+                    }
+                } else {
+                    orcamentos.push({ id: Date.now(), ...dados, gasto: 0 });
+                }
+                renderizarOrcamentos();
+                atualizarKPIs();
+                renderizarGrafico();
+                renderizarAlertas();
+                showToast(editandoId ? 'Orçamento atualizado!' : 'Orçamento criado!', 'success');
+                fecharModal();
+            }
+        }
+
+        // Toast
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    </script>
+    <script src="/js/modal-fix-global.js?v=20260110"></script>
+    <script src="public/js/financeiro-user-loader.js?v=20260119"></script>
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+

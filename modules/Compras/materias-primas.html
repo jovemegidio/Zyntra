@@ -1,0 +1,818 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Gestão de Matérias-Primas</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Mobile Enterprise Design System -->
+    <link rel="stylesheet" href="/css/design-system-mobile.css?v=20260202">
+    <link rel="stylesheet" href="/css/responsive-global.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-master-2026.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-enterprise-enhancements.css?v=20260202">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-color: #f59e0b;
+            --primary-dark: #1a1a2e;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8f9fa; height: 100%; min-height: 100vh; width: 100%; margin: 0; padding: 0; }
+        .app-container { display: flex; min-height: 100vh; width: 100%; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width); background: var(--primary-dark);
+            display: flex; flex-direction: column; align-items: center;
+            padding: 12px 0; position: fixed; height: 100vh; z-index: 100;
+        }
+        .sidebar-logo {
+            width: 36px; height: 36px; background: var(--primary-color);
+            border-radius: 10px; display: flex; align-items: center;
+            justify-content: center; margin-bottom: 20px; text-decoration: none;
+        }
+        .sidebar-logo i { color: white; font-size: 16px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn {
+            width: 40px; height: 40px; border: none; background: transparent;
+            color: #6b7280; border-radius: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; transition: all 0.2s; text-decoration: none;
+        }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-color); color: white; }
+
+        /* MAIN */
+        .main-area { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height); background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 24px; /* position: global-header-sidebar.css */ top: 0; z-index: 50;
+        }
+        .header-brand { display: flex; align-items: center; gap: 12px; }
+        .header-brand img { height: 28px; }
+        .header-brand span { font-size: 14px; font-weight: 500; color: #9ca3af; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .header-btn {
+            width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.1);
+            color: #9ca3af; border-radius: 8px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .header-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+
+        /* CONTENT */
+        .content-area { flex: 1; padding: 24px; }
+
+        /* PAGE HEADER */
+        .page-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 24px;
+        }
+        .page-header h1 {
+            font-size: 24px; font-weight: 700; color: #1a1a1a;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .page-header h1 i { color: var(--primary-color); }
+        .page-header-actions { display: flex; gap: 12px; }
+        .btn {
+            padding: 10px 20px; border-radius: 8px; border: none;
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            display: flex; align-items: center; gap: 8px; transition: all 0.2s;
+        }
+        .btn-primary { background: var(--primary-color); color: white; }
+        .btn-primary:hover { background: #0ea5e9; }
+        .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #16a34a; }
+
+        /* STATS GRID */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 16px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: white; border-radius: 12px; padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .stat-card.highlight {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #d97706 100%);
+            color: white;
+        }
+        .stat-card.highlight .stat-value, .stat-card.highlight .stat-label { color: white; }
+        .stat-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+            margin-bottom: 12px;
+        }
+        .stat-icon.blue { background: #e0f2fe; color: #38bdf8; }
+        .stat-icon.green { background: #f0fdf4; color: #22c55e; }
+        .stat-icon.yellow { background: #fefce8; color: #eab308; }
+        .stat-icon.red { background: #fef2f2; color: #ef4444; }
+        .stat-icon.white { background: rgba(255,255,255,0.2); color: white; }
+        .stat-value { font-size: 28px; font-weight: 700; color: #1a1a1a; }
+        .stat-label { font-size: 13px; color: #7f8c8d; margin-top: 4px; }
+
+        /* FILTERS */
+        .filters-bar {
+            background: white; border-radius: 12px;
+            padding: 16px 20px; margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+        }
+        .search-box {
+            display: flex; align-items: center;
+            background: #f5f5f5; border-radius: 8px;
+            padding: 0 12px; flex: 1; min-width: 250px;
+        }
+        .search-box i { color: #999; }
+        .search-box input {
+            border: none; background: transparent;
+            padding: 10px 12px; font-size: 14px; width: 100%; outline: none;
+        }
+        .filter-select {
+            padding: 10px 12px; border: 1px solid #e5e7eb;
+            border-radius: 8px; font-size: 14px; min-width: 150px;
+        }
+
+        /* TABLE */
+        .table-container {
+            background: white; border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden;
+        }
+        .table-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
+        }
+        .table-header h3 { font-size: 16px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background: #f9fafb; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; }
+        tr:hover { background: #f9fafb; }
+        .badge {
+            padding: 4px 10px; border-radius: 6px; font-size: 11px;
+            font-weight: 600; text-transform: uppercase;
+        }
+        .badge-pe { background: #dbeafe; color: #1e40af; }
+        .badge-aluminio { background: #e0e7ff; color: #3730a3; }
+        .badge-pvc { background: #fef3c7; color: #92400e; }
+        .badge-pigmento { background: #fce7f3; color: #be185d; }
+        .badge-cobre { background: #ffedd5; color: #c2410c; }
+        .badge-outros { background: #f3f4f6; color: #374151; }
+        .badge-normal { background: #dcfce7; color: #166534; }
+        .badge-baixo { background: #fef3c7; color: #92400e; }
+        .badge-critico { background: #fee2e2; color: #991b1b; }
+        .quantidade { font-weight: 600; font-size: 15px; font-family: monospace; }
+        .quantidade.alto { color: #16a34a; }
+        .quantidade.baixo { color: #ca8a04; }
+        .quantidade.critico { color: #dc2626; }
+        .action-btn {
+            width: 32px; height: 32px; border-radius: 6px; border: none; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 14px; background: #f3f4f6; color: #6b7280; margin-right: 4px;
+        }
+        .action-btn:hover { background: var(--primary-color); color: white; }
+        .action-btn.success:hover { background: var(--success); }
+        .action-btn.danger:hover { background: var(--danger); }
+
+        /* MODAL */
+        .modal {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            display: none; justify-content: center; align-items: center;
+            z-index: 9999; padding: 20px;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white; border-radius: 16px; max-width: 500px;
+            width: 100%; max-height: 90vh; overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+            animation: modalSlideIn 0.3s ease;
+        }
+        @keyframes modalSlideIn {
+            from { transform: translateY(-20px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .modal-header {
+            padding: 20px 24px; border-bottom: 1px solid #e5e7eb;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .modal-header h3 { font-size: 18px; font-weight: 600; }
+        .modal-close {
+            width: 32px; height: 32px; border: none; background: #f3f4f6;
+            border-radius: 8px; cursor: pointer; font-size: 16px;
+        }
+        .modal-close:hover { background: #e5e7eb; }
+        .modal-body { padding: 24px; max-height: calc(90vh - 160px); overflow-y: auto; }
+        .modal-footer {
+            padding: 16px 24px; border-top: 1px solid #e5e7eb;
+            display: flex; gap: 12px; justify-content: flex-end;
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb;
+            border-radius: 8px; font-size: 14px;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none; border-color: var(--primary-color);
+        }
+        .form-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+
+        /* EMPTY STATE */
+        .empty-state { text-align: center; padding: 60px 20px; }
+        .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 16px; }
+        .empty-state h3 { font-size: 18px; color: #374151; margin-bottom: 8px; }
+        .empty-state p { font-size: 14px; color: #9ca3af; margin-bottom: 20px; }
+
+        /* TOAST */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 10000; }
+        .toast {
+            background: white; border-radius: 8px; padding: 16px 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15); margin-bottom: 10px;
+            display: flex; align-items: center; gap: 12px;
+            animation: toastIn 0.3s ease;
+        }
+        @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast i { font-size: 18px; }
+        .toast.success i { color: var(--success); }
+        .toast.error i { color: var(--danger); }
+
+        @media (max-width: 1024px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .page-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+            .filters-bar { flex-direction: column; }
+            .search-box { width: 100%; }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Dashboard"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="/modules/Compras/index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-line"></i></a>
+                <a href="/modules/Compras/requisicoes.html" class="sidebar-btn" title="Requisições"><i class="fas fa-clipboard-list"></i></a>
+                <a href="/modules/Compras/cotacoes.html" class="sidebar-btn" title="Cotações"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="/modules/Compras/pedidos.html" class="sidebar-btn" title="Pedidos"><i class="fas fa-shopping-cart"></i></a>
+                <a href="/modules/Compras/fornecedores.html" class="sidebar-btn" title="Fornecedores"><i class="fas fa-truck"></i></a>
+                <a href="/modules/Compras/materias-primas.html" class="sidebar-btn active" title="Matérias-Primas"><i class="fas fa-boxes"></i></a>
+            </nav>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- MAIN AREA -->
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Matérias-Primas</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" onclick="carregarMateriais()" title="Atualizar"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting" style="display: flex; align-items: center; gap: 12px; color: #9ca3af; font-size: 13px;">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name" style="color: white;">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar" style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #d97706); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; overflow: hidden; position: relative;">
+                            <img src="" alt="Foto" id="user-photo" style="width: 100%; height: 100%; object-fit: cover; position: absolute; display: none;">
+                            <span id="user-initial">U</span>
+                        </div>
+                    </div>
+                    <button class="header-btn" onclick="window.location.href='/modules/Compras/index.html'" title="Voltar"><i class="fas fa-arrow-left"></i></button>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="content-area">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div>
+                        <h1><i class="fas fa-boxes"></i> Gestão de Matérias-Primas</h1>
+                        <p style="color: #6b7280; margin-top: 4px;">Entrada e controle de matérias-primas para produção</p>
+                    </div>
+                    <div class="page-header-actions">
+                        <button class="btn btn-primary" onclick="abrirModalNovo()">
+                            <i class="fas fa-plus"></i> Nova Matéria-Prima
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card highlight">
+                        <div class="stat-icon white"><i class="fas fa-boxes"></i></div>
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">Total de Itens</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-value" id="stat-normal">0</div>
+                        <div class="stat-label">Estoque Normal</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-value" id="stat-baixo">0</div>
+                        <div class="stat-label">Estoque Baixo</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+                        <div class="stat-value" id="stat-critico">0</div>
+                        <div class="stat-label">Nível Crítico</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-dollar-sign"></i></div>
+                        <div class="stat-value" id="stat-valor">R$ 0</div>
+                        <div class="stat-label">Valor em Estoque</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-bar">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="busca-input" placeholder="Buscar por código ou nome..." oninput="filtrar()">
+                    </div>
+                    <select class="filter-select" id="filtro-tipo" onchange="filtrar()">
+                        <option value="">Todos os Tipos</option>
+                        <option value="PE">PE (Polietileno)</option>
+                        <option value="ALUMINIO">Alumínio</option>
+                        <option value="PVC">PVC</option>
+                        <option value="COBRE">Cobre</option>
+                        <option value="PIGMENTO">Pigmento</option>
+                        <option value="OUTROS">Outros</option>
+                    </select>
+                    <select class="filter-select" id="filtro-status" onchange="filtrar()">
+                        <option value="">Todos os Status</option>
+                        <option value="baixo">Estoque Baixo</option>
+                        <option value="zerado">Nível Crítico</option>
+                    </select>
+                </div>
+
+                <!-- Table -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h3><i class="fas fa-table"></i> Matérias-Primas Cadastradas</h3>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nome</th>
+                                    <th>Tipo</th>
+                                    <th>Cor</th>
+                                    <th>Quantidade</th>
+                                    <th>Mínimo</th>
+                                    <th>Preço Médio</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-materiais">
+                                <tr>
+                                    <td colspan="9" class="empty-state">
+                                        <i class="fas fa-boxes"></i>
+                                        <h3>Nenhuma matéria-prima cadastrada</h3>
+                                        <p>Clique em "Nova Matéria-Prima" para começar</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Nova/Editar Matéria-Prima -->
+    <div class="modal" id="modal-mp">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-titulo"><i class="fas fa-plus"></i> Nova Matéria-Prima</h3>
+                <button class="modal-close" onclick="fecharModal('modal-mp')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-mp">
+                    <input type="hidden" id="mp-id">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Código *</label>
+                            <input type="text" id="mp-codigo" required placeholder="Ex: PE-PRETO-001">
+                        </div>
+                        <div class="form-group">
+                            <label>Tipo *</label>
+                            <select id="mp-tipo" required>
+                                <option value="">Selecione...</option>
+                                <option value="PE">PE (Polietileno)</option>
+                                <option value="ALUMINIO">Alumínio</option>
+                                <option value="PVC">PVC</option>
+                                <option value="COBRE">Cobre</option>
+                                <option value="PIGMENTO">Pigmento</option>
+                                <option value="OUTROS">Outros</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Nome/Descrição *</label>
+                        <input type="text" id="mp-nome" required placeholder="Ex: Polietileno Preto">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cor</label>
+                            <input type="text" id="mp-cor" placeholder="Ex: Preto, Cinza, Vermelho">
+                        </div>
+                        <div class="form-group">
+                            <label>Unidade</label>
+                            <select id="mp-unidade">
+                                <option value="KG">KG</option>
+                                <option value="M">Metros</option>
+                                <option value="UN">Unidade</option>
+                                <option value="L">Litros</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Quantidade Mínima</label>
+                            <input type="number" id="mp-minimo" step="0.001" value="0" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Preço Médio (R$)</label>
+                            <input type="number" id="mp-preco" step="0.0001" value="0" placeholder="0.00">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Fornecedor Principal</label>
+                        <input type="text" id="mp-fornecedor" placeholder="Nome do fornecedor">
+                    </div>
+                    <div class="form-group">
+                        <label>Localização</label>
+                        <input type="text" id="mp-localizacao" placeholder="Ex: Galpão A - Prateleira 3">
+                    </div>
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea id="mp-observacao" rows="2" placeholder="Observações adicionais..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModal('modal-mp')">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarMP()"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Entrada -->
+    <div class="modal" id="modal-entrada">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-arrow-down" style="color: var(--success);"></i> Entrada de Material</h3>
+                <button class="modal-close" onclick="fecharModal('modal-entrada')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="entrada-id">
+                <div class="form-group">
+                    <label>Material</label>
+                    <input type="text" id="entrada-nome" readonly style="background: #f9fafb;">
+                </div>
+                <div class="form-group">
+                    <label>Quantidade *</label>
+                    <input type="number" id="entrada-qtd" step="0.001" required placeholder="0.000">
+                </div>
+                <div class="form-group">
+                    <label>Custo Unitário (R$)</label>
+                    <input type="number" id="entrada-custo" step="0.0001" placeholder="0.0000">
+                </div>
+                <div class="form-group">
+                    <label>Documento/NF</label>
+                    <input type="text" id="entrada-doc" placeholder="Número da NF ou documento">
+                </div>
+                <div class="form-group">
+                    <label>Observação</label>
+                    <textarea id="entrada-obs" rows="2" placeholder="Observações..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModal('modal-entrada')">Cancelar</button>
+                <button class="btn btn-success" onclick="registrarEntrada()"><i class="fas fa-check"></i> Confirmar Entrada</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        let materiais = [];
+        let materiaisFiltrados = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarMateriais();
+        });
+
+        async function carregarMateriais() {
+            try {
+                const response = await fetch('/api/pcp/materias-primas', { credentials: 'include' });
+                const data = await response.json();
+                
+                materiais = data.materiais || [];
+                materiaisFiltrados = [...materiais];
+                
+                // Atualizar estatísticas
+                const stats = data.estatisticas || {};
+                document.getElementById('stat-total').textContent = stats.total || 0;
+                document.getElementById('stat-normal').textContent = stats.normal || 0;
+                document.getElementById('stat-baixo').textContent = stats.baixo || 0;
+                document.getElementById('stat-critico').textContent = stats.zerado || 0;
+                document.getElementById('stat-valor').textContent = 'R$ ' + (parseFloat(stats.valor_total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                
+                renderizarTabela();
+            } catch (error) {
+                console.error('Erro ao carregar materiais:', error);
+                showToast('Erro ao carregar materiais', 'error');
+            }
+        }
+
+        function filtrar() {
+            const busca = document.getElementById('busca-input').value.toLowerCase();
+            const tipo = document.getElementById('filtro-tipo').value;
+            const status = document.getElementById('filtro-status').value;
+            
+            materiaisFiltrados = materiais.filter(m => {
+                const matchBusca = !busca || m.codigo.toLowerCase().includes(busca) || m.nome.toLowerCase().includes(busca);
+                const matchTipo = !tipo || m.tipo === tipo;
+                let matchStatus = true;
+                if (status === 'baixo') {
+                    matchStatus = m.quantidade_atual > 0 && m.quantidade_atual <= m.quantidade_minima;
+                } else if (status === 'zerado') {
+                    matchStatus = m.quantidade_atual <= 0;
+                }
+                return matchBusca && matchTipo && matchStatus;
+            });
+            
+            renderizarTabela();
+        }
+
+        function renderizarTabela() {
+            const tbody = document.getElementById('tabela-materiais');
+            
+            if (materiaisFiltrados.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="empty-state">
+                            <i class="fas fa-boxes"></i>
+                            <h3>Nenhuma matéria-prima encontrada</h3>
+                            <p>Ajuste os filtros ou cadastre uma nova matéria-prima</p>
+                        </td>
+                    </tr>`;
+                return;
+            }
+            
+            tbody.innerHTML = materiaisFiltrados.map(m => {
+                const qtd = parseFloat(m.quantidade_atual) || 0;
+                const min = parseFloat(m.quantidade_minima) || 0;
+                
+                let statusClass = 'normal';
+                let statusLabel = 'Normal';
+                let qtdClass = 'alto';
+                
+                if (qtd <= 0) {
+                    statusClass = 'critico';
+                    statusLabel = 'Crítico';
+                    qtdClass = 'critico';
+                } else if (qtd <= min) {
+                    statusClass = 'baixo';
+                    statusLabel = 'Baixo';
+                    qtdClass = 'baixo';
+                }
+                
+                const tipoBadge = m.tipo.toLowerCase().replace('aluminio', 'aluminio');
+                
+                return `
+                    <tr>
+                        <td><strong style="font-family: monospace; color: var(--primary-color);">${m.codigo}</strong></td>
+                        <td>${m.nome}</td>
+                        <td><span class="badge badge-${tipoBadge}">${m.tipo}</span></td>
+                        <td>${m.cor || '-'}</td>
+                        <td><span class="quantidade ${qtdClass}">${qtd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ${m.unidade}</span></td>
+                        <td>${min.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ${m.unidade}</td>
+                        <td>R$ ${parseFloat(m.preco_medio || 0).toLocaleString('pt-BR', { minimumFractionDigits: 4 })}</td>
+                        <td><span class="badge badge-${statusClass}">${statusLabel}</span></td>
+                        <td>
+                            <button class="action-btn success" onclick="abrirModalEntrada(${m.id}, '${m.nome}')" title="Entrada">
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                            <button class="action-btn" onclick="editarMP(${m.id})" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="action-btn danger" onclick="excluirMP(${m.id})" title="Excluir">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            }).join('');
+        }
+
+        function abrirModalNovo() {
+            document.getElementById('modal-titulo').innerHTML = '<i class="fas fa-plus"></i> Nova Matéria-Prima';
+            document.getElementById('form-mp').reset();
+            document.getElementById('mp-id').value = '';
+            document.getElementById('modal-mp').classList.add('active');
+        }
+
+        function editarMP(id) {
+            const mp = materiais.find(m => m.id === id);
+            if (!mp) return;
+            
+            document.getElementById('modal-titulo').innerHTML = '<i class="fas fa-edit"></i> Editar Matéria-Prima';
+            document.getElementById('mp-id').value = mp.id;
+            document.getElementById('mp-codigo').value = mp.codigo;
+            document.getElementById('mp-tipo').value = mp.tipo;
+            document.getElementById('mp-nome').value = mp.nome;
+            document.getElementById('mp-cor').value = mp.cor || '';
+            document.getElementById('mp-unidade').value = mp.unidade;
+            document.getElementById('mp-minimo').value = mp.quantidade_minima;
+            document.getElementById('mp-preco').value = mp.preco_medio;
+            document.getElementById('mp-fornecedor').value = mp.fornecedor_principal || '';
+            document.getElementById('mp-localizacao').value = mp.localizacao || '';
+            document.getElementById('mp-observacao').value = mp.observacao || '';
+            
+            document.getElementById('modal-mp').classList.add('active');
+        }
+
+        async function salvarMP() {
+            const id = document.getElementById('mp-id').value;
+            const data = {
+                codigo: document.getElementById('mp-codigo').value,
+                tipo: document.getElementById('mp-tipo').value,
+                nome: document.getElementById('mp-nome').value,
+                cor: document.getElementById('mp-cor').value,
+                unidade: document.getElementById('mp-unidade').value,
+                quantidade_minima: parseFloat(document.getElementById('mp-minimo').value) || 0,
+                preco_medio: parseFloat(document.getElementById('mp-preco').value) || 0,
+                fornecedor_principal: document.getElementById('mp-fornecedor').value,
+                localizacao: document.getElementById('mp-localizacao').value,
+                observacao: document.getElementById('mp-observacao').value
+            };
+            
+            if (!data.codigo || !data.nome || !data.tipo) {
+                showToast('Preencha os campos obrigatórios', 'error');
+                return;
+            }
+            
+            try {
+                const url = id ? `/api/pcp/materias-primas/${id}` : '/api/pcp/materias-primas';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(id ? 'Matéria-prima atualizada!' : 'Matéria-prima cadastrada!', 'success');
+                    fecharModal('modal-mp');
+                    carregarMateriais();
+                } else {
+                    showToast(result.error || 'Erro ao salvar', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao salvar', 'error');
+            }
+        }
+
+        function abrirModalEntrada(id, nome) {
+            document.getElementById('entrada-id').value = id;
+            document.getElementById('entrada-nome').value = nome;
+            document.getElementById('entrada-qtd').value = '';
+            document.getElementById('entrada-custo').value = '';
+            document.getElementById('entrada-doc').value = '';
+            document.getElementById('entrada-obs').value = '';
+            document.getElementById('modal-entrada').classList.add('active');
+        }
+
+        async function registrarEntrada() {
+            const id = document.getElementById('entrada-id').value;
+            const quantidade = parseFloat(document.getElementById('entrada-qtd').value);
+            
+            if (!quantidade || quantidade <= 0) {
+                showToast('Quantidade deve ser maior que zero', 'error');
+                return;
+            }
+            
+            const data = {
+                quantidade,
+                custo_unitario: parseFloat(document.getElementById('entrada-custo').value) || null,
+                documento: document.getElementById('entrada-doc').value,
+                observacao: document.getElementById('entrada-obs').value,
+                usuario_nome: 'Comprador' // TODO: pegar do usuário logado
+            };
+            
+            try {
+                const response = await fetch(`/api/pcp/materias-primas/${id}/entrada`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(`Entrada registrada! Novo estoque: ${result.quantidade_nova.toFixed(2)}`, 'success');
+                    fecharModal('modal-entrada');
+                    carregarMateriais();
+                } else {
+                    showToast(result.error || 'Erro ao registrar entrada', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showToast('Erro ao registrar entrada', 'error');
+            }
+        }
+
+        async function excluirMP(id) {
+            if (!confirm('Deseja realmente excluir esta matéria-prima?')) return;
+            
+            try {
+                const response = await fetch(`/api/pcp/materias-primas/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    showToast('Matéria-prima excluída!', 'success');
+                    carregarMateriais();
+                } else {
+                    showToast('Erro ao excluir', 'error');
+                }
+            } catch (error) {
+                showToast('Erro ao excluir', 'error');
+            }
+        }
+
+        function fecharModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    </script>
+    
+    <!-- Carregador de Usuário -->
+    <script src="/modules/Compras/compras-user-loader.js?v=20260119"></script>
+
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

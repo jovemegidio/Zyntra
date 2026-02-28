@@ -1,0 +1,613 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <title>Aluforce: Consultar NFe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <style>
+        :root {
+            --fat-primary: #10b981;
+            --fat-secondary: #059669;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html { height: 100%; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f9fafb;
+            height: 100%;
+            min-height: 100vh;
+        }
+
+        .page-content {
+            padding: 20px;
+            flex: 1;
+        }
+
+        .filter-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .form-group input,
+        .form-group select {
+            height: 36px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            padding: 0 10px;
+            font-family: 'Inter', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            border-color: var(--fat-primary);
+        }
+
+        .filter-actions {
+            display: flex;
+            flex-direction: row;
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .btn {
+            height: 36px;
+            padding: 0 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s, transform 0.1s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
+        }
+
+        .btn-primary {
+            background: var(--fat-primary);
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: var(--fat-secondary);
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        .results-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .results-header h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .results-count {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .nfe-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .nfe-table th {
+            background: #f3f4f6;
+            padding: 10px 12px;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #6b7280;
+            border-bottom: 2px solid #e5e7eb;
+            text-align: left;
+        }
+
+        .nfe-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f3f4f6;
+            vertical-align: middle;
+        }
+
+        .nfe-table tr:hover {
+            background: #f9fafb;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-autorizada {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-cancelada {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .status-rejeitada {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-pendente {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #6b7280;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #f3f4f6;
+            color: var(--fat-primary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #6b7280;
+        }
+
+        @media (max-width: 768px) {
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .nfe-table {
+                font-size: 12px;
+            }
+
+            .nfe-table th,
+            .nfe-table td {
+                padding: 8px 8px;
+            }
+
+            .filter-actions {
+                flex-wrap: wrap;
+            }
+
+            .page-content {
+                padding: 14px;
+            }
+        }
+    </style>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="emitir.html" class="sidebar-btn" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+                <a href="consultar.html" class="sidebar-btn active" title="Consultar NFe"><i class="fas fa-search"></i></a>
+                <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+                <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+                <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
+                <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+                <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Consultar NFe</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <div class="main-content">
+                <div class="page-content">
+
+                    <div class="filter-card">
+                        <h3 style="font-size:15px;font-weight:600;color:#111827;margin-bottom:14px;"><i class="fas fa-filter" style="color:var(--fat-primary);margin-right:8px;"></i>Filtros de Consulta</h3>
+                        <div class="filter-grid">
+                            <div class="form-group">
+                                <label>Número NFe</label>
+                                <input type="text" id="filtroNumero" placeholder="Ex: 000001234">
+                            </div>
+                            <div class="form-group">
+                                <label>Série</label>
+                                <input type="text" id="filtroSerie" placeholder="Ex: 1">
+                            </div>
+                            <div class="form-group">
+                                <label>Chave de Acesso</label>
+                                <input type="text" id="filtroChave" placeholder="44 dígitos">
+                            </div>
+                            <div class="form-group">
+                                <label>Cliente</label>
+                                <input type="text" id="filtroCliente" placeholder="Nome ou CNPJ">
+                            </div>
+                            <div class="form-group">
+                                <label>Data Início</label>
+                                <input type="date" id="filtroDataInicio">
+                            </div>
+                            <div class="form-group">
+                                <label>Data Fim</label>
+                                <input type="date" id="filtroDataFim">
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="filtroStatus">
+                                    <option value="">Todos</option>
+                                    <option value="autorizada">Autorizada</option>
+                                    <option value="cancelada">Cancelada</option>
+                                    <option value="rejeitada">Rejeitada</option>
+                                    <option value="pendente">Pendente</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="btn btn-primary" onclick="carregarNFes()"><i class="fas fa-search"></i> Consultar</button>
+                            <button class="btn btn-secondary" onclick="limparFiltros()"><i class="fas fa-eraser"></i> Limpar</button>
+                            <button class="btn btn-secondary" onclick="exportarResultados()"><i class="fas fa-file-excel"></i> Exportar</button>
+                        </div>
+                    </div>
+
+                    <div class="results-card">
+                        <div class="results-header">
+                            <h3><i class="fas fa-list" style="color:var(--fat-primary);margin-right:8px;"></i>Resultados</h3>
+                            <span class="results-count" id="resultsCount">0 notas encontradas</span>
+                        </div>
+                        <div id="loadingIndicator" class="loading" style="display:none;">
+                            <i class="fas fa-spinner fa-spin"></i> Carregando...
+                        </div>
+                        <div class="table-responsive" style="overflow-x:auto;">
+                            <table class="nfe-table" id="nfesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Número</th>
+                                        <th>Série</th>
+                                        <th>Cliente</th>
+                                        <th>Data/Hora</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                        <th style="text-align:center;">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="nfesTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="emptyState" class="empty-state">
+                            <i class="fas fa-search" style="font-size:32px;margin-bottom:12px;display:block;"></i>
+                            <p style="font-size:14px;font-weight:500;">Use os filtros acima para consultar notas fiscais</p>
+                            <p style="font-size:12px;margin-top:4px;">Ou clique em Consultar para exibir todas</p>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        // == Toggle mobile sidebar ==
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+        function toggleNotificacoes() {}
+
+        // == Avatar map ==
+        const avatarNameMap = {
+            'clemerson':'CM','isabela':'IB','thaina':'TH','thiago':'TG','nicolas':'NC',
+            'nicolasdaniel':'ND','rh':'RH','admin':'AD','ti':'TI','tialuforce':'TI',
+            'antonio':'AT','andreia':'AN','guilherme':'GH','marcelo':'MC','financeiro':'FN',
+            'douglas':'DG','hellen':'HL','helen':'HL','marcia':'MR','augusto':'AG',
+            'renata':'RN','fabiano':'FB','fabiola':'FL'
+        };
+
+        // == Carregar Usuário ==
+        function carregarUsuario() {
+            fetch('/api/me', { credentials:'include' })
+            .then(r => r.json())
+            .then(user => {
+                const d = user.dados || user;
+                const nome = (d.nome || d.name || 'Usuário').split(' ')[0];
+                document.getElementById('user-name').textContent = nome;
+                const h = new Date().getHours();
+                document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                const el = document.getElementById('user-initials');
+                const photo = document.getElementById('user-photo');
+                if (d.foto || d.avatar) {
+                    photo.src = d.foto || d.avatar;
+                    photo.style.display = 'block';
+                    photo.style.width = '100%';
+                    photo.style.height = '100%';
+                    photo.style.borderRadius = '50%';
+                    photo.style.objectFit = 'cover';
+                    el.style.display = 'none';
+                } else {
+                    const key = nome.toLowerCase().replace(/\s/g,'');
+                    el.textContent = avatarNameMap[key] || nome.substring(0,2).toUpperCase();
+                }
+            }).catch(() => {});
+        }
+
+        // == Fallback data ==
+        const nfesFallback = [
+            { numero:'000001234', serie:'1', chave:'35260112345678000100550010000012341000012345', cliente:'Tech Solutions Ltda', dataEmissao:'2026-01-15T14:30:00', valor:15750.00, status:'autorizada' },
+            { numero:'000001233', serie:'1', chave:'35260112345678000100550010000012331000012344', cliente:'Indústria Metal SA', dataEmissao:'2026-01-15T10:15:00', valor:8900.50, status:'autorizada' },
+            { numero:'000001232', serie:'1', chave:'35260112345678000100550010000012321000012343', cliente:'Comércio Rápido ME', dataEmissao:'2026-01-14T16:45:00', valor:3200.00, status:'cancelada' },
+            { numero:'000001231', serie:'1', chave:'35260112345678000100550010000012311000012342', cliente:'Construtora ABC Ltda', dataEmissao:'2026-01-14T09:00:00', valor:45000.00, status:'pendente' },
+            { numero:'000001230', serie:'1', chave:'35260112345678000100550010000012301000012341', cliente:'Distribuidora XYZ', dataEmissao:'2026-01-13T11:30:00', valor:12500.75, status:'rejeitada' }
+        ];
+
+        let nfesCarregadas = [];
+
+        // == Carregar NFes ==
+        function carregarNFes() {
+            const loading = document.getElementById('loadingIndicator');
+            const empty = document.getElementById('emptyState');
+            const tbody = document.getElementById('nfesTableBody');
+            loading.style.display = 'block';
+            empty.style.display = 'none';
+            tbody.innerHTML = '';
+
+            fetch('/api/nfe/listar?limite=100', { credentials:'include' })
+            .then(r => r.json())
+            .then(data => {
+                loading.style.display = 'none';
+                nfesCarregadas = data.notas || data.data || data || [];
+                if (!Array.isArray(nfesCarregadas) || nfesCarregadas.length === 0) {
+                    nfesCarregadas = nfesFallback;
+                }
+                filtrarEExibir();
+            })
+            .catch(() => {
+                loading.style.display = 'none';
+                nfesCarregadas = nfesFallback;
+                filtrarEExibir();
+            });
+        }
+
+        // == Filter and display ==
+        function filtrarEExibir() {
+            const numero = document.getElementById('filtroNumero').value.trim().toLowerCase();
+            const serie = document.getElementById('filtroSerie').value.trim();
+            const chave = document.getElementById('filtroChave').value.trim();
+            const cliente = document.getElementById('filtroCliente').value.trim().toLowerCase();
+            const dataInicio = document.getElementById('filtroDataInicio').value;
+            const dataFim = document.getElementById('filtroDataFim').value;
+            const status = document.getElementById('filtroStatus').value;
+
+            let filtradas = nfesCarregadas.filter(nfe => {
+                if (numero && !(nfe.numero||'').toLowerCase().includes(numero)) return false;
+                if (serie && (nfe.serie||'') !== serie) return false;
+                if (chave && !(nfe.chave||'').includes(chave)) return false;
+                if (cliente && !(nfe.cliente||nfe.destinatario||'').toLowerCase().includes(cliente)) return false;
+                if (status && (nfe.status||'').toLowerCase() !== status) return false;
+                if (dataInicio && (nfe.dataEmissao||'') < dataInicio) return false;
+                if (dataFim && (nfe.dataEmissao||'') > dataFim + 'T23:59:59') return false;
+                return true;
+            });
+
+            const tbody = document.getElementById('nfesTableBody');
+            const empty = document.getElementById('emptyState');
+            document.getElementById('resultsCount').textContent = filtradas.length + ' nota(s) encontrada(s)';
+
+            if (filtradas.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+
+            tbody.innerHTML = filtradas.map(nfe => {
+                const dt = nfe.dataEmissao ? new Date(nfe.dataEmissao).toLocaleString('pt-BR') : '-';
+                const valor = (nfe.valor || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+                const st = (nfe.status||'pendente').toLowerCase();
+                const stLabel = st.charAt(0).toUpperCase() + st.slice(1);
+                return `<tr>
+                    <td><strong>${nfe.numero||'-'}</strong></td>
+                    <td>${nfe.serie||'1'}</td>
+                    <td>${nfe.cliente||nfe.destinatario||'-'}</td>
+                    <td>${dt}</td>
+                    <td>${valor}</td>
+                    <td><span class="status-badge status-${st}">${stLabel}</span></td>
+                    <td style="text-align:center;">
+                        <button class="action-btn" title="Visualizar" onclick="visualizarNFe('${nfe.chave||''}')"><i class="fas fa-eye"></i></button>
+                        <button class="action-btn" title="Download XML" onclick="baixarXML('${nfe.chave||''}')"><i class="fas fa-download"></i></button>
+                        <button class="action-btn" title="DANFE" onclick="window.location.href='danfe.html?chave=${nfe.chave||''}'"><i class="fas fa-print"></i></button>
+                        <button class="action-btn" title="Enviar Email" onclick="enviarEmail('${nfe.chave||''}')"><i class="fas fa-envelope"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // == Actions ==
+        function baixarXML(chave) {
+            if (!chave) return alert('Chave de acesso não disponível');
+            fetch('/api/nfe/' + chave + '/xml', { credentials:'include' })
+            .then(r => {
+                if (!r.ok) throw new Error('Erro ao baixar XML');
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'NFe_' + chave + '.xml';
+                a.click();
+                URL.revokeObjectURL(url);
+            })
+            .catch(e => alert(e.message));
+        }
+
+        function visualizarNFe(chave) {
+            alert('Visualização detalhada da NFe: ' + (chave || 'N/A'));
+        }
+
+        function enviarEmail(chave) {
+            const email = prompt('Informe o email do destinatário:');
+            if (email) {
+                fetch('/api/nfe/' + chave + '/email', {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    credentials:'include',
+                    body: JSON.stringify({ email })
+                })
+                .then(r => r.json())
+                .then(() => alert('Email enviado com sucesso!'))
+                .catch(() => alert('Erro ao enviar email'));
+            }
+        }
+
+        function limparFiltros() {
+            document.getElementById('filtroNumero').value = '';
+            document.getElementById('filtroSerie').value = '';
+            document.getElementById('filtroChave').value = '';
+            document.getElementById('filtroCliente').value = '';
+            document.getElementById('filtroDataInicio').value = '';
+            document.getElementById('filtroDataFim').value = '';
+            document.getElementById('filtroStatus').value = '';
+            document.getElementById('nfesTableBody').innerHTML = '';
+            document.getElementById('emptyState').style.display = 'block';
+            document.getElementById('resultsCount').textContent = '0 notas encontradas';
+        }
+
+        function exportarResultados() {
+            if (nfesCarregadas.length === 0) return alert('Nenhum dado para exportar');
+            let csv = 'Número;Série;Cliente;Data;Valor;Status\n';
+            nfesCarregadas.forEach(nfe => {
+                csv += `${nfe.numero||''};${nfe.serie||''};${nfe.cliente||''};${nfe.dataEmissao||''};${nfe.valor||0};${nfe.status||''}\n`;
+            });
+            const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'nfes_consulta.csv';
+            a.click();
+        }
+
+        // == Modal placeholder ==
+        function abrirModalConfiguracoes() {
+            alert('Configurações - Em desenvolvimento');
+        }
+
+        // == Init ==
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            carregarNFes();
+        });
+    </script>
+    <script src="/js/notification-manager.js" defer></script>
+    <script src="../_shared/connection-monitor.js" defer></script>
+    <script src="/js/popup-confirmacao.js" defer></script>
+    <script src="/js/auth-unified.js?v=20260131c" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

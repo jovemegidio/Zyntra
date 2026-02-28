@@ -1,0 +1,428 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Relatórios Faturamento</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { height:100%; }
+        html, body { font-family:'Inter',sans-serif; background:#f9fafb; color:#111827; }
+        body { height:100%; min-height:100vh; }
+        :root { --fat-primary:#10b981; --fat-secondary:#059669; }
+        .page-content { padding:20px; max-width:100%; margin:0; flex:1; }
+        .page-title { font-size:18px; font-weight:700; color:#111827; margin-bottom:20px; display:flex; align-items:center; gap:10px; }
+        .page-title i { color:var(--fat-primary); }
+        .section { margin-bottom:28px; }
+        .section-header { font-size:15px; font-weight:600; color:#111827; margin-bottom:14px; display:flex; align-items:center; gap:8px; padding-bottom:8px; border-bottom:1px solid #e5e7eb; }
+        .section-header i { color:var(--fat-primary); }
+        .reports-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+        .report-card { background:#fff; border-radius:8px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,0.06); cursor:pointer; transition:all 0.2s; border:1px solid transparent; display:flex; align-items:flex-start; gap:14px; }
+        .report-card:hover { border-color:var(--fat-primary); box-shadow:0 4px 12px rgba(16,185,129,0.12); transform:translateY(-1px); }
+        .report-card .report-icon { width:38px; height:38px; border-radius:8px; background:#f0fdf4; display:flex; align-items:center; justify-content:center; font-size:15px; color:var(--fat-primary); flex-shrink:0; }
+        .report-card .report-info h4 { font-size:13px; font-weight:600; color:#111827; margin-bottom:3px; }
+        .report-card .report-info p { font-size:11px; color:#6b7280; line-height:1.4; }
+        .preview-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; z-index:10000; }
+        .preview-overlay.active { display:flex; align-items:center; justify-content:center; }
+        .preview-modal { background:#fff; border-radius:10px; width:90%; max-width:900px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+        .preview-header { padding:16px 20px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+        .preview-header h3 { font-size:15px; font-weight:600; display:flex; align-items:center; gap:8px; }
+        .preview-header h3 i { color:var(--fat-primary); }
+        .preview-close { background:none; border:none; font-size:18px; cursor:pointer; color:#6b7280; padding:4px; }
+        .preview-body { padding:20px; overflow-y:auto; flex:1; }
+        .preview-footer { padding:14px 20px; border-top:1px solid #e5e7eb; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; flex-shrink:0; }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
+        .btn-primary { background:var(--fat-primary); color:#fff; }
+        .btn-primary:hover { background:var(--fat-secondary); }
+        .btn-success { background:#10b981; color:#fff; }
+        .btn-success:hover { background:#059669; }
+        .btn-secondary { background:#e5e7eb; color:#374151; }
+        .btn-secondary:hover { background:#d1d5db; }
+        .report-table { width:100%; border-collapse:collapse; font-size:13px; margin-top:14px; }
+        .report-table th { background:#f3f4f6; padding:10px 12px; font-weight:600; font-size:11px; text-transform:uppercase; color:#6b7280; border-bottom:2px solid #e5e7eb; text-align:left; }
+        .report-table td { padding:10px 12px; border-bottom:1px solid #f3f4f6; }
+        .report-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:20px; }
+        .summary-card { background:#f9fafb; border-radius:6px; padding:14px; text-align:center; }
+        .summary-card .label { font-size:11px; color:#6b7280; text-transform:uppercase; }
+        .summary-card .value { font-size:20px; font-weight:700; color:var(--fat-primary); margin-top:4px; }
+        .toast { position:fixed; bottom:20px; right:20px; background:#111827; color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; z-index:20000; display:flex; align-items:center; gap:8px; box-shadow:0 4px 12px rgba(0,0,0,0.3); }
+        @media(max-width:768px) {
+            .page-content { padding:14px; }
+            .reports-grid { grid-template-columns:1fr; }
+            .preview-modal { width:95%; }
+        }
+    </style>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+
+<div class="app-container">
+
+<div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+<aside class="sidebar" id="mobile-sidebar">
+    <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+    <nav class="sidebar-nav">
+        <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+        <a href="emitir.html" class="sidebar-btn" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+        <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
+        <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+        <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+        <a href="relatorios.html" class="sidebar-btn active" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
+        <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+        <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+    </nav>
+    <div class="sidebar-bottom">
+        <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+    </div>
+</aside>
+
+<main class="main-area">
+    <header class="header">
+        <div class="header-left">
+            <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+            <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Relatórios</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+            <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+            <div class="user-greeting">
+                <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                <div class="user-avatar" id="user-avatar">
+                    <img alt="Foto" id="user-photo" style="display:none">
+                    <span id="user-initials">U</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <div class="page-content">
+
+            <input type="hidden" id="currentReportType" value="">
+
+            <div class="page-title">
+                <i class="fas fa-chart-bar"></i> Relatórios Faturamento
+            </div>
+
+            <!-- Section 1: Ordens de Serviço -->
+            <div class="section">
+                <div class="section-header">
+                    <i class="fas fa-clipboard-list"></i> Ordens de Serviço
+                </div>
+                <div class="reports-grid">
+                    <div class="report-card" onclick="gerarRelatorio('os_abertas')">
+                        <div class="report-icon"><i class="fas fa-clipboard"></i></div>
+                        <div class="report-info">
+                            <h4>OS Abertas</h4>
+                            <p>Ordens de serviço em aberto</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('os_periodo')">
+                        <div class="report-icon"><i class="fas fa-calendar"></i></div>
+                        <div class="report-info">
+                            <h4>OS por Período</h4>
+                            <p>Filtrar por data de abertura</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('os_tecnico')">
+                        <div class="report-icon"><i class="fas fa-user-cog"></i></div>
+                        <div class="report-info">
+                            <h4>OS por Técnico</h4>
+                            <p>Agrupado por técnico responsável</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('os_status')">
+                        <div class="report-icon"><i class="fas fa-tasks"></i></div>
+                        <div class="report-info">
+                            <h4>OS por Status</h4>
+                            <p>Distribuição por status atual</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Contratos de Serviço -->
+            <div class="section">
+                <div class="section-header">
+                    <i class="fas fa-file-contract"></i> Contratos de Serviço
+                </div>
+                <div class="reports-grid">
+                    <div class="report-card" onclick="gerarRelatorio('contratos_ativos')">
+                        <div class="report-icon"><i class="fas fa-file-signature"></i></div>
+                        <div class="report-info">
+                            <h4>Contratos Ativos</h4>
+                            <p>Contratos vigentes</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('contratos_vencimento')">
+                        <div class="report-icon"><i class="fas fa-clock"></i></div>
+                        <div class="report-info">
+                            <h4>Contratos por Vencimento</h4>
+                            <p>Próximos a vencer</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('contratos_valor')">
+                        <div class="report-icon"><i class="fas fa-dollar-sign"></i></div>
+                        <div class="report-info">
+                            <h4>Contratos por Valor</h4>
+                            <p>Ordenados por valor mensal</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('contratos_cliente')">
+                        <div class="report-icon"><i class="fas fa-users"></i></div>
+                        <div class="report-info">
+                            <h4>Contratos por Cliente</h4>
+                            <p>Agrupado por cliente</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('renovacoes')">
+                        <div class="report-icon"><i class="fas fa-redo"></i></div>
+                        <div class="report-info">
+                            <h4>Renovações Pendentes</h4>
+                            <p>Contratos para renovação</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('contratos_cancelados')">
+                        <div class="report-icon"><i class="fas fa-times-circle"></i></div>
+                        <div class="report-info">
+                            <h4>Contratos Cancelados</h4>
+                            <p>Histórico de cancelamentos</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('receita_recorrente')">
+                        <div class="report-icon"><i class="fas fa-chart-line"></i></div>
+                        <div class="report-info">
+                            <h4>Receita Recorrente</h4>
+                            <p>MRR e evolução mensal</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Faturamento -->
+            <div class="section">
+                <div class="section-header">
+                    <i class="fas fa-chart-bar"></i> Faturamento
+                </div>
+                <div class="reports-grid">
+                    <div class="report-card" onclick="gerarRelatorio('faturamento_mensal')">
+                        <div class="report-icon"><i class="fas fa-calendar-alt"></i></div>
+                        <div class="report-info">
+                            <h4>Faturamento Mensal</h4>
+                            <p>Total faturado por mês</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('nfe_status')">
+                        <div class="report-icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="report-info">
+                            <h4>NFe por Status</h4>
+                            <p>Autorizadas, canceladas, etc</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('top_clientes')">
+                        <div class="report-icon"><i class="fas fa-trophy"></i></div>
+                        <div class="report-info">
+                            <h4>Top Clientes</h4>
+                            <p>Maiores compradores</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('produtos_vendidos')">
+                        <div class="report-icon"><i class="fas fa-box"></i></div>
+                        <div class="report-info">
+                            <h4>Produtos Mais Vendidos</h4>
+                            <p>Ranking de produtos</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('impostos')">
+                        <div class="report-icon"><i class="fas fa-percentage"></i></div>
+                        <div class="report-info">
+                            <h4>Impostos Recolhidos</h4>
+                            <p>ICMS, IPI, PIS, COFINS</p>
+                        </div>
+                    </div>
+                    <div class="report-card" onclick="gerarRelatorio('comparativo_anual')">
+                        <div class="report-icon"><i class="fas fa-chart-area"></i></div>
+                        <div class="report-info">
+                            <h4>Comparativo Anual</h4>
+                            <p>Ano atual vs anterior</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</main>
+</div>
+
+<!-- Preview Overlay -->
+<div class="preview-overlay" id="previewSection">
+    <div class="preview-modal">
+        <div class="preview-header">
+            <h3><i class="fas fa-chart-bar"></i> <span id="previewTitle">Relatório</span></h3>
+            <button class="preview-close" onclick="fecharPreview()" title="Fechar"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="preview-body" id="previewContent"></div>
+        <div class="preview-footer">
+            <button class="btn btn-primary" onclick="exportarPDF()"><i class="fas fa-file-pdf"></i> Exportar PDF</button>
+            <button class="btn btn-success" onclick="exportarExcel()"><i class="fas fa-file-excel"></i> Exportar Excel</button>
+            <button class="btn btn-secondary" onclick="imprimirRelatorio()"><i class="fas fa-print"></i> Imprimir</button>
+            <button class="btn btn-secondary" onclick="fecharPreview()"><i class="fas fa-times"></i> Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleMobileSidebar() {
+    document.getElementById('mobile-sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('active');
+}
+function toggleNotificacoes() {}
+
+const avatarNameMap = {
+    'clemerson':'CM','isabela':'IB','thaina':'TH','thiago':'TG','nicolas':'NC',
+    'nicolasdaniel':'ND','rh':'RH','admin':'AD','ti':'TI','tialuforce':'TI',
+    'antonio':'AT','andreia':'AN','guilherme':'GH','marcelo':'MC','financeiro':'FN',
+    'douglas':'DG','hellen':'HL','helen':'HL','marcia':'MR','augusto':'AG',
+    'renata':'RN','fabiano':'FB','fabiola':'FL'
+};
+
+function carregarUsuario() {
+    fetch('/api/me', { credentials:'include' })
+    .then(r => r.json())
+    .then(user => {
+        const d = user.dados || user;
+        const nome = (d.nome || d.name || 'Usuário').split(' ')[0];
+        document.getElementById('user-name').textContent = nome;
+        const h = new Date().getHours();
+        document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+        const el = document.getElementById('user-initials');
+        const photo = document.getElementById('user-photo');
+        if (d.foto || d.avatar) {
+            photo.src = d.foto || d.avatar; photo.style.display = 'block'; photo.style.width = '100%'; photo.style.height = '100%'; photo.style.borderRadius = '50%'; photo.style.objectFit = 'cover'; el.style.display = 'none';
+        } else {
+            const key = nome.toLowerCase().replace(/\s/g,'');
+            el.textContent = avatarNameMap[key] || nome.substring(0,2).toUpperCase();
+        }
+    }).catch(() => {});
+}
+
+const dadosRelatorios = {
+    os_abertas: { titulo:'Ordens de Serviço Abertas', resumo:[{label:'Total Abertas',value:'23'},{label:'Urgentes',value:'5'},{label:'Em Andamento',value:'12'},{label:'Aguardando',value:'6'}], colunas:['OS','Cliente','Descrição','Técnico','Data','Prioridade'], linhas:[['OS-001','Tech Solutions','Manutenção preventiva','João Silva','15/01/2026','Alta'],['OS-002','Indústria Metal','Reparo equipamento','Carlos Lima','14/01/2026','Média'],['OS-003','Comércio Rápido','Instalação sistema','Ana Costa','13/01/2026','Baixa']] },
+    os_periodo: { titulo:'OS por Período', resumo:[{label:'Este Mês',value:'45'},{label:'Mês Anterior',value:'38'},{label:'Variação',value:'+18%'},{label:'Média/Dia',value:'2.1'}], colunas:['Período','Abertas','Finalizadas','Canceladas','Taxa Conclusão'], linhas:[['Jan/2026','45','38','3','84%'],['Dez/2025','38','35','2','92%'],['Nov/2025','42','40','1','95%']] },
+    os_tecnico: { titulo:'OS por Técnico', resumo:[{label:'Técnicos Ativos',value:'8'},{label:'Média por Técnico',value:'5.6'},{label:'Melhor Taxa',value:'98%'},{label:'Tempo Médio',value:'3.2h'}], colunas:['Técnico','Total OS','Finalizadas','Pendentes','Taxa'], linhas:[['João Silva','12','10','2','83%'],['Carlos Lima','8','7','1','87%'],['Ana Costa','10','9','1','90%']] },
+    os_status: { titulo:'OS por Status', resumo:[{label:'Abertas',value:'23'},{label:'Em Andamento',value:'12'},{label:'Finalizadas',value:'142'},{label:'Canceladas',value:'5'}], colunas:['Status','Quantidade','% do Total','Tempo Médio'], linhas:[['Aberta','23','12.6%','N/A'],['Em Andamento','12','6.6%','2.1 dias'],['Finalizada','142','78.0%','4.3 dias'],['Cancelada','5','2.7%','N/A']] },
+    contratos_ativos: { titulo:'Contratos Ativos', resumo:[{label:'Total Ativos',value:'67'},{label:'Receita Mensal',value:'R$ 234.500'},{label:'Ticket Médio',value:'R$ 3.500'},{label:'Renovações',value:'12'}], colunas:['Contrato','Cliente','Valor Mensal','Início','Vencimento','Status'], linhas:[['CT-001','Tech Solutions','R$ 5.500','01/01/2026','31/12/2026','Ativo'],['CT-002','Indústria Metal','R$ 8.200','15/03/2025','14/03/2026','Ativo'],['CT-003','Comércio Rápido','R$ 2.800','01/06/2025','31/05/2026','Ativo']] },
+    contratos_vencimento: { titulo:'Contratos por Vencimento', resumo:[{label:'Vencendo 30d',value:'8'},{label:'Vencendo 60d',value:'5'},{label:'Vencendo 90d',value:'3'},{label:'Valor em Risco',value:'R$ 45.600'}], colunas:['Contrato','Cliente','Vencimento','Valor','Dias Restantes'], linhas:[['CT-015','ABC Ltda','28/01/2026','R$ 3.200','13'],['CT-023','XYZ SA','05/02/2026','R$ 7.800','21'],['CT-031','Gama ME','15/02/2026','R$ 2.100','31']] },
+    contratos_valor: { titulo:'Contratos por Valor', resumo:[{label:'Maior Contrato',value:'R$ 15.000'},{label:'Menor',value:'R$ 800'},{label:'Média',value:'R$ 3.500'},{label:'Total Mensal',value:'R$ 234.500'}], colunas:['Contrato','Cliente','Valor Mensal','% do Total'], linhas:[['CT-005','Grande Corp','R$ 15.000','6.4%'],['CT-002','Indústria Metal','R$ 8.200','3.5%'],['CT-001','Tech Solutions','R$ 5.500','2.3%']] },
+    contratos_cliente: { titulo:'Contratos por Cliente', resumo:[{label:'Clientes Ativos',value:'52'},{label:'Multi-contrato',value:'8'},{label:'Novos (mês)',value:'3'},{label:'Churn',value:'1'}], colunas:['Cliente','Qtd Contratos','Valor Total','Desde'], linhas:[['Tech Solutions','3','R$ 12.500','Jan/2024'],['Indústria Metal','2','R$ 11.400','Mar/2024'],['Grande Corp','1','R$ 15.000','Jun/2025']] },
+    renovacoes: { titulo:'Renovações Pendentes', resumo:[{label:'Pendentes',value:'12'},{label:'Valor Total',value:'R$ 67.800'},{label:'Renovadas',value:'8'},{label:'Taxa Renovação',value:'85%'}], colunas:['Contrato','Cliente','Vencimento','Valor','Status Negociação'], linhas:[['CT-015','ABC Ltda','28/01/2026','R$ 3.200','Em negociação'],['CT-023','XYZ SA','05/02/2026','R$ 7.800','Proposta enviada'],['CT-031','Gama ME','15/02/2026','R$ 2.100','Aguardando']] },
+    contratos_cancelados: { titulo:'Contratos Cancelados', resumo:[{label:'Cancelados (ano)',value:'8'},{label:'Valor Perdido',value:'R$ 28.400'},{label:'Principal Motivo',value:'Preço'},{label:'Taxa Cancel.',value:'4.2%'}], colunas:['Contrato','Cliente','Valor','Data Cancel.','Motivo'], linhas:[['CT-045','Delta ME','R$ 1.800','10/12/2025','Redução de custos'],['CT-038','Sigma SA','R$ 5.200','22/11/2025','Mudou fornecedor']] },
+    receita_recorrente: { titulo:'Receita Recorrente (MRR)', resumo:[{label:'MRR Atual',value:'R$ 234.500'},{label:'Crescimento',value:'+5.2%'},{label:'Churn MRR',value:'-R$ 3.800'},{label:'Expansão',value:'+R$ 15.200'}], colunas:['Mês','MRR','Novos','Churn','Net Growth'], linhas:[['Jan/2026','R$ 234.500','R$ 15.200','-R$ 3.800','+R$ 11.400'],['Dez/2025','R$ 223.100','R$ 12.800','-R$ 2.500','+R$ 10.300'],['Nov/2025','R$ 212.800','R$ 8.900','-R$ 4.100','+R$ 4.800']] },
+    faturamento_mensal: { titulo:'Faturamento Mensal', resumo:[{label:'Este Mês',value:'R$ 456.789'},{label:'Mês Anterior',value:'R$ 412.350'},{label:'Variação',value:'+10.8%'},{label:'Acumulado Ano',value:'R$ 456.789'}], colunas:['Mês','NFe Emitidas','Valor Total','Ticket Médio','Variação'], linhas:[['Jan/2026','89','R$ 456.789','R$ 5.132','+10.8%'],['Dez/2025','76','R$ 412.350','R$ 5.426','+3.2%'],['Nov/2025','82','R$ 399.510','R$ 4.872','-1.5%']] },
+    nfe_status: { titulo:'NFe por Status', resumo:[{label:'Autorizadas',value:'842'},{label:'Canceladas',value:'23'},{label:'Rejeitadas',value:'8'},{label:'Taxa Sucesso',value:'96.4%'}], colunas:['Status','Quantidade','% Total','Valor Total'], linhas:[['Autorizada','842','96.4%','R$ 4.567.890'],['Cancelada','23','2.6%','R$ 156.780'],['Rejeitada','8','0.9%','R$ 45.230'],['Pendente','1','0.1%','R$ 12.500']] },
+    top_clientes: { titulo:'Top Clientes', resumo:[{label:'Total Clientes',value:'156'},{label:'Top 10 = % Fat.',value:'62%'},{label:'Maior Cliente',value:'R$ 234.500'},{label:'Ticket Médio',value:'R$ 5.132'}], colunas:['#','Cliente','NFes','Valor Total','% do Total'], linhas:[['1','Grande Corp','45','R$ 234.500','5.1%'],['2','Indústria Metal','38','R$ 189.300','4.1%'],['3','Tech Solutions','42','R$ 178.900','3.9%'],['4','Comércio Rápido','29','R$ 145.600','3.2%'],['5','Construtora ABC','25','R$ 132.400','2.9%']] },
+    produtos_vendidos: { titulo:'Produtos Mais Vendidos', resumo:[{label:'Total Produtos',value:'342'},{label:'Top 10 = % Vendas',value:'45%'},{label:'Produto Líder',value:'Produto A'},{label:'Margem Média',value:'32%'}], colunas:['#','Produto','NCM','Qtd Vendida','Valor Total','% do Total'], linhas:[['1','Produto A','8471.30.19','1.250','R$ 312.500','15.2%'],['2','Produto B','8473.30.99','890','R$ 267.000','13.0%'],['3','Produto C','7326.90.90','2.100','R$ 189.000','9.2%']] },
+    impostos: { titulo:'Impostos Recolhidos', resumo:[{label:'ICMS',value:'R$ 234.567'},{label:'IPI',value:'R$ 45.890'},{label:'PIS',value:'R$ 23.456'},{label:'COFINS',value:'R$ 108.234'}], colunas:['Imposto','Base Cálculo','Alíquota Média','Valor Recolhido','% do Fat.'], linhas:[['ICMS','R$ 1.302.594','18%','R$ 234.567','5.1%'],['IPI','R$ 459.800','10%','R$ 45.890','1.0%'],['PIS','R$ 1.423.394','1.65%','R$ 23.456','0.5%'],['COFINS','R$ 1.423.394','7.6%','R$ 108.234','2.4%']] },
+    comparativo_anual: { titulo:'Comparativo Anual', resumo:[{label:'2026 (parcial)',value:'R$ 456.789'},{label:'2025 Total',value:'R$ 4.890.350'},{label:'Projeção 2026',value:'R$ 5.481.468'},{label:'Crescimento',value:'+12.1%'}], colunas:['Mês','2025','2026','Variação'], linhas:[['Janeiro','R$ 356.700','R$ 456.789','+28.1%'],['Fevereiro','R$ 378.400','—','—'],['Março','R$ 412.100','—','—']] }
+};
+
+function gerarRelatorio(tipo) {
+    const dados = dadosRelatorios[tipo];
+    if (!dados) return showToast('Relatório não disponível');
+
+    document.getElementById('previewTitle').textContent = dados.titulo;
+
+    let html = '';
+    if (dados.resumo) {
+        html += '<div class="report-summary">';
+        dados.resumo.forEach(r => {
+            html += '<div class="summary-card"><div class="label">' + r.label + '</div><div class="value">' + r.value + '</div></div>';
+        });
+        html += '</div>';
+    }
+    if (dados.colunas && dados.linhas) {
+        html += '<table class="report-table"><thead><tr>';
+        dados.colunas.forEach(c => html += '<th>' + c + '</th>');
+        html += '</tr></thead><tbody>';
+        dados.linhas.forEach(l => {
+            html += '<tr>';
+            l.forEach(v => html += '<td>' + v + '</td>');
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+    }
+
+    document.getElementById('previewContent').innerHTML = html;
+    document.getElementById('previewSection').classList.add('active');
+    document.getElementById('currentReportType').value = tipo;
+}
+
+function fecharPreview() {
+    document.getElementById('previewSection').classList.remove('active');
+}
+
+function exportarPDF() {
+    window.print();
+}
+
+function exportarExcel() {
+    const tipo = document.getElementById('currentReportType').value;
+    const dados = dadosRelatorios[tipo];
+    if (!dados) return;
+
+    let csv = dados.colunas.join(';') + '\n';
+    dados.linhas.forEach(l => csv += l.join(';') + '\n');
+
+    const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'relatorio_' + tipo + '.csv';
+    a.click();
+}
+
+function imprimirRelatorio() {
+    window.print();
+}
+
+function showToast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = '<i class="fas fa-info-circle"></i> ' + msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+
+function abrirModalConfiguracoes() { alert('Configurações - Em desenvolvimento'); }
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarUsuario();
+});
+</script>
+
+<script src="/js/notification-manager.js"></script>
+<script src="/_shared/connection-monitor.js"></script>
+<script src="/js/popup-confirmacao.js"></script>
+<script src="/js/auth-unified.js"></script>
+
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — DANFE</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn active" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon red"><i class="fas fa-file-pdf"></i></div>
+                        <div>
+                            <h1 class="page-title">DANFE — Documento Auxiliar</h1>
+                            <p class="page-subtitle">Gere e visualize o DANFE de notas fiscais</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-search"></i> Localizar NF-e</h3>
+                </div>
+                <div class="card-body">
+                    <form id="form-buscar-nfe" onsubmit="event.preventDefault(); gerarPreview();">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Chave de Acesso (44 dígitos)</label>
+                                <input type="text" class="form-control font-mono" id="chave-acesso" placeholder="Informe a chave de acesso da NF-e" maxlength="44">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Número da NF-e</label>
+                                <input type="text" class="form-control" id="numero-nfe" placeholder="Nº da nota">
+                            </div>
+                            <div class="form-group">
+                                <label>Série</label>
+                                <input type="text" class="form-control" id="serie-nfe" placeholder="Série" value="1">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Buscar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-file-alt"></i> Formato de Impressão</h3>
+                </div>
+                <div class="card-body">
+                    <div class="option-cards">
+                        <div class="option-card selected" data-tipo="retrato" onclick="selecionarFormato(this)">
+                            <i class="fas fa-file-alt"></i>
+                            <h5>Retrato</h5>
+                            <p>Formato padrão A4 vertical</p>
+                        </div>
+                        <div class="option-card" data-tipo="paisagem" onclick="selecionarFormato(this)">
+                            <i class="fas fa-file-landscape" style="transform:rotate(90deg);"></i>
+                            <h5>Paisagem</h5>
+                            <p>Formato A4 horizontal</p>
+                        </div>
+                        <div class="option-card" data-tipo="simplificado" onclick="selecionarFormato(this)">
+                            <i class="fas fa-receipt"></i>
+                            <h5>Simplificado</h5>
+                            <p>Versão resumida para NFC-e</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-eye"></i> Preview DANFE</h3>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-primary btn-sm" onclick="gerarPDF()"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                        <button class="btn btn-secondary btn-sm" onclick="imprimir()"><i class="fas fa-print"></i> Imprimir</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="preview-danfe">
+                        <div class="empty-state">
+                            <i class="fas fa-file-pdf"></i>
+                            <h3>Preview do DANFE</h3>
+                            <p>Busque uma NF-e para visualizar o DANFE</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
+
+let formatoSelecionado = 'retrato';
+let nfeEncontrada = null;
+
+function selecionarFormato(el) {
+    document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    formatoSelecionado = el.getAttribute('data-tipo');
+}
+
+async function gerarPreview() {
+    const chave = document.getElementById('chave-acesso').value.trim();
+    const numero = document.getElementById('numero-nfe').value.trim();
+    const serie = document.getElementById('serie-nfe').value.trim();
+    if (!chave && !numero) { alert('Informe a chave de acesso ou número da NF-e'); return; }
+
+    const preview = document.getElementById('preview-danfe');
+    preview.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin" style="font-size:32px;"></i><p>Buscando NF-e...</p></div>';
+
+    try {
+        let nfe = null;
+
+        // Tentar buscar por ID/número direto
+        if (numero) {
+            // Buscar via listar com filtro
+            const params = new URLSearchParams();
+            params.set('numero', numero);
+            if (serie) params.set('serie', serie);
+            params.set('limite', '1');
+            const r = await fetch('/api/nfe/listar?' + params.toString(), { credentials: 'include' });
+            if (r.ok) {
+                const data = await r.json();
+                const lista = Array.isArray(data) ? data : data.data || [];
+                if (lista.length > 0) nfe = lista[0];
+            }
+        }
+
+        // Se não encontrou por número, tentar por chave (buscar lista e filtrar)
+        if (!nfe && chave) {
+            const r = await fetch('/api/nfe/listar?limite=500', { credentials: 'include' });
+            if (r.ok) {
+                const data = await r.json();
+                const lista = Array.isArray(data) ? data : data.data || [];
+                nfe = lista.find(n => (n.chave_acesso || '') === chave);
+            }
+        }
+
+        // Se ainda não encontrou, tentar buscar direto como ID
+        if (!nfe && numero) {
+            const r = await fetch(`/api/nfe/${numero}`, { credentials: 'include' });
+            if (r.ok) nfe = await r.json();
+        }
+
+        if (!nfe) {
+            preview.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:var(--warning);"></i><h3>NF-e não encontrada</h3><p>Verifique o número ou chave de acesso informada</p></div>';
+            return;
+        }
+
+        nfeEncontrada = nfe;
+        const valor = (nfe.valor || nfe.valor_total || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+        const data = nfe.data_emissao ? new Date(nfe.data_emissao).toLocaleString('pt-BR') : '-';
+
+        preview.innerHTML = `
+            <div style="border:2px solid #e2e8f0;border-radius:8px;padding:24px;background:#fff;">
+                <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1e293b;padding-bottom:16px;margin-bottom:16px;">
+                    <div>
+                        <h2 style="margin:0;font-size:18px;color:#1e293b;">DANFE</h2>
+                        <p style="margin:2px 0 0;font-size:11px;color:#64748b;">Documento Auxiliar da Nota Fiscal Eletrônica</p>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="font-size:24px;font-weight:700;color:#2563eb;">NF-e Nº ${nfe.numero || '-'}</div>
+                        <div style="font-size:12px;color:#64748b;">Série ${nfe.serie || '1'}</div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                    <div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Destinatário</div>
+                        <div style="font-weight:600;">${nfe.destinatario || nfe.cliente || '-'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Status</div>
+                        <span class="badge ${(nfe.status||'').toLowerCase()}">${nfe.status || '-'}</span>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Data de Emissão</div>
+                        <div>${data}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Valor Total</div>
+                        <div style="font-weight:700;font-size:18px;color:#16a34a;">${valor}</div>
+                    </div>
+                </div>
+                ${nfe.chave_acesso ? `<div style="border-top:1px solid #e2e8f0;padding-top:12px;"><div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Chave de Acesso</div><div class="code" style="font-size:11px;word-break:break-all;">${nfe.chave_acesso}</div></div>` : ''}
+                ${nfe.protocolo ? `<div style="margin-top:8px;"><div style="font-size:11px;color:#64748b;text-transform:uppercase;margin-bottom:4px;">Protocolo</div><div class="code">${nfe.protocolo}</div></div>` : ''}
+            </div>
+            <div style="text-align:center;margin-top:16px;padding:12px;background:#f0fdf4;border-radius:8px;">
+                <i class="fas fa-check-circle" style="color:#16a34a;margin-right:6px;"></i>
+                <span style="color:#15803d;font-weight:500;">NF-e localizada — ID: ${nfe.id}. Clique em "Gerar PDF" para baixar o DANFE.</span>
+            </div>
+        `;
+    } catch(e) {
+        console.error('[DANFE] Erro:', e);
+        preview.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle" style="color:var(--danger);"></i><h3>Erro na consulta</h3><p>' + e.message + '</p></div>';
+    }
+}
+
+function gerarPDF() {
+    if (!nfeEncontrada) { alert('Busque uma NF-e primeiro'); return; }
+    window.open(`/api/nfe/${nfeEncontrada.id}/danfe`, '_blank');
+}
+
+function imprimir() {
+    if (!nfeEncontrada) { alert('Busque uma NF-e primeiro'); return; }
+    // Abrir DANFE em nova aba para impressão
+    const w = window.open(`/api/nfe/${nfeEncontrada.id}/danfe`, '_blank');
+    if (w) setTimeout(() => { try { w.print(); } catch(e) {} }, 1000);
+}
+
+function carregarDadosUsuario() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' })
+        .then(r => r.json())
+        .then(u => {
+            const nome = u.nome || u.name || 'Usuário';
+            document.getElementById('user-name').textContent = nome.split(' ')[0];
+            document.getElementById('user-initials').textContent = nome.substring(0,2).toUpperCase();
+            if (u.foto || u.avatar) { document.getElementById('user-photo').src = u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+        }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => { carregarDadosUsuario(); });
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

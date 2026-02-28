@@ -1,0 +1,400 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <title>Aluforce: Eventos Faturamento</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { height:100%; }
+        html, body { font-family:'Inter',sans-serif; background:#f9fafb; color:#111827; }
+        body { height:100%; min-height:100vh; }
+        :root { --fat-primary:#10b981; --fat-secondary:#059669; }
+        .page-content { padding:20px; max-width:100%; margin:0; flex:1; }
+        .page-title { font-size:18px; font-weight:700; color:#111827; margin-bottom:20px; display:flex; align-items:center; gap:10px; }
+        .page-title i { color:var(--fat-primary); }
+        .card { background:#fff; border-radius:8px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:20px; }
+        .card-header { font-size:14px; font-weight:600; color:#111827; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+        .card-header i { color:var(--fat-primary); font-size:14px; }
+        .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
+        .form-group { display:flex; flex-direction:column; }
+        .form-group label { font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; }
+        .form-group input, .form-group select, .form-group textarea { height:36px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; padding:0 10px; font-family:inherit; outline:none; transition:border-color 0.2s; }
+        .form-group textarea { height:auto; padding:8px 10px; resize:vertical; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--fat-primary); box-shadow:0 0 0 2px rgba(16,185,129,0.1); }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
+        .btn-primary { background:var(--fat-primary); color:#fff; }
+        .btn-primary:hover { background:var(--fat-secondary); }
+        .btn-danger { background:#ef4444; color:#fff; }
+        .btn-danger:hover { background:#dc2626; }
+        .btn-warning { background:#f59e0b; color:#fff; }
+        .btn-warning:hover { background:#d97706; }
+        .btn-secondary { background:#e5e7eb; color:#374151; }
+        .btn-secondary:hover { background:#d1d5db; }
+        .actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+        .nfe-info-display { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; padding:14px; background:#f9fafb; border-radius:6px; margin-top:14px; }
+        .nfe-info-item { }
+        .nfe-info-item .lbl { font-size:10px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; }
+        .nfe-info-item .val { font-size:13px; font-weight:500; color:#111827; margin-top:2px; }
+        .warning-banner { background:#fef3c7; border:1px solid #fbbf24; border-radius:6px; padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; color:#92400e; }
+        .warning-banner i { font-size:16px; }
+        .danger-banner { background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; color:#991b1b; }
+        .danger-banner i { font-size:16px; }
+        .char-count { font-size:11px; color:#9ca3af; margin-top:4px; }
+        .eventos-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .eventos-table th { background:#f3f4f6; padding:10px 12px; font-weight:600; font-size:11px; text-transform:uppercase; color:#6b7280; border-bottom:2px solid #e5e7eb; text-align:left; }
+        .eventos-table td { padding:10px 12px; border-bottom:1px solid #f3f4f6; }
+        .status-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+        .status-success { background:#dcfce7; color:#166534; }
+        .status-error { background:#fef2f2; color:#991b1b; }
+        .status-info { background:#e0e7ff; color:#3730a3; }
+        .empty-state { text-align:center; padding:30px; color:#9ca3af; }
+        .empty-state i { font-size:28px; margin-bottom:8px; display:block; }
+        .alert { padding:12px 16px; border-radius:6px; font-size:13px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+        .alert-success { background:#dcfce7; color:#166534; border:1px solid #86efac; }
+        .alert-danger { background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
+        .alert-warning { background:#fef3c7; color:#92400e; border:1px solid #fbbf24; }
+        @media(max-width:768px) {
+            .page-content { padding:14px; }
+            .form-grid { grid-template-columns:1fr; }
+            .nfe-info-display { grid-template-columns:1fr 1fr; }
+        }
+    </style>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="emitir.html" class="sidebar-btn" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+                <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
+                <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+                <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+                <a href="eventos.html" class="sidebar-btn active" title="Eventos"><i class="fas fa-history"></i></a>
+                <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+                <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Eventos Faturamento</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <div class="main-content">
+                <div class="page-content">
+                    <div id="alertContainer"></div>
+                    <h2 class="page-title"><i class="fas fa-history"></i> Eventos da NFe</h2>
+
+                    <!-- Card: Informações da NFe -->
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-info-circle"></i> Informações da NFe</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>ID / Número da NFe</label>
+                                <input type="text" id="nfeId" placeholder="Ex: 12345">
+                            </div>
+                            <div class="form-group" style="align-self:end;">
+                                <button class="btn btn-primary" onclick="carregarNFe()"><i class="fas fa-search"></i> Carregar NFe</button>
+                            </div>
+                        </div>
+                        <div id="nfeInfoDisplay" class="nfe-info-display" style="display:none;">
+                            <div class="nfe-info-item"><div class="lbl">Número</div><div class="val" id="infoNumero">-</div></div>
+                            <div class="nfe-info-item"><div class="lbl">Série</div><div class="val" id="infoSerie">-</div></div>
+                            <div class="nfe-info-item"><div class="lbl">Chave de Acesso</div><div class="val" id="infoChave" style="word-break:break-all;">-</div></div>
+                            <div class="nfe-info-item"><div class="lbl">Destinatário</div><div class="val" id="infoDestinatario">-</div></div>
+                            <div class="nfe-info-item"><div class="lbl">Valor</div><div class="val" id="infoValor">-</div></div>
+                            <div class="nfe-info-item"><div class="lbl">Status</div><div class="val" id="infoStatus">-</div></div>
+                        </div>
+                    </div>
+
+                    <!-- Card: Cancelamento -->
+                    <div class="card" id="cancelamentoCard" style="display:none;">
+                        <div class="card-header"><i class="fas fa-times-circle"></i> Cancelamento de NFe</div>
+                        <div class="danger-banner">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span><strong>Atenção:</strong> O cancelamento é irreversível e deve ser feito em até 24 horas após a autorização.</span>
+                        </div>
+                        <div class="form-group">
+                            <label>Justificativa do Cancelamento <span style="color:#ef4444;">*</span></label>
+                            <textarea id="justificativaCancelamento" rows="3" placeholder="Mínimo 15 caracteres, máximo 255" minlength="15" maxlength="255" oninput="atualizarContadorCancel()"></textarea>
+                            <div class="char-count"><span id="charCountCancel">0</span>/255 caracteres (mínimo 15)</div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-danger" onclick="cancelarNFe()"><i class="fas fa-times-circle"></i> Cancelar NFe</button>
+                        </div>
+                    </div>
+
+                    <!-- Card: Carta de Correção -->
+                    <div class="card" id="cceCard" style="display:none;">
+                        <div class="card-header"><i class="fas fa-edit"></i> Carta de Correção Eletrônica (CC-e)</div>
+                        <div class="warning-banner">
+                            <i class="fas fa-info-circle"></i>
+                            <span>A CC-e não permite alterar valores, impostos, dados do emitente/destinatário ou a descrição da mercadoria.</span>
+                        </div>
+                        <div class="form-group">
+                            <label>Texto da Correção <span style="color:#ef4444;">*</span></label>
+                            <textarea id="textoCCe" rows="4" placeholder="Mínimo 15 caracteres, máximo 1000" minlength="15" maxlength="1000" oninput="atualizarContadorCCe()"></textarea>
+                            <div class="char-count"><span id="charCountCCe">0</span>/1000 caracteres (mínimo 15)</div>
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-warning" onclick="registrarCCe()"><i class="fas fa-edit"></i> Registrar CC-e</button>
+                        </div>
+                    </div>
+
+                    <!-- Card: Histórico de Eventos -->
+                    <div class="card">
+                        <div class="card-header"><i class="fas fa-list"></i> Histórico de Eventos</div>
+                        <div style="overflow-x:auto;">
+                            <table class="eventos-table" id="eventosTable">
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Data/Hora</th>
+                                        <th>Protocolo</th>
+                                        <th>Descrição</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="eventosTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="eventosEmpty" class="empty-state">
+                            <i class="fas fa-history"></i>
+                            <p style="font-size:13px;">Carregue uma NFe para visualizar seus eventos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script>
+        // == Toggle mobile sidebar ==
+        function toggleMobileSidebar() {
+            const s = document.getElementById('mobile-sidebar');
+            const o = document.getElementById('sidebar-overlay');
+            s.classList.toggle('open');
+            o.classList.toggle('active');
+        }
+        function toggleNotificacoes() {}
+
+        // == Avatar map ==
+        const avatarNameMap = {
+            'clemerson':'CM','isabela':'IB','thaina':'TH','thiago':'TG','nicolas':'NC',
+            'nicolasdaniel':'ND','rh':'RH','admin':'AD','ti':'TI','tialuforce':'TI',
+            'antonio':'AT','andreia':'AN','guilherme':'GH','marcelo':'MC','financeiro':'FN',
+            'douglas':'DG','hellen':'HL','helen':'HL','marcia':'MR','augusto':'AG',
+            'renata':'RN','fabiano':'FB','fabiola':'FL'
+        };
+
+        function carregarUsuario() {
+            fetch('/api/me', { credentials:'include' })
+            .then(r => r.json())
+            .then(user => {
+                const d = user.dados || user;
+                const nome = (d.nome || d.name || 'Usuário').split(' ')[0];
+                document.getElementById('user-name').textContent = nome;
+                const h = new Date().getHours();
+                document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                const el = document.getElementById('user-initials');
+                const photo = document.getElementById('user-photo');
+                if (d.foto || d.avatar) {
+                    photo.src = d.foto || d.avatar;
+                    photo.style.display = 'block';
+                    photo.style.width = '100%';
+                    photo.style.height = '100%';
+                    photo.style.borderRadius = '50%';
+                    photo.style.objectFit = 'cover';
+                    el.style.display = 'none';
+                } else {
+                    const key = nome.toLowerCase().replace(/\s/g,'');
+                    el.textContent = avatarNameMap[key] || nome.substring(0,2).toUpperCase();
+                }
+            }).catch(() => {});
+        }
+
+        let nfeCarregada = null;
+
+        function carregarNFe() {
+            const id = document.getElementById('nfeId').value.trim();
+            if (!id) return showAlert('Informe o ID ou número da NFe', 'warning');
+
+            fetch('/api/nfe/' + id, { credentials:'include' })
+            .then(r => {
+                if (!r.ok) throw new Error('NFe não encontrada');
+                return r.json();
+            })
+            .then(data => {
+                nfeCarregada = data.nfe || data.data || data;
+                document.getElementById('infoNumero').textContent = nfeCarregada.numero || nfeCarregada.id || '-';
+                document.getElementById('infoSerie').textContent = nfeCarregada.serie || '1';
+                document.getElementById('infoChave').textContent = nfeCarregada.chave || nfeCarregada.chave_acesso || '-';
+                document.getElementById('infoDestinatario').textContent = nfeCarregada.destinatario || nfeCarregada.cliente || '-';
+                document.getElementById('infoValor').textContent = (nfeCarregada.valor || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+                document.getElementById('infoStatus').textContent = (nfeCarregada.status || 'pendente').toUpperCase();
+                document.getElementById('nfeInfoDisplay').style.display = 'grid';
+                document.getElementById('cancelamentoCard').style.display = 'block';
+                document.getElementById('cceCard').style.display = 'block';
+                carregarEventos(id);
+                showAlert('NFe carregada com sucesso', 'success');
+            })
+            .catch(e => {
+                showAlert(e.message || 'Erro ao carregar NFe', 'danger');
+            });
+        }
+
+        function cancelarNFe() {
+            if (!nfeCarregada) return showAlert('Carregue uma NFe primeiro', 'warning');
+            const just = document.getElementById('justificativaCancelamento').value.trim();
+            if (just.length < 15) return showAlert('Justificativa deve ter no mínimo 15 caracteres', 'warning');
+            if (!confirm('ATENÇÃO: Esta ação é IRREVERSÍVEL. Deseja realmente cancelar esta NFe?')) return;
+
+            const id = nfeCarregada.id || nfeCarregada.numero || document.getElementById('nfeId').value;
+            fetch('/api/nfe/' + id + '/cancelar', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                credentials:'include',
+                body: JSON.stringify({ justificativa: just })
+            })
+            .then(r => {
+                if (!r.ok) throw new Error('Erro ao cancelar NFe');
+                return r.json();
+            })
+            .then(data => {
+                showAlert('NFe cancelada com sucesso! Protocolo: ' + (data.protocolo || '-'), 'success');
+                document.getElementById('infoStatus').textContent = 'CANCELADA';
+                carregarEventos(id);
+            })
+            .catch(e => showAlert(e.message, 'danger'));
+        }
+
+        function registrarCCe() {
+            if (!nfeCarregada) return showAlert('Carregue uma NFe primeiro', 'warning');
+            const texto = document.getElementById('textoCCe').value.trim();
+            if (texto.length < 15) return showAlert('Texto da correção deve ter no mínimo 15 caracteres', 'warning');
+
+            const id = nfeCarregada.id || nfeCarregada.numero || document.getElementById('nfeId').value;
+            fetch('/api/nfe/' + id + '/cce', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                credentials:'include',
+                body: JSON.stringify({ correcao: texto })
+            })
+            .then(r => {
+                if (!r.ok) throw new Error('Erro ao registrar CC-e');
+                return r.json();
+            })
+            .then(data => {
+                showAlert('Carta de Correção registrada com sucesso! Protocolo: ' + (data.protocolo || '-'), 'success');
+                document.getElementById('textoCCe').value = '';
+                atualizarContadorCCe();
+                carregarEventos(id);
+            })
+            .catch(e => showAlert(e.message, 'danger'));
+        }
+
+        function carregarEventos(nfeId) {
+            fetch('/api/nfe/' + nfeId + '/eventos', { credentials:'include' })
+            .then(r => r.json())
+            .then(data => {
+                const eventos = data.eventos || data.data || data || [];
+                const tbody = document.getElementById('eventosTableBody');
+                const empty = document.getElementById('eventosEmpty');
+                if (!Array.isArray(eventos) || eventos.length === 0) {
+                    tbody.innerHTML = '';
+                    empty.style.display = 'block';
+                    return;
+                }
+                empty.style.display = 'none';
+                tbody.innerHTML = eventos.map(ev => {
+                    const dt = ev.data ? new Date(ev.data).toLocaleString('pt-BR') : '-';
+                    const statusClass = (ev.status||'').toLowerCase().includes('sucesso') || (ev.status||'').toLowerCase().includes('autoriza') ? 'status-success' : (ev.status||'').toLowerCase().includes('erro') || (ev.status||'').toLowerCase().includes('rejeit') ? 'status-error' : 'status-info';
+                    return `<tr>
+                        <td><strong>${ev.tipo || '-'}</strong></td>
+                        <td>${dt}</td>
+                        <td style="font-family:monospace;font-size:12px;">${ev.protocolo || '-'}</td>
+                        <td>${ev.descricao || ev.texto || '-'}</td>
+                        <td><span class="status-badge ${statusClass}">${ev.status || '-'}</span></td>
+                    </tr>`;
+                }).join('');
+            })
+            .catch(() => {
+                document.getElementById('eventosTableBody').innerHTML = '';
+                document.getElementById('eventosEmpty').style.display = 'block';
+            });
+        }
+
+        function atualizarContadorCancel() {
+            document.getElementById('charCountCancel').textContent = document.getElementById('justificativaCancelamento').value.length;
+        }
+        function atualizarContadorCCe() {
+            document.getElementById('charCountCCe').textContent = document.getElementById('textoCCe').value.length;
+        }
+
+        function showAlert(msg, type) {
+            const c = document.getElementById('alertContainer');
+            const div = document.createElement('div');
+            div.className = 'alert alert-' + type;
+            div.innerHTML = '<i class="fas fa-' + (type==='success'?'check-circle':type==='danger'?'times-circle':'exclamation-triangle') + '"></i> ' + msg;
+            c.prepend(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        function abrirModalConfiguracoes() {
+            alert('Configurações - Em desenvolvimento');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            // Check URL params
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('nfe')) {
+                document.getElementById('nfeId').value = params.get('nfe');
+                carregarNFe();
+            }
+        });
+    </script>
+    <script src="/js/notification-manager.js" defer></script>
+    <script src="../_shared/connection-monitor.js" defer></script>
+    <script src="/js/popup-confirmacao.js" defer></script>
+    <script src="/js/auth-unified.js?v=20260131c" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

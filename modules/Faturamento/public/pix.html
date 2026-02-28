@@ -1,0 +1,422 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — PIX</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn active" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon green"><i class="fas fa-qrcode"></i></div>
+                        <div>
+                            <h1 class="page-title">PIX — Gateway de Pagamento</h1>
+                            <p class="page-subtitle">Geração de cobranças PIX e acompanhamento de recebimentos</p>
+                        </div>
+                    </div>
+                    <div class="page-actions">
+                        <button class="btn btn-primary" onclick="openModal('modalNovaCobranca')"><i class="fas fa-plus"></i> Nova Cobrança PIX</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Provider Selection -->
+            <div class="card fade-in-delay-1">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-plug"></i> Provedor PIX</h3>
+                </div>
+                <div class="card-body">
+                    <div class="provider-grid" id="provider-grid">
+                        <div class="provider-card" data-provider="mercadopago" onclick="selecionarProvedor('mercadopago')">
+                            <div class="provider-card-icon" style="background:#009ee3;color:#fff;"><i class="fas fa-credit-card"></i></div>
+                            <h4>Mercado Pago</h4>
+                            <p>Integração via API Mercado Pago</p>
+                        </div>
+                        <div class="provider-card" data-provider="pagarme" onclick="selecionarProvedor('pagarme')">
+                            <div class="provider-card-icon" style="background:#65a300;color:#fff;"><i class="fas fa-money-check-alt"></i></div>
+                            <h4>Pagar.me</h4>
+                            <p>Gateway Pagar.me com PIX</p>
+                        </div>
+                        <div class="provider-card" data-provider="asaas" onclick="selecionarProvedor('asaas')">
+                            <div class="provider-card-icon" style="background:#1e40af;color:#fff;"><i class="fas fa-university"></i></div>
+                            <h4>Asaas</h4>
+                            <p>Plataforma completa de cobranças</p>
+                        </div>
+                        <div class="provider-card" data-provider="gerencianet" onclick="selecionarProvedor('gerencianet')">
+                            <div class="provider-card-icon" style="background:#00b4d8;color:#fff;"><i class="fas fa-wallet"></i></div>
+                            <h4>Gerencianet / Efí</h4>
+                            <p>PIX via Gerencianet (Efí Bank)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config -->
+            <div class="card fade-in-delay-2" id="config-section" style="display:none;">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-key"></i> Credenciais do Provedor</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group"><label>Client ID / Token *</label><input type="text" class="form-control" id="pix-client-id" placeholder="Client ID"></div>
+                        <div class="form-group"><label>Client Secret / Key *</label><input type="password" class="form-control" id="pix-client-secret" placeholder="Client Secret"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Chave PIX</label><input type="text" class="form-control" id="pix-chave" placeholder="CPF, CNPJ, e-mail ou chave aleatória"></div>
+                        <div class="form-group"><label>Ambiente</label><select class="form-control" id="pix-ambiente"><option value="sandbox">Sandbox (Teste)</option><option value="producao">Produção</option></select></div>
+                    </div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-secondary" onclick="testarConexao()"><i class="fas fa-plug"></i> Testar Conexão</button>
+                        <button class="btn btn-primary" onclick="salvarConfiguracao()"><i class="fas fa-save"></i> Salvar</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Stats -->
+            <div class="stats-grid fade-in-delay-3" style="grid-template-columns:repeat(4,1fr);">
+                <div class="stat-card green">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-check-circle"></i></div></div>
+                    <div class="stat-value" id="stat-recebidos">0</div>
+                    <div class="stat-label">Recebidos</div>
+                </div>
+                <div class="stat-card yellow">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-clock"></i></div></div>
+                    <div class="stat-value" id="stat-pendentes">0</div>
+                    <div class="stat-label">Pendentes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header"><div class="stat-icon"><i class="fas fa-dollar-sign"></i></div></div>
+                    <div class="stat-value" id="stat-valor-total">R$ 0</div>
+                    <div class="stat-label">Valor Total Recebido</div>
+                </div>
+                <div class="stat-card" style="--stat-accent:#ef4444;">
+                    <div class="stat-header"><div class="stat-icon" style="background:#fef2f2;color:#ef4444;"><i class="fas fa-times-circle"></i></div></div>
+                    <div class="stat-value" id="stat-expirados">0</div>
+                    <div class="stat-label">Expirados</div>
+                </div>
+            </div>
+
+            <!-- Cobranças -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-list"></i> Cobranças PIX</h3>
+                    <div style="display:flex;gap:8px;">
+                        <select class="filter-btn" id="filtro-cobranca-status" onchange="carregarCobrancas()">
+                            <option value="">Todos</option>
+                            <option value="pago">Pago</option>
+                            <option value="pendente">Pendente</option>
+                            <option value="expirado">Expirado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="tabela-cobrancas">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Cliente</th>
+                                    <th>Valor</th>
+                                    <th>Data</th>
+                                    <th>Vencimento</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td colspan="7"><div class="empty-state"><i class="fas fa-qrcode"></i><p>Carregando cobranças...</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Modal Nova Cobrança -->
+<div class="modal-overlay" id="modalNovaCobranca">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-qrcode"></i> Nova Cobrança PIX</h3>
+            <button class="modal-close" onclick="closeModal('modalNovaCobranca')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group"><label>Cliente / Devedor *</label><input type="text" class="form-control" id="cob-cliente" placeholder="Nome do cliente"></div>
+            <div class="form-row">
+                <div class="form-group"><label>CPF/CNPJ *</label><input type="text" class="form-control" id="cob-documento" placeholder="000.000.000-00"></div>
+                <div class="form-group"><label>Valor (R$) *</label><input type="number" step="0.01" class="form-control" id="cob-valor" placeholder="0,00"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Vencimento</label><input type="date" class="form-control" id="cob-vencimento"></div>
+                <div class="form-group"><label>Expiração (segundos)</label><input type="number" class="form-control" id="cob-expiracao" value="3600" placeholder="3600"></div>
+            </div>
+            <div class="form-group"><label>Descrição</label><textarea class="form-control" id="cob-descricao" rows="2" placeholder="Descrição da cobrança..."></textarea></div>
+            <div class="form-group">
+                <label><input type="checkbox" id="cob-enviar-email"> Enviar e-mail com QR Code ao cliente</label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modalNovaCobranca')">Cancelar</button>
+            <button class="btn btn-primary" onclick="criarCobranca()"><i class="fas fa-qrcode"></i> Gerar PIX</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal QR Code -->
+<div class="modal-overlay" id="modalQRCode">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-qrcode"></i> QR Code PIX</h3>
+            <button class="modal-close" onclick="closeModal('modalQRCode')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" style="text-align:center;">
+            <div class="qr-code-display" id="qr-code-container">
+                <img id="qr-code-img" src="" alt="QR Code PIX" style="max-width:250px;border-radius:8px;">
+            </div>
+            <div class="form-group" style="margin-top:16px;">
+                <label style="font-size:12px;color:#64748b;">Código PIX (Copia e Cola)</label>
+                <div style="display:flex;gap:8px;">
+                    <input type="text" class="form-control" id="pix-codigo" readonly style="font-size:11px;">
+                    <button class="btn btn-primary btn-sm" onclick="copiarCodigoPix()"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+            <p id="qr-valor" style="font-size:20px;font-weight:700;color:#2563eb;margin:12px 0 4px;"></p>
+            <p id="qr-cliente" style="font-size:13px;color:#64748b;margin:0;"></p>
+        </div>
+        <div class="modal-footer" style="justify-content:center;">
+            <button class="btn btn-secondary" onclick="closeModal('modalQRCode')">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+let provedorSelecionado = '';
+
+function selecionarProvedor(provedor) {
+    provedorSelecionado = provedor;
+    document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('selected'));
+    document.querySelector(`.provider-card[data-provider="${provedor}"]`)?.classList.add('selected');
+    document.getElementById('config-section').style.display = 'block';
+    carregarConfigProvedor(provedor);
+}
+
+async function carregarConfigProvedor(provedor) {
+    try {
+        const r = await fetch(`/api/faturamento/pix/config?provedor=${provedor}`, { credentials: 'include' });
+        if (r.ok) {
+            const c = await r.json();
+            document.getElementById('pix-client-id').value = c.client_id || '';
+            document.getElementById('pix-client-secret').value = '';
+            document.getElementById('pix-chave').value = c.chave_pix || '';
+            document.getElementById('pix-ambiente').value = c.ambiente || 'sandbox';
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function salvarConfiguracao() {
+    try {
+        const r = await fetch('/api/faturamento/pix/config', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({
+            provedor: provedorSelecionado,
+            client_id: document.getElementById('pix-client-id').value,
+            client_secret: document.getElementById('pix-client-secret').value,
+            chave_pix: document.getElementById('pix-chave').value,
+            ambiente: document.getElementById('pix-ambiente').value
+        })});
+        alert(r.ok ? 'Configuração salva!' : 'Erro ao salvar');
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+function testarConexao() { alert('Testando conexão com ' + provedorSelecionado + '...'); }
+
+async function carregarDashboard() {
+    try {
+        const r = await fetch('/api/faturamento/pix/dashboard', { credentials: 'include' });
+        if (r.ok) {
+            const d = await r.json();
+            document.getElementById('stat-recebidos').textContent = d.recebidos || 0;
+            document.getElementById('stat-pendentes').textContent = d.pendentes || 0;
+            document.getElementById('stat-valor-total').textContent = (d.valor_total || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+            document.getElementById('stat-expirados').textContent = d.expirados || 0;
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function carregarCobrancas() {
+    try {
+        const status = document.getElementById('filtro-cobranca-status').value;
+        const url = '/api/faturamento/pix/cobrancas' + (status ? `?status=${status}` : '');
+        const r = await fetch(url, { credentials: 'include' });
+        if (r.ok) {
+            const list = await r.json();
+            const tbody = document.querySelector('#tabela-cobrancas tbody');
+            const arr = Array.isArray(list) ? list : list.data || [];
+            if (!arr.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-qrcode"></i><p>Nenhuma cobrança encontrada</p></div></td></tr>'; return; }
+            tbody.innerHTML = arr.map(c => `
+                <tr>
+                    <td><span class="code">${c.id || c.txid || '-'}</span></td>
+                    <td>${c.cliente || c.devedor?.nome || '-'}</td>
+                    <td><strong>${(c.valor||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })}</strong></td>
+                    <td>${c.data_criacao ? new Date(c.data_criacao).toLocaleDateString('pt-BR') : '-'}</td>
+                    <td>${c.vencimento ? new Date(c.vencimento).toLocaleDateString('pt-BR') : '-'}</td>
+                    <td><span class="badge ${c.status === 'pago' ? 'autorizada' : c.status === 'expirado' ? 'cancelada' : 'pendente'}">${c.status || '-'}</span></td>
+                    <td>
+                        <div style="display:flex;gap:4px;">
+                            <button class="action-btn view" onclick="exibirQRCode('${c.id||c.txid}')" title="QR Code"><i class="fas fa-qrcode"></i></button>
+                            <button class="action-btn" onclick="verCobranca('${c.id||c.txid}')" title="Detalhes"><i class="fas fa-eye"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function criarCobranca() {
+    try {
+        const r = await fetch('/api/faturamento/pix/cobranca', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({
+            cliente: document.getElementById('cob-cliente').value,
+            documento: document.getElementById('cob-documento').value,
+            valor: parseFloat(document.getElementById('cob-valor').value),
+            vencimento: document.getElementById('cob-vencimento').value,
+            expiracao: parseInt(document.getElementById('cob-expiracao').value),
+            descricao: document.getElementById('cob-descricao').value,
+            enviar_email: document.getElementById('cob-enviar-email').checked
+        })});
+        if (r.ok) {
+            const data = await r.json();
+            closeModal('modalNovaCobranca');
+            if (data.qr_code || data.pixCopiaECola) {
+                exibirQRCodeDireto(data);
+            }
+            carregarCobrancas(); carregarDashboard();
+        } else { alert('Erro ao criar cobrança'); }
+    } catch(e) { alert('Erro de conexão'); }
+}
+
+async function exibirQRCode(id) {
+    try {
+        const r = await fetch(`/api/faturamento/pix/cobranca/${id}`, { credentials: 'include' });
+        if (r.ok) {
+            const data = await r.json();
+            exibirQRCodeDireto(data);
+        }
+    } catch(e) { alert('Erro ao carregar QR Code'); }
+}
+
+function exibirQRCodeDireto(data) {
+    if (data.qr_code_base64) { document.getElementById('qr-code-img').src = 'data:image/png;base64,' + data.qr_code_base64; }
+    else if (data.qr_code) { document.getElementById('qr-code-img').src = data.qr_code; }
+    document.getElementById('pix-codigo').value = data.pixCopiaECola || data.codigo || '';
+    document.getElementById('qr-valor').textContent = (data.valor||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+    document.getElementById('qr-cliente').textContent = data.cliente || data.devedor?.nome || '';
+    openModal('modalQRCode');
+}
+
+function copiarCodigoPix() {
+    const input = document.getElementById('pix-codigo');
+    input.select();
+    document.execCommand('copy');
+    alert('Código PIX copiado!');
+}
+
+function verCobranca(id) { alert('Detalhes da cobrança: ' + id); }
+
+async function carregarProvedores() {
+    try {
+        const r = await fetch('/api/faturamento/pix/config', { credentials: 'include' });
+        if (r.ok) {
+            const c = await r.json();
+            if (c.provedor) { selecionarProvedor(c.provedor); }
+        }
+    } catch(e) { console.error(e); }
+}
+
+function carregarDadosUsuario() {
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' }).then(r => r.json()).then(u => {
+        document.getElementById('user-name').textContent = (u.nome||u.name||'Usuário').split(' ')[0];
+        document.getElementById('user-initials').textContent = (u.nome||u.name||'U').substring(0,2).toUpperCase();
+        if (u.foto||u.avatar) { document.getElementById('user-photo').src=u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+    }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarDadosUsuario();
+    carregarProvedores();
+    carregarDashboard();
+    carregarCobrancas();
+});
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

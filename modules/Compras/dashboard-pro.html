@@ -1,0 +1,305 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Dashboard Compras</title>
+    
+    <link rel="stylesheet" href="compras-design-system.css">
+    <link rel="stylesheet" href="dashboard-compras-pro-v2.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Mobile Enterprise Design System -->
+    <link rel="stylesheet" href="/css/design-system-mobile.css?v=20260202">
+    <link rel="stylesheet" href="/css/responsive-global.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-master-2026.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-enterprise-enhancements.css?v=20260202">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/tooltips-professional.js?v=20260216"></script>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn active" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" title="Estoque" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Dashboard Compras</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar"><span id="user-initials">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+                <div class="page-header" style="justify-content: flex-end;">
+                <div class="header-right">
+                    <div class="header-toolbar">
+                        <button class="toolbar-btn" id="btnModoEscuro" onclick="toggleDarkMode()" title="Alternar modo escuro">
+                            <i class="fas fa-moon"></i>
+                        </button>
+                        <button class="toolbar-btn" onclick="dashboard.atualizarDados()" title="Atualizar dados">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="toolbar-btn" id="btnViewGrid" onclick="toggleView('grid')" title="Visualização em Grade">
+                            <i class="fas fa-th"></i>
+                        </button>
+                        <button class="toolbar-btn active" id="btnViewList" onclick="toggleView('list')" title="Visualização em Lista">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <div class="toolbar-divider"></div>
+                        <button class="btn-primary" onclick="window.location.href='compras.html'">
+                            <i class="fas fa-plus"></i> Novo Pedido
+                        </button>
+                    </div>
+                    <div class="user-profile" onclick="toggleUserMenu()">
+                        <div class="user-avatar" id="userAvatar" style="overflow: hidden;">
+                            <img src="" alt="Foto" id="user-photo" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            <i class="fas fa-user" id="user-icon"></i>
+                        </div>
+                        <div class="user-info">
+                            <span class="user-greeting" id="userGreeting">Olá, Usuário</span>
+                            <span class="user-role" id="userRole">Administrador</span>
+                        </div>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="user-menu" id="userMenu">
+                        <a href="#" class="user-menu-item">
+                            <i class="fas fa-user"></i> Meu Perfil
+                        </a>
+                        <a href="#" class="user-menu-item">
+                            <i class="fas fa-sign-out-alt"></i> Sair
+                        </a>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Métricas Principais -->
+            <div class="compras-metricas-grid" id="metricas-container">
+                <div class="metric-card compras-total">
+                    <div class="metric-icon">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-label">
+                            <i class="fas fa-arrow-up metric-trend positive"></i>
+                            <span>12.3%</span>
+                        </div>
+                        <h3 class="metric-title">Total de Compras</h3>
+                        <div class="metric-value">R$ 487.320,00</div>
+                        <p class="metric-subtitle">Dezembro 2025</p>
+                    </div>
+                    <div class="metric-mini-chart">
+                        <canvas id="chartComprasTotal"></canvas>
+                    </div>
+                </div>
+
+                <div class="metric-card ordens">
+                    <div class="metric-icon">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-label">
+                            <span class="badge badge-blue">23 Pendentes</span>
+                        </div>
+                        <h3 class="metric-title">Ordens de Compra</h3>
+                        <div class="metric-value">156</div>
+                        <p class="metric-subtitle">
+                            <span class="status-dot status-aprovado"></span> 89 Aprovadas
+                            <span class="status-dot status-entregue"></span> 44 Entregues
+                        </p>
+                    </div>
+                </div>
+
+                <div class="metric-card fornecedores">
+                    <div class="metric-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-label">
+                            <span class="badge badge-warning">+5 novos</span>
+                        </div>
+                        <h3 class="metric-title">Fornecedores Ativos</h3>
+                        <div class="metric-value">89</div>
+                        <p class="metric-subtitle">34 fornecedores premium</p>
+                    </div>
+                </div>
+
+                <div class="metric-card economia">
+                    <div class="metric-icon">
+                        <i class="fas fa-piggy-bank"></i>
+                    </div>
+                    <div class="metric-content">
+                        <div class="metric-label">
+                            <i class="fas fa-arrow-down metric-trend positive"></i>
+                            <span>4.8%</span>
+                        </div>
+                        <h3 class="metric-title">Economia Obtida</h3>
+                        <div class="metric-value">R$ 23.580,00</div>
+                        <p class="metric-subtitle">Comparado ao orçamento</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos de Análise -->
+            <div class="compras-charts-grid">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-line"></i> Evolução das Compras
+                            </h3>
+                            <p class="chart-subtitle">Últimos 12 meses</p>
+                        </div>
+                        <div class="chart-filters">
+                            <button class="filter-btn active" data-period="12meses">12 meses</button>
+                            <button class="filter-btn" data-period="6meses">6 meses</button>
+                            <button class="filter-btn" data-period="ano">Ano atual</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chartEvolucaoCompras"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div>
+                            <h3 class="chart-title">
+                                <i class="fas fa-chart-pie"></i> Compras por Categoria
+                            </h3>
+                            <p class="chart-subtitle">Distribuição por tipo</p>
+                        </div>
+                    </div>
+                    <div class="chart-container pie-chart-wrapper">
+                        <canvas id="chartCategoriasCompras"></canvas>
+                    </div>
+                    <div class="pie-legend" id="legendaCategories"></div>
+                </div>
+            </div>
+
+            <!-- Tabelas de Dados -->
+            <div class="data-tables-grid">
+                <div class="table-card">
+                    <div class="table-header">
+                        <div>
+                            <h3 class="table-title">
+                                <i class="fas fa-list-ul"></i> Ordens de Compra Recentes
+                            </h3>
+                            <p class="table-subtitle">Últimas 5 ordens cadastradas</p>
+                        </div>
+                        <button class="btn-primary-small" onclick="window.location.href='compras.html'">
+                            <i class="fas fa-plus"></i> Nova Ordem
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table" id="tabelaOrdensRecentes">
+                            <thead>
+                                <tr>
+                                    <th>Ordem</th>
+                                    <th>Fornecedor</th>
+                                    <th>Data</th>
+                                    <th>Valor</th>
+                                    <th>Prazo</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordensTableBody">
+                                <!-- Preenchido via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <div class="table-header">
+                        <div>
+                            <h3 class="table-title">
+                                <i class="fas fa-star"></i> Top 5 Fornecedores
+                            </h3>
+                            <p class="table-subtitle">Melhores parceiros do mês</p>
+                        </div>
+                        <button class="btn-secondary-small" onclick="window.location.href='fornecedores.html'">
+                            <i class="fas fa-eye"></i> Ver Todos
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="data-table" id="tabelaTopFornecedores">
+                            <thead>
+                                <tr>
+                                    <th width="10%">#</th>
+                                    <th>Fornecedor</th>
+                                    <th>Compras</th>
+                                    <th>Valor Total</th>
+                                    <th>Performance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fornecedoresTableBody">
+                                <!-- Preenchido via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alertas e Notificações -->
+            <div class="alerts-section" id="alertsContainer">
+                <!-- Alertas dinmicos -->
+            </div>
+        </main>
+    </div>
+
+    <script src="../aluforce-ui.js"></script>
+    <script src="dashboard-compras-pro-v2.js"></script>
+
+    <!-- Carregador de usuário -->
+    <script src="compras-user-loader.js?v=20260111"></script>
+
+    <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+    <!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
+    <script src="/js/popup-confirmacao.js"></script>
+
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+

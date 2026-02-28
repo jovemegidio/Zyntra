@@ -1,0 +1,718 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Logística</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { height:100%; }
+        html, body { font-family:'Inter',sans-serif; background:#f9fafb; color:#111827; }
+        body { height:100%; min-height:100vh; }
+        :root { --fat-primary:#10b981; --fat-secondary:#059669; }
+        .page-content { padding:20px; max-width:100%; margin:0; flex:1; }
+        .stats-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:20px; }
+        .stat-card { background:#fff; border-radius:8px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.06); display:flex; align-items:center; gap:14px; }
+        .stat-card .stat-icon { width:40px; height:40px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+        .stat-card .stat-info { }
+        .stat-card .stat-label { font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.3px; }
+        .stat-card .stat-value { font-size:22px; font-weight:700; color:#111827; margin-top:2px; }
+        .card { background:#fff; border-radius:8px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:20px; }
+        .card-header { font-size:14px; font-weight:600; color:#111827; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; }
+        .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+        .form-group { display:flex; flex-direction:column; }
+        .form-group label { font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; }
+        .form-group input,.form-group select,.form-group textarea { height:36px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; padding:0 10px; font-family:inherit; outline:none; transition:border-color 0.2s; }
+        .form-group textarea { height:auto; padding:8px 10px; }
+        .form-group input:focus,.form-group select:focus,.form-group textarea:focus { border-color:var(--fat-primary); box-shadow:0 0 0 2px rgba(16,185,129,0.1); }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
+        .btn-primary { background:var(--fat-primary); color:#fff; } .btn-primary:hover { background:var(--fat-secondary); }
+        .btn-secondary { background:#e5e7eb; color:#374151; } .btn-secondary:hover { background:#d1d5db; }
+        .btn-success { background:#10b981; color:#fff; } .btn-success:hover { background:#059669; }
+        .btn-danger { background:#ef4444; color:#fff; } .btn-danger:hover { background:#dc2626; }
+        .btn-sm { height:30px; padding:0 10px; font-size:12px; }
+        .actions-row { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+        .pedidos-table { width:100%; border-collapse:collapse; font-size:13px; }
+        .pedidos-table th { background:#f3f4f6; padding:10px 12px; font-weight:600; font-size:11px; text-transform:uppercase; color:#6b7280; border-bottom:2px solid #e5e7eb; text-align:left; white-space:nowrap; }
+        .pedidos-table td { padding:10px 12px; border-bottom:1px solid #f3f4f6; vertical-align:middle; }
+        .pedidos-table tr:hover { background:#f9fafb; }
+        .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+        .badge-alta { background:#fef2f2; color:#991b1b; } .badge-media { background:#fef3c7; color:#92400e; } .badge-baixa { background:#dcfce7; color:#166534; }
+        .badge-aguardando { background:#fef3c7; color:#92400e; } .badge-separacao { background:#dbeafe; color:#1e40af; } .badge-expedicao { background:#ede9fe; color:#5b21b6; } .badge-transporte { background:#dcfce7; color:#166534; } .badge-entregue { background:#cffafe; color:#0e7490; }
+        .action-btn { background:none; border:none; cursor:pointer; padding:4px 6px; border-radius:4px; font-size:13px; color:#6b7280; transition:all 0.2s; }
+        .action-btn:hover { background:#f3f4f6; color:var(--fat-primary); }
+        .empty-state { text-align:center; padding:30px; color:#9ca3af; }
+        .empty-state i { font-size:28px; margin-bottom:8px; display:block; }
+        .modal-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:10000; }
+        .modal-overlay.active { display:flex; }
+        .modal { background:#fff; border-radius:10px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden; }
+        .modal-header { padding:16px 20px; border-bottom:1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; }
+        .modal-header h3 { font-size:15px; font-weight:600; }
+        .modal-close { background:none; border:none; font-size:18px; cursor:pointer; color:#6b7280; padding:4px; }
+        .modal-body { padding:20px; max-height:60vh; overflow-y:auto; }
+        .modal-footer { padding:14px 20px; border-top:1px solid #e5e7eb; display:flex; gap:10px; justify-content:flex-end; }
+        .alert { padding:12px 16px; border-radius:6px; font-size:13px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+        .alert-success { background:#dcfce7; color:#166534; border:1px solid #86efac; }
+        .alert-danger { background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
+        .alert-warning { background:#fef3c7; color:#92400e; border:1px solid #fbbf24; }
+        @media(max-width:1024px) { .stats-grid { grid-template-columns:repeat(3,1fr); } }
+        @media(max-width:768px) {
+            .page-content { padding:14px; }
+            .stats-grid { grid-template-columns:repeat(2,1fr); }
+            .form-grid { grid-template-columns:1fr; }
+            .pedidos-table { font-size:12px; }
+            .modal { width:95%; }
+        }
+        @media(max-width:480px) { .stats-grid { grid-template-columns:1fr; } }
+    </style>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+            <a href="emitir.html" class="sidebar-btn" title="Emitir NFe"><i class="fas fa-file-invoice"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar NFe"><i class="fas fa-search"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFSe Serviços"><i class="fas fa-file-contract"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="Gerar DANFE"><i class="fas fa-print"></i></a>
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-history"></i></a>
+            <a href="logistica.html" class="sidebar-btn active" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <button class="sidebar-btn" title="Configurações" onclick="abrirModalConfiguracoes()"><i class="fas fa-cog"></i></button>
+        </div>
+    </aside>
+
+    <main class="main-area">
+    <header class="header">
+        <div class="header-left">
+            <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+            <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Logística</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+            <button class="header-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i></button>
+            <div class="user-greeting">
+                <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                <div class="user-avatar" id="user-avatar">
+                    <img alt="Foto" id="user-photo" style="display:none">
+                    <span id="user-initials">U</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-content">
+        <div class="page-content">
+
+            <div id="alertContainer"></div>
+
+            <div class="stats-grid">
+                <div class="stat-card" style="border-left:3px solid #f59e0b;">
+                    <div class="stat-icon" style="background:rgba(245,158,11,0.1);color:#f59e0b;">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-label">Aguardando Separação</div>
+                        <div class="stat-value" id="statAguardando">0</div>
+                    </div>
+                </div>
+                <div class="stat-card" style="border-left:3px solid #3b82f6;">
+                    <div class="stat-icon" style="background:rgba(59,130,246,0.1);color:#3b82f6;">
+                        <i class="fas fa-box-open"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-label">Em Separação</div>
+                        <div class="stat-value" id="statSeparacao">0</div>
+                    </div>
+                </div>
+                <div class="stat-card" style="border-left:3px solid #8b5cf6;">
+                    <div class="stat-icon" style="background:rgba(139,92,246,0.1);color:#8b5cf6;">
+                        <i class="fas fa-shipping-fast"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-label">Em Expedição</div>
+                        <div class="stat-value" id="statExpedicao">0</div>
+                    </div>
+                </div>
+                <div class="stat-card" style="border-left:3px solid #10b981;">
+                    <div class="stat-icon" style="background:rgba(16,185,129,0.1);color:#10b981;">
+                        <i class="fas fa-truck"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-label">Em Transporte</div>
+                        <div class="stat-value" id="statTransporte">0</div>
+                    </div>
+                </div>
+                <div class="stat-card" style="border-left:3px solid #06b6d4;">
+                    <div class="stat-icon" style="background:rgba(6,182,212,0.1);color:#06b6d4;">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-label">Entregues</div>
+                        <div class="stat-value" id="statEntregues">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span><i class="fas fa-filter" style="margin-right:6px;color:var(--fat-primary);"></i> Filtros</span>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Buscar</label>
+                        <input type="text" id="filtroBusca" placeholder="Pedido, NF-e, cliente..." oninput="renderizarPedidos()">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="filtroStatus" onchange="renderizarPedidos()">
+                            <option value="">Todos</option>
+                            <option value="aguardando">Aguardando</option>
+                            <option value="em_separacao">Em Separação</option>
+                            <option value="em_expedicao">Em Expedição</option>
+                            <option value="em_transporte">Em Transporte</option>
+                            <option value="entregue">Entregue</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Transportadora</label>
+                        <select id="filtroTransportadora" onchange="renderizarPedidos()">
+                            <option value="">Todas</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Prioridade</label>
+                        <select id="filtroPrioridade" onchange="renderizarPedidos()">
+                            <option value="">Todas</option>
+                            <option value="alta">Alta</option>
+                            <option value="media">Média</option>
+                            <option value="baixa">Baixa</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="actions-row">
+                    <button class="btn btn-primary" onclick="renderizarPedidos()"><i class="fas fa-search"></i> Filtrar</button>
+                    <button class="btn btn-secondary" onclick="limparFiltros()"><i class="fas fa-eraser"></i> Limpar</button>
+                    <button class="btn btn-success" onclick="abrirModalExpedicao()"><i class="fas fa-plus"></i> Nova Expedição</button>
+                    <button class="btn btn-secondary" onclick="abrirModalTransportadoras()"><i class="fas fa-truck-loading"></i> Transportadoras</button>
+                    <button class="btn btn-secondary" onclick="exportarExcel()" style="margin-left:auto;"><i class="fas fa-file-csv"></i> Exportar</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span><i class="fas fa-boxes" style="margin-right:6px;color:var(--fat-primary);"></i> Pedidos de Expedição</span>
+                    <span id="pedidosCount" style="font-size:12px;color:#6b7280;font-weight:500;">0 pedido(s)</span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="pedidos-table">
+                        <thead>
+                            <tr>
+                                <th>Prioridade</th>
+                                <th>NF-e</th>
+                                <th>Pedido</th>
+                                <th>Cliente</th>
+                                <th>Cidade/UF</th>
+                                <th>Transportadora</th>
+                                <th>Status</th>
+                                <th>Previsão</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pedidosTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="pedidosEmpty" style="display:none;">
+                    <i class="fas fa-truck"></i>
+                    <div>Nenhum pedido de expedição encontrado</div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    </main>
+    </div>
+
+    <div class="modal-overlay" id="modalExpedicao">
+        <div class="modal" style="max-width:600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-shipping-fast" style="margin-right:8px;color:var(--fat-primary);"></i> Nova Expedição</h3>
+                <button class="modal-close" onclick="fecharModalExpedicao()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="form-group">
+                        <label>Pedido ID</label>
+                        <input type="text" id="expPedidoId" placeholder="Número do pedido">
+                    </div>
+                    <div class="form-group">
+                        <label>NF-e ID</label>
+                        <input type="text" id="expNfeId" placeholder="Número da NF-e">
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label>Cliente *</label>
+                        <input type="text" id="expCliente" placeholder="Nome do cliente">
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label>Endereço</label>
+                        <input type="text" id="expEndereco" placeholder="Endereço completo">
+                    </div>
+                    <div class="form-group">
+                        <label>Cidade/UF</label>
+                        <input type="text" id="expCidadeUF" placeholder="Cidade/UF">
+                    </div>
+                    <div class="form-group">
+                        <label>Transportadora *</label>
+                        <select id="expTransportadora">
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Prioridade</label>
+                        <select id="expPrioridade">
+                            <option value="media">Média</option>
+                            <option value="alta">Alta</option>
+                            <option value="baixa">Baixa</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Previsão de Entrega</label>
+                        <input type="date" id="expPrevisao">
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label>Observações</label>
+                        <textarea id="expObservacoes" rows="3" placeholder="Observações sobre a expedição..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalExpedicao()">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarExpedicao()"><i class="fas fa-save"></i> Salvar Expedição</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalTransportadoras">
+        <div class="modal" style="max-width:700px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-truck-loading" style="margin-right:8px;color:var(--fat-primary);"></i> Gerenciar Transportadoras</h3>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <button class="btn btn-success btn-sm" onclick="mostrarFormTransportadora()"><i class="fas fa-plus"></i> Nova Transportadora</button>
+                    <button class="modal-close" onclick="fecharModalTransportadoras()"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="formTransportadora" style="display:none;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
+                    <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Dados da Transportadora</div>
+                    <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+                        <div class="form-group">
+                            <label>Nome *</label>
+                            <input type="text" id="transpNome" placeholder="Nome da transportadora">
+                        </div>
+                        <div class="form-group">
+                            <label>CNPJ</label>
+                            <input type="text" id="transpCNPJ" placeholder="00.000.000/0000-00">
+                        </div>
+                        <div class="form-group">
+                            <label>Telefone</label>
+                            <input type="text" id="transpTelefone" placeholder="(00) 00000-0000">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="text" id="transpEmail" placeholder="email@empresa.com">
+                        </div>
+                        <div class="form-group" style="grid-column:1/-1;">
+                            <label>Contato</label>
+                            <input type="text" id="transpContato" placeholder="Nome do contato">
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:12px;justify-content:flex-end;">
+                        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('formTransportadora').style.display='none'">Cancelar</button>
+                        <button class="btn btn-primary btn-sm" onclick="salvarTransportadora()"><i class="fas fa-save"></i> Salvar</button>
+                    </div>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="pedidos-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>CNPJ</th>
+                                <th>Telefone</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transportadorasBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalTransportadoras()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/notification-manager.js"></script>
+    <script src="/_shared/connection-monitor.js"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/auth-unified.js"></script>
+    <script>
+        function toggleMobileSidebar() {
+            document.getElementById('mobile-sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('active');
+        }
+        function toggleNotificacoes() {}
+
+        var avatarNameMap = {
+            'clemerson':'CM','isabela':'IB','thaina':'TH','thiago':'TG','nicolas':'NC',
+            'nicolasdaniel':'ND','rh':'RH','admin':'AD','ti':'TI','tialuforce':'TI',
+            'antonio':'AT','andreia':'AN','guilherme':'GH','marcelo':'MC','financeiro':'FN',
+            'douglas':'DG','hellen':'HL','helen':'HL','marcia':'MR','augusto':'AG',
+            'renata':'RN','fabiano':'FB','fabiola':'FL'
+        };
+
+        function carregarUsuario() {
+            fetch('/api/me', { credentials:'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(user) {
+                var d = user.dados || user;
+                var nome = (d.nome || d.name || 'Usuário').split(' ')[0];
+                document.getElementById('user-name').textContent = nome;
+                var h = new Date().getHours();
+                document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                var el = document.getElementById('user-initials');
+                var photo = document.getElementById('user-photo');
+                if (d.foto || d.avatar) {
+                    photo.src = d.foto || d.avatar;
+                    photo.style.display = 'block';
+                    photo.style.width = '100%';
+                    photo.style.height = '100%';
+                    photo.style.borderRadius = '50%';
+                    photo.style.objectFit = 'cover';
+                    el.style.display = 'none';
+                } else {
+                    var key = nome.toLowerCase().replace(/\s/g,'');
+                    el.textContent = avatarNameMap[key] || nome.substring(0,2).toUpperCase();
+                }
+            }).catch(function() {});
+        }
+
+        var pedidos = [];
+        var transportadoras = [];
+        var editandoTransportadora = null;
+
+        function carregarDashboard() {
+            fetch('/api/logistica/dashboard', { credentials:'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var d = data.dashboard || data.data || data;
+                document.getElementById('statAguardando').textContent = d.aguardando || 0;
+                document.getElementById('statSeparacao').textContent = d.separacao || d.em_separacao || 0;
+                document.getElementById('statExpedicao').textContent = d.expedicao || d.em_expedicao || 0;
+                document.getElementById('statTransporte').textContent = d.transporte || d.em_transporte || 0;
+                document.getElementById('statEntregues').textContent = d.entregues || 0;
+            }).catch(function() {
+                ['statAguardando','statSeparacao','statExpedicao','statTransporte','statEntregues'].forEach(function(id) {
+                    document.getElementById(id).textContent = '0';
+                });
+            });
+        }
+
+        function carregarPedidos() {
+            fetch('/api/logistica/pedidos', { credentials:'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                pedidos = data.pedidos || data.data || data || [];
+                if (!Array.isArray(pedidos)) pedidos = [];
+                renderizarPedidos();
+            }).catch(function() { pedidos = []; renderizarPedidos(); });
+        }
+
+        function renderizarPedidos() {
+            var busca = (document.getElementById('filtroBusca') ? document.getElementById('filtroBusca').value : '').toLowerCase();
+            var status = document.getElementById('filtroStatus') ? document.getElementById('filtroStatus').value : '';
+            var transp = document.getElementById('filtroTransportadora') ? document.getElementById('filtroTransportadora').value : '';
+            var prior = document.getElementById('filtroPrioridade') ? document.getElementById('filtroPrioridade').value : '';
+
+            var filtrados = pedidos.filter(function(p) {
+                if (busca && !JSON.stringify(p).toLowerCase().includes(busca)) return false;
+                if (status && (p.status || '').toLowerCase() !== status) return false;
+                if (transp && (p.transportadora_id || '').toString() !== transp) return false;
+                if (prior && (p.prioridade || '').toLowerCase() !== prior) return false;
+                return true;
+            });
+
+            var tbody = document.getElementById('pedidosTableBody');
+            var empty = document.getElementById('pedidosEmpty');
+            var count = document.getElementById('pedidosCount');
+            if (count) count.textContent = filtrados.length + ' pedido(s)';
+
+            if (filtrados.length === 0) {
+                tbody.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+            empty.style.display = 'none';
+
+            tbody.innerHTML = filtrados.map(function(p) {
+                var priorClass = (p.prioridade || 'media').toLowerCase();
+                var statusKey = (p.status || 'aguardando').toLowerCase().replace(/[^a-z]/g,'').replace('emseparacao','separacao').replace('emexpedicao','expedicao').replace('emtransporte','transporte');
+                var statusLabel = p.status || 'Aguardando';
+                var previsao = p.previsao ? new Date(p.previsao).toLocaleDateString('pt-BR') : '-';
+                return '<tr>' +
+                    '<td><span class="badge badge-' + priorClass + '">' + (p.prioridade || 'Média') + '</span></td>' +
+                    '<td><strong>' + (p.nfe || '-') + '</strong></td>' +
+                    '<td>' + (p.pedido || p.id || '-') + '</td>' +
+                    '<td>' + (p.cliente || '-') + '</td>' +
+                    '<td>' + (p.cidade || '-') + (p.uf ? '/' + p.uf : '') + '</td>' +
+                    '<td>' + (p.transportadora || '-') + '</td>' +
+                    '<td><span class="badge badge-' + statusKey + '">' + statusLabel + '</span></td>' +
+                    '<td>' + previsao + '</td>' +
+                    '<td>' +
+                        '<button class="action-btn" title="Detalhes" onclick="verDetalhes(' + p.id + ')"><i class="fas fa-eye"></i></button>' +
+                        '<button class="action-btn" title="Atualizar Status" onclick="atualizarStatus(' + p.id + ')"><i class="fas fa-sync-alt"></i></button>' +
+                        '<button class="action-btn" title="Imprimir Etiqueta" onclick="imprimirEtiqueta(' + p.id + ')"><i class="fas fa-tag"></i></button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function atualizarStatus(pedidoId) {
+            var novoStatus = prompt('Novo status:\n1 - Aguardando Separação\n2 - Em Separação\n3 - Em Expedição\n4 - Em Transporte\n5 - Entregue');
+            var statusMap = {'1':'aguardando','2':'em_separacao','3':'em_expedicao','4':'em_transporte','5':'entregue'};
+            var st = statusMap[novoStatus];
+            if (!st) return;
+
+            fetch('/api/logistica/pedidos/' + pedidoId + '/status', {
+                method:'PUT',
+                headers:{'Content-Type':'application/json'},
+                credentials:'include',
+                body: JSON.stringify({ status: st })
+            })
+            .then(function(r) { if (!r.ok) throw new Error('Erro'); return r.json(); })
+            .then(function() {
+                showAlert('Status atualizado com sucesso', 'success');
+                carregarPedidos();
+                carregarDashboard();
+            }).catch(function() { showAlert('Erro ao atualizar status', 'danger'); });
+        }
+
+        function verDetalhes(pedidoId) {
+            var p = pedidos.find(function(x) { return x.id == pedidoId; });
+            if (p) alert('Pedido #' + (p.pedido || p.id) + '\nCliente: ' + (p.cliente || '-') + '\nNFe: ' + (p.nfe || '-') + '\nStatus: ' + (p.status || '-') + '\nTransportadora: ' + (p.transportadora || '-'));
+        }
+
+        function imprimirEtiqueta(pedidoId) {
+            var p = pedidos.find(function(x) { return x.id == pedidoId; });
+            if (!p) return;
+            var win = window.open('', '_blank', 'width=400,height=300');
+            win.document.write('<html><body style="font-family:monospace;padding:20px;"><h3>Etiqueta de Envio</h3><hr><p><strong>NF-e:</strong> ' + (p.nfe || '-') + '</p><p><strong>Dest:</strong> ' + (p.cliente || '-') + '</p><p><strong>End:</strong> ' + (p.cidade || '-') + '/' + (p.uf || '-') + '</p><p><strong>Transp:</strong> ' + (p.transportadora || '-') + '</p><hr><button onclick="window.print()">Imprimir</button>
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+</body></html>');
+        }
+
+        function abrirModalExpedicao() {
+            document.getElementById('modalExpedicao').classList.add('active');
+            carregarSelectTransportadoras('expTransportadora');
+        }
+        function fecharModalExpedicao() {
+            document.getElementById('modalExpedicao').classList.remove('active');
+        }
+        function salvarExpedicao() {
+            var dados = {
+                pedido_id: document.getElementById('expPedidoId').value,
+                nfe_id: document.getElementById('expNfeId').value,
+                cliente: document.getElementById('expCliente').value,
+                endereco: document.getElementById('expEndereco').value,
+                cidade_uf: document.getElementById('expCidadeUF').value,
+                transportadora_id: document.getElementById('expTransportadora').value,
+                prioridade: document.getElementById('expPrioridade').value,
+                previsao: document.getElementById('expPrevisao').value,
+                observacoes: document.getElementById('expObservacoes').value
+            };
+            if (!dados.cliente || !dados.transportadora_id) return showAlert('Preencha os campos obrigatórios', 'warning');
+
+            fetch('/api/logistica/expedicao', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                credentials:'include',
+                body: JSON.stringify(dados)
+            })
+            .then(function(r) { if (!r.ok) throw new Error('Erro'); return r.json(); })
+            .then(function() {
+                showAlert('Expedição criada com sucesso', 'success');
+                fecharModalExpedicao();
+                carregarPedidos();
+                carregarDashboard();
+            }).catch(function() { showAlert('Erro ao criar expedição', 'danger'); });
+        }
+
+        function carregarTransportadoras() {
+            fetch('/api/logistica/transportadoras', { credentials:'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                transportadoras = data.transportadoras || data.data || data || [];
+                if (!Array.isArray(transportadoras)) transportadoras = [];
+                renderizarTransportadoras();
+                carregarSelectTransportadoras('filtroTransportadora');
+            }).catch(function() { transportadoras = []; });
+        }
+
+        function renderizarTransportadoras() {
+            var tbody = document.getElementById('transportadorasBody');
+            if (!tbody) return;
+            if (transportadoras.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#9ca3af;">Nenhuma transportadora cadastrada</td></tr>';
+                return;
+            }
+            tbody.innerHTML = transportadoras.map(function(t) {
+                return '<tr>' +
+                    '<td><strong>' + (t.nome || '-') + '</strong></td>' +
+                    '<td>' + (t.cnpj || '-') + '</td>' +
+                    '<td>' + (t.telefone || '-') + '</td>' +
+                    '<td>' +
+                        '<button class="action-btn" onclick="editarTransportadora(' + t.id + ')"><i class="fas fa-edit"></i></button>' +
+                        '<button class="action-btn" onclick="excluirTransportadora(' + t.id + ')"><i class="fas fa-trash" style="color:#ef4444;"></i></button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function carregarSelectTransportadoras(selectId) {
+            var sel = document.getElementById(selectId);
+            if (!sel) return;
+            var current = sel.value;
+            sel.innerHTML = '<option value="">Selecione...</option>';
+            transportadoras.forEach(function(t) {
+                sel.innerHTML += '<option value="' + t.id + '">' + (t.nome || '-') + '</option>';
+            });
+            if (current) sel.value = current;
+        }
+
+        function abrirModalTransportadoras() {
+            document.getElementById('modalTransportadoras').classList.add('active');
+            renderizarTransportadoras();
+        }
+        function fecharModalTransportadoras() {
+            document.getElementById('modalTransportadoras').classList.remove('active');
+            document.getElementById('formTransportadora').style.display = 'none';
+            editandoTransportadora = null;
+        }
+        function mostrarFormTransportadora() {
+            document.getElementById('formTransportadora').style.display = 'block';
+            editandoTransportadora = null;
+            document.getElementById('transpNome').value = '';
+            document.getElementById('transpCNPJ').value = '';
+            document.getElementById('transpTelefone').value = '';
+            document.getElementById('transpEmail').value = '';
+            document.getElementById('transpContato').value = '';
+        }
+        function salvarTransportadora() {
+            var dados = {
+                nome: document.getElementById('transpNome').value,
+                cnpj: document.getElementById('transpCNPJ').value,
+                telefone: document.getElementById('transpTelefone').value,
+                email: document.getElementById('transpEmail').value,
+                contato: document.getElementById('transpContato').value
+            };
+            if (!dados.nome) return showAlert('Nome é obrigatório', 'warning');
+
+            var url = editandoTransportadora ? '/api/logistica/transportadoras/' + editandoTransportadora : '/api/logistica/transportadoras';
+            var method = editandoTransportadora ? 'PUT' : 'POST';
+
+            fetch(url, { method: method, headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(dados) })
+            .then(function(r) { if (!r.ok) throw new Error('Erro'); return r.json(); })
+            .then(function() {
+                showAlert(editandoTransportadora ? 'Transportadora atualizada' : 'Transportadora cadastrada', 'success');
+                document.getElementById('formTransportadora').style.display = 'none';
+                carregarTransportadoras();
+            }).catch(function() { showAlert('Erro ao salvar transportadora', 'danger'); });
+        }
+
+        function editarTransportadora(id) {
+            var t = transportadoras.find(function(x) { return x.id == id; });
+            if (!t) return;
+            editandoTransportadora = id;
+            document.getElementById('formTransportadora').style.display = 'block';
+            document.getElementById('transpNome').value = t.nome || '';
+            document.getElementById('transpCNPJ').value = t.cnpj || '';
+            document.getElementById('transpTelefone').value = t.telefone || '';
+            document.getElementById('transpEmail').value = t.email || '';
+            document.getElementById('transpContato').value = t.contato || '';
+        }
+
+        function excluirTransportadora(id) {
+            if (!confirm('Excluir esta transportadora?')) return;
+            fetch('/api/logistica/transportadoras/' + id, { method:'DELETE', credentials:'include' })
+            .then(function(r) { if (!r.ok) throw new Error('Erro'); return r.json(); })
+            .then(function() {
+                showAlert('Transportadora excluída', 'success');
+                carregarTransportadoras();
+            }).catch(function() { showAlert('Erro ao excluir', 'danger'); });
+        }
+
+        function exportarExcel() {
+            if (pedidos.length === 0) return showAlert('Nenhum dado para exportar', 'warning');
+            var csv = 'Prioridade;NF-e;Pedido;Cliente;Cidade;UF;Transportadora;Status;Previsão\n';
+            pedidos.forEach(function(p) {
+                csv += (p.prioridade||'') + ';' + (p.nfe||'') + ';' + (p.pedido||p.id||'') + ';' + (p.cliente||'') + ';' + (p.cidade||'') + ';' + (p.uf||'') + ';' + (p.transportadora||'') + ';' + (p.status||'') + ';' + (p.previsao||'') + '\n';
+            });
+            var blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'logistica_pedidos.csv';
+            a.click();
+        }
+
+        function limparFiltros() {
+            document.getElementById('filtroBusca').value = '';
+            document.getElementById('filtroStatus').value = '';
+            document.getElementById('filtroTransportadora').value = '';
+            document.getElementById('filtroPrioridade').value = '';
+            renderizarPedidos();
+        }
+
+        function showAlert(msg, type) {
+            var c = document.getElementById('alertContainer');
+            var d = document.createElement('div');
+            d.className = 'alert alert-' + type;
+            var icon = type === 'success' ? 'check-circle' : type === 'danger' ? 'times-circle' : 'exclamation-triangle';
+            d.innerHTML = '<i class="fas fa-' + icon + '"></i> ' + msg;
+            c.prepend(d);
+            setTimeout(function() { d.remove(); }, 5000);
+        }
+
+        function abrirModalConfiguracoes() { alert('Configurações - Em desenvolvimento'); }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarUsuario();
+            carregarDashboard();
+            carregarPedidos();
+            carregarTransportadoras();
+        });
+    </script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aluforce Chat Widget - BOB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="widget.css">
+  <meta name="color-scheme" content="light dark">
+</head>
+<body>
+  <!-- ========== WIDGET CONTAINER ========== -->
+  <div id="aluforce-widget" class="afw">
+
+    <!-- Botão Flutuante -->
+    <button class="afw-fab" id="afw-fab" title="Fale com o BOB">
+      <img src="BobAI.png" alt="BOB" class="afw-fab-avatar" id="afw-fab-img">
+      <span class="afw-fab-close" id="afw-fab-close"><i class="fas fa-times"></i></span>
+      <span class="afw-fab-badge hidden" id="afw-fab-badge">0</span>
+      <span class="afw-fab-pulse"></span>
+    </button>
+
+    <!-- Tooltip -->
+    <div class="afw-tooltip" id="afw-tooltip">
+      <p>👋 Olá! Precisa de ajuda?</p>
+      <button class="afw-tooltip-close" id="afw-tooltip-close"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- Janela do Chat -->
+    <div class="afw-window hidden" id="afw-window">
+
+      <!-- ===== Barra de Marca (Logo Aluforce) ===== -->
+      <div class="afw-brand-bar">
+        <div class="afw-brand-logo">
+          <img src="logo-azul.png" alt="Aluforce" class="afw-logo afw-logo-light" id="afw-logo-light">
+          <img src="logo-branco.webp" alt="Aluforce" class="afw-logo afw-logo-dark hidden" id="afw-logo-dark">
+        </div>
+        <div class="afw-brand-actions">
+          <button class="afw-theme-toggle" id="afw-theme-toggle" title="Alternar tema">
+            <i class="fas fa-moon" id="afw-theme-icon"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== Tela de Boas-vindas (pré-login) ===== -->
+      <div class="afw-welcome" id="afw-welcome">
+        <div class="afw-welcome-header">
+          <div class="afw-welcome-bg"></div>
+          <div class="afw-welcome-content">
+            <img src="BobAI.png" alt="BOB" class="afw-welcome-avatar">
+            <h2>Olá! 👋</h2>
+            <p>Sou o <strong>BOB</strong>, assistente virtual da Aluforce.<br>Como posso te ajudar?</p>
+          </div>
+        </div>
+        <div class="afw-welcome-body">
+          <form id="afw-login-form" class="afw-login-form">
+            <div class="afw-input-group">
+              <i class="fas fa-user"></i>
+              <input type="text" id="afw-user-name" placeholder="Seu nome" required autocomplete="off">
+            </div>
+            <button type="submit" class="afw-btn-start">
+              <i class="fas fa-comments"></i> Iniciar Conversa
+            </button>
+          </form>
+          <div class="afw-quick-topics">
+            <p class="afw-quick-label">Tópicos populares</p>
+            <div class="afw-topics-grid">
+              <button class="afw-topic" data-topic="Como criar um pedido de venda?">📦 Vendas</button>
+              <button class="afw-topic" data-topic="Como emitir uma NF-e?">📄 NF-e</button>
+              <button class="afw-topic" data-topic="Como consultar o fluxo de caixa?">💰 Financeiro</button>
+              <button class="afw-topic" data-topic="Como consultar holerite?">👥 RH</button>
+            </div>
+          </div>
+        </div>
+        <div class="afw-welcome-footer">
+          <span>Powered by <strong>Aluforce</strong></span>
+        </div>
+      </div>
+
+      <!-- ===== Tela do Chat ===== -->
+      <div class="afw-chat hidden" id="afw-chat">
+        <!-- Header -->
+        <div class="afw-header">
+          <div class="afw-header-info">
+            <img src="BobAI.png" alt="BOB" class="afw-header-avatar">
+            <div>
+              <h3 id="afw-header-name">BOB</h3>
+              <span class="afw-header-status" id="afw-header-status">
+                <i class="fas fa-circle"></i> Online
+              </span>
+            </div>
+          </div>
+          <div class="afw-header-actions">
+            <button class="afw-header-btn" id="afw-btn-theme-chat" title="Alternar tema">
+              <i class="fas fa-moon" id="afw-theme-icon-chat"></i>
+            </button>
+            <button class="afw-header-btn" id="afw-btn-support" title="Falar com suporte">
+              <i class="fas fa-headset"></i>
+            </button>
+            <button class="afw-header-btn" id="afw-btn-minimize" title="Minimizar">
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Mensagens -->
+        <div class="afw-messages" id="afw-messages">
+          <div class="afw-messages-inner" id="afw-messages-inner">
+            <div class="afw-date-divider"><span>Hoje</span></div>
+          </div>
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="afw-typing hidden" id="afw-typing">
+          <img src="BobAI.png" alt="BOB" class="afw-typing-avatar">
+          <div class="afw-typing-dots"><span></span><span></span><span></span></div>
+        </div>
+
+        <!-- Sugestão de suporte -->
+        <div class="afw-support-bar hidden" id="afw-support-bar">
+          <p>😕 Não encontrei sua resposta. Falar com atendente?</p>
+          <div class="afw-support-actions">
+            <button class="afw-btn-no" id="afw-btn-no-support">Não</button>
+            <button class="afw-btn-yes" id="afw-btn-yes-support"><i class="fas fa-headset"></i> Sim</button>
+          </div>
+        </div>
+
+        <!-- Barra de gravação de áudio -->
+        <div class="afw-audio-bar hidden" id="afw-audio-bar">
+          <button class="afw-audio-cancel" id="afw-audio-cancel"><i class="fas fa-trash"></i></button>
+          <div class="afw-audio-info">
+            <span class="afw-rec-dot"></span>
+            <span class="afw-rec-time" id="afw-rec-time">00:00</span>
+          </div>
+          <button class="afw-audio-send" id="afw-audio-send"><i class="fas fa-paper-plane"></i></button>
+        </div>
+
+        <!-- Input -->
+        <div class="afw-input" id="afw-input-bar">
+          <button class="afw-input-btn" id="afw-btn-emoji" title="Emoji"><i class="fas fa-smile"></i></button>
+          <button class="afw-input-btn" id="afw-btn-attach" title="Anexar"><i class="fas fa-paperclip"></i></button>
+          <input type="file" id="afw-file-input" hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx">
+          <!-- Menu de anexos -->
+          <div class="afw-attach-menu hidden" id="afw-attach-menu">
+            <button class="afw-attach-option" id="afw-attach-file"><i class="fas fa-file"></i> Arquivo</button>
+            <button class="afw-attach-option" id="afw-attach-photo"><i class="fas fa-camera"></i> Foto / Imagem</button>
+            <button class="afw-attach-option" id="afw-attach-screenshot"><i class="fas fa-desktop"></i> Captura de Tela</button>
+          </div>
+          <input type="file" id="afw-photo-input" hidden accept="image/*" capture="environment">
+          <textarea id="afw-msg-input" placeholder="Digite sua mensagem..." rows="1"></textarea>
+          <button class="afw-input-btn afw-btn-mic" id="afw-btn-mic" title="Áudio"><i class="fas fa-microphone"></i></button>
+          <button class="afw-input-btn afw-btn-send hidden" id="afw-btn-send" title="Enviar"><i class="fas fa-paper-plane"></i></button>
+        </div>
+
+        <!-- Emoji Picker -->
+        <div class="afw-emoji-picker hidden" id="afw-emoji-picker">
+          <div class="afw-emoji-grid" id="afw-emoji-grid"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="afw-footer">
+          <span>Powered by <strong>Aluforce</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Preview (Imagem + PDF) -->
+  <div class="afw-modal hidden" id="afw-modal">
+    <div class="afw-modal-bg" id="afw-modal-bg"></div>
+    <div class="afw-modal-body">
+      <div class="afw-modal-toolbar">
+        <a class="afw-modal-btn" id="afw-modal-download" href="" download title="Baixar"><i class="fas fa-download"></i></a>
+        <button class="afw-modal-btn" id="afw-modal-zoom-in" title="Zoom +"><i class="fas fa-search-plus"></i></button>
+        <button class="afw-modal-btn" id="afw-modal-zoom-out" title="Zoom -"><i class="fas fa-search-minus"></i></button>
+        <button class="afw-modal-btn" id="afw-modal-close" title="Fechar"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="afw-modal-content" id="afw-modal-content">
+        <img id="afw-modal-img" src="" alt="Preview">
+        <iframe id="afw-modal-pdf" src="" class="hidden" title="PDF Preview"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notificação pop-up -->
+  <div class="afw-notif hidden" id="afw-notif">
+    <img src="BobAI.png" alt="BOB" class="afw-notif-avatar">
+    <div class="afw-notif-content">
+      <strong>BOB</strong>
+      <p id="afw-notif-text"></p>
+    </div>
+    <button class="afw-notif-close" id="afw-notif-close"><i class="fas fa-times"></i></button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="widget.js"></script>
+</body>
+</html>

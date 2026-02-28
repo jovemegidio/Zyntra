@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" href="/Favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Ponto - RH Aluforce</title>
+    
+    <!-- Modern SaaS UI Framework -->
+    <link rel="stylesheet" href="../../../_shared/modern-saas.css?v=3.0">
+    <link rel="stylesheet" href="../../../_shared/header-sidebar.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        .relogio-container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .relogio {
+            font-size: 72px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status-ponto {
+            font-size: 20px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .status-ponto.trabalhando { color: #10b981; font-weight: 600; }
+        .status-ponto.almoco { color: #f59e0b; font-weight: 600; }
+
+        .batidas-hoje {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .batida-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .batida-card.registrada {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .batida-card i { font-size: 32px; margin-bottom: 10px; }
+        .batida-label { font-size: 14px; opacity: 0.8; margin-bottom: 5px; }
+        .batida-hora { font-size: 24px; font-weight: 700; }
+
+        .btn-registrar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 20px 60px;
+            font-size: 20px;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s;
+        }
+
+        .btn-registrar:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+        }
+
+        .resumo-mensal {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .resumo-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .resumo-card h3 { font-size: 14px; opacity: 0.9; margin-bottom: 10px; }
+        .resumo-card .value { font-size: 36px; font-weight: bold; }
+
+        .historico-table {
+            width: 100%;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .historico-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .historico-table td {
+            padding: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .historico-table tr:hover { background: #f9fafb; }
+
+        @media (max-width: 768px) {
+            .batidas-hoje, .resumo-mensal { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-principal">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <nav id="sidebar" class="sidebar-nav">
+                <ul>
+                    <li><a href="../areaadm.html" class="nav-link"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-tooltip">Dashboard RH</span></a></li>
+                    <li><a href="ponto_padrao_pcp.html" class="nav-link active"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-tooltip">Controle de Ponto</span></a></li>
+                    <li><a href="ferias_padrao_pcp.html" class="nav-link"><span class="nav-icon"><i class="fas fa-umbrella-beach"></i></span><span class="nav-tooltip">Férias</span></a></li>
+                    <li><a href="folha_padrao_pcp.html" class="nav-link"><span class="nav-icon"><i class="fas fa-file-invoice-dollar"></i></span><span class="nav-tooltip">Folha de Pagamento</span></a></li>
+                    <li><a href="beneficios_padrao_pcp.html" class="nav-link"><span class="nav-icon"><i class="fas fa-gift"></i></span><span class="nav-tooltip">Benefícios</span></a></li>
+                    <li><a href="avaliacoes_padrao_pcp.html" class="nav-link"><span class="nav-icon"><i class="fas fa-chart-line"></i></span><span class="nav-tooltip">Avaliações</span></a></li>
+                    <li><a href="../../index.html" class="nav-link"><span class="nav-icon"><i class="fas fa-home"></i></span><span class="nav-tooltip">Voltar ao Painel</span></a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+        <main class="main-content">
+            <div class="app-container">
+                <!-- TOPBAR -->
+                <header class="topbar">
+                    <div class="topbar-left">
+                        <div class="logo-section">
+                            <img src="../../../PCP/Logo Monocromatico - Azul - Aluforce.webp" alt="Aluforce" class="header-logo" />
+                        </div>
+                    </div>
+                    
+                    <div class="topbar-center">
+                        <h1 style="font-size: 24px; font-weight: 700; color: #1f2937; margin: 0;">
+                            <i class="fas fa-clock" style="color: #667eea; margin-right: 10px;"></i>
+                            Controle de Ponto
+                        </h1>
+                    </div>
+                    
+                    <div class="topbar-right">
+                        <div class="notification-icons">
+                            <button class="notification-btn" title="Notificações">
+                                <i class="fas fa-bell"></i>
+                                <span class="notification-badge">0</span>
+                            </button>
+                            <button class="notification-btn" title="Perfil">
+                                <i class="fas fa-user"></i>
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- CONTEÚDO -->
+                <div class="content-area" style="padding: 30px;">
+                    <!-- Relógio e Registro -->
+                    <div class="relogio-container">
+                        <div id="dataAtual" style="font-size: 18px; color: #666; margin-bottom: 20px;"></div>
+                        <div class="relogio" id="relogio">00:00:00</div>
+                        <div class="status-ponto" id="statusPonto">Pronto para registrar</div>
+                        <button class="btn-registrar" onclick="registrarPonto()">
+                            <i class="fas fa-fingerprint"></i> Registrar Ponto
+                        </button>
+                    </div>
+
+                    <!-- Batidas de Hoje -->
+                    <div class="batidas-hoje">
+                        <div class="batida-card" id="card-entrada">
+                            <i class="fas fa-sign-in-alt"></i>
+                            <div class="batida-label">Entrada</div>
+                            <div class="batida-hora" id="hora-entrada">--:--</div>
+                        </div>
+                        <div class="batida-card" id="card-saida-almoco">
+                            <i class="fas fa-utensils"></i>
+                            <div class="batida-label">Saída Almoço</div>
+                            <div class="batida-hora" id="hora-saida-almoco">--:--</div>
+                        </div>
+                        <div class="batida-card" id="card-retorno-almoco">
+                            <i class="fas fa-utensils"></i>
+                            <div class="batida-label">Retorno Almoço</div>
+                            <div class="batida-hora" id="hora-retorno-almoco">--:--</div>
+                        </div>
+                        <div class="batida-card" id="card-saida">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <div class="batida-label">Saída</div>
+                            <div class="batida-hora" id="hora-saida">--:--</div>
+                        </div>
+                    </div>
+
+                    <!-- Resumo Mensal -->
+                    <h2 style="margin: 40px 0 20px; color: #1f2937;">Resumo do Mês</h2>
+                    <div class="resumo-mensal">
+                        <div class="resumo-card">
+                            <h3>Total de Horas</h3>
+                            <div class="value" id="totalHoras">0h</div>
+                        </div>
+                        <div class="resumo-card">
+                            <h3>Faltas</h3>
+                            <div class="value" id="totalFaltas">0</div>
+                        </div>
+                        <div class="resumo-card">
+                            <h3>Horas Extras</h3>
+                            <div class="value" id="horasExtras">0h</div>
+                        </div>
+                        <div class="resumo-card">
+                            <h3>Atrasos</h3>
+                            <div class="value" id="totalAtrasos">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Histórico -->
+                    <h2 style="margin: 40px 0 20px; color: #1f2937;">Histórico de Ponto</h2>
+                    <table class="historico-table">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Entrada</th>
+                                <th>Saída Almoço</th>
+                                <th>Retorno</th>
+                                <th>Saída</th>
+                                <th>Horas Trabalhadas</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historicoBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: #666;">Carregando histórico...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let userData = null;
+        let pontoHoje = null;
+
+        // Atualizar relógio
+        function atualizarRelogio() {
+            const agora = new Date();
+            const horas = String(agora.getHours()).padStart(2, '0');
+            const minutos = String(agora.getMinutes()).padStart(2, '0');
+            const segundos = String(agora.getSeconds()).padStart(2, '0');
+            document.getElementById('relogio').textContent = `${horas}:${minutos}:${segundos}`;
+            
+            const dias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const dataFormatada = `${dias[agora.getDay()]}, ${agora.getDate()} de ${meses[agora.getMonth()]} de ${agora.getFullYear()}`;
+            document.getElementById('dataAtual').textContent = dataFormatada;
+        }
+
+        setInterval(atualizarRelogio, 1000);
+        atualizarRelogio();
+
+        // Carregar usuário
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                if (response.ok) {
+                    userData = await response.json();
+                    await carregarPontoHoje();
+                    await carregarResumo();
+                    await carregarHistorico();
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+        }
+
+        // Carregar ponto de hoje
+        async function carregarPontoHoje() {
+            try {
+                const hoje = new Date().toISOString().split('T')[0];
+                const response = await fetch(`/api/rh/ponto/hoje/${userData.id}?data=${hoje}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                
+                if (response.ok) {
+                    pontoHoje = await response.json();
+                    atualizarBatidas(pontoHoje);
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+        }
+
+        // Atualizar cards de batidas
+        function atualizarBatidas(ponto) {
+            if (ponto.entrada_manha) {
+                document.getElementById('hora-entrada').textContent = ponto.entrada_manha.substring(0, 5);
+                document.getElementById('card-entrada').classList.add('registrada');
+            }
+            if (ponto.saida_almoco) {
+                document.getElementById('hora-saida-almoco').textContent = ponto.saida_almoco.substring(0, 5);
+                document.getElementById('card-saida-almoco').classList.add('registrada');
+            }
+            if (ponto.entrada_tarde) {
+                document.getElementById('hora-retorno-almoco').textContent = ponto.entrada_tarde.substring(0, 5);
+                document.getElementById('card-retorno-almoco').classList.add('registrada');
+            }
+            if (ponto.saida_final) {
+                document.getElementById('hora-saida').textContent = ponto.saida_final.substring(0, 5);
+                document.getElementById('card-saida').classList.add('registrada');
+                document.getElementById('statusPonto').textContent = 'Expediente concluído';
+                document.getElementById('statusPonto').className = 'status-ponto';
+            } else if (ponto.entrada_tarde) {
+                document.getElementById('statusPonto').textContent = 'Trabalhando';
+                document.getElementById('statusPonto').className = 'status-ponto trabalhando';
+            } else if (ponto.saida_almoco) {
+                document.getElementById('statusPonto').textContent = 'Em horário de almoço';
+                document.getElementById('statusPonto').className = 'status-ponto almoco';
+            }
+        }
+
+        // Registrar ponto
+        async function registrarPonto() {
+            try {
+                const response = await fetch('/api/rh/ponto/registrar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ funcionario_id: userData.id })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert(`${result.tipo} registrado com sucesso às ${result.horario}`);
+                    await carregarPontoHoje();
+                } else {
+                    alert('Erro ao registrar ponto');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao registrar ponto');
+            }
+        }
+
+        // Carregar resumo mensal
+        async function carregarResumo() {
+            try {
+                const mes = new Date().getMonth() + 1;
+                const ano = new Date().getFullYear();
+                const response = await fetch(`/api/rh/ponto/relatorio-mensal?funcionario_id=${userData.id}&mes=${mes}&ano=${ano}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                
+                if (response.ok) {
+                    const resumo = await response.json();
+                    document.getElementById('totalHoras').textContent = resumo.total_horas || '0h';
+                    document.getElementById('totalFaltas').textContent = resumo.total_faltas || 0;
+                    document.getElementById('horasExtras').textContent = resumo.horas_extras || '0h';
+                    document.getElementById('totalAtrasos').textContent = resumo.total_atrasos || 0;
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+        }
+
+        // Carregar histórico
+        async function carregarHistorico() {
+            try {
+                const mes = new Date().getMonth() + 1;
+                const ano = new Date().getFullYear();
+                const response = await fetch(`/api/rh/ponto/historico/${userData.id}?mes=${mes}&ano=${ano}`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                
+                if (response.ok) {
+                    const historico = await response.json();
+                    const tbody = document.getElementById('historicoBody');
+                    
+                    if (historico.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Nenhum registro encontrado</td></tr>';
+                        return;
+                    }
+                    
+                    tbody.innerHTML = historico.map(h => `
+                        <tr>
+                            <td>${new Date(h.data).toLocaleDateString('pt-BR')}</td>
+                            <td>${h.entrada_manha ? h.entrada_manha.substring(0, 5) : '--:--'}</td>
+                            <td>${h.saida_almoco ? h.saida_almoco.substring(0, 5) : '--:--'}</td>
+                            <td>${h.entrada_tarde ? h.entrada_tarde.substring(0, 5) : '--:--'}</td>
+                            <td>${h.saida_final ? h.saida_final.substring(0, 5) : '--:--'}</td>
+                            <td><strong>${h.horas_trabalhadas || 0}h</strong></td>
+                            <td>${h.tipo_registro}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', carregarUsuario);
+
+        // Toggle sidebar mobile
+        document.querySelector('.menu-toggle-btn')?.addEventListener('click', () => {
+            document.querySelector('.sidebar').classList.toggle('active');
+            document.querySelector('#sidebar-overlay').classList.toggle('active');
+        });
+
+        document.querySelector('#sidebar-overlay')?.addEventListener('click', () => {
+            document.querySelector('.sidebar').classList.remove('active');
+            document.querySelector('#sidebar-overlay').classList.remove('active');
+        });
+    </script>
+</body>
+</html>

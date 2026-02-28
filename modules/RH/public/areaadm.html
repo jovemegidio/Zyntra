@@ -1,0 +1,1421 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>Aluforce: RH Administrativo</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #f97316;
+            --primary-pink: #ec4899;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        /* ========================================
+           LAYOUT PRINCIPAL
+           ======================================== */
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* ========================================
+           SIDEBAR LATERAL (Estilo Omie/Vendas)
+           ======================================== */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-pink);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i {
+            color: white;
+            font-size: 18px;
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .sidebar-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            position: relative;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .sidebar-btn.active {
+            background: var(--primary-pink);
+            color: white;
+        }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-btn .badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: var(--danger-red);
+            color: white;
+            font-size: 10px;
+            padding: 2px 5px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* ========================================
+           MAIN CONTENT AREA
+           ======================================== */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            /* overflow handled by global-header-sidebar.css */
+            margin-top: 0;
+            padding: 0;
+        }
+
+        /* ========================================
+           HEADER SUPERIOR
+           ======================================== */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+        }
+
+        .header-brand img {
+            height: 24px;
+        }
+
+        .header-brand span {
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b8b9a;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 8px;
+            overflow: hidden;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        .user-avatar img.visible {
+            display: block;
+        }
+
+        .user-greeting {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: 16px;
+            color: #8b8b9a;
+            font-size: 13px;
+        }
+
+        .user-greeting strong {
+            color: white;
+        }
+
+        /* ========================================
+           CONTENT AREA
+           ======================================== */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: #ffffff;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-title i {
+            color: var(--primary-pink);
+        }
+
+        .page-subtitle {
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border: 1px solid #f1f5f9;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .stat-icon.purple { background: rgba(236, 72, 153, 0.1); color: #8b5cf6; }
+        .stat-icon.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .stat-icon.yellow { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+
+        .stat-badge {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .stat-badge.up { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .stat-badge.down { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1200px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        .btn-link {
+            color: var(--primary-pink);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Table */
+        .table-modern {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-modern th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .table-modern td {
+            padding: 16px;
+            border-bottom: 1px solid #f1f5f9;
+            color: #334155;
+            font-size: 0.875rem;
+        }
+
+        .table-modern tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        /* Status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-badge.active { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .status-badge.inactive { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .status-badge.pending { background: rgba(251, 191, 36, 0.1); color: #f59e0b; }
+        .status-badge.vacation { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .quick-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .quick-action-btn:hover {
+            background: rgba(236, 72, 153, 0.1);
+            border-color: var(--primary-pink);
+        }
+
+        .quick-action-btn i {
+            font-size: 1.5rem;
+            color: var(--primary-pink);
+            margin-bottom: 8px;
+        }
+
+        .quick-action-btn span {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-align: center;
+        }
+
+        /* Activity List */
+        .activity-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .activity-item {
+            display: flex;
+            gap: 16px;
+            padding: 16px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-title {
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+
+        .activity-time {
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* ========================================
+           RESPONSIVE MOBILE
+           ======================================== */
+        @media (max-width: 768px) {
+            /* A sidebar fica compacta (só ícones) no mobile, não escondida */
+
+            /* Main Area Mobile */
+            .main-area {
+                width: 100%;
+            }
+
+            .main-content {
+                padding: 16px;
+            }
+
+            /* Header Mobile */
+            .header {
+                padding: 12px 16px;
+            }
+
+            .header-left {
+                display: flex;
+                align-items: center;
+            }
+
+            .btn-menu-mobile {
+                display: flex !important;
+                width: 40px;
+                height: 40px;
+                background: rgba(236, 72, 153, 0.1);
+                border: none;
+                border-radius: 10px;
+                color: var(--primary-pink);
+                font-size: 18px;
+                cursor: pointer;
+                align-items: center;
+                justify-content: center;
+                margin-right: 12px;
+            }
+
+            .header-title h1 {
+                font-size: 18px;
+            }
+
+            .header-actions {
+                gap: 8px;
+            }
+
+            .header-actions .btn span {
+                display: none;
+            }
+
+            /* Stats Grid Mobile */
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+
+            .stat-card {
+                padding: 16px;
+            }
+
+            .stat-value {
+                font-size: 1.5rem;
+            }
+
+            /* Content Grid Mobile */
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Cards Mobile */
+            .card {
+                border-radius: 12px;
+            }
+
+            .card-header {
+                padding: 16px;
+            }
+
+            .card-body {
+                padding: 16px;
+            }
+
+            /* Chart Mobile */
+            .chart-container {
+                height: 250px;
+            }
+
+            /* Quick Actions Mobile */
+            .quick-actions-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 12px;
+            }
+
+            .quick-action-btn {
+                padding: 14px 8px;
+            }
+
+            .quick-action-btn i {
+                font-size: 20px;
+            }
+
+            /* Activity List Mobile */
+            .activity-item {
+                padding: 12px 0;
+                gap: 12px;
+            }
+
+            .activity-icon {
+                width: 36px;
+                height: 36px;
+            }
+
+            /* Tabelas Mobile */
+            .table-responsive {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin: 0 -16px;
+                padding: 0 16px;
+            }
+
+            table {
+                min-width: 600px;
+            }
+
+            /* Overlay Mobile */
+            .sidebar-overlay-mobile {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1000;
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
+            }
+
+            .sidebar-overlay-mobile.show {
+                opacity: 1;
+                visibility: visible;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 12px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-card {
+                padding: 14px;
+                flex-direction: row;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .stat-value {
+                font-size: 1.25rem;
+            }
+
+            .quick-actions-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .header-title h1 {
+                font-size: 16px;
+            }
+
+            .chart-container {
+                height: 200px;
+            }
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <!-- Sidebar Lateral -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="areaadm.html" class="sidebar-btn active" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
+                <a href="pages/funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
+                <a href="pages/ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="pages/beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Área Administrativa</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon purple">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <span class="stat-badge up">
+                                <i class="fas fa-arrow-up"></i> 5%
+                            </span>
+                        </div>
+                        <div class="stat-value" id="stat-funcionarios"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
+                        <div class="stat-label">Total de Funcionários</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon green">
+                                <i class="fas fa-user-check"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="stat-ativos"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
+                        <div class="stat-label">Funcionários Ativos</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon blue">
+                                <i class="fas fa-umbrella-beach"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="stat-ferias"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
+                        <div class="stat-label">Em Férias</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon yellow">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="stat-admissoes"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
+                        <div class="stat-label">Novas Admissões (mês)</div>
+                    </div>
+                </div>
+
+                <!-- Content Grid -->
+                <div class="content-grid">
+                    <!-- Main Column -->
+                    <div class="main-column">
+                        <!-- Funcionários Recentes -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Funcionários Recentes</h3>
+                                <a href="pages/funcionarios.html" class="btn-link">Ver Todos <i class="fas fa-arrow-right"></i></a>
+                            </div>
+                            <div class="card-body">
+                                <table class="table-modern">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Cargo</th>
+                                            <th>Departamento</th>
+                                            <th>Admissão</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-funcionarios">
+                                        <tr>
+                                            <td colspan="5" style="text-align: center; padding: 30px; color: #6b7280;">
+                                                <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
+                                                Carregando funcionários...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Gráfico de Funcionários por Departamento -->
+                        <div class="card" style="margin-top: 24px;">
+                            <div class="card-header">
+                                <h3 class="card-title">Funcionários por Departamento</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="deptChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Side Column -->
+                    <div class="side-column">
+                        <!-- Ações Rápidas -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Ações Rápidas</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="quick-actions">
+                                    <a href="pages/funcionarios.html?action=new" class="quick-action-btn">
+                                        <i class="fas fa-user-plus"></i>
+                                        <span>Novo Funcionário</span>
+                                    </a>
+                                    <a href="pages/ferias.html" class="quick-action-btn">
+                                        <i class="fas fa-calendar-check"></i>
+                                        <span>Gestão Férias</span>
+                                    </a>
+                                    <a href="pages/folha.html" class="quick-action-btn">
+                                        <i class="fas fa-file-invoice-dollar"></i>
+                                        <span>Folha Pagamento</span>
+                                    </a>
+                                    <a href="pages/importar-ponto.html" class="quick-action-btn">
+                                        <i class="fas fa-clock"></i>
+                                        <span>Importar Ponto</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Atividades Recentes -->
+                        <div class="card" style="margin-top: 24px;">
+                            <div class="card-header">
+                                <h3 class="card-title">Atividades Recentes</h3>
+                            </div>
+                            <div class="card-body">
+                                <ul class="activity-list" id="activity-list">
+                                    <li style="text-align: center; padding: 20px; color: #9ca3af;">
+                                        <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // ========================================
+        // CARREGAR DADOS DO USUÁRIO LOGADO
+        // ========================================
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                ...additionalHeaders
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const user = await response.json();
+
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+
+                    // Prioridade: avatar > foto > foto_perfil_url > mapeamento por email
+                    let userAvatar = user.avatar || user.foto || user.foto_perfil_url;
+                    if (!userAvatar || userAvatar === '/avatars/default.webp') {
+                        userAvatar = getAvatarFromEmail(user.email, userName);
+                    }
+
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) {
+                        userNameEl.textContent = primeiroNome;
+                    }
+
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.onload = () => {
+                            userPhotoEl.classList.add('visible');
+                            userPhotoEl.style.display = 'block';
+                            if (userInitialEl) userInitialEl.style.display = 'none';
+                        };
+                        userPhotoEl.onerror = () => {
+                            userPhotoEl.style.display = 'none';
+                            if (userInitialEl) {
+                                userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                                userInitialEl.style.display = 'flex';
+                            }
+                        };
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+
+                    console.log('👤 Usuário RH:', primeiroNome, '| Foto:', userAvatar ? 'Sim' : 'Não');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // ========================================
+        // HELPER: Obter token de autenticação
+        // ========================================
+        function getAuthToken() {
+            return localStorage.getItem('token') || getCookie('token');
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        // ========================================
+        // CARREGAR ESTATÍSTICAS DO DASHBOARD
+        // ========================================
+        async function carregarEstatisticas() {
+            try {
+                // Buscar total de funcionarios com autenticação
+                const token = getAuthToken();
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                const respfuncionarios = await fetch('/api/rh/funcionarios', {
+                    credentials: 'include',
+                    headers
+                });
+
+                if (respfuncionarios.ok) {
+                    const data = await respfuncionarios.json();
+                    // A API retorna { funcionarios: [], stats, departamentos, cargos }
+                    const funcionarios = Array.isArray(data) ? data : (data.funcionarios || []);
+                    const stats = data.stats || {};
+                    const departamentos = data.departamentos || [];
+
+                    // Usar stats da API
+                    const total = stats.total || funcionarios.length;
+                    const ativos = stats.ativos || funcionarios.filter(f => f.status === 'Ativo').length;
+                    const ferias = stats.ferias || funcionarios.filter(f => f.status === 'Férias').length;
+                    const admissoes = stats.admissoes_mes || 0;
+
+                    document.getElementById('stat-funcionarios').textContent = total;
+                    document.getElementById('stat-ativos').textContent = ativos;
+                    document.getElementById('stat-ferias').textContent = ferias;
+                    document.getElementById('stat-admissoes').textContent = admissoes;
+
+                    // Carregar funcionarios recentes (últimas 5 admissões)
+                    carregarfuncionariosRecentes(funcionarios);
+
+                    // Carregar gráfico por departamento (sempre usar dados dos funcionários para contagem correta)
+                    carregarGraficoDepartamentos(funcionarios);
+                } else {
+                    // Se a API falhar, mostrar erro amigável
+                    console.error('Erro na API:', respfuncionarios.status);
+                    mostrarErroEstatisticas('Erro ao carregar dados. Faça login novamente.');
+                }
+            } catch (error) {
+                console.error('Erro ao carregar estatísticas:', error);
+                mostrarErroEstatisticas('Erro de conexão com o servidor.');
+            }
+        }
+
+        function mostrarErroEstatisticas(mensagem) {
+            document.getElementById('stat-funcionarios').textContent = '-';
+            document.getElementById('stat-ativos').textContent = '-';
+            document.getElementById('stat-ferias').textContent = '-';
+            document.getElementById('stat-admissoes').textContent = '-';
+
+            const tbody = document.getElementById('tbody-funcionarios');
+            if (tbody) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 30px;"><i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>${mensagem}</td></tr>`;
+            }
+        }
+
+        // ========================================
+        // CARREGAR Funcionarios RECENTES
+        // ========================================
+        function carregarfuncionariosRecentes(funcionarios) {
+            const tbody = document.getElementById('tbody-funcionarios');
+            if (!tbody) return;
+
+            // Ordenar por data de admissão (mais recentes primeiro)
+            const recentes = [...funcionarios]
+                .filter(f => f.data_admissao)
+                .sort((a, b) => new Date(b.data_admissao) - new Date(a.data_admissao))
+                .slice(0, 5);
+
+            if (recentes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">Nenhum Funcionário encontrado</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = recentes.map(f => {
+                const dataAdm = f.data_admissao ? new Date(f.data_admissao).toLocaleDateString('pt-BR') : '-';
+                const statusNorm = (f.status || 'Ativo').trim().toLowerCase();
+                const statusClass = statusNorm === 'ativo' ? 'active' : (statusNorm === 'férias' || statusNorm === 'ferias' ? 'pending' : statusNorm === 'demitido' || statusNorm === 'desligado' ? 'inactive' : 'active');
+                const statusLabel = statusNorm === 'ativo' ? 'Ativo' : statusNorm === 'férias' || statusNorm === 'ferias' ? 'Férias' : statusNorm === 'demitido' ? 'Demitido' : statusNorm === 'desligado' ? 'Desligado' : statusNorm.charAt(0).toUpperCase() + statusNorm.slice(1);
+                return `
+                    <tr>
+                        <td><strong>${f.nome_completo || f.nome || '-'}</strong></td>
+                        <td>${f.cargo || '-'}</td>
+                        <td>${f.departamento || '-'}</td>
+                        <td>${dataAdm}</td>
+                        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ========================================
+        // GRÁFICO DE DEPARTAMENTOS
+        // ========================================
+        let chartInstance = null;
+
+        const coresDepartamentos = [
+            '#8b5cf6', '#3b82f6', '#10b981', '#f97316', '#ec4899', '#06b6d4',
+            '#7c3aed', '#84cc16', '#f59e0b', '#6366f1', '#14b8a6', '#ef4444'
+        ];
+
+        // Função para criar gráfico a partir de dados agregados da API
+        function carregarGraficoDepartamentosAgregado(departamentos) {
+            const labels = departamentos.map(d => d.departamento || 'Não definido');
+            const data = departamentos.map(d => d.quantidade);
+
+            criarGraficoDepartamento(labels, data);
+        }
+
+        function carregarGraficoDepartamentos(funcionarios) {
+            // Agrupar por departamento
+            const departamentos = {};
+            funcionarios.forEach(f => {
+                const dept = f.departamento || 'Não definido';
+                departamentos[dept] = (departamentos[dept] || 0) + 1;
+            });
+
+            const labels = Object.keys(departamentos);
+            const data = Object.values(departamentos);
+
+            criarGraficoDepartamento(labels, data);
+        }
+
+        function criarGraficoDepartamento(labels, data) {
+            const ctx = document.getElementById('deptChart').getContext('2d');
+
+            // Destruir gráfico anterior se existir
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: coresDepartamentos.slice(0, labels.length),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 15,
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percent = ((context.raw / total) * 100).toFixed(1);
+                                    return `${context.label}: ${context.raw} (${percent}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ========================================
+        // CARREGAR ATIVIDADES RECENTES
+        // ========================================
+
+        // Função para escapar HTML e evitar problemas de encoding
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function carregarAtividadesRecentes() {
+            const activityList = document.getElementById('activity-list');
+            if (!activityList) return;
+
+            try {
+                const response = await fetch('/api/rh/atividades?limit=10', {
+                    credentials: 'include',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const atividades = await response.json();
+
+                    if (atividades.length === 0) {
+                        activityList.innerHTML = `
+                            <li style="text-align: center; padding: 20px; color: #9ca3af;">
+                                <i class="fas fa-inbox" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                                Nenhuma atividade recente
+                            </li>
+                        `;
+                        return;
+                    }
+
+                    activityList.innerHTML = atividades.slice(0, 5).map(a => {
+                        const tempo = calcularTempoRelativo(a.created_at);
+                        const titulo = escapeHtml(a.titulo);
+                        const icone = a.icone || 'fa-bell';
+                        const cor = a.cor || '#6b7280';
+
+                        return `
+                            <li class="activity-item">
+                                <div class="activity-icon" style="background: ${cor}20; color: ${cor};">
+                                    <i class="fas ${icone}"></i>
+                                </div>
+                                <div class="activity-content">
+                                    <div class="activity-title">${titulo}</div>
+                                    <div class="activity-time">${tempo}</div>
+                                </div>
+                            </li>
+                        `;
+                    }).join('');
+                } else {
+                    throw new Error('Erro na API');
+                }
+            } catch (error) {
+                console.log('Atividades API indisponível, gerando do cache local:', error);
+                // Fallback: gerar atividades a partir dos funcionários já carregados
+                gerarAtividadesLocal(activityList);
+            }
+        }
+
+        function gerarAtividadesLocal(activityList) {
+            // Tentar buscar funcionários da tabela para gerar atividades reais
+            const rows = document.querySelectorAll('#tbody-funcionarios tr');
+            const atividades = [];
+
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 4) {
+                    const nome = cells[0]?.textContent?.trim() || '';
+                    const cargo = cells[1]?.textContent?.trim() || '';
+                    const dataAdm = cells[3]?.textContent?.trim() || '';
+                    if (nome && nome !== 'Nenhum' && dataAdm !== '-') {
+                        atividades.push({
+                            titulo: `Admissão: ${nome} (${cargo})`,
+                            icone: 'fa-user-plus',
+                            cor: '#10b981',
+                            tempo: dataAdm
+                        });
+                    }
+                }
+            });
+
+            if (atividades.length === 0) {
+                activityList.innerHTML = `
+                    <li style="text-align: center; padding: 20px; color: #9ca3af;">
+                        <i class="fas fa-inbox" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                        Nenhuma atividade recente
+                    </li>
+                `;
+                return;
+            }
+
+            activityList.innerHTML = atividades.slice(0, 5).map(a => `
+                <li class="activity-item">
+                    <div class="activity-icon" style="background: ${a.cor}20; color: ${a.cor};">
+                        <i class="fas ${a.icone}"></i>
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-title">${a.titulo}</div>
+                        <div class="activity-time">${a.tempo}</div>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        function calcularTempoRelativo(data) {
+            // Validar se a data é válida
+            if (!data) return 'Agora';
+
+            const agora = new Date();
+            const dataEvento = new Date(data);
+
+            // Verificar se a data é válida (não é NaN)
+            if (isNaN(dataEvento.getTime())) {
+                return 'Recente';
+            }
+
+            const diffMs = agora - dataEvento;
+
+            // Se a diferença for negativa ou muito grande, retornar texto genérico
+            if (diffMs < 0) return 'Agora';
+
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffHoras = Math.floor(diffMin / 60);
+            const diffDias = Math.floor(diffHoras / 24);
+
+            if (diffMin < 1) return 'Agora';
+            if (diffMin < 60) return `Há ${diffMin} minuto${diffMin > 1 ? 's' : ''}`;
+            if (diffHoras < 24) return `Há ${diffHoras} hora${diffHoras > 1 ? 's' : ''}`;
+            if (diffDias === 1) return 'Ontem';
+            if (diffDias < 30) return `Há ${diffDias} dias`;
+            if (diffDias < 365) return `Há ${Math.floor(diffDias / 30)} mês(es)`;
+            return `Há ${Math.floor(diffDias / 365)} ano(s)`;
+        }
+
+        // ========================================
+        // INIT
+        // ========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            carregarEstatisticas();
+            carregarAtividadesRecentes();
+        });
+    </script>
+
+    <!-- Sistema de Chat e Suporte -->
+
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/unsaved-changes.js?v=20260108"></script>
+    <script src="/js/modal-integration.js?v=20260108"></script>
+    <script src="/js/auth-unified.js?v=20260211"></script>
+        <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+

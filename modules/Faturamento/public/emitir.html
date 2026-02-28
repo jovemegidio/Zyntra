@@ -1,0 +1,449 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aluforce: Faturamento — Emitir NF-e</title>
+    <script src="/js/auth-unified.js?v=20260204" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+    <aside class="sidebar" id="mobile-sidebar">
+        <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+            <a href="index.html" class="sidebar-btn" title="NF-e"><i class="fas fa-file-invoice-dollar"></i></a>
+            <a href="emitir.html" class="sidebar-btn active" title="Emitir NF-e"><i class="fas fa-plus-circle"></i></a>
+            <a href="consultar.html" class="sidebar-btn" title="Consultar"><i class="fas fa-search"></i></a>
+            <a href="danfe.html" class="sidebar-btn" title="DANFE"><i class="fas fa-file-pdf"></i></a>
+            <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-contract"></i></a>
+            <a href="logistica.html" class="sidebar-btn" title="Logística"><i class="fas fa-truck"></i></a>
+            <a href="eventos.html" class="sidebar-btn" title="Eventos"><i class="fas fa-calendar-check"></i></a>
+            <a href="inutilizacao.html" class="sidebar-btn" title="Inutilização"><i class="fas fa-ban"></i></a>
+            <a href="regua.html" class="sidebar-btn" title="Régua Cobrança"><i class="fas fa-bell"></i></a>
+            <a href="pix.html" class="sidebar-btn" title="PIX"><i class="fas fa-qrcode"></i></a>
+        </nav>
+        <div class="sidebar-bottom">
+            <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+        </div>
+    </aside>
+
+    <main class="main-area">
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                    <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                    <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                    <span style="color:rgba(255,255,255,0.3);font-size:12px;margin-left:4px;">— Faturamento</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        <span id="user-initials">U</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-content">
+            <div class="page-header">
+                <div class="page-header-top">
+                    <div class="page-title-wrapper">
+                        <div class="page-icon green"><i class="fas fa-plus-circle"></i></div>
+                        <div>
+                            <h1 class="page-title">Emitir Nota Fiscal Eletrônica</h1>
+                            <p class="page-subtitle">Preencha os dados para emissão da NF-e</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="alertContainer"></div>
+
+            <!-- Wizard Steps -->
+            <div class="wizard-steps">
+                <div class="wizard-step active" id="step-1" onclick="irParaEtapa(1)">
+                    <span class="step-number">1</span> Dados
+                </div>
+                <div class="wizard-separator"></div>
+                <div class="wizard-step" id="step-2" onclick="irParaEtapa(2)">
+                    <span class="step-number">2</span> Itens
+                </div>
+                <div class="wizard-separator"></div>
+                <div class="wizard-step" id="step-3" onclick="irParaEtapa(3)">
+                    <span class="step-number">3</span> Preview XML
+                </div>
+                <div class="wizard-separator"></div>
+                <div class="wizard-step" id="step-4" onclick="irParaEtapa(4)">
+                    <span class="step-number">4</span> Emitir
+                </div>
+            </div>
+
+            <!-- Step 1: Dados -->
+            <div class="card" id="section-dados">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-building"></i> Dados da NF-e</h3>
+                </div>
+                <div class="card-body">
+                    <form id="nfeForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Natureza da Operação</label>
+                                <input type="text" class="form-control" id="naturezaOperacao" value="Venda de mercadoria">
+                            </div>
+                            <div class="form-group">
+                                <label>Tipo de Operação</label>
+                                <select class="form-control" id="tipoOperacao">
+                                    <option value="1">Saída</option>
+                                    <option value="0">Entrada</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Data de Emissão</label>
+                                <input type="date" class="form-control" id="dataEmissao">
+                            </div>
+                        </div>
+
+                        <h4 style="font-size:14px;font-weight:600;margin:24px 0 16px;color:var(--text-primary);display:flex;align-items:center;gap:8px;"><i class="fas fa-user" style="color:var(--primary-500);"></i> Destinatário</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Tipo de Documento</label>
+                                <select class="form-control" id="tipoDocDestinatario">
+                                    <option value="CNPJ">CNPJ</option>
+                                    <option value="CPF">CPF</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Documento</label>
+                                <input type="text" class="form-control" id="destinatarioDoc" placeholder="00.000.000/0000-00">
+                            </div>
+                            <div class="form-group">
+                                <label>Razão Social / Nome</label>
+                                <input type="text" class="form-control" id="destinatarioNome" placeholder="Nome do destinatário">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Endereço</label>
+                                <input type="text" class="form-control" id="destinatarioEndereco" placeholder="Rua, Avenida...">
+                            </div>
+                            <div class="form-group">
+                                <label>Número</label>
+                                <input type="text" class="form-control" id="destinatarioNumero" placeholder="Nº">
+                            </div>
+                            <div class="form-group">
+                                <label>Complemento</label>
+                                <input type="text" class="form-control" id="destinatarioComplemento" placeholder="Sala, Andar...">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Bairro</label>
+                                <input type="text" class="form-control" id="destinatarioBairro">
+                            </div>
+                            <div class="form-group">
+                                <label>Município</label>
+                                <input type="text" class="form-control" id="destinatarioMunicipio">
+                            </div>
+                            <div class="form-group">
+                                <label>Código Município</label>
+                                <input type="text" class="form-control" id="destinatarioCodigoMunicipio">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>UF</label>
+                                <select class="form-control" id="destinatarioUF">
+                                    <option value="">Selecione</option>
+                                    <option value="AC">AC</option><option value="AL">AL</option><option value="AM">AM</option><option value="AP">AP</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MG">MG</option><option value="MS">MS</option><option value="MT">MT</option><option value="PA">PA</option><option value="PB">PB</option><option value="PE">PE</option><option value="PI">PI</option><option value="PR">PR</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RO">RO</option><option value="RR">RR</option><option value="RS">RS</option><option value="SC">SC</option><option value="SE">SE</option><option value="SP">SP</option><option value="TO">TO</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>CEP</label>
+                                <input type="text" class="form-control" id="destinatarioCEP" placeholder="00000-000">
+                            </div>
+                            <div class="form-group">
+                                <label>E-mail</label>
+                                <input type="email" class="form-control" id="destinatarioEmail" placeholder="email@exemplo.com">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer" style="display:flex;justify-content:flex-end;">
+                    <button class="btn btn-primary" onclick="irParaEtapa(2)">Próximo: Itens <i class="fas fa-arrow-right"></i></button>
+                </div>
+            </div>
+
+            <!-- Step 2: Itens -->
+            <div class="card hidden" id="section-itens">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-boxes"></i> Itens da NF-e</h3>
+                    <button class="btn btn-primary btn-sm" onclick="adicionarItem()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                </div>
+                <div class="card-body" style="padding:0;">
+                    <div style="overflow-x:auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Descrição</th>
+                                    <th>NCM</th>
+                                    <th>CFOP</th>
+                                    <th>Unidade</th>
+                                    <th>Qtde</th>
+                                    <th>Vlr Unit.</th>
+                                    <th>Vlr Total</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="itensTableBody">
+                                <tr><td colspan="9"><div class="empty-state"><i class="fas fa-box-open"></i><p>Adicione itens à NF-e</p></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;">
+                        <div style="display:flex;gap:24px;font-size:13px;">
+                            <span>Produtos: <strong id="totalProdutos">R$ 0,00</strong></span>
+                            <span>Desconto: <strong id="totalDesconto">R$ 0,00</strong></span>
+                            <span>Frete: <strong id="totalFrete">R$ 0,00</strong></span>
+                            <span style="font-size:15px;color:var(--primary-600);">Total: <strong id="valorTotalNFe">R$ 0,00</strong></span>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn btn-secondary" onclick="irParaEtapa(1)"><i class="fas fa-arrow-left"></i> Voltar</button>
+                            <button class="btn btn-primary" onclick="irParaEtapa(3)">Preview XML <i class="fas fa-arrow-right"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Preview XML -->
+            <div class="card hidden" id="section-preview">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-code"></i> Preview XML</h3>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-outline btn-sm" onclick="validarXML()"><i class="fas fa-check-circle"></i> Validar</button>
+                        <button class="btn btn-outline btn-sm" onclick="gerarPreview()"><i class="fas fa-sync-alt"></i> Gerar Preview</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="xml-preview" id="xmlPreview">Clique em "Gerar Preview" para visualizar o XML da NF-e</div>
+                </div>
+                <div class="card-footer" style="display:flex;justify-content:space-between;">
+                    <button class="btn btn-secondary" onclick="irParaEtapa(2)"><i class="fas fa-arrow-left"></i> Voltar</button>
+                    <button class="btn btn-success" onclick="irParaEtapa(4)"><i class="fas fa-paper-plane"></i> Transmitir NF-e</button>
+                </div>
+            </div>
+
+            <!-- Step 4: Resultado -->
+            <div class="card hidden" id="section-resultado">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-check-circle"></i> Resultado da Transmissão</h3>
+                </div>
+                <div class="card-body" id="resultadoContent">
+                    <div class="empty-state">
+                        <i class="fas fa-paper-plane"></i>
+                        <h3>Aguardando transmissão</h3>
+                        <p>O resultado será exibido aqui após a transmissão</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
+
+let itens = [];
+let etapaAtual = 1;
+
+function irParaEtapa(n) {
+    ['section-dados','section-itens','section-preview','section-resultado'].forEach((s,i) => {
+        document.getElementById(s).classList.toggle('hidden', i+1 !== n);
+    });
+    for (let i = 1; i <= 4; i++) {
+        const el = document.getElementById('step-'+i);
+        el.classList.remove('active','completed');
+        if (i < n) el.classList.add('completed');
+        else if (i === n) el.classList.add('active');
+    }
+    etapaAtual = n;
+    if (n === 3) gerarPreview();
+}
+
+function adicionarItem() {
+    itens.push({ descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valorUnitario: 0, desconto: 0 });
+    renderizarItens();
+}
+
+function renderizarItens() {
+    const tbody = document.getElementById('itensTableBody');
+    if (!itens.length) {
+        tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><i class="fas fa-box-open"></i><p>Adicione itens à NF-e</p></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = itens.map((item, i) => `
+        <tr>
+            <td>${i+1}</td>
+            <td><input type="text" class="form-control" style="min-width:200px;" value="${item.descricao}" onchange="atualizarItem(${i},'descricao',this.value)"></td>
+            <td><input type="text" class="form-control" style="width:100px;" value="${item.ncm}" onchange="atualizarItem(${i},'ncm',this.value)"></td>
+            <td><input type="text" class="form-control" style="width:80px;" value="${item.cfop}" onchange="atualizarItem(${i},'cfop',this.value)"></td>
+            <td><input type="text" class="form-control" style="width:60px;" value="${item.unidade}" onchange="atualizarItem(${i},'unidade',this.value)"></td>
+            <td><input type="number" class="form-control" style="width:70px;" value="${item.quantidade}" onchange="atualizarItem(${i},'quantidade',parseFloat(this.value))"></td>
+            <td><input type="number" class="form-control" style="width:100px;" step="0.01" value="${item.valorUnitario}" onchange="atualizarItem(${i},'valorUnitario',parseFloat(this.value))"></td>
+            <td><strong>${(item.quantidade * item.valorUnitario).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong></td>
+            <td><button class="action-btn delete" onclick="removerItem(${i})" title="Remover"><i class="fas fa-trash"></i></button></td>
+        </tr>
+    `).join('');
+    calcularTotais();
+}
+
+function atualizarItem(index, campo, valor) {
+    itens[index][campo] = valor;
+    renderizarItens();
+}
+
+function removerItem(index) {
+    itens.splice(index, 1);
+    renderizarItens();
+}
+
+function calcularTotais() {
+    const total = itens.reduce((s, i) => s + (i.quantidade * i.valorUnitario), 0);
+    const desc = itens.reduce((s, i) => s + (i.desconto || 0), 0);
+    const fmt = v => v.toLocaleString('pt-BR', {style:'currency',currency:'BRL'});
+    document.getElementById('totalProdutos').textContent = fmt(total);
+    document.getElementById('totalDesconto').textContent = fmt(desc);
+    document.getElementById('totalFrete').textContent = fmt(0);
+    document.getElementById('valorTotalNFe').textContent = fmt(total - desc);
+}
+
+function construirNFeData() {
+    return {
+        naturezaOperacao: document.getElementById('naturezaOperacao').value,
+        tipoOperacao: document.getElementById('tipoOperacao').value,
+        dataEmissao: document.getElementById('dataEmissao').value,
+        destinatario: {
+            tipoDoc: document.getElementById('tipoDocDestinatario').value,
+            documento: document.getElementById('destinatarioDoc').value,
+            nome: document.getElementById('destinatarioNome').value,
+            endereco: document.getElementById('destinatarioEndereco').value,
+            numero: document.getElementById('destinatarioNumero').value,
+            complemento: document.getElementById('destinatarioComplemento').value,
+            bairro: document.getElementById('destinatarioBairro').value,
+            municipio: document.getElementById('destinatarioMunicipio').value,
+            codigoMunicipio: document.getElementById('destinatarioCodigoMunicipio').value,
+            uf: document.getElementById('destinatarioUF').value,
+            cep: document.getElementById('destinatarioCEP').value,
+            email: document.getElementById('destinatarioEmail').value
+        },
+        itens: itens
+    };
+}
+
+async function gerarPreview() {
+    const data = construirNFeData();
+    try {
+        const r = await fetch('/api/api.php?action=preview', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
+        if (r.ok) {
+            const xml = await r.text();
+            document.getElementById('xmlPreview').textContent = formatXML(xml);
+        } else { document.getElementById('xmlPreview').textContent = 'Erro ao gerar preview'; }
+    } catch(e) { document.getElementById('xmlPreview').textContent = 'Preview será gerado na transmissão'; }
+}
+
+async function validarXML() {
+    try {
+        const r = await fetch('/api/nfe/validar', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(construirNFeData()) });
+        const d = await r.json();
+        showAlert(d.valido ? 'XML válido!' : 'Erros: ' + (d.erros||[]).join(', '), d.valido ? 'success' : 'danger');
+    } catch(e) { showAlert('Erro ao validar XML', 'danger'); }
+}
+
+function formatXML(xml) {
+    let formatted = '', indent = '';
+    xml.split(/>\s*</).forEach(node => {
+        if (node.match(/^\/\w/)) indent = indent.substring(2);
+        formatted += indent + '<' + node + '>\n';
+        if (node.match(/^<?\w[^>]*[^\/]$/) && !node.startsWith('?')) indent += '  ';
+    });
+    return formatted.substring(1, formatted.length - 2);
+}
+
+function showAlert(message, type) {
+    const container = document.getElementById('alertContainer');
+    const alert = document.createElement('div');
+    alert.className = 'alert ' + type;
+    alert.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':type==='danger'?'exclamation-circle':'info-circle'}"></i> ${message}`;
+    container.appendChild(alert);
+    setTimeout(() => alert.remove(), 5000);
+}
+
+async function transmitirSEFAZ(nfeId) {
+    try {
+        const r = await fetch(`/api/nfe/${nfeId}/transmitir`, { method: 'POST', headers: {'Content-Type':'application/json'} });
+        const d = await r.json();
+        document.getElementById('resultadoContent').innerHTML = `
+            <div class="alert ${d.sucesso ? 'success' : 'danger'}">
+                <i class="fas fa-${d.sucesso ? 'check-circle' : 'exclamation-triangle'}"></i>
+                ${d.mensagem || (d.sucesso ? 'NF-e transmitida com sucesso!' : 'Erro na transmissão')}
+            </div>
+            ${d.protocolo ? '<p><strong>Protocolo:</strong> <span class="code">' + d.protocolo + '</span></p>' : ''}
+            ${d.chave ? '<p><strong>Chave:</strong> <span class="code">' + d.chave + '</span></p>' : ''}
+        `;
+    } catch(e) { showAlert('Erro ao transmitir', 'danger'); }
+}
+
+function carregarUsuarioLogado() {
+    const avatarNameMap = {'admin':'AD','Admin':'AD','usuario':'US','João':'JO','Maria':'MA','Pedro':'PE','Ana':'AN','Carlos':'CA'};
+    const h = new Date().getHours();
+    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    fetch('/api/me', { credentials: 'include' })
+        .then(r => r.json())
+        .then(u => {
+            const nome = u.nome || u.name || 'Usuário';
+            document.getElementById('user-name').textContent = nome.split(' ')[0];
+            document.getElementById('user-initials').textContent = avatarNameMap[nome.split(' ')[0]] || nome.substring(0,2).toUpperCase();
+            if (u.foto || u.avatar) { document.getElementById('user-photo').src = u.foto||u.avatar; document.getElementById('user-photo').style.display='block'; document.getElementById('user-initials').style.display='none'; }
+        }).catch(() => {});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarUsuarioLogado();
+    document.getElementById('dataEmissao').valueAsDate = new Date();
+});
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="../../_shared/connection-monitor.js?v=20251223"></script>
+<script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>

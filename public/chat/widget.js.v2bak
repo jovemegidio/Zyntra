@@ -1,0 +1,992 @@
+/**
+ * ALUFORCE CHAT WIDGET — JavaScript
+ * Widget flutuante com BOB IA, áudio e suporte
+ * v2.0 - Auto-login + Painel de Suporte para TI
+ */
+
+(function () {
+  'use strict';
+
+  // ==================== ESTADO ====================
+  const W = {
+    socket: null,
+    user: null,
+    conversationId: null,
+    isOpen: false,
+    isLoggedIn: false,
+    isRecording: false,
+    mediaRecorder: null,
+    audioChunks: [],
+    recStartTime: null,
+    recTimer: null,
+    typingTimeout: null,
+    unreadCount: 0,
+    pendingTopic: null,
+    isSupportMode: false,
+    isSupportAgent: false,
+    loggedUser: null, // dados do localStorage
+    activeTickets: [],
+  };
+
+  // ==================== EMOJIS ====================
+  const EMOJIS = [
+    '😀','😃','😄','😁','😅','😂','🤣','😊','😇','🥰','😍','🤩','😘','😗',
+    '😚','😙','🥲','😋','😛','🤪','😜','🤨','🧐','🤓','😎','🤗','🤭','🫢','🤫','🤔',
+    '🫡','🤐','🤮','😶','🫥','😑','😬','🙄','😯','😮','😲','🥱','😴','🤤','😪','😵',
+    '🤑','😤','😠','😡','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾',
+    '🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾','🐶','🐱','❤️','🔥','✅','⭐',
+    '👍','👎','👋','👏','🙏','💪','🤝','✍️','🫶','🎉','🎊','💯','✨','⚡',
+  ];
+
+  // ==================== CONSTANTE SUPORTE ====================
+  const SUPPORT_EMAIL = 'ti@aluforce.ind.br';
+
+  // ==================== INICIALIZAÇÃO ====================
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  function init() {
+    // Detectar usuário logado
+    detectLoggedUser();
+    
+    initSocket();
+    initFab();
+    initChat();
+    initEmojis();
+    initAudio();
+    initFileUpload();
+    initAttachMenu();
+    initScreenshot();
+    initSupport();
+    initModal();
+    initTooltip();
+    initTheme();
+
+    // Se é agente de suporte, mostrar painel diferente
+    if (W.isSupportAgent) {
+      initSupportPanel();
+    } else {
+      initLogin();
+    }
+
+    // Mostrar tooltip após 3 segundos
+    setTimeout(() => {
+      const tip = $('afw-tooltip');
+      if (tip && !W.isOpen) tip.classList.remove('hidden');
+    }, 3000);
+  }
+
+  // ==================== DETECTAR USUÁRIO LOGADO ====================
+  function detectLoggedUser() {
+    try {
+      const raw = sessionStorage.getItem('userData') || localStorage.getItem('userData');
+      if (raw) {
+        W.loggedUser = JSON.parse(raw);
+        // Verificar se é agente de suporte (TI)
+        if (W.loggedUser.email && W.loggedUser.email.toLowerCase() === SUPPORT_EMAIL) {
+          W.isSupportAgent = true;
+        }
+      }
+    } catch (e) {
+      console.warn('[Chat] Erro ao detectar usuário logado:', e);
+    }
+  }
+
+  // ==================== SOCKET ====================
+  function initSocket() {
+    W.socket = io();
+
+    W.socket.on('user:registered', (data) => {
+      W.user = data.user;
+      W.conversationId = data.conversationId;
+    });
+
+    W.socket.on('message:received', (msg) => {
+      renderMessage(msg);
+      scrollBottom();
+      if (!W.isOpen) {
+        W.unreadCount++;
+        updateBadge();
+        showNotif(stripMd(msg.content || '').substring(0, 80));
+      }
+      playSound();
+    });
+
+    W.socket.on('message:sent', (msg) => {
+      const el = document.querySelector('[data-mid="' + msg.id + '"]');
+      if (el) {
+        const s = el.querySelector('.afw-msg-status');
+        if (s) { s.innerHTML = '<i class="fas fa-check-double"></i>'; s.classList.add('delivered'); }
+      }
+    });
+
+    W.socket.on('typing:update', (data) => {
+      const t = $('afw-typing');
+      data.isTyping ? t.classList.remove('hidden') : t.classList.add('hidden');
+      scrollBottom();
+    });
+
+    W.socket.on('support:suggest', () => {
+      $('afw-support-bar').classList.remove('hidden');
+      scrollBottom();
+    });
+
+    W.socket.on('support:queued', (data) => {
+      showNotif(stripMd(data.message || 'Você está na fila de atendimento'));
+    });
+
+    W.socket.on('support:connected', (data) => {
+      W.isSupportMode = true;
+      $('afw-header-name').textContent = data.agentName;
+      $('afw-header-status').innerHTML = '<i class="fas fa-circle" style="color:#4caf50"></i> Suporte Humano';
+      const av = $('afw-header-avatar');
+      if (av) { av.src = ''; av.style.background = 'linear-gradient(135deg,#4caf50,#66bb6a)'; av.style.padding = '6px'; av.alt = '🎧'; }
+    });
+
+    W.socket.on('support:auto-transfer', (data) => {
+      W.socket.emit('support:request', {
+        conversationId: data.conversationId || W.conversationId,
+        reason: 'Transferência solicitada pelo usuário via BOB'
+      });
+    });
+
+    // ===== EVENTOS DE SUPORTE (AGENTE) =====
+    W.socket.on('support:registered', (data) => {
+      console.log('[Chat Suporte] Agente registrado, tickets:', data.queue?.length);
+      W.activeTickets = data.queue || [];
+      renderSupportTickets();
+    });
+
+    W.socket.on('support:new-ticket', (ticket) => {
+      console.log('[Chat Suporte] Novo ticket:', ticket.userName);
+      W.activeTickets.push(ticket);
+      renderSupportTickets();
+      playSound();
+      if (!W.isOpen) {
+        W.unreadCount++;
+        updateBadge();
+        showNotif('🎫 Novo chamado de ' + (ticket.userName || 'Usuário'));
+      }
+    });
+
+    W.socket.on('support:accepted', (data) => {
+      console.log('[Chat Suporte] Ticket aceito');
+      // Mudar para tela de chat com o histórico
+      W.conversationId = data.ticket.conversationId;
+      W.isSupportMode = true;
+
+      const panel = $('afw-support-panel');
+      if (panel) panel.classList.add('hidden');
+      $('afw-chat').classList.remove('hidden');
+
+      $('afw-header-name').textContent = data.ticket.userName || 'Usuário';
+      $('afw-header-status').innerHTML = '<i class="fas fa-circle" style="color:#4caf50"></i> Suporte Ativo';
+
+      // Renderizar histórico
+      const inner = $('afw-messages-inner');
+      inner.innerHTML = '<div class="afw-date-divider"><span>Hoje</span></div>';
+      if (data.conversationHistory) {
+        data.conversationHistory.forEach(msg => renderMessage(msg));
+      }
+      scrollBottom();
+
+      // Remover o ticket da lista
+      W.activeTickets = W.activeTickets.filter(t => t.id !== data.ticket.id);
+    });
+
+    W.socket.on('support:ticket-closed', (data) => {
+      W.activeTickets = W.activeTickets.filter(t => t.id !== data.ticketId);
+      renderSupportTickets();
+    });
+  }
+
+  // ==================== FAB ====================
+  function initFab() {
+    const fab = $('afw-fab');
+    fab.addEventListener('click', toggleWidget);
+  }
+
+  function toggleWidget() {
+    W.isOpen = !W.isOpen;
+    const win = $('afw-window');
+    const fab = $('afw-fab');
+    const tip = $('afw-tooltip');
+
+    if (W.isOpen) {
+      win.classList.remove('hidden');
+      fab.classList.add('open');
+      tip.classList.add('hidden');
+      W.unreadCount = 0;
+      updateBadge();
+
+      // Auto-login se tiver usuário logado e não for suporte
+      if (W.loggedUser && !W.isSupportAgent && !W.isLoggedIn) {
+        autoLogin();
+      }
+
+      if (W.isLoggedIn) {
+        scrollBottom();
+        const inp = $('afw-msg-input');
+        if (inp) inp.focus();
+      }
+    } else {
+      win.classList.add('hidden');
+      fab.classList.remove('open');
+    }
+  }
+
+  function updateBadge() {
+    const badge = $('afw-fab-badge');
+    if (W.unreadCount > 0) {
+      badge.textContent = W.unreadCount > 9 ? '9+' : W.unreadCount;
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  // ==================== TOOLTIP ====================
+  function initTooltip() {
+    $('afw-tooltip-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('afw-tooltip').classList.add('hidden');
+    });
+  }
+
+  // ==================== LOGIN (USUÁRIO NORMAL) ====================
+  function initLogin() {
+    const form = $('afw-login-form');
+    if (!form) return;
+
+    // Se tem usuário logado, preencher nome e esconder form
+    if (W.loggedUser && W.loggedUser.nome) {
+      const nameInput = $('afw-user-name');
+      if (nameInput) nameInput.value = W.loggedUser.nome;
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = $('afw-user-name').value.trim();
+      if (!name) return;
+      doLogin(name);
+    });
+
+    // Quick topics
+    document.querySelectorAll('.afw-topic').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const topic = btn.dataset.topic;
+        const nameInput = $('afw-user-name');
+        if (!nameInput.value.trim()) {
+          nameInput.focus();
+          W.pendingTopic = topic;
+          return;
+        }
+        W.pendingTopic = topic;
+        doLogin(nameInput.value.trim());
+      });
+    });
+  }
+
+  // ==================== AUTO-LOGIN (USUÁRIO LOGADO) ====================
+  function autoLogin() {
+    if (!W.loggedUser || !W.loggedUser.nome) return;
+    doLogin(W.loggedUser.nome);
+  }
+
+  function doLogin(name) {
+    const email = W.loggedUser ? W.loggedUser.email : null;
+    W.socket.emit('user:register', { name, email });
+    W.isLoggedIn = true;
+
+    $('afw-welcome').classList.add('hidden');
+    $('afw-chat').classList.remove('hidden');
+
+    setTimeout(() => {
+      scrollBottom();
+      const inp = $('afw-msg-input');
+      if (inp) inp.focus();
+
+      if (W.pendingTopic) {
+        setTimeout(() => {
+          sendText(W.pendingTopic);
+          W.pendingTopic = null;
+        }, 1500);
+      }
+    }, 300);
+  }
+
+  // ==================== PAINEL DE SUPORTE (TI) ====================
+  function initSupportPanel() {
+    // Esconder welcome, mostrar painel de suporte
+    const welcome = $('afw-welcome');
+    if (welcome) welcome.classList.add('hidden');
+
+    const panel = $('afw-support-panel');
+    if (!panel) {
+      // Criar o painel se não existe
+      createSupportPanel();
+    }
+
+    // Registrar como agente de suporte
+    W.socket.emit('support:register', {
+      name: W.loggedUser?.nome || 'Suporte TI',
+      email: W.loggedUser?.email || SUPPORT_EMAIL
+    });
+
+    W.isLoggedIn = true;
+  }
+
+  function createSupportPanel() {
+    const win = $('afw-window');
+    if (!win) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'afw-support-panel';
+    panel.className = 'afw-support-panel';
+    panel.innerHTML = `
+      <div class="afw-support-header">
+        <div class="afw-support-header-info">
+          <div class="afw-support-avatar">
+            <i class="fas fa-headset"></i>
+          </div>
+          <div>
+            <h3>Painel de Suporte</h3>
+            <span class="afw-support-agent-name">${W.loggedUser?.nome || 'TI'}</span>
+          </div>
+        </div>
+        <div class="afw-support-header-actions">
+          <button class="afw-header-btn" id="afw-support-btn-theme" title="Alternar tema">
+            <i class="fas fa-moon" id="afw-support-theme-icon"></i>
+          </button>
+          <button class="afw-header-btn" id="afw-support-btn-minimize" title="Minimizar">
+            <i class="fas fa-chevron-down"></i>
+          </button>
+        </div>
+      </div>
+      <div class="afw-support-body">
+        <div class="afw-support-stats">
+          <div class="afw-support-stat">
+            <span class="afw-support-stat-num" id="afw-support-count">0</span>
+            <span class="afw-support-stat-label">Na Fila</span>
+          </div>
+          <div class="afw-support-stat">
+            <span class="afw-support-stat-num" id="afw-support-active">0</span>
+            <span class="afw-support-stat-label">Ativos</span>
+          </div>
+        </div>
+        <div class="afw-support-queue" id="afw-support-queue">
+          <div class="afw-support-empty">
+            <i class="fas fa-check-circle"></i>
+            <p>Nenhum chamado pendente</p>
+            <span>Quando um usuário solicitar suporte, aparecerá aqui</span>
+          </div>
+        </div>
+      </div>
+      <div class="afw-support-footer">
+        <button class="afw-support-back-btn hidden" id="afw-support-back-btn">
+          <i class="fas fa-arrow-left"></i> Voltar ao Painel
+        </button>
+      </div>
+    `;
+
+    // Inserir depois do brand-bar, antes do welcome
+    const brandBar = win.querySelector('.afw-brand-bar');
+    if (brandBar && brandBar.nextSibling) {
+      win.insertBefore(panel, brandBar.nextSibling);
+    } else {
+      win.appendChild(panel);
+    }
+
+    // Event listeners
+    const btnMin = panel.querySelector('#afw-support-btn-minimize');
+    if (btnMin) btnMin.addEventListener('click', toggleWidget);
+
+    const btnTheme = panel.querySelector('#afw-support-btn-theme');
+    if (btnTheme) btnTheme.addEventListener('click', toggleTheme);
+
+    const btnBack = $('afw-support-back-btn');
+    if (btnBack) {
+      btnBack.addEventListener('click', () => {
+        $('afw-chat').classList.add('hidden');
+        panel.classList.remove('hidden');
+        btnBack.classList.add('hidden');
+        W.isSupportMode = false;
+        W.conversationId = null;
+      });
+    }
+  }
+
+  function renderSupportTickets() {
+    const queue = $('afw-support-queue');
+    const countEl = $('afw-support-count');
+    if (!queue) return;
+
+    const waiting = W.activeTickets.filter(t => t.status === 'waiting');
+    if (countEl) countEl.textContent = waiting.length;
+
+    if (waiting.length === 0) {
+      queue.innerHTML = `
+        <div class="afw-support-empty">
+          <i class="fas fa-check-circle"></i>
+          <p>Nenhum chamado pendente</p>
+          <span>Quando um usuário solicitar suporte, aparecerá aqui</span>
+        </div>
+      `;
+      return;
+    }
+
+    queue.innerHTML = waiting.map(ticket => `
+      <div class="afw-support-ticket" data-ticket-id="${ticket.id}">
+        <div class="afw-support-ticket-info">
+          <div class="afw-support-ticket-avatar">
+            <i class="fas fa-user"></i>
+          </div>
+          <div class="afw-support-ticket-details">
+            <strong>${ticket.userName || 'Usuário'}</strong>
+            <span>${ticket.reason || 'Solicitou suporte'}</span>
+            <small>${formatTicketTime(ticket.createdAt)}</small>
+          </div>
+        </div>
+        <button class="afw-support-accept-btn" onclick="window._afwAcceptTicket('${ticket.id}')">
+          <i class="fas fa-headset"></i> Atender
+        </button>
+      </div>
+    `).join('');
+  }
+
+  function formatTicketTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 60000);
+    if (diff < 1) return 'Agora';
+    if (diff < 60) return diff + ' min atrás';
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Global para onclick no HTML
+  window._afwAcceptTicket = function(ticketId) {
+    W.socket.emit('support:accept', { ticketId });
+    const backBtn = $('afw-support-back-btn');
+    if (backBtn) backBtn.classList.remove('hidden');
+  };
+
+  // ==================== CHAT ====================
+  function initChat() {
+    const input = $('afw-msg-input');
+    const btnSend = $('afw-btn-send');
+    const btnMic = $('afw-btn-mic');
+
+    input.addEventListener('input', () => {
+      autoResize(input);
+      const hasText = input.value.trim().length > 0;
+      btnSend.classList.toggle('hidden', !hasText);
+      btnMic.classList.toggle('hidden', hasText);
+
+      if (hasText) {
+        W.socket.emit('typing:start', { conversationId: W.conversationId });
+        clearTimeout(W.typingTimeout);
+        W.typingTimeout = setTimeout(() => {
+          W.socket.emit('typing:stop', { conversationId: W.conversationId });
+        }, 2000);
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendText();
+      }
+    });
+
+    btnSend.addEventListener('click', () => sendText());
+    $('afw-btn-minimize').addEventListener('click', toggleWidget);
+  }
+
+  function sendText(customText) {
+    const input = $('afw-msg-input');
+    const content = customText || input.value.trim();
+    if (!content || !W.conversationId) return;
+
+    W.socket.emit('message:send', { conversationId: W.conversationId, type: 'text', content });
+
+    renderMessage({
+      id: 'tmp_' + Date.now(),
+      sender: W.socket.id,
+      senderName: W.user?.name || 'Eu',
+      type: 'text',
+      content,
+      timestamp: new Date(),
+      status: 'sent'
+    });
+
+    if (!customText) input.value = '';
+    autoResize(input);
+    $('afw-btn-send').classList.add('hidden');
+    $('afw-btn-mic').classList.remove('hidden');
+    scrollBottom();
+
+    W.socket.emit('typing:stop', { conversationId: W.conversationId });
+    $('afw-support-bar').classList.add('hidden');
+  }
+
+  // ==================== RENDERIZAR MENSAGEM ====================
+  function renderMessage(msg) {
+    const wrapper = $('afw-messages-inner');
+    const div = document.createElement('div');
+
+    const isSent = msg.sender === W.socket?.id;
+    const isSystem = msg.type === 'system' || msg.sender === 'system';
+    const isBot = msg.sender === 'bob';
+
+    // No modo suporte, mensagens do usuário (não-bob, não-agente) são "received"
+    div.className = 'afw-msg ' + (isSystem ? 'system' : isSent ? 'sent' : 'received');
+    div.setAttribute('data-mid', msg.id);
+
+    const time = fmtTime(msg.timestamp);
+    const html = fmtContent(msg.content || '');
+
+    if (isSystem) {
+      div.innerHTML = '<div class="afw-msg-bubble"><div class="afw-msg-text">' + html + '</div><div class="afw-msg-meta"><span class="afw-msg-time">' + time + '</span></div></div>';
+    } else if (msg.type === 'audio') {
+      const aid = 'aud_' + msg.id;
+      div.innerHTML = '<div class="afw-msg-bubble">' +
+        (!isSent ? '<div class="afw-msg-sender"><img src="/chat/BobAI.png" alt="BOB"> ' + (isBot ? 'BOB' : (msg.senderName || 'Usuário')) + '</div>' : '') +
+        '<div class="afw-audio-msg">' +
+        '<button class="afw-audio-play" onclick="window._afwToggleAudio(\'' + aid + '\',this)"><i class="fas fa-play"></i></button>' +
+        '<div class="afw-audio-wave">' + genWave() + '</div>' +
+        '<span class="afw-audio-dur">' + fmtDur(msg.metadata?.duration || 0) + '</span>' +
+        '<audio id="' + aid + '" src="' + msg.content + '" preload="metadata"></audio>' +
+        '</div>' +
+        '<div class="afw-msg-meta"><span class="afw-msg-time">' + time + '</span>' + (isSent ? '<span class="afw-msg-status"><i class="fas fa-check"></i></span>' : '') + '</div>' +
+        '</div>';
+    } else if (msg.type === 'image') {
+      div.innerHTML = '<div class="afw-msg-bubble">' +
+        (!isSent ? '<div class="afw-msg-sender"><img src="/chat/BobAI.png" alt="BOB"> ' + (isBot ? 'BOB' : (msg.senderName || 'Usuário')) + '</div>' : '') +
+        '<img src="' + msg.content + '" class="afw-msg-image" onclick="window._afwOpenModal(\'' + msg.content + '\',\'image\')" alt="Imagem">' +
+        '<div class="afw-msg-meta"><span class="afw-msg-time">' + time + '</span>' + (isSent ? '<span class="afw-msg-status"><i class="fas fa-check"></i></span>' : '') + '</div>' +
+        '</div>';
+    } else if (msg.type === 'file') {
+      const icon = fileIcon(msg.metadata?.originalName || 'file');
+      const fname = msg.metadata?.originalName || 'Arquivo';
+      const isPdf = /\.pdf$/i.test(fname);
+      div.innerHTML = '<div class="afw-msg-bubble">' +
+        (!isSent ? '<div class="afw-msg-sender"><img src="/chat/BobAI.png" alt="BOB"> ' + (isBot ? 'BOB' : (msg.senderName || 'Usuário')) + '</div>' : '') +
+        '<div class="afw-file-msg">' +
+        '<div class="afw-file-icon"><i class="fas fa-' + icon + '"></i></div>' +
+        '<div class="afw-file-info"><div class="afw-file-name">' + fname + '</div><div class="afw-file-size">' + fmtSize(msg.metadata?.size || 0) + '</div></div>' +
+        '<div class="afw-file-actions">' +
+        (isPdf ? '<button class="afw-file-action-btn" onclick="window._afwOpenModal(\'' + msg.content + '\',\'pdf\')" title="Visualizar"><i class="fas fa-eye"></i></button>' : '') +
+        '<a class="afw-file-action-btn" href="' + msg.content + '" download title="Baixar"><i class="fas fa-download"></i></a>' +
+        '</div></div>' +
+        '<div class="afw-msg-meta"><span class="afw-msg-time">' + time + '</span>' + (isSent ? '<span class="afw-msg-status"><i class="fas fa-check"></i></span>' : '') + '</div>' +
+        '</div>';
+    } else {
+      div.innerHTML = '<div class="afw-msg-bubble">' +
+        (!isSent ? '<div class="afw-msg-sender"><img src="/chat/BobAI.png" alt="BOB"> ' + (isBot ? 'BOB' : (msg.senderName || 'Usuário')) + '</div>' : '') +
+        '<div class="afw-msg-text">' + html + '</div>' +
+        '<div class="afw-msg-meta"><span class="afw-msg-time">' + time + '</span>' + (isSent ? '<span class="afw-msg-status"><i class="fas fa-check"></i></span>' : '') + '</div>' +
+        '</div>';
+    }
+
+    wrapper.appendChild(div);
+  }
+
+  // ==================== ÁUDIO ====================
+  function initAudio() {
+    $('afw-btn-mic').addEventListener('click', startRec);
+    $('afw-audio-cancel').addEventListener('click', cancelRec);
+    $('afw-audio-send').addEventListener('click', stopAndSendRec);
+  }
+
+  async function startRec() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      W.audioChunks = [];
+      W.mediaRecorder = new MediaRecorder(stream);
+      W.mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) W.audioChunks.push(e.data); };
+      W.mediaRecorder.start();
+      W.isRecording = true;
+      W.recStartTime = Date.now();
+      $('afw-input-bar').classList.add('hidden');
+      $('afw-audio-bar').classList.remove('hidden');
+      W.recTimer = setInterval(updateRecTime, 500);
+    } catch (e) { showNotif('❌ Microfone não disponível'); }
+  }
+
+  function cancelRec() {
+    if (W.mediaRecorder && W.isRecording) {
+      W.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+      W.mediaRecorder.stop();
+    }
+    W.isRecording = false;
+    clearInterval(W.recTimer);
+    $('afw-input-bar').classList.remove('hidden');
+    $('afw-audio-bar').classList.add('hidden');
+  }
+
+  function stopAndSendRec() {
+    if (!W.mediaRecorder || !W.isRecording) return;
+    const dur = Math.round((Date.now() - W.recStartTime) / 1000);
+    W.mediaRecorder.onstop = async () => {
+      const blob = new Blob(W.audioChunks, { type: 'audio/webm' });
+      const fd = new FormData();
+      fd.append('audio', blob, 'audio_' + Date.now() + '.webm');
+      try {
+        const res = await fetch('/api/chat/upload-audio', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.url) {
+          W.socket.emit('message:send', { conversationId: W.conversationId, type: 'audio', content: data.url, metadata: { duration: dur } });
+          renderMessage({ id: 'tmpA_' + Date.now(), sender: W.socket.id, senderName: W.user?.name, type: 'audio', content: data.url, metadata: { duration: dur }, timestamp: new Date(), status: 'sent' });
+          scrollBottom();
+        }
+      } catch (e) { showNotif('❌ Erro ao enviar áudio'); }
+      W.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    };
+    W.mediaRecorder.stop();
+    W.isRecording = false;
+    clearInterval(W.recTimer);
+    $('afw-input-bar').classList.remove('hidden');
+    $('afw-audio-bar').classList.add('hidden');
+  }
+
+  function updateRecTime() {
+    if (!W.recStartTime) return;
+    const s = Math.round((Date.now() - W.recStartTime) / 1000);
+    $('afw-rec-time').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  // Audio player (global)
+  window._afwToggleAudio = function (id, btn) {
+    const audio = document.getElementById(id);
+    if (!audio) return;
+    if (audio.paused) {
+      document.querySelectorAll('audio').forEach(a => { if (a.id !== id) { a.pause(); a.currentTime = 0; } });
+      document.querySelectorAll('.afw-audio-play').forEach(b => { b.innerHTML = '<i class="fas fa-play"></i>'; });
+      audio.play();
+      btn.innerHTML = '<i class="fas fa-pause"></i>';
+      audio.onended = () => { btn.innerHTML = '<i class="fas fa-play"></i>'; };
+    } else {
+      audio.pause();
+      btn.innerHTML = '<i class="fas fa-play"></i>';
+    }
+  };
+
+  // ==================== FILE UPLOAD ====================
+  function initFileUpload() {
+    ['afw-file-input', 'afw-photo-input'].forEach(inputId => {
+      $(inputId).addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await uploadAndSendFile(file);
+        e.target.value = '';
+      });
+    });
+  }
+
+  async function uploadAndSendFile(file) {
+    const isImg = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(file.name) || file.type.startsWith('image/');
+    const tmpId = 'tmpF_' + Date.now();
+
+    if (isImg) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        renderMessage({ id: tmpId, sender: W.socket.id, senderName: W.user?.name, type: 'image', content: ev.target.result, metadata: { originalName: file.name, size: file.size }, timestamp: new Date(), status: 'sending' });
+        scrollBottom();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch('/api/chat/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.url) {
+        const type = isImg ? 'image' : 'file';
+        W.socket.emit('message:send', { conversationId: W.conversationId, type, content: data.url, metadata: { originalName: file.name, size: file.size, mimetype: file.type } });
+        const existing = document.querySelector('[data-mid="' + tmpId + '"]');
+        if (existing && isImg) {
+          const img = existing.querySelector('.afw-msg-image');
+          if (img) { img.src = data.url; img.onclick = () => window._afwOpenModal(data.url, 'image'); }
+        } else {
+          renderMessage({ id: 'tmpF2_' + Date.now(), sender: W.socket.id, senderName: W.user?.name, type, content: data.url, metadata: { originalName: file.name, size: file.size }, timestamp: new Date(), status: 'sent' });
+        }
+        scrollBottom();
+      }
+    } catch (e) { showNotif('❌ Erro ao enviar arquivo'); }
+  }
+
+  // ==================== ATTACH MENU ====================
+  function initAttachMenu() {
+    const btn = $('afw-btn-attach');
+    const menu = $('afw-attach-menu');
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('hidden');
+      $('afw-emoji-picker').classList.add('hidden');
+    });
+
+    $('afw-attach-file').addEventListener('click', () => { menu.classList.add('hidden'); $('afw-file-input').click(); });
+    $('afw-attach-photo').addEventListener('click', () => { menu.classList.add('hidden'); $('afw-photo-input').click(); });
+    $('afw-attach-screenshot').addEventListener('click', () => { menu.classList.add('hidden'); captureScreenshot(); });
+
+    document.addEventListener('click', (e) => {
+      if (!menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+  }
+
+  // ==================== SCREENSHOT ====================
+  function initScreenshot() {}
+
+  async function captureScreenshot() {
+    try {
+      const widgetWindow = $('afw-window');
+      const fab = $('afw-fab');
+      widgetWindow.style.visibility = 'hidden';
+      fab.style.visibility = 'hidden';
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: { mediaSource: 'screen', cursor: 'always' }, audio: false });
+      const track = stream.getVideoTracks()[0];
+      const imageCapture = new ImageCapture(track);
+      await new Promise(r => setTimeout(r, 300));
+
+      let blob;
+      try {
+        const bitmap = await imageCapture.grabFrame();
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        canvas.getContext('2d').drawImage(bitmap, 0, 0);
+        blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      } catch (grabErr) {
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.autoplay = true;
+        await new Promise(r => { video.onloadedmetadata = r; });
+        await new Promise(r => setTimeout(r, 500));
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      }
+
+      stream.getTracks().forEach(t => t.stop());
+      widgetWindow.style.visibility = '';
+      fab.style.visibility = '';
+
+      if (blob) showScreenshotPreview(blob);
+    } catch (e) {
+      $('afw-window').style.visibility = '';
+      $('afw-fab').style.visibility = '';
+      if (e.name !== 'NotAllowedError') showNotif('⚠️ Não foi possível capturar a tela');
+    }
+  }
+
+  function showScreenshotPreview(blob) {
+    const url = URL.createObjectURL(blob);
+    const overlay = document.createElement('div');
+    overlay.className = 'afw-screenshot-preview';
+    overlay.innerHTML = '<div class="afw-screenshot-header"><span><i class="fas fa-desktop"></i> Captura de Tela</span><div class="afw-screenshot-actions"><button class="afw-screenshot-btn cancel" id="afw-ss-cancel"><i class="fas fa-times"></i> Cancelar</button><button class="afw-screenshot-btn send" id="afw-ss-send"><i class="fas fa-paper-plane"></i> Enviar</button></div></div><div class="afw-screenshot-img-wrap"><img src="' + url + '" alt="Screenshot"></div>';
+
+    $('afw-chat').appendChild(overlay);
+
+    overlay.querySelector('#afw-ss-cancel').addEventListener('click', () => { URL.revokeObjectURL(url); overlay.remove(); });
+    overlay.querySelector('#afw-ss-send').addEventListener('click', async () => {
+      overlay.querySelector('#afw-ss-send').disabled = true;
+      overlay.querySelector('#afw-ss-send').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+      const file = new File([blob], 'screenshot_' + Date.now() + '.png', { type: 'image/png' });
+      await uploadAndSendFile(file);
+      URL.revokeObjectURL(url);
+      overlay.remove();
+    });
+  }
+
+  // ==================== SUPORTE (BOTÃO DO USUÁRIO) ====================
+  function initSupport() {
+    const btnSupport = $('afw-btn-support');
+    if (btnSupport) btnSupport.addEventListener('click', requestSupport);
+    
+    const btnYes = $('afw-btn-yes-support');
+    if (btnYes) btnYes.addEventListener('click', () => { $('afw-support-bar').classList.add('hidden'); requestSupport(); });
+    
+    const btnNo = $('afw-btn-no-support');
+    if (btnNo) btnNo.addEventListener('click', () => { $('afw-support-bar').classList.add('hidden'); sendText('Não, obrigado. Vou tentar reformular minha pergunta.'); });
+  }
+
+  function requestSupport() {
+    W.socket.emit('support:request', { conversationId: W.conversationId, reason: 'Usuário solicitou atendimento humano' });
+  }
+
+  // ==================== EMOJIS ====================
+  function initEmojis() {
+    const grid = $('afw-emoji-grid');
+    EMOJIS.forEach(e => {
+      const s = document.createElement('span');
+      s.className = 'afw-emoji-item';
+      s.textContent = e;
+      s.addEventListener('click', () => {
+        const inp = $('afw-msg-input');
+        inp.value += e;
+        inp.focus();
+        inp.dispatchEvent(new Event('input'));
+      });
+      grid.appendChild(s);
+    });
+
+    $('afw-btn-emoji').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('afw-emoji-picker').classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+      const picker = $('afw-emoji-picker');
+      if (!picker.contains(e.target) && e.target !== $('afw-btn-emoji')) {
+        picker.classList.add('hidden');
+      }
+    });
+  }
+
+  // ==================== MODAL (Imagem + PDF) ====================
+  let modalZoom = 1;
+
+  function initModal() {
+    $('afw-modal-bg').addEventListener('click', closeModal);
+    $('afw-modal-close').addEventListener('click', closeModal);
+
+    $('afw-modal-zoom-in').addEventListener('click', () => {
+      modalZoom = Math.min(modalZoom + 0.25, 3);
+      applyModalZoom();
+    });
+
+    $('afw-modal-zoom-out').addEventListener('click', () => {
+      modalZoom = Math.max(modalZoom - 0.25, 0.25);
+      applyModalZoom();
+    });
+
+    $('afw-modal-content').addEventListener('wheel', (e) => {
+      e.preventDefault();
+      modalZoom = Math.max(0.25, Math.min(3, modalZoom + (e.deltaY > 0 ? -0.1 : 0.1)));
+      applyModalZoom();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+  }
+
+  function applyModalZoom() {
+    const img = $('afw-modal-img');
+    const pdf = $('afw-modal-pdf');
+    if (!img.classList.contains('hidden')) img.style.transform = 'scale(' + modalZoom + ')';
+    if (!pdf.classList.contains('hidden')) pdf.style.transform = 'scale(' + modalZoom + ')';
+  }
+
+  window._afwOpenModal = function (src, type) {
+    const img = $('afw-modal-img');
+    const pdf = $('afw-modal-pdf');
+    const dl = $('afw-modal-download');
+    modalZoom = 1;
+
+    if (type === 'pdf') {
+      img.classList.add('hidden'); img.style.transform = '';
+      pdf.classList.remove('hidden'); pdf.src = src; pdf.style.transform = '';
+      dl.href = src;
+    } else {
+      pdf.classList.add('hidden'); pdf.src = ''; pdf.style.transform = '';
+      img.classList.remove('hidden'); img.src = src; img.style.transform = '';
+      dl.href = src;
+    }
+    $('afw-modal').classList.remove('hidden');
+  };
+
+  function closeModal() {
+    $('afw-modal').classList.add('hidden');
+    $('afw-modal-img').style.transform = '';
+    $('afw-modal-pdf').src = '';
+    $('afw-modal-pdf').style.transform = '';
+    modalZoom = 1;
+  }
+
+  // ==================== NOTIFICAÇÕES ====================
+  function showNotif(text) {
+    const n = $('afw-notif');
+    if (W.isOpen) return;
+    $('afw-notif-text').textContent = text;
+    n.classList.remove('hidden');
+    setTimeout(() => n.classList.add('hidden'), 6000);
+    const closeBtn = $('afw-notif-close');
+    if (closeBtn) closeBtn.onclick = () => n.classList.add('hidden');
+  }
+
+  function playSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.frequency.value = 800; osc.type = 'sine'; g.gain.value = 0.04;
+      osc.start();
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.stop(ctx.currentTime + 0.25);
+    } catch (e) {}
+  }
+
+  // ==================== TEMA ====================
+  function initTheme() {
+    const savedTheme = localStorage.getItem('afw-theme') || 'light';
+    applyTheme(savedTheme);
+
+    const btnBrand = $('afw-theme-toggle');
+    if (btnBrand) btnBrand.addEventListener('click', toggleTheme);
+
+    const btnChat = $('afw-btn-theme-chat');
+    if (btnChat) btnChat.addEventListener('click', toggleTheme);
+  }
+
+  function toggleTheme() {
+    const widget = $('aluforce-widget');
+    const isDark = widget.classList.contains('afw-dark');
+    applyTheme(isDark ? 'light' : 'dark');
+  }
+
+  function applyTheme(theme) {
+    const widget = $('aluforce-widget');
+    const iconBrand = $('afw-theme-icon');
+    const iconChat = $('afw-theme-icon-chat');
+    const iconSupport = $('afw-support-theme-icon');
+
+    if (theme === 'dark') {
+      widget.classList.add('afw-dark');
+      if (iconBrand) iconBrand.className = 'fas fa-sun';
+      if (iconChat) iconChat.className = 'fas fa-sun';
+      if (iconSupport) iconSupport.className = 'fas fa-sun';
+    } else {
+      widget.classList.remove('afw-dark');
+      if (iconBrand) iconBrand.className = 'fas fa-moon';
+      if (iconChat) iconChat.className = 'fas fa-moon';
+      if (iconSupport) iconSupport.className = 'fas fa-moon';
+    }
+    localStorage.setItem('afw-theme', theme);
+  }
+
+  // ==================== HELPERS ====================
+  function $(id) { return document.getElementById(id); }
+  function scrollBottom() { const c = $('afw-messages'); if (c) setTimeout(() => { c.scrollTop = c.scrollHeight; }, 50); }
+  function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
+  function fmtTime(ts) { return new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+  function fmtDur(s) { return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+  function fmtSize(b) { if (b === 0) return '0 B'; const k = 1024, sizes = ['B', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(b) / Math.log(k)); return parseFloat((b / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]; }
+  function fmtContent(t) { t = t.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); t = t.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>'); t = t.replace(/\n/g, '<br>'); return t; }
+  function stripMd(t) { return t.replace(/\*\*/g, '').replace(/\n/g, ' '); }
+  function genWave() { let b = ''; for (let i = 0; i < 28; i++) b += '<div class="bar" style="height:' + (Math.random() * 16 + 3) + 'px"></div>'; return b; }
+  function fileIcon(name) { const ext = name.split('.').pop().toLowerCase(); const map = { pdf: 'file-pdf', doc: 'file-word', docx: 'file-word', xls: 'file-excel', xlsx: 'file-excel', zip: 'file-archive', rar: 'file-archive' }; return map[ext] || 'file'; }
+
+})();

@@ -1,0 +1,2664 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Aluforce: Gestão de Vendas</title>
+    
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --tab-height: 40px;
+            --primary-orange: #225cfa;
+            --primary-dark: #1a1a2e;
+            --bg-dark: #0f0f1a;
+            --text-light: #e2e8f0;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255,255,255,0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f5f6f8;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ==================== APP CONTAINER ==================== */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        /* ==================== SIDEBAR ==================== */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            flex-shrink: 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-orange);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            margin-bottom: 20px;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+
+        .sidebar-logo:hover {
+            transform: scale(1.05);
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .sidebar-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .sidebar-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .sidebar-btn.active {
+            background: var(--primary-orange);
+            color: white;
+        }
+
+        /* Tooltip customizada ao passar o mouse */
+        .sidebar-btn::after {
+            content: attr(title);
+            position: absolute;
+            left: 54px;
+            background: #1a1a2e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-btn::before {
+            content: '';
+            position: absolute;
+            left: 46px;
+            border: 6px solid transparent;
+            border-right-color: #1a1a2e;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.2s ease;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after,
+        .sidebar-btn:hover::before {
+            opacity: 1;
+        }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* ==================== MAIN AREA ==================== */
+        .main-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            /* overflow: global-header-sidebar.css */
+            background: #f5f6f8;
+            margin-top: 0;
+            padding: 0;
+        }
+
+        /* ==================== HEADER ==================== */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            flex-shrink: 0;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+        }
+
+        .header-brand img {
+            height: 24px;
+        }
+
+        .header-brand span {
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b8b9a;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: transparent;
+            color: #8b8b9a;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .header-btn:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 8px;
+            overflow: hidden;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        .user-avatar img.visible {
+            display: block;
+        }
+
+        .user-greeting {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: 16px;
+            color: #8b8b9a;
+            font-size: 13px;
+        }
+
+        .user-greeting strong {
+            color: white;
+        }
+
+        /* ==================== TABS BAR ==================== */
+        .tabs-bar {
+            height: var(--tab-height);
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tab-btn:hover {
+            background: #f1f5f9;
+            color: #334155;
+        }
+
+        .tab-btn.active {
+            background: var(--primary-orange);
+            color: white;
+        }
+
+        .tabs-spacer {
+            flex: 1;
+        }
+
+        /* ==================== PAGE CONTENT ==================== */
+        .page-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        /* ==================== PAGE HEADER ==================== */
+        .page-header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-header-left h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-header-left p {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        .page-header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-primary {
+            background: var(--primary-orange);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: #ea580c;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #f9fafb;
+            border-color: #d1d5db;
+        }
+
+        /* ==================== STATS GRID ==================== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1400px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 900px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 600px) {
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .stat-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .stat-icon.orange { background: #fff7ed; color: #f97316; }
+        .stat-icon.green { background: #f0fdf4; color: #22c55e; }
+        .stat-icon.blue { background: #eff6ff; color: #3b82f6; }
+        .stat-icon.purple { background: #faf5ff; color: #a855f7; }
+        .stat-icon.red { background: #fef2f2; color: #ef4444; }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+
+        .stat-trend {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .stat-trend.up { color: #22c55e; }
+        .stat-trend.down { color: #ef4444; }
+
+        /* ==================== CONTENT GRID ==================== */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .content-grid { grid-template-columns: 1fr; }
+        }
+
+        .section-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .section-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-header h3 i {
+            color: var(--primary-orange);
+        }
+
+        .section-content {
+            padding: 20px;
+        }
+
+        .full-width-section {
+            grid-column: 1 / -1;
+        }
+
+        /* ==================== RANKING TABLE ==================== */
+        .ranking-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .ranking-table th, .ranking-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .ranking-table th {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+
+        .ranking-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .ranking-table tr:hover {
+            background: #f9fafb;
+        }
+
+        .vendedor-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .vendedor-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-orange), #ea580c);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        
+        .vendedor-avatar-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid #e5e7eb;
+        }
+
+        .vendedor-nome {
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .vendedor-email {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .progress-mini {
+            width: 100px;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-mini-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-orange), #fb923c);
+            border-radius: 4px;
+        }
+
+        .progress-mini-fill.success {
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.gold { background: #fef3c7; color: #d97706; }
+        .badge.silver { background: #e5e7eb; color: #4b5563; }
+        .badge.bronze { background: #fed7aa; color: #c2410c; }
+
+        /* ==================== METAS GRID ==================== */
+        .metas-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .meta-item {
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .meta-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .meta-title {
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .meta-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-orange);
+        }
+
+        .meta-progress {
+            margin-top: 12px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-orange), #fb923c);
+            border-radius: 4px;
+        }
+
+        .progress-fill.success {
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+        }
+
+        /* ==================== VENDAS LIST ==================== */
+        .vendas-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .venda-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .venda-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .venda-cliente {
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .venda-vendedor {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .venda-valor {
+            font-size: 18px;
+            font-weight: 700;
+            color: #059669;
+        }
+
+        /* ==================== RELATÓRIO DE LIGAÇÕES ==================== */
+        .ligacoes-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        @media (max-width: 768px) {
+            .ligacoes-stats { grid-template-columns: repeat(2, 1fr); }
+        }
+        .ligacao-stat-card {
+            border-radius: 18px;
+            padding: 24px 22px;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: none;
+            color: #fff;
+        }
+        .ligacao-stat-card::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            right: -20%;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            pointer-events: none;
+        }
+        .ligacao-stat-card::after {
+            content: '';
+            position: absolute;
+            bottom: -40%;
+            left: -15%;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.06);
+            pointer-events: none;
+        }
+        .ligacao-stat-card:hover {
+            transform: translateY(-4px) scale(1.02);
+            filter: brightness(1.08);
+        }
+        .ligacao-stat-card.card-total {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.35);
+        }
+        .ligacao-stat-card.card-realizadas {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            box-shadow: 0 8px 32px rgba(79, 172, 254, 0.35);
+        }
+        .ligacao-stat-card.card-atendidas {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            box-shadow: 0 8px 32px rgba(67, 233, 123, 0.3);
+        }
+        .ligacao-stat-card.card-duracao {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            box-shadow: 0 8px 32px rgba(250, 112, 154, 0.3);
+        }
+        .ligacao-stat-card .stat-icon-wrapper {
+            width: 54px;
+            height: 54px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .ligacao-stat-card .stat-icon-wrapper i {
+            font-size: 22px;
+            color: #fff;
+        }
+        .ligacao-stat-card .stat-content {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            z-index: 1;
+        }
+        .ligacao-stat-card .stat-number {
+            font-size: 30px;
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.15;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.12);
+        }
+        .ligacao-stat-card .stat-label {
+            font-size: 12px;
+            color: rgba(255,255,255,0.85);
+            margin-top: 4px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+        .ligacoes-filtros {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
+        }
+        .ligacoes-filtros select,
+        .ligacoes-filtros input[type="date"] {
+            padding: 7px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            color: #374151;
+            background: white;
+            transition: border-color 0.2s;
+        }
+        .ligacoes-filtros select:focus,
+        .ligacoes-filtros input[type="date"]:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 2px rgba(255,107,0,0.12);
+        }
+        .ligacoes-filtros .btn-filtrar {
+            padding: 7px 18px;
+            background: var(--primary-orange);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .ligacoes-filtros .btn-filtrar:hover { opacity: 0.88; transform: translateY(-1px); }
+        .ligacoes-table-wrapper {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .ligacoes-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .ligacoes-table th,
+        .ligacoes-table td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 13px;
+        }
+        .ligacoes-table th {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            background: #f8fafc;
+            letter-spacing: 0.3px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .ligacoes-table tr:last-child td { border-bottom: none; }
+        .ligacoes-table tbody tr { transition: background 0.15s; }
+        .ligacoes-table tbody tr:hover { background: #f0f7ff; }
+        .badge-tipo {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-tipo.saida { background: #dbeafe; color: #1d4ed8; }
+        .badge-tipo.entrada { background: #dcfce7; color: #166534; }
+        .badge-tipo.perdida { background: #fee2e2; color: #991b1b; }
+        .badge-duracao {
+            font-variant-numeric: tabular-nums;
+            color: #374151;
+        }
+        .ramal-chart-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .ramal-chart-bar .ramal-label {
+            min-width: 110px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1e293b;
+            white-space: nowrap;
+        }
+        .ramal-chart-bar .ramal-label .ramal-id {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 400;
+        }
+        .ramal-chart-bar .bar-bg {
+            flex: 1;
+            height: 24px;
+            background: #f1f5f9;
+            border-radius: 6px;
+            overflow: hidden;
+            display: flex;
+        }
+        .ramal-chart-bar .bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+            min-width: 30px;
+        }
+        .ramal-chart-bar .bar-fill.realizadas { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .ramal-chart-bar .bar-fill.recebidas { background: linear-gradient(90deg, #22c55e, #4ade80); }
+        .ramal-chart-bar .bar-total {
+            font-size: 13px;
+            color: #374151;
+            min-width: 30px;
+            text-align: right;
+            font-weight: 700;
+        }
+        .ligacoes-api-msg {
+            text-align: center;
+            padding: 40px 20px;
+            color: #94a3b8;
+        }
+        .ligacoes-api-msg i { font-size: 40px; margin-bottom: 12px; }
+        .ligacoes-api-msg p { margin-top: 8px; font-size: 14px; }
+        .ligacoes-api-msg .btn-config {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            padding: 8px 16px;
+            background: #f1f5f9;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            color: #475569;
+            font-size: 13px;
+            cursor: default;
+        }
+        .ligacoes-online-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #dcfce7;
+            color: #166534;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .ligacoes-online-badge .pulse {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse-anim 1.5s infinite;
+        }
+        @keyframes pulse-anim {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+        /* Paginação da tabela de ligações */
+        .ligacoes-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            border-top: 1px solid #e5e7eb;
+            background: #f8fafc;
+            font-size: 13px;
+            color: #64748b;
+        }
+        .ligacoes-pagination .pag-info {
+            font-weight: 500;
+        }
+        .ligacoes-pagination .pag-buttons {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .ligacoes-pagination .pag-buttons button {
+            padding: 5px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            color: #374151;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            min-width: 32px;
+        }
+        .ligacoes-pagination .pag-buttons button:hover:not(:disabled) {
+            background: var(--primary-orange);
+            color: white;
+            border-color: var(--primary-orange);
+        }
+        .ligacoes-pagination .pag-buttons button:disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .ligacoes-pagination .pag-buttons button.active {
+            background: var(--primary-orange);
+            color: white;
+            border-color: var(--primary-orange);
+        }
+        .ligacoes-pagination .pag-buttons .pag-ellipsis {
+            padding: 0 4px;
+            color: #94a3b8;
+        }
+
+        /* ==================== MODAL DEFINIR META ==================== */
+        /* Usando .modal-box para evitar conflito com modal-responsive.css */
+        #modalMeta.modal-overlay {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background: rgba(0, 0, 0, 0.5) !important;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000 !important;
+            backdrop-filter: blur(4px);
+        }
+
+        #modalMeta.modal-overlay.active {
+            display: flex !important;
+        }
+
+        .modal-box {
+            position: relative;
+            background: white;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow: hidden;
+            z-index: 10001;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-box .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-box .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin: 0;
+        }
+
+        .modal-box .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            width: auto;
+            height: auto;
+        }
+
+        .modal-box .modal-close:hover {
+            color: #1a1a1a;
+        }
+
+        .modal-box .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .modal-box .form-group {
+            margin-bottom: 20px;
+        }
+
+        .modal-box .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .modal-box .form-group input, 
+        .modal-box .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .modal-box .form-group input:focus, 
+        .modal-box .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+        }
+
+        .modal-box .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            flex-direction: row;
+        }
+
+        .modal-box .modal-footer button {
+            width: auto;
+            min-height: auto;
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js" defer></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+
+
+    
+    <!-- Controle de Acesso por Permissões -->
+    <script src="js/vendas-access-control.js?v=20260114" defer></script>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209" defer></script>
+    <script src="/js/modal-title.js?v=20260210" defer></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <!-- Mobile Overlay -->
+        <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+        
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar" id="sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Kanban" onclick="window.location.href='index.html'">
+                    <i class="fas fa-columns"></i>
+                </button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'">
+                    <i class="fas fa-clipboard-list"></i>
+                </button>
+                <button class="sidebar-btn" title="Clientes" onclick="window.location.href='clientes.html'">
+                    <i class="fas fa-users"></i>
+                </button>
+                <button class="sidebar-btn" title="Prospecções & Leads" onclick="window.location.href='prospeccao.html'">
+                    <i class="fas fa-crosshairs"></i>
+                </button>
+                <button class="sidebar-btn" title="Estoque" onclick="window.location.href='estoque.html'">
+                    <i class="fas fa-boxes-stacked"></i>
+                </button>
+                <button class="sidebar-btn" title="Meu Dashboard" onclick="window.location.href='dashboard.html'">
+                    <i class="fas fa-chart-pie"></i>
+                </button>
+                <button class="sidebar-btn active" title="Gestão de Vendas" onclick="window.location.href='dashboard-admin.html'">
+                    <i class="fas fa-chart-line"></i>
+                </button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'">
+                    <i class="fas fa-chart-bar"></i>
+                </button>
+                <button class="sidebar-btn" title="Comissões" onclick="window.location.href='comissoes.html'">
+                    <i class="fas fa-percentage"></i>
+                </button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                        <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Vendas</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações">
+                        <i class="fas fa-bell"></i>
+                    </button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Tabs Bar -->
+            <div class="tabs-bar">
+                <button class="tab-btn" onclick="window.location.href='index.html'">
+                    <i class="fas fa-columns"></i> Kanban
+                </button>
+                <button class="tab-btn" onclick="window.location.href='pedidos.html'">
+                    <i class="fas fa-clipboard-list"></i> Pedidos
+                </button>
+                <button class="tab-btn" onclick="window.location.href='clientes.html'">
+                    <i class="fas fa-users"></i> Clientes
+                </button>
+                <button class="tab-btn active">
+                    <i class="fas fa-chart-line"></i> Gestão de Vendas
+                </button>
+                <button class="tab-btn" onclick="window.location.href='relatorios.html'">
+                    <i class="fas fa-chart-bar"></i> Relatórios
+                </button>
+                <div class="tabs-spacer"></div>
+            </div>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Page Header -->
+                <div class="page-header">
+                    <div class="page-header-left">
+                        <h1>
+                            <i class="fas fa-chart-line" style="color: var(--primary-orange);"></i>
+                            Gestão de Vendas
+                        </h1>
+                        <p>Acompanhe a performance da equipe e gerencie metas</p>
+                    </div>
+                    <div class="page-header-actions">
+                        <button class="btn-secondary" onclick="exportarRelatorio()">
+                            <i class="fas fa-file-export"></i> Exportar
+                        </button>
+                        <button class="btn-primary" onclick="abrirModalMeta()">
+                            <i class="fas fa-bullseye"></i> Definir Meta
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon orange">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalVendasMes">Carregando...</div>
+                        <div class="stat-label">Vendas do Mês</div>
+                        <div class="stat-trend" id="trendVendasMes">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>calculando...</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon green">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="metaEquipe">--</div>
+                        <div class="stat-label">Meta da Equipe</div>
+                        <div class="stat-trend" id="trendMetaEquipe">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>calculando...</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon blue">
+                                <i class="fas fa-users"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="totalVendedores">--</div>
+                        <div class="stat-label">Vendedores Ativos</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon purple">
+                                <i class="fas fa-file-invoice"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="pedidosMes">--</div>
+                        <div class="stat-label">Pedidos no Mês</div>
+                        <div class="stat-trend" id="trendPedidosMes">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>calculando...</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-icon red">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                        </div>
+                        <div class="stat-value" id="abaixoMeta">--</div>
+                        <div class="stat-label">Abaixo da Meta</div>
+                    </div>
+                </div>
+
+                <!-- Content Grid -->
+                <div class="content-grid">
+                    <!-- Ranking de Vendedores -->
+                    <div class="section-card full-width-section">
+                        <div class="section-header">
+                            <h3><i class="fas fa-trophy"></i> Ranking de Vendedores - <span id="rankingMesAno">Carregando...</span></h3>
+                        </div>
+                        <div class="section-content" style="padding: 0; overflow-x: auto;">
+                            <table class="ranking-table">
+                                <thead>
+                                    <tr>
+                                        <th>Pos.</th>
+                                        <th>Vendedor</th>
+                                        <th>Vendas</th>
+                                        <th>Meta</th>
+                                        <th>Progresso</th>
+                                        <th>Pedidos</th>
+                                        <th>Ticket Médio</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rankingTableBody">
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; padding: 40px;">
+                                            <i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #94a3b8;"></i>
+                                            <p style="margin-top: 10px; color: #94a3b8;">Carregando ranking...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Metas do Mês -->
+                    <div class="section-card">
+                        <div class="section-header">
+                            <h3><i class="fas fa-bullseye"></i> Metas do Mês</h3>
+                            <button class="btn-secondary" style="padding: 8px 16px; font-size: 12px;" onclick="abrirModalMeta()">
+                                <i class="fas fa-plus"></i> Nova Meta
+                            </button>
+                        </div>
+                        <div class="section-content">
+                            <div class="metas-grid" id="metasGrid">
+                                <div class="meta-item">
+                                    <div class="meta-header">
+                                        <span class="meta-title">Meta Geral</span>
+                                        <span class="meta-value" id="metaGeralValor">R$ 0</span>
+                                    </div>
+                                    <div class="meta-progress">
+                                        <div class="progress-header">
+                                            <span id="metaGeralAtingido">R$ 0 atingidos</span>
+                                            <span id="metaGeralPercent">0%</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" id="metaGeralFill" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-header">
+                                        <span class="meta-title">Novos Clientes</span>
+                                        <span class="meta-value" id="metaClientesValor">0</span>
+                                    </div>
+                                    <div class="meta-progress">
+                                        <div class="progress-header">
+                                            <span id="metaClientesAtingido">0 conquistados</span>
+                                            <span id="metaClientesPercent">0%</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" id="metaClientesFill" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-header">
+                                        <span class="meta-title">Ticket Médio</span>
+                                        <span class="meta-value" id="metaTicketValor">R$ 0</span>
+                                    </div>
+                                    <div class="meta-progress">
+                                        <div class="progress-header">
+                                            <span id="metaTicketAtingido">R$ 0 atual</span>
+                                            <span id="metaTicketPercent">0%</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" id="metaTicketFill" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="meta-item">
+                                    <div class="meta-header">
+                                        <span class="meta-title">Conversão</span>
+                                        <span class="meta-value" id="metaConversaoValor">0%</span>
+                                    </div>
+                                    <div class="meta-progress">
+                                        <div class="progress-header">
+                                            <span id="metaConversaoAtingido">0% atual</span>
+                                            <span id="metaConversaoPercent">0%</span>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-fill success" id="metaConversaoFill" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- últimas Vendas -->
+                    <div class="section-card">
+                        <div class="section-header">
+                            <h3><i class="fas fa-clock"></i> Últimas Vendas da Equipe</h3>
+                        </div>
+                        <div class="section-content">
+                            <div class="vendas-list" id="ultimasVendas">
+                                <div style="text-align: center; padding: 30px; color: #94a3b8;">
+                                    <i class="fas fa-spinner fa-spin" style="font-size: 24px;"></i>
+                                    <p style="margin-top: 10px;">Carregando vendas...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Relatório de Ligações (Ramais) -->
+                    <div class="section-card full-width-section">
+                        <div class="section-header">
+                            <h3><i class="fas fa-phone-alt"></i> Relatório de Ligações (Ramais)</h3>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="ligacoes-online-badge" id="ligacoesOnlineBadge" style="display:none;">
+                                    <span class="pulse"></span>
+                                    <span id="ligacoesOnlineCount">0</span> em andamento
+                                </span>
+                                <button class="btn-secondary" onclick="carregarLigacoes()" title="Atualizar">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="section-content" id="ligacoesContent">
+                            <!-- Carregado via JS -->
+                            <div class="ligacoes-api-msg" id="ligacoesLoading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Verificando conexão com PABX...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Definir Meta -->
+    <div class="modal-overlay" id="modalMeta">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2><i class="fas fa-bullseye" style="color: var(--primary-orange); margin-right: 8px;"></i> Definir Nova Meta</h2>
+                <button class="modal-close" onclick="fecharModalMeta()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tipo de Meta</label>
+                    <select id="tipoMeta">
+                        <option value="vendedor">Meta Individual (Vendedor)</option>
+                        <option value="equipe">Meta da Equipe (Todos Vendedores)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="selectVendedorGroup">
+                    <label>Vendedor</label>
+                    <select id="selectVendedor">
+                        <option value="">Carregando vendedores...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Mês de Referência</label>
+                    <input type="month" id="mesMeta" value="">
+                </div>
+                <div class="form-group">
+                    <label>Valor da Meta (R$)</label>
+                    <input type="text" id="valorMeta" placeholder="Ex: 50000" oninput="formatarValorMeta(this)">
+                </div>
+                <div class="form-group" style="display:none;">
+                    <label>Período</label>
+                    <select id="periodoMeta">
+                        <option value="mensal">Mensal</option>
+                        <option value="trimestral">Trimestral</option>
+                        <option value="anual">Anual</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="fecharModalMeta()">Cancelar</button>
+                <button class="btn-primary" onclick="salvarMeta()">
+                    <i class="fas fa-save"></i> Salvar Meta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mapeamento de avatares por nome de usuário
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'augusto': '/avatars/Augusto.jpg',
+            'renata': '/avatars/Renata.jpg',
+            'fabiano': '/avatars/Fabiano.webp',
+            'fabiola': '/avatars/Fabiola.webp',
+            'marcia': '/avatars/Marcia.webp',
+            'ronaldo': '/avatars/RonaldoTorres.jpg',
+            'joao': '/avatars/JoaoVictor.jpg',
+            'douglas': '/avatars/Douglas.webp',
+            'fernando': '/avatars/Fernando.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Lista de admins autorizados a ver o Dashboard Admin
+        const ADMINS_AUTORIZADOS = ['ti', 'douglas', 'andreia', 'fernando', 'consultoria', 'admin', 'antonio', 'tialuforce', 'egidio', 'rh'];
+        
+        function isAdminAutorizado(user) {
+            if (!user) return false;
+            // Verificar is_admin
+            if (user.is_admin === true || user.is_admin === 1) return true;
+            // Verificar email
+            if (user.email) {
+                const username = user.email.split('@')[0].toLowerCase().replace(/\./g, '');
+                if (ADMINS_AUTORIZADOS.some(admin => username.includes(admin))) return true;
+            }
+            // Verificar login
+            if (user.login) {
+                const login = user.login.toLowerCase();
+                if (ADMINS_AUTORIZADOS.includes(login)) return true;
+            }
+            return false;
+        }
+
+        // Carregar dados do usuário logado via API
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Verificar se o usuário tem permissão para acessar o Dashboard Admin
+                    if (!isAdminAutorizado(user)) {
+                        alert('Acesso negado. Esta página é restrita a administradores.');
+                        window.location.href = 'dashboard.html';
+                        return;
+                    }
+                    
+                    // Usar apelido se disponível, senão primeiro+último nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const _partesNome = user.nome ? user.nome.split(/\s+/) : [];
+                    const primeiroNome = user.apelido || (_partesNome.length > 1 ? _partesNome[0] + ' ' + _partesNome[_partesNome.length - 1] : (_partesNome[0] || 'Usuário'));
+                    // Verificar múltiplos campos de foto
+                    let userAvatar = (user.avatar || user.foto || user.foto_perfil_url);
+                    if (userAvatar === '/avatars/default.webp') userAvatar = null;
+                    if (!userAvatar) {
+                        userAvatar = getAvatarFromEmail(user.email, userName);
+                    }
+                    
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    
+                    // Atualizar nome na saudação do header
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) {
+                        userNameEl.textContent = primeiroNome;
+                    }
+                    
+                    // Atualizar avatar/foto
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Modal de Meta
+        async function abrirModalMeta() {
+            document.getElementById('modalMeta').classList.add('active');
+            
+            // Carregar vendedores reais da API
+            try {
+                const response = await fetch('/api/vendas/vendedores', { credentials: 'include' });
+                if (response.ok) {
+                    const vendedores = await response.json();
+                    const select = document.getElementById('selectVendedor');
+                    select.innerHTML = '<option value="">Selecione um vendedor</option>';
+                    
+                    if (Array.isArray(vendedores) && vendedores.length > 0) {
+                        vendedores.forEach(v => {
+                            const nome = v.apelido || v.nome || 'Vendedor';
+                            select.innerHTML += `<option value="${v.id}">${nome}</option>`;
+                        });
+                    } else {
+                        select.innerHTML = '<option value="">Nenhum vendedor encontrado</option>';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar vendedores:', error);
+                document.getElementById('selectVendedor').innerHTML = '<option value="">Erro ao carregar</option>';
+            }
+            
+            // Definir mês atual no campo de mês
+            const agora = new Date();
+            document.getElementById('mesMeta').value = agora.toISOString().substring(0, 7);
+        }
+
+        function fecharModalMeta() {
+            document.getElementById('modalMeta').classList.remove('active');
+            document.getElementById('valorMeta').value = '';
+        }
+        
+        function formatarValorMeta(input) {
+            // Permite apenas números
+            let valor = input.value.replace(/\D/g, '');
+            if (valor) {
+                valor = parseInt(valor).toLocaleString('pt-BR');
+            }
+            input.value = valor;
+        }
+
+        async function salvarMeta() {
+            const tipo = document.getElementById('tipoMeta').value;
+            const vendedor = document.getElementById('selectVendedor').value;
+            const valorStr = document.getElementById('valorMeta').value;
+            const mesMeta = document.getElementById('mesMeta').value;
+
+            if (!valorStr) {
+                alert('Informe o valor da meta');
+                return;
+            }
+            
+            if (!mesMeta) {
+                alert('Selecione o mês de referência');
+                return;
+            }
+
+            // Limpar e converter valor
+            const valor = parseFloat(valorStr.replace(/\D/g, ''));
+            if (isNaN(valor) || valor <= 0) {
+                alert('Valor da meta inválido');
+                return;
+            }
+
+            if (tipo === 'vendedor' && !vendedor) {
+                alert('Selecione um vendedor');
+                return;
+            }
+
+            // Usar o mês selecionado como período
+            const periodoStr = mesMeta; // Já está no formato YYYY-MM
+
+            try {
+                let response;
+                
+                if (tipo === 'vendedor') {
+                    // Meta individual
+                    response = await fetch('/api/vendas/metas', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            vendedor_id: parseInt(vendedor),
+                            periodo: periodoStr,
+                            tipo: 'mensal',
+                            valor_meta: valor
+                        })
+                    });
+                } else if (tipo === 'equipe') {
+                    // Meta em lote para toda equipe
+                    response = await fetch('/api/vendas/metas/lote', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            periodo: periodoStr,
+                            valor_meta_padrao: valor
+                        })
+                    });
+                }
+
+                if (response && response.ok) {
+                    const result = await response.json();
+                    alert(result.message || 'Meta definida com sucesso!');
+                    fecharModalMeta();
+                    carregarMetas(); // Recarregar metas
+                    carregarRankingVendedores(); // Recarregar ranking
+                } else {
+                    const error = await response.json().catch(() => ({}));
+                    alert(error.message || 'Erro ao salvar meta');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar meta:', error);
+                alert('Erro de conexão ao salvar meta');
+            }
+        }
+
+        // Toggle vendedor select
+        document.getElementById('tipoMeta').addEventListener('change', function() {
+            const vendedorGroup = document.getElementById('selectVendedorGroup');
+            vendedorGroup.style.display = this.value === 'vendedor' ? 'block' : 'none';
+        });
+
+        function exportarRelatorio() {
+            alert('Funcionalidade de exportação será implementada em breve.');
+        }
+
+        // ====================================
+        // DADOS EM TEMPO REAL
+        // ====================================
+
+        // Formatar moeda
+        function formatarMoeda(valor) {
+            if (valor >= 1000000) {
+                return 'R$ ' + (valor / 1000000).toFixed(1) + 'M';
+            } else if (valor >= 1000) {
+                return 'R$ ' + (valor / 1000).toFixed(0) + 'K';
+            }
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(valor || 0);
+        }
+
+        // Formatar tempo relativo
+        function formatarTempoRelativo(data) {
+            const agora = new Date();
+            const dataVenda = new Date(data);
+            const diffMs = agora - dataVenda;
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffHoras = Math.floor(diffMs / 3600000);
+            const diffDias = Math.floor(diffMs / 86400000);
+
+            if (diffMin < 1) return 'agora';
+            if (diffMin < 60) return `${diffMin} min`;
+            if (diffHoras < 24) return `${diffHoras}h`;
+            if (diffDias === 1) return '1 dia';
+            if (diffDias < 7) return `${diffDias} dias`;
+            return dataVenda.toLocaleDateString('pt-BR');
+        }
+
+        // Carregar Metas do Mês
+        async function carregarMetas() {
+            try {
+                // Buscar dados de vendas do mês atual
+                const agora = new Date();
+                const periodoAtual = agora.toISOString().substring(0, 7); // YYYY-MM
+                const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString().split('T')[0];
+                const fimMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).toISOString().split('T')[0];
+
+                const [pedidosRes, clientesRes, metasRes, rankingRes] = await Promise.all([
+                    fetch(`/api/vendas/pedidos?data_inicio=${inicioMes}&data_fim=${fimMes}`, { credentials: 'include' }),
+                    fetch('/api/vendas/empresas?ativas=true', { credentials: 'include' }),
+                    fetch(`/api/vendas/metas?periodo=${periodoAtual}`, { credentials: 'include' }).catch(() => null),
+                    fetch(`/api/vendas/metas/ranking?periodo=${periodoAtual}`, { credentials: 'include' }).catch(() => null)
+                ]);
+
+                const pedidos = pedidosRes.ok ? await pedidosRes.json() : [];
+                const clientes = clientesRes.ok ? await clientesRes.json() : [];
+
+                // Calcular meta geral somando todas as metas individuais
+                let metaGeralTotal = 0;
+                let metaData = { geral: 0, clientes: 20, ticketMedio: 2500, conversao: 40 };
+                
+                if (metasRes && metasRes.ok) {
+                    const metasArray = await metasRes.json();
+                    if (Array.isArray(metasArray)) {
+                        metaGeralTotal = metasArray.reduce((sum, m) => sum + (parseFloat(m.valor_meta) || 0), 0);
+                        metaData.geral = metaGeralTotal || 300000; // Fallback se não houver metas
+                    }
+                }
+
+                // Calcular valores reais
+                const pedidosFaturados = pedidos.filter(p => p.status === 'faturado');
+                const faturamentoTotal = pedidosFaturados.reduce((sum, p) => sum + (parseFloat(p.valor) || 0), 0);
+                const totalPedidos = pedidos.length;
+                const pedidosAprovados = pedidos.filter(p => ['faturado', 'aprovado', 'pedido_aprovado', 'faturar'].includes(p.status)).length;
+                const ticketMedioAtual = pedidosFaturados.length > 0 ? faturamentoTotal / pedidosFaturados.length : 0;
+                const taxaConversao = totalPedidos > 0 ? ((pedidosAprovados / totalPedidos) * 100) : 0;
+
+                // Clientes novos no mês (criados este mês)
+                const clientesNovosMes = clientes.filter(c => {
+                    const created = new Date(c.created_at || c.data_cadastro);
+                    return created >= new Date(inicioMes);
+                }).length;
+
+                // Atualizar Meta Geral
+                const metaGeral = metaData.geral || 300000;
+                const percentGeral = metaGeral > 0 ? Math.min(100, ((faturamentoTotal / metaGeral) * 100).toFixed(0)) : 0;
+                document.getElementById('metaGeralValor').textContent = formatarMoeda(metaGeral);
+                document.getElementById('metaGeralAtingido').textContent = formatarMoeda(faturamentoTotal) + ' atingidos';
+                document.getElementById('metaGeralPercent').textContent = percentGeral + '%';
+                document.getElementById('metaGeralFill').style.width = percentGeral + '%';
+
+                // Atualizar Novos Clientes
+                const percentClientes = Math.min(100, ((clientesNovosMes / metaData.clientes) * 100).toFixed(0));
+                document.getElementById('metaClientesValor').textContent = metaData.clientes;
+                document.getElementById('metaClientesAtingido').textContent = clientesNovosMes + ' conquistados';
+                document.getElementById('metaClientesPercent').textContent = percentClientes + '%';
+                document.getElementById('metaClientesFill').style.width = percentClientes + '%';
+
+                // Atualizar Ticket Médio
+                const percentTicket = Math.min(100, ((ticketMedioAtual / metaData.ticketMedio) * 100).toFixed(0));
+                document.getElementById('metaTicketValor').textContent = formatarMoeda(metaData.ticketMedio);
+                document.getElementById('metaTicketAtingido').textContent = formatarMoeda(ticketMedioAtual) + ' atual';
+                document.getElementById('metaTicketPercent').textContent = percentTicket + '%';
+                document.getElementById('metaTicketFill').style.width = percentTicket + '%';
+
+                // Atualizar Conversão
+                const percentConversao = Math.min(100, ((taxaConversao / metaData.conversao) * 100).toFixed(0));
+                document.getElementById('metaConversaoValor').textContent = metaData.conversao + '%';
+                document.getElementById('metaConversaoAtingido').textContent = taxaConversao.toFixed(0) + '% atual';
+                document.getElementById('metaConversaoPercent').textContent = percentConversao + '%';
+                document.getElementById('metaConversaoFill').style.width = percentConversao + '%';
+
+                // Atualizar cards de estatísticas
+                if (document.getElementById('metaEquipe')) {
+                    document.getElementById('metaEquipe').textContent = formatarMoeda(metaGeral);
+                }
+                
+                // Verificar ranking para vendedores abaixo da meta
+                if (rankingRes && rankingRes.ok) {
+                    const rankingData = await rankingRes.json();
+                    if (rankingData.ranking) {
+                        const abaixoMeta = rankingData.ranking.filter(v => v.status_meta === 'pendente').length;
+                        if (document.getElementById('abaixoMeta')) {
+                            document.getElementById('abaixoMeta').textContent = abaixoMeta;
+                        }
+                    }
+                }
+
+            } catch (error) {
+                console.error('Erro ao carregar metas:', error);
+            }
+        }
+
+        // Carregar Últimas Vendas da Equipe
+        async function carregarUltimasVendas() {
+            const container = document.getElementById('ultimasVendas');
+            
+            try {
+                // Buscar últimos pedidos
+                const response = await fetch('/api/vendas/pedidos?limit=10', { credentials: 'include' });
+                
+                if (!response.ok) throw new Error('Erro ao buscar pedidos');
+                
+                let pedidos = await response.json();
+                
+                // Ordenar por data mais recente e pegar os últimos 5
+                pedidos = pedidos
+                    .sort((a, b) => new Date(b.created_at || b.data) - new Date(a.created_at || a.data))
+                    .slice(0, 5);
+
+                if (pedidos.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 30px; color: #94a3b8;">
+                            <i class="fas fa-shopping-cart" style="font-size: 32px; margin-bottom: 10px;"></i>
+                            <p>Nenhuma venda recente</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = pedidos.map(p => {
+                    const cliente = p.cliente || p.empresa_nome || p.nome_fantasia || p.razao_social || 'Cliente';
+                    const vendedor = p.vendedor_nome || p.vendedor || p.created_by_nome || 'Vendedor';
+                    const tempo = formatarTempoRelativo(p.created_at || p.data);
+                    const valor = parseFloat(p.valor) || parseFloat(p.valor_total) || 0;
+                    
+                    return `
+                        <div class="venda-item">
+                            <div class="venda-info">
+                                <span class="venda-cliente">${cliente}</span>
+                                <span class="venda-vendedor">${vendedor.split(' ')[0]} \u2022 h\u00e1 ${tempo}</span>
+                            </div>
+                            <span class="venda-valor">${formatarMoeda(valor)}</span>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Erro ao carregar últimas vendas:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 30px; color: #ef4444;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px;"></i>
+                        <p>Erro ao carregar vendas</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Atualização automática a cada 30 segundos
+        function iniciarAtualizacaoAutomatica() {
+            // Carregar dados iniciais
+            carregarMetas();
+            carregarUltimasVendas();
+            carregarRankingVendedores();
+            carregarContadores();
+
+            // Atualizar a cada 30 segundos
+            setInterval(() => {
+                carregarMetas();
+                carregarUltimasVendas();
+                carregarRankingVendedores();
+                carregarContadores();
+            }, 30000);
+        }
+
+        // Carregar Contadores do Dashboard (5 cards principais)
+        async function carregarContadores() {
+            const META_POR_VENDEDOR = 50000; // Meta mensal por vendedor
+
+            try {
+                const agora = new Date();
+                
+                // Datas do mês atual
+                const inicioMesAtual = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString().split('T')[0];
+                const fimMesAtual = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).toISOString().split('T')[0];
+                
+                // Datas do mês anterior
+                const inicioMesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1).toISOString().split('T')[0];
+                const fimMesAnterior = new Date(agora.getFullYear(), agora.getMonth(), 0).toISOString().split('T')[0];
+
+                // Buscar pedidos do mês atual, mês anterior e vendedores
+                const [pedidosAtualRes, pedidosAnteriorRes, vendedoresRes] = await Promise.all([
+                    fetch(`/api/vendas/pedidos?data_inicio=${inicioMesAtual}&data_fim=${fimMesAtual}`, { credentials: 'include' }),
+                    fetch(`/api/vendas/pedidos?data_inicio=${inicioMesAnterior}&data_fim=${fimMesAnterior}`, { credentials: 'include' }),
+                    fetch('/api/vendas/vendedores', { credentials: 'include' })
+                ]);
+
+                const pedidosAtual = pedidosAtualRes.ok ? await pedidosAtualRes.json() : [];
+                const pedidosAnterior = pedidosAnteriorRes.ok ? await pedidosAnteriorRes.json() : [];
+                const vendedores = vendedoresRes.ok ? await vendedoresRes.json() : [];
+
+                // 1. VENDAS DO M²S
+                const totalVendasAtual = pedidosAtual.reduce((sum, p) => sum + (parseFloat(p.valor) || parseFloat(p.valor_total) || 0), 0);
+                const totalVendasAnterior = pedidosAnterior.reduce((sum, p) => sum + (parseFloat(p.valor) || parseFloat(p.valor_total) || 0), 0);
+                
+                const variacaoVendas = totalVendasAnterior > 0 
+                    ? ((totalVendasAtual - totalVendasAnterior) / totalVendasAnterior * 100).toFixed(0)
+                    : 100;
+
+                document.getElementById('totalVendasMes').textContent = formatarMoeda(totalVendasAtual);
+                
+                const trendVendas = document.getElementById('trendVendasMes');
+                const isUpVendas = parseFloat(variacaoVendas) >= 0;
+                trendVendas.className = `stat-trend ${isUpVendas ? 'up' : 'down'}`;
+                trendVendas.innerHTML = `
+                    <i class="fas fa-arrow-${isUpVendas ? 'up' : 'down'}"></i>
+                    <span>${Math.abs(variacaoVendas)}% vs mês anterior</span>
+                `;
+
+                // 2. META DA EQUIPE
+                const totalVendedores = vendedores.length || 5;
+                const metaTotal = totalVendedores * META_POR_VENDEDOR;
+                const percentualMeta = metaTotal > 0 ? ((totalVendasAtual / metaTotal) * 100).toFixed(0) : 0;
+                
+                document.getElementById('metaEquipe').textContent = `${percentualMeta}%`;
+                
+                const trendMeta = document.getElementById('trendMetaEquipe');
+                trendMeta.className = `stat-trend ${percentualMeta >= 80 ? 'up' : 'down'}`;
+                trendMeta.innerHTML = `
+                    <i class="fas fa-arrow-${percentualMeta >= 80 ? 'up' : 'down'}"></i>
+                    <span>${formatarMoeda(metaTotal)} objetivo</span>
+                `;
+
+                // 3. VENDEDORES ATIVOS (que fizeram pelo menos 1 venda no mês)
+                const vendedoresAtivos = new Set();
+                pedidosAtual.forEach(p => {
+                    const vendedorId = p.vendedor_id || p.created_by;
+                    if (vendedorId) vendedoresAtivos.add(vendedorId);
+                });
+                
+                document.getElementById('totalVendedores').textContent = vendedoresAtivos.size || totalVendedores;
+
+                // 4. PEDIDOS NO M²S
+                const totalPedidosAtual = pedidosAtual.length;
+                const totalPedidosAnterior = pedidosAnterior.length;
+                
+                const variacaoPedidos = totalPedidosAnterior > 0 
+                    ? ((totalPedidosAtual - totalPedidosAnterior) / totalPedidosAnterior * 100).toFixed(0)
+                    : 100;
+
+                document.getElementById('pedidosMes').textContent = totalPedidosAtual;
+                
+                const trendPedidos = document.getElementById('trendPedidosMes');
+                const isUpPedidos = parseFloat(variacaoPedidos) >= 0;
+                trendPedidos.className = `stat-trend ${isUpPedidos ? 'up' : 'down'}`;
+                trendPedidos.innerHTML = `
+                    <i class="fas fa-arrow-${isUpPedidos ? 'up' : 'down'}"></i>
+                    <span>${Math.abs(variacaoPedidos)}% vs mês anterior</span>
+                `;
+
+                // 5. VENDEDORES ABAIXO DA META
+                const vendasPorVendedor = {};
+                pedidosAtual.forEach(p => {
+                    const vendedorId = p.vendedor_id || p.created_by;
+                    if (vendedorId) {
+                        if (!vendasPorVendedor[vendedorId]) vendasPorVendedor[vendedorId] = 0;
+                        vendasPorVendedor[vendedorId] += parseFloat(p.valor) || parseFloat(p.valor_total) || 0;
+                    }
+                });
+
+                let abaixoMeta = 0;
+                // Verificar todos os vendedores cadastrados
+                vendedores.forEach(v => {
+                    const vendasVendedor = vendasPorVendedor[v.id] || 0;
+                    // Considera abaixo da meta quem está com menos de 80% da meta
+                    if (vendasVendedor < (META_POR_VENDEDOR * 0.8)) {
+                        abaixoMeta++;
+                    }
+                });
+
+                document.getElementById('abaixoMeta').textContent = abaixoMeta;
+
+            } catch (error) {
+                console.error('Erro ao carregar contadores:', error);
+                // Mostrar erro nos contadores
+                document.getElementById('totalVendasMes').textContent = 'Erro';
+                document.getElementById('metaEquipe').textContent = '--';
+                document.getElementById('totalVendedores').textContent = '--';
+                document.getElementById('pedidosMes').textContent = '--';
+                document.getElementById('abaixoMeta').textContent = '--';
+            }
+        }
+
+        // Carregar Ranking de Vendedores
+        async function carregarRankingVendedores() {
+            const tbody = document.getElementById('rankingTableBody');
+            const mesAnoEl = document.getElementById('rankingMesAno');
+            
+            // Atualizar título com mês/ano atual
+            const agora = new Date();
+            const periodoAtual = agora.toISOString().substring(0, 7);
+            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                          'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            if (mesAnoEl) {
+                mesAnoEl.textContent = `${meses[agora.getMonth()]} ${agora.getFullYear()}`;
+            }
+
+            try {
+                // Usar a nova API de ranking com metas
+                const rankingRes = await fetch(`/api/vendas/metas/ranking?periodo=${periodoAtual}`, { credentials: 'include' });
+                
+                if (!rankingRes.ok) {
+                    throw new Error('Falha ao carregar ranking');
+                }
+                
+                const rankingData = await rankingRes.json();
+                const ranking = rankingData.ranking || [];
+
+                if (ranking.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">
+                                <i class="fas fa-trophy" style="font-size: 32px; margin-bottom: 10px;"></i>
+                                <p>Nenhum vendedor cadastrado</p>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                // Mostrar todos os vendedores (ordenados por valor)
+                const rankingOrdenado = ranking.sort((a, b) => (b.valor_realizado || 0) - (a.valor_realizado || 0));
+
+                tbody.innerHTML = rankingOrdenado.slice(0, 10).map(v => {
+                    const iniciais = (v.nome || 'VD').split(' ')
+                        .filter((_, i, arr) => i === 0 || i === arr.length - 1)
+                        .map(n => n.charAt(0).toUpperCase())
+                        .join('');
+                    
+                    // Construir avatar: usar imagem se disponível, senão iniciais
+                    const avatarHtml = v.avatar 
+                        ? `<img src="${v.avatar}" alt="${v.nome}" class="vendedor-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                           <div class="vendedor-avatar" style="display:none;">${iniciais}</div>`
+                        : `<div class="vendedor-avatar">${iniciais}</div>`;
+                    
+                    const badgeClass = v.posicao === 1 ? 'gold' : v.posicao === 2 ? 'silver' : v.posicao === 3 ? 'bronze' : '';
+                    const badgeStyle = v.posicao > 3 ? 'background: #f3f4f6; color: #6b7280;' : '';
+                    
+                    const progresso = parseFloat(v.percentual_atingido) || 0;
+                    const progressColor = progresso >= 100 ? '#22c55e' : progresso >= 80 ? '#f97316' : '#ef4444';
+                    const progressClass = progresso >= 100 ? 'success' : '';
+                    const progressWidth = Math.min(100, progresso);
+                    
+                    const ticketMedio = v.qtd_vendas > 0 ? v.valor_realizado / v.qtd_vendas : 0;
+
+                    return `
+                        <tr>
+                            <td><span class="badge ${badgeClass}" style="${badgeStyle}">${v.posicao}º</span></td>
+                            <td>
+                                <div class="vendedor-info">
+                                    ${avatarHtml}
+                                    <div>
+                                        <div class="vendedor-nome">${v.nome || 'Vendedor'}</div>
+                                        <div class="vendedor-email">${v.email || ''}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><strong>${formatarMoeda(v.valor_realizado)}</strong></td>
+                            <td>${formatarMoeda(v.valor_meta || 0)}</td>
+                            <td>
+                                <div class="progress-mini">
+                                    <div class="progress-mini-fill ${progressClass}" style="width: ${progressWidth}%"></div>
+                                </div>
+                                <span style="font-size: 12px; color: ${progressColor};">${progresso.toFixed(0)}%</span>
+                            </td>
+                            <td>${v.qtd_vendas || 0}</td>
+                            <td>${formatarMoeda(ticketMedio)}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Erro ao carregar ranking:', error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 40px; color: #ef4444;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 24px; margin-bottom: 10px;"></i>
+                            <p>Erro ao carregar ranking</p>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // ====================================
+        // RELATÓRIO DE LIGAÇÕES (RAMAIS)
+        // ====================================
+
+        function formatarDuracao(segundos) {
+            const s = parseInt(segundos) || 0;
+            if (s < 60) return `${s}s`;
+            const min = Math.floor(s / 60);
+            const sec = s % 60;
+            if (min < 60) return `${min}m ${sec > 0 ? sec + 's' : ''}`.trim();
+            const hrs = Math.floor(min / 60);
+            const remMin = min % 60;
+            return `${hrs}h ${remMin > 0 ? remMin + 'm' : ''}`.trim();
+        }
+
+        function formatarDuracaoTabela(segundos) {
+            const s = parseInt(segundos) || 0;
+            const min = Math.floor(s / 60);
+            const sec = s % 60;
+            return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+
+        async function carregarLigacoes() {
+            const container = document.getElementById('ligacoesContent');
+            
+            try {
+                // Verificar status da API
+                const statusRes = await fetch('/api/vendas/ligacoes/status', { credentials: 'include' });
+                const status = await statusRes.json();
+                
+                if (!status.configurado) {
+                    container.innerHTML = `
+                        <div class="ligacoes-api-msg">
+                            <i class="fas fa-plug" style="color: #cbd5e1;"></i>
+                            <p><strong>PABX não configurado</strong></p>
+                            <p style="font-size: 13px; margin-top: 4px;">As credenciais de acesso ao painel CDR não estão configuradas no servidor.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Datas padrão: hoje
+                const hoje = new Date().toISOString().split('T')[0];
+                const semanaAtras = hoje; // CDR scraper funciona melhor com período curto
+                
+                // Mostrar layout com filtros
+                container.innerHTML = `
+                    <div class="ligacoes-filtros" id="ligacoesFiltros">
+                        <input type="date" id="ligDataInicio" value="${semanaAtras}" title="Data início">
+                        <input type="date" id="ligDataFim" value="${hoje}" title="Data fim">
+                        <select id="ligTipo" title="Tipo de chamada">
+                            <option value="">Todas</option>
+                            <option value="movel">Móvel</option>
+                            <option value="fixo">Fixo</option>
+                        </select>
+                        <select id="ligRamal" title="Ramal">
+                            <option value="">Todos os ramais</option>
+                        </select>
+                        <button class="btn-filtrar" onclick="filtrarLigacoes()">
+                            <i class="fas fa-search"></i> Filtrar
+                        </button>
+                    </div>
+                    
+                    <div class="ligacoes-stats" id="ligacoesStats">
+                        <div class="ligacao-stat-card card-total">
+                            <div class="stat-icon-wrapper"><i class="fas fa-phone"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-number" id="ligTotal">-</div>
+                                <div class="stat-label">Total de Ligações</div>
+                            </div>
+                        </div>
+                        <div class="ligacao-stat-card card-realizadas">
+                            <div class="stat-icon-wrapper"><i class="fas fa-phone-alt"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-number" id="ligRealizadas">-</div>
+                                <div class="stat-label">Realizadas</div>
+                            </div>
+                        </div>
+                        <div class="ligacao-stat-card card-atendidas">
+                            <div class="stat-icon-wrapper"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-number" id="ligAtendidas">-</div>
+                                <div class="stat-label">Atendidas</div>
+                            </div>
+                        </div>
+                        <div class="ligacao-stat-card card-duracao">
+                            <div class="stat-icon-wrapper"><i class="fas fa-clock"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-number" id="ligDuracao">-</div>
+                                <div class="stat-label">Duração Total</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="ligacoesRamaisChart" style="margin-bottom: 20px;"></div>
+                    
+                    <div class="ligacoes-table-wrapper">
+                        <table class="ligacoes-table">
+                            <thead>
+                                <tr>
+                                    <th>Data/Hora</th>
+                                    <th>Ramal</th>
+                                    <th>Destino</th>
+                                    <th>Cidade / Região</th>
+                                    <th>Duração</th>
+                                    <th>Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ligacoesTableBody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: 30px; color: #94a3b8;">
+                                        <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="ligacoes-pagination" id="ligacoesPagination" style="display:none;"></div>
+                    </div>
+                `;
+                
+                // Carregar dispositivos/ramais para o select
+                carregarRamaisSelect();
+                
+                // Carregar dados iniciais
+                filtrarLigacoes();
+                
+                // Verificar chamadas online
+                verificarChamadasOnline();
+                
+            } catch (error) {
+                console.error('Erro ao carregar ligações:', error);
+                container.innerHTML = `
+                    <div class="ligacoes-api-msg">
+                        <i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>
+                        <p><strong>Erro ao conectar com PABX</strong></p>
+                        <p style="font-size: 13px;">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function carregarRamaisSelect() {
+            const select = document.getElementById('ligRamal');
+            if (!select) return;
+
+            // Sempre popular com RAMAL_NOMES para garantir todos os ramais
+            const ramaisAdicionados = new Set();
+            Object.entries(RAMAL_NOMES).forEach(([ramalId, nome]) => {
+                if (!ramaisAdicionados.has(ramalId)) {
+                    const opt = document.createElement('option');
+                    opt.value = ramalId;
+                    opt.textContent = `${nome} (${ramalId})`;
+                    select.appendChild(opt);
+                    ramaisAdicionados.add(ramalId);
+                }
+            });
+
+            // Tentar carregar ramais extras da API
+            try {
+                const res = await fetch('/api/vendas/ligacoes/dispositivos', { credentials: 'include' });
+                if (res.ok) {
+                    const devices = await res.json();
+                    if (Array.isArray(devices)) {
+                        devices.forEach(d => {
+                            const val = d.username || d.name || d.id || '';
+                            if (val && !ramaisAdicionados.has(val)) {
+                                const opt = document.createElement('option');
+                                opt.value = val;
+                                opt.textContent = d.callerid || d.name || d.username || d.id || 'Ramal';
+                                select.appendChild(opt);
+                                ramaisAdicionados.add(val);
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Não foi possível carregar ramais extras:', e.message);
+            }
+        }
+
+        async function filtrarLigacoes() {
+            const dataInicio = document.getElementById('ligDataInicio')?.value || '';
+            const dataFim = document.getElementById('ligDataFim')?.value || '';
+            const tipo = document.getElementById('ligTipo')?.value || '';
+            const ramal = document.getElementById('ligRamal')?.value || '';
+            
+            const tbody = document.getElementById('ligacoesTableBody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>';
+            }
+            
+            try {
+                // Buscar resumo e CDR em paralelo
+                const params = new URLSearchParams();
+                if (dataInicio) params.append('data_inicio', dataInicio);
+                if (dataFim) params.append('data_fim', dataFim);
+                if (ramal) params.append('ramal', ramal);
+                if (tipo) params.append('tipo', tipo);
+                
+                const [resumoRes, cdrRes] = await Promise.all([
+                    fetch(`/api/vendas/ligacoes/resumo?${params.toString()}`, { credentials: 'include' }),
+                    fetch(`/api/vendas/ligacoes/cdr?${params.toString()}`, { credentials: 'include' })
+                ]);
+                
+                const resumo = resumoRes.ok ? await resumoRes.json() : {};
+                const cdrData = cdrRes.ok ? await cdrRes.json() : { chamadas: [] };
+                
+                // Atualizar cards de estatísticas
+                const elTotal = document.getElementById('ligTotal');
+                const elRealizadas = document.getElementById('ligRealizadas');
+                const elAtendidas = document.getElementById('ligAtendidas');
+                const elDuracao = document.getElementById('ligDuracao');
+                
+                if (elTotal) elTotal.textContent = resumo.total || 0;
+                if (elRealizadas) elRealizadas.textContent = resumo.realizadas || 0;
+                if (elAtendidas) elAtendidas.textContent = resumo.atendidas || 0;
+                if (elDuracao) elDuracao.textContent = formatarDuracao(resumo.duracao_total || 0);
+                
+                // Renderizar gráfico por ramal
+                renderizarGraficoRamais(resumo.por_ramal || {});
+                
+                // Renderizar tabela de chamadas
+                renderizarTabelaChamadas(cdrData.chamadas || []);
+                
+            } catch (error) {
+                console.error('Erro ao filtrar ligações:', error);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Erro: ${error.message}</td></tr>`;
+                }
+            }
+        }
+
+        // Mapeamento de ramais para nomes (espelha backend)
+        const RAMAL_NOMES = {
+            'Labor_4207': 'Augusto',
+            'Labor_4202': 'Renata',
+            'Labor_4203': 'Fabíola',
+            'Labor_1428': 'Márcia',
+            'Labor_4206': 'João Vitor',
+            'Labor_4205': 'Ronaldo Torres',
+            'Labor_4201': 'Fabiano Marques'
+        };
+        function getNomeRamal(ramalId) {
+            return RAMAL_NOMES[ramalId] || ramalId;
+        }
+
+        function renderizarGraficoRamais(porRamal) {
+            const container = document.getElementById('ligacoesRamaisChart');
+            if (!container) return;
+            
+            const ramais = Object.entries(porRamal);
+            if (ramais.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            // Ordenar por total desc
+            ramais.sort((a, b) => ((b[1].realizadas||0) + (b[1].recebidas||0)) - ((a[1].realizadas||0) + (a[1].recebidas||0)));
+            const maxTotal = Math.max(...ramais.map(([, v]) => (v.realizadas || 0) + (v.recebidas || 0)));
+            
+            container.innerHTML = `
+                <div style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-chart-bar" style="color: var(--primary-orange);"></i> Ligações por Ramal
+                </div>
+                ${ramais.slice(0, 10).map(([ramal, dados]) => {
+                    const nomeOp = dados.nome || getNomeRamal(ramal);
+                    const total = (dados.realizadas || 0) + (dados.recebidas || 0);
+                    const pctRealizadas = maxTotal > 0 ? ((dados.realizadas || 0) / maxTotal * 100) : 0;
+                    const pctRecebidas = maxTotal > 0 ? ((dados.recebidas || 0) / maxTotal * 100) : 0;
+                    return `
+                        <div class="ramal-chart-bar">
+                            <span class="ramal-label">${nomeOp} <span class="ramal-id">${ramal !== nomeOp ? ramal.replace('Labor_','') : ''}</span></span>
+                            <div class="bar-bg">
+                                <div class="bar-fill realizadas" style="width: ${pctRealizadas}%">${dados.realizadas || 0}</div>
+                                <div class="bar-fill recebidas" style="width: ${pctRecebidas > 0 ? pctRecebidas : 0}%">${dados.recebidas > 0 ? dados.recebidas : ''}</div>
+                            </div>
+                            <span class="bar-total">${total}</span>
+                        </div>
+                    `;
+                }).join('')}
+                <div style="display: flex; gap: 16px; margin-top: 10px; font-size: 11px; color: #6b7280;">
+                    <span><span style="display:inline-block;width:10px;height:10px;background:linear-gradient(90deg,#3b82f6,#60a5fa);border-radius:3px;margin-right:4px;"></span>Realizadas</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:linear-gradient(90deg,#22c55e,#4ade80);border-radius:3px;margin-right:4px;"></span>Recebidas</span>
+                </div>
+            `;
+        }
+
+        // Variáveis globais para paginação
+        let ligacoesPaginaAtual = 1;
+        const LIGACOES_POR_PAGINA = 10;
+        let todasChamadas = [];
+
+        function renderizarTabelaChamadas(chamadas) {
+            todasChamadas = chamadas || [];
+            ligacoesPaginaAtual = 1;
+            renderizarPagina();
+        }
+
+        function renderizarPagina() {
+            const tbody = document.getElementById('ligacoesTableBody');
+            const pagDiv = document.getElementById('ligacoesPagination');
+            if (!tbody) return;
+            
+            if (todasChamadas.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">
+                            <i class="fas fa-phone-slash" style="font-size: 24px; margin-bottom: 8px; display: block;"></i>
+                            Nenhuma ligação encontrada no período
+                        </td>
+                    </tr>
+                `;
+                if (pagDiv) pagDiv.style.display = 'none';
+                return;
+            }
+            
+            const totalPaginas = Math.ceil(todasChamadas.length / LIGACOES_POR_PAGINA);
+            if (ligacoesPaginaAtual > totalPaginas) ligacoesPaginaAtual = totalPaginas;
+            const inicio = (ligacoesPaginaAtual - 1) * LIGACOES_POR_PAGINA;
+            const fim = Math.min(inicio + LIGACOES_POR_PAGINA, todasChamadas.length);
+            const paginaChamadas = todasChamadas.slice(inicio, fim);
+            
+            tbody.innerHTML = paginaChamadas.map(c => {
+                const dataFormatada = c.data || '-';
+                const ramalId = c.ramal || c.origem || '-';
+                const nomeOp = c.nomeOperador || getNomeRamal(ramalId);
+                const mostrarNome = nomeOp !== ramalId;
+                const destino = c.destino || '-';
+                const cidade = c.cidade || '-';
+                const duracao = c.tempo || formatarDuracaoTabela(c.duracao || 0);
+                const valor = typeof c.valor === 'number' ? c.valor.toFixed(5).replace('.', ',') : (c.valor || '0,00');
+                
+                const valorFloat = typeof c.valor === 'number' ? c.valor : parseFloat((c.valor || '0').replace(',', '.'));
+                const valorClass = valorFloat > 0 ? 'color: #16a34a; font-weight: 600;' : 'color: #cbd5e1;';
+                const duracaoStyle = c.duracao > 0 ? 'color: #3b82f6; font-weight: 600;' : 'color: #ef4444; font-weight: 600;';
+                
+                return `
+                    <tr>
+                        <td style="white-space:nowrap;">${dataFormatada}</td>
+                        <td>
+                            <div style="font-weight:700; color:#1e293b;">${mostrarNome ? nomeOp : ramalId}</div>
+                            ${mostrarNome ? '<div style="font-size:11px; color:#94a3b8;">' + ramalId + '</div>' : ''}
+                        </td>
+                        <td style="font-weight:500;">${destino}</td>
+                        <td style="font-size:12px; color:#64748b; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${cidade}</td>
+                        <td style="${duracaoStyle} white-space:nowrap;">${duracao}</td>
+                        <td style="${valorClass} white-space:nowrap;">${valor}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Paginação
+            if (pagDiv) {
+                if (todasChamadas.length <= LIGACOES_POR_PAGINA) {
+                    pagDiv.style.display = 'flex';
+                    pagDiv.innerHTML = `<span class="pag-info">Exibindo ${todasChamadas.length} de ${todasChamadas.length} registros</span><span></span>`;
+                } else {
+                    pagDiv.style.display = 'flex';
+                    let botoesHTML = '';
+                    botoesHTML += `<button onclick="irParaPagina(1)" ${ligacoesPaginaAtual === 1 ? 'disabled' : ''} title="Primeira"><i class="fas fa-angle-double-left"></i></button>`;
+                    botoesHTML += `<button onclick="irParaPagina(${ligacoesPaginaAtual - 1})" ${ligacoesPaginaAtual === 1 ? 'disabled' : ''} title="Anterior"><i class="fas fa-angle-left"></i></button>`;
+                    
+                    const maxBotoes = 5;
+                    let inicioBtn = Math.max(1, ligacoesPaginaAtual - Math.floor(maxBotoes / 2));
+                    let fimBtn = Math.min(totalPaginas, inicioBtn + maxBotoes - 1);
+                    if (fimBtn - inicioBtn < maxBotoes - 1) inicioBtn = Math.max(1, fimBtn - maxBotoes + 1);
+                    
+                    if (inicioBtn > 1) botoesHTML += '<span class="pag-ellipsis">...</span>';
+                    for (let i = inicioBtn; i <= fimBtn; i++) {
+                        botoesHTML += `<button onclick="irParaPagina(${i})" class="${i === ligacoesPaginaAtual ? 'active' : ''}">${i}</button>`;
+                    }
+                    if (fimBtn < totalPaginas) botoesHTML += '<span class="pag-ellipsis">...</span>';
+                    
+                    botoesHTML += `<button onclick="irParaPagina(${ligacoesPaginaAtual + 1})" ${ligacoesPaginaAtual === totalPaginas ? 'disabled' : ''} title="Próxima"><i class="fas fa-angle-right"></i></button>`;
+                    botoesHTML += `<button onclick="irParaPagina(${totalPaginas})" ${ligacoesPaginaAtual === totalPaginas ? 'disabled' : ''} title="Última"><i class="fas fa-angle-double-right"></i></button>`;
+                    
+                    pagDiv.innerHTML = `
+                        <span class="pag-info">Exibindo ${inicio + 1} a ${fim} de ${todasChamadas.length} registros</span>
+                        <div class="pag-buttons">${botoesHTML}</div>
+                    `;
+                }
+            }
+        }
+
+        function irParaPagina(pagina) {
+            const totalPaginas = Math.ceil(todasChamadas.length / LIGACOES_POR_PAGINA);
+            if (pagina < 1 || pagina > totalPaginas) return;
+            ligacoesPaginaAtual = pagina;
+            renderizarPagina();
+            // Scroll para o topo da tabela
+            const tableEl = document.querySelector('.ligacoes-table-wrapper');
+            if (tableEl) tableEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        async function verificarChamadasOnline() {
+            try {
+                const res = await fetch('/api/vendas/ligacoes/online', { credentials: 'include' });
+                if (res.ok) {
+                    const data = await res.json();
+                    const badge = document.getElementById('ligacoesOnlineBadge');
+                    const count = document.getElementById('ligacoesOnlineCount');
+                    if (badge && data.total > 0) {
+                        badge.style.display = 'inline-flex';
+                        if (count) count.textContent = data.total;
+                    } else if (badge) {
+                        badge.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                // silencioso
+            }
+        }
+
+        // Atualizar chamadas online a cada 30s
+        setInterval(verificarChamadasOnline, 30000);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            iniciarAtualizacaoAutomatica();
+            // Carregar relatório de ligações
+            setTimeout(carregarLigacoes, 1500);
+        });
+        
+        // Toggle Sidebar Mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+    </script>
+    
+    <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+    <script src="/js/popup-confirmacao.js" defer></script>
+    <script src="/js/auth-unified.js?v=20260131" defer></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Chat Widget BOB AI - DESATIVADO -->
+    <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <script src="/js/user-dropdown.js?v=20260223" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+
+

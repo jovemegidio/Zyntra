@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-rootpassword}"
+      MYSQL_DATABASE: "${DB_NAME:-vendas_db}"
+      MYSQL_USER: "${DB_USER:-root}"
+      MYSQL_PASSWORD: "${DB_PASSWORD:-}"
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+
+  app:
+    image: node:18
+    working_dir: /usr/src/app
+    volumes:
+      - ./:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    command: sh -c "npm install --legacy-peer-deps && npm run start:dev"
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    image: node:18
+    working_dir: /usr/src/app
+    volumes:
+      - ./:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - .env
+    command: sh -c "npm install --legacy-peer-deps && npm run worker"
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  db_data: {}

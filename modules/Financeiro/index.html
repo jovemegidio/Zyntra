@@ -1,0 +1,1183 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Dashboard Financeiro</title>
+
+    <!-- Autenticação -->
+    <script src="/js/auth-unified.js?v=20260211" defer></script>
+
+    <!-- Fonte Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Financeiro Design System -->
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Redirecionamento baseado em permissões -->
+    <script>
+        var _financeiroUserCache = null;
+        (async function() {
+            try {
+                const response = window.AluforceData
+                    ? await window.AluforceData.getUser()
+                    : await fetch('/api/me', { credentials: 'include' }).then(r => r.json());
+                _financeiroUserCache = response;
+                const user = response;
+                const permFinanceiro = user.permissões_financeiro || [];
+                const isAdmin = user.is_admin === 1 || user.role === 'admin';
+                if (!isAdmin && permFinanceiro.length > 0) {
+                    const temContasPagar = permFinanceiro.includes('contas_pagar');
+                    const temContasReceber = permFinanceiro.includes('contas_receber');
+                    if (temContasPagar && !temContasReceber) { window.location.href = 'dashboard-contas-pagar.html'; return; }
+                    else if (temContasReceber && !temContasPagar) { window.location.href = 'dashboard-contas-receber.html'; return; }
+                }
+            } catch (e) { /* Permission check failed */ }
+        })();
+    </script>
+
+    <!-- Estilos específicos desta página -->
+    <style>
+        /* KPI Grid */
+        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+        .kpi-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; transition: all 0.2s; }
+        .kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+        .kpi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .kpi-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .kpi-icon.green { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .kpi-icon.red { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .kpi-icon.blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
+        .kpi-icon.orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
+        .kpi-content h3 { font-size: 13px; color: #64748b; font-weight: 500; margin-bottom: 6px; }
+        .kpi-value { font-size: 22px; font-weight: 700; color: #1e293b; }
+        .kpi-value.green { color: #22c55e; }
+        .kpi-value.red { color: #ef4444; }
+        .kpi-trend { font-size: 12px; color: #94a3b8; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+        .kpi-trend.up { color: #22c55e; }
+        .kpi-trend.down { color: #ef4444; }
+        .kpi-progress { height: 4px; background: #f1f5f9; border-radius: 2px; margin-top: 12px; overflow: hidden; }
+        .kpi-progress-bar { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+        .kpi-progress-bar.green { background: #22c55e; }
+        .kpi-progress-bar.red { background: #ef4444; }
+        .kpi-progress-bar.blue { background: #3b82f6; }
+
+        /* Chart */
+        .chart-container { height: 280px; position: relative; }
+        .chart-legend { display: flex; gap: 16px; margin-bottom: 12px; }
+        .chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; }
+        .chart-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .chart-legend-dot.green { background: #22c55e; }
+        .chart-legend-dot.red { background: #ef4444; }
+
+        /* Vencimentos */
+        .vencimento-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+        .vencimento-item:last-child { border-bottom: none; }
+        .vencimento-left { display: flex; align-items: center; gap: 12px; }
+        .vencimento-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .vencimento-icon.receber { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .vencimento-icon.pagar { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .vencimento-info h4 { font-size: 14px; font-weight: 500; color: #1e293b; }
+        .vencimento-info span { font-size: 12px; color: #94a3b8; }
+        .vencimento-valor { font-size: 14px; font-weight: 600; }
+        .vencimento-valor.green { color: #22c55e; }
+        .vencimento-valor.red { color: #ef4444; }
+
+        /* Page actions */
+        .page-header { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+
+        /* Table helpers */
+        .card-body--flush { padding: 0 !important; }
+        .table-container { overflow-x: auto; }
+        .table-container table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .table-container thead { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+        .table-container th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+        .table-container td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; color: #374151; }
+        .table-container tr:hover { background: #f8fafc; }
+        .td-loading { text-align: center; padding: 32px !important; color: #94a3b8; }
+        .td-description { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .td-valor { font-weight: 600; white-space: nowrap; }
+        .td-valor--danger { color: #ef4444; }
+        .flex-row-gap-sm { display: flex; gap: 8px; }
+        .icon-empty { display: block; font-size: 24px; margin-bottom: 8px; }
+
+        /* ============ MODAIS OMIE ============ */
+        .modal-overlay-omie { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal-overlay-omie.active { display: flex; }
+        .modal-omie { background: white; border-radius: 12px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+        .modal-omie--sm { width: 560px; }
+        .modal-omie--md { width: 640px; }
+        .modal-omie--lg { width: 880px; }
+        .modal-omie--xl { width: 1100px; max-height: 92vh; }
+        .modal-omie-header { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 12px 12px 0 0; }
+        .modal-omie-header h2 { color: white; font-size: 16px; font-weight: 600; }
+        .modal-omie-close { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); border: none; color: rgba(255,255,255,0.7); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .modal-omie-close:hover { background: rgba(255,255,255,0.2); color: white; }
+        .modal-omie-body { padding: 24px; }
+        .modal-omie-body--spacious { padding: 32px 24px; }
+        .modal-omie-body--flush { padding: 0; }
+        .modal-omie-subtitle { color: #64748b; font-size: 14px; margin-bottom: 20px; }
+
+        /* Opção cards */
+        .opcao-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+        .opcao-card--clickable { cursor: pointer; transition: all 0.2s; }
+        .opcao-card--clickable:hover { border-color: #3b82f6; background: #eff6ff; }
+        .opcao-card-header { padding: 12px 16px; font-weight: 600; font-size: 14px; color: #1e293b; border-bottom: 1px solid #e2e8f0; }
+        .opcao-card-body { display: flex; justify-content: space-between; align-items: center; padding: 16px; }
+        .opcao-card-left { flex: 1; }
+        .opcao-card-left p { color: #64748b; font-size: 13px; line-height: 1.5; }
+        .opcao-card-right { display: flex; align-items: center; justify-content: center; }
+        .icon-wrapper { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .icon-label { font-size: 11px; color: #3b82f6; font-weight: 600; }
+        .opcao-card-input { display: flex; gap: 8px; margin-top: 10px; }
+        .opcao-card-input input { flex: 1; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
+        .opcao-card-input button { padding: 10px 16px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        .opcao-pesquisas-info { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+        .opcao-pesquisas-info a { color: #3b82f6; }
+
+        /* Campos e botões de modal */
+        .campo-input { width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; }
+        .campo-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .campo-input--narrow { max-width: 280px; }
+        .campo-input--sm { max-width: 200px; }
+        .campo-input--flex { flex: 1; }
+        .campo-label { font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 4px; }
+        .campo-label-link { color: #3b82f6; cursor: pointer; font-size: 12px; }
+        .btn-selecionar { padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; }
+        .btn-selecionar:hover { background: #2563eb; }
+        .btn--flush { margin-top: 0; }
+        .btn--flush-h40 { height: 40px; }
+        .btn-icon-outline { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: white; cursor: pointer; color: #64748b; }
+        .text-hint { color: #64748b; font-size: 14px; margin-bottom: 16px; }
+        .text-hint--sm { color: #64748b; font-size: 13px; margin-bottom: 12px; }
+        .text-muted { color: #94a3b8; }
+        .text-center--mb-lg { text-align: center; margin-bottom: 20px; }
+        .text-center-pad { text-align: center; padding: 16px; }
+        .text-footnote { text-align: center; color: #94a3b8; font-size: 12px; margin-top: 12px; }
+        .text-right-mt { text-align: right; margin-top: 8px; }
+        .add-link { color: #3b82f6; cursor: pointer; font-size: 14px; margin-top: 16px; }
+        .pos-relative { position: relative; }
+        .flex-center-gap { display: flex; justify-content: center; gap: 12px; margin-top: 16px; }
+        .flex-row-end { display: flex; gap: 12px; align-items: flex-end; }
+        .loading-hidden { display: none; text-align: center; margin-top: 16px; }
+        .loading-text { color: #64748b; font-size: 13px; }
+        .spinner-green { color: #3b82f6; font-size: 24px; }
+        .icon-white { color: white; }
+        .cursor-pointer { cursor: pointer; }
+        .fw-500 { font-weight: 500; }
+
+        /* Google search */
+        .google-search-input { padding-right: 48px !important; }
+        .google-search-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: #3b82f6; border: none; color: white; width: 36px; height: 36px; border-radius: 8px; cursor: pointer; }
+        .btn-google-search { padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; }
+        .btn-google-search:hover { background: #2563eb; }
+        .btn-google-cancel { padding: 10px 20px; background: #f1f5f9; color: #64748b; border: none; border-radius: 8px; cursor: pointer; }
+        .google-text { font-size: 22px; font-weight: 700; }
+        .g-blue { color: #4285f4; }
+        .g-red { color: #ea4335; }
+        .g-yellow { color: #fbbc05; }
+        .g-green { color: #34a853; }
+
+        /* Resultados table */
+        .resultados-table { width: 100%; border-collapse: collapse; }
+        .resultados-table th { padding: 12px 16px; text-align: left; background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-size: 13px; font-weight: 600; color: #374151; }
+        .resultados-table td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #374151; }
+        .resultados-table tr:hover { background: #eff6ff; }
+        .resultados-table tr.selected { background: #dbeafe; }
+        .resultados-filter { display: flex; align-items: center; gap: 4px; }
+        .resultados-filter i { color: #94a3b8; font-size: 11px; }
+        .resultados-pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b; }
+        .resultados-pagination button { padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; cursor: pointer; font-size: 12px; }
+        .resultados-pagination .current { background: #3b82f6; color: white; padding: 4px 10px; border-radius: 6px; }
+
+        /* Cadastro modal */
+        .modal-cadastro-content { display: flex; min-height: 500px; }
+        .modal-cadastro-main { flex: 1; padding: 20px; overflow-y: auto; }
+        .modal-cadastro-sidebar { width: 60px; background: #f8fafc; border-left: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; padding: 20px 0; gap: 12px; }
+        .btn-salvar-sidebar { width: 42px; height: 42px; background: #3b82f6; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+        .btn-salvar-sidebar:hover { background: #2563eb; }
+        .nav-arrow { width: 42px; height: 42px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #94a3b8; cursor: pointer; }
+        .cadastro-avatar-area { display: flex; gap: 20px; margin-bottom: 20px; }
+        .cadastro-avatar { width: 80px; height: 80px; background: #f1f5f9; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; font-size: 28px; cursor: pointer; position: relative; }
+        .cadastro-avatar-alterar { font-size: 11px; color: #3b82f6; margin-top: 4px; }
+        .grid-cadastro-main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .grid-cadastro-detail { display: grid; grid-template-columns: 1fr 80px 1fr 1fr; gap: 12px; }
+        .flex-1 { flex: 1; }
+        .cadastro-tabs { display: flex; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; overflow-x: auto; }
+        .cadastro-tab { padding: 10px 16px; border: none; background: none; color: #64748b; font-size: 13px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+        .cadastro-tab:hover { color: #3b82f6; }
+        .cadastro-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 600; }
+        .cadastro-tab-content { min-height: 200px; }
+        .cadastro-tab-panel { display: none; }
+        .cadastro-tab-panel.active { display: block; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 13px; font-weight: 500; color: #374151; }
+        .form-group--span2 { grid-column: span 2; }
+        .form-group--narrow { max-width: 100px; }
+        .form-group--flex { flex: 1; }
+        .tags-area { background: #f8fafc; border: 1px dashed #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 16px; text-align: center; }
+        .tags-area h4 { font-size: 14px; color: #374151; margin-bottom: 4px; }
+        .tags-area p { font-size: 13px; color: #3b82f6; cursor: pointer; }
+        .tab-placeholder { text-align: center; padding: 40px; color: #94a3b8; }
+        .tab-placeholder h3 { margin-top: 8px; font-size: 16px; color: #374151; }
+        .tab-placeholder p { font-size: 14px; margin-top: 8px; }
+        .icon-placeholder { font-size: 32px; color: #94a3b8; }
+        .heading-placeholder { font-size: 16px; color: #374151; margin-top: 8px; }
+        .map-placeholder { height: 300px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 32px; color: #94a3b8; }
+        .empty-state i { font-size: 32px; margin-bottom: 8px; }
+        .empty-state p { font-size: 14px; }
+
+        @media (max-width: 768px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .page-header { flex-direction: column; }
+            .page-header .btn { width: 100%; justify-content: center; }
+            .modal-omie--sm, .modal-omie--md, .modal-omie--lg, .modal-omie--xl { width: 95vw; margin: 0 auto; }
+            .modal-cadastro-content { flex-direction: column; }
+            .modal-cadastro-sidebar { width: 100%; flex-direction: row; border-left: none; border-top: 1px solid #e2e8f0; padding: 12px; }
+            .form-row { grid-template-columns: 1fr; }
+            .form-group--span2 { grid-column: span 1; }
+            .grid-cadastro-main, .grid-cadastro-detail { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 480px) {
+            .kpi-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Header & Sidebar refinado -->
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260215">
+    <!-- Global Header & Sidebar — override final unificado -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        
+        <!-- SIDEBAR - PADRÃO FINANCEIRO -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn active" title="Dashboard">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </a>
+                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
+                    <i class="fas fa-chart-area"></i>
+                </a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos">
+                    <i class="fas fa-university"></i>
+                </a>
+                <a href="plano-contas.html" class="sidebar-btn" title="Plano de Contas">
+                    <i class="fas fa-list-alt"></i>
+                </a>
+                <a href="orcamentos.html" class="sidebar-btn" title="Orçamentos">
+                    <i class="fas fa-calculator"></i>
+                </a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação">
+                    <i class="fas fa-balance-scale"></i>
+                </a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios">
+                    <i class="fas fa-chart-bar"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn" title="Centros de Custo">
+                    <i class="fas fa-sitemap"></i>
+                </a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos">
+                    <i class="fas fa-percent"></i>
+                </a>
+                <button class="sidebar-btn" title="Configurações" id="btn-config" onclick="toggleConfiguracoes()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER - PADRÃO FINANCEIRO -->
+            <header class="header">
+                <div class="header-left">
+                    <!-- Botão Menu Mobile -->
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Financeiro</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+                        </button>
+                        <div class="notification-panel" id="notification-panel">
+                            <div class="notification-header">
+                                <h3><i class="fas fa-bell"></i> Notificações</h3>
+                                <div class="notification-actions">
+                                    <button onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                                        <i class="fas fa-check-double"></i>
+                                    </button>
+                                    <button onclick="limparNotificacoes()" title="Limpar todas">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="notification-list" id="notification-list">
+                                <div class="notification-empty">
+                                    <i class="fas fa-check-circle"></i>
+                                    <p>Nenhuma notificação</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img alt="Foto do usuário" id="user-photo" style="display:none">
+                            <span id="user-initials">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="main-content">
+                <div class="page-content">
+
+                <!-- Page Actions -->
+                <div class="page-header">
+                    <button class="btn btn-secondary" onclick="abrirModalClienteFornecedor()"><i class="fas fa-user-plus"></i> Incluir Cliente/Fornecedor</button>
+                    <button class="btn btn-success" onclick="novoLancamento('receber')"><i class="fas fa-plus"></i> Nova Conta a Receber</button>
+                    <button class="btn btn-primary" onclick="novoLancamento('pagar')"><i class="fas fa-plus"></i> Nova Conta a Pagar</button>
+                    <button class="btn btn-secondary" onclick="location.href='relatorios.html'"><i class="fas fa-file-alt"></i> Relatórios</button>
+                </div>
+
+                <!-- KPIs -->
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon green"><i class="fas fa-arrow-down"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>A Receber (30 dias)</h3>
+                            <div class="kpi-value green" id="kpi-receber">R$ 0,00</div>
+                            <div class="kpi-trend up"><i class="fas fa-arrow-up"></i> vs mês anterior</div>
+                        </div>
+                        <div class="kpi-progress"><div class="kpi-progress-bar green" id="progress-receber" style="width: 0%"></div></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon red"><i class="fas fa-arrow-up"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>A Pagar (30 dias)</h3>
+                            <div class="kpi-value red" id="kpi-pagar">R$ 0,00</div>
+                            <div class="kpi-trend down"><i class="fas fa-arrow-down"></i> vs mês anterior</div>
+                        </div>
+                        <div class="kpi-progress"><div class="kpi-progress-bar red" id="progress-pagar" style="width: 0%"></div></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon blue"><i class="fas fa-wallet"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Saldo Previsto</h3>
+                            <div class="kpi-value" id="kpi-saldo">R$ 0,00</div>
+                            <div class="kpi-trend"><i class="fas fa-chart-line"></i> Projeção 30 dias</div>
+                        </div>
+                        <div class="kpi-progress"><div class="kpi-progress-bar blue" style="width: 75%"></div></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-header">
+                            <div class="kpi-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
+                        </div>
+                        <div class="kpi-content">
+                            <h3>Títulos Vencidos</h3>
+                            <div class="kpi-value" id="kpi-vencidos">0</div>
+                            <div class="kpi-trend"><i class="fas fa-bell"></i> Requer atenção</div>
+                        </div>
+                        <div class="kpi-progress"><div class="kpi-progress-bar red" id="progress-vencidos" style="width: 0%"></div></div>
+                    </div>
+                </div>
+
+                <!-- Grid Principal -->
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-chart-area"></i> Fluxo de Caixa - Próximos 30 dias</h3>
+                            <button class="btn btn-secondary" onclick="location.href='fluxo-caixa.html'">Ver Detalhes</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-legend">
+                                <div class="chart-legend-item"><div class="chart-legend-dot green"></div> Entradas</div>
+                                <div class="chart-legend-item"><div class="chart-legend-dot red"></div> Saídas</div>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="fluxoCaixaChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-calendar-alt"></i> Próximos Vencimentos</h3>
+                        </div>
+                        <div class="card-body" id="lista-vencimentos">
+                            <div class="empty-state">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Últimos Lançamentos -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-list"></i> Últimos Lançamentos</h3>
+                        <div class="flex-row-gap-sm">
+                            <button class="btn btn-secondary" onclick="location.href='contas-pagar.html'">Contas a Pagar</button>
+                            <button class="btn btn-secondary" onclick="location.href='contas-receber.html'">Contas a Receber</button>
+                        </div>
+                    </div>
+                    <div class="card-body card-body--flush">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tipo</th>
+                                        <th>Descrição</th>
+                                        <th>Vencimento</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-lancamentos">
+                                    <tr>
+                                        <td colspan="5" class="td-loading">
+                                            <i class="fas fa-spinner fa-spin"></i> Carregando...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                </div><!-- /page-content -->
+            </div><!-- /main-content -->
+        </main>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- JAVASCRIPT -->
+    <!-- ============================================================ -->
+    <script>
+        // ======== Sidebar / Header helpers ========
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        function toggleNotifications() {
+            const panel = document.getElementById('notification-panel');
+            if (panel) panel.classList.toggle('active');
+        }
+
+        // ======== Carregar usuário ========
+        async function carregarUsuario() {
+            try {
+                let user;
+                if (_financeiroUserCache) {
+                    user = _financeiroUserCache;
+                } else {
+                    const response = await fetch('/api/me', { credentials: 'include' });
+                    if (!response.ok) return;
+                    user = await response.json();
+                    _financeiroUserCache = user;
+                }
+                const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                const hour = new Date().getHours();
+                let greeting = 'Bom dia';
+                if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                document.getElementById('greeting-text').textContent = greeting;
+                document.getElementById('user-name').textContent = primeiroNome;
+                const inicialEl = document.getElementById('user-initials');
+                if (inicialEl) inicialEl.textContent = primeiroNome.charAt(0).toUpperCase();
+                const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                const fotoEl = document.getElementById('user-photo');
+                if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                    fotoEl.src = fotoUrl;
+                    fotoEl.onload = () => { fotoEl.classList.add('visible'); fotoEl.style.display = 'block'; if (inicialEl) inicialEl.style.display = 'none'; };
+                    fotoEl.onerror = () => { fotoEl.style.display = 'none'; if (inicialEl) inicialEl.style.display = 'flex'; };
+                } else {
+                    fotoEl.style.display = 'none';
+                    const initEl = document.getElementById('user-initials');
+                    if (initEl) { initEl.textContent = primeiroNome.charAt(0).toUpperCase(); initEl.style.display = 'flex'; }
+                }
+            } catch (e) { console.error('Erro ao carregar usuário:', e); }
+        }
+
+        // ======== CACHE DE DADOS ========
+        const financeiroCache = { contasReceber: null, contasPagar: null, lastFetch: null, cacheTime: 60000, isLoading: false, loadPromise: null };
+
+        async function carregarDadosFinanceiros(forceRefresh = false) {
+            const now = Date.now();
+            if (!forceRefresh && financeiroCache.lastFetch && (now - financeiroCache.lastFetch < financeiroCache.cacheTime)) {
+                return { contasReceber: financeiroCache.contasReceber, contasPagar: financeiroCache.contasPagar };
+            }
+            if (financeiroCache.isLoading && financeiroCache.loadPromise) return financeiroCache.loadPromise;
+            financeiroCache.isLoading = true;
+            financeiroCache.loadPromise = (async () => {
+                try {
+                    const [receber, pagar] = await Promise.all([
+                        fetch('/api/financeiro/contas-receber', { credentials: 'include' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(() => []),
+                        fetch('/api/financeiro/contas-pagar', { credentials: 'include' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(() => [])
+                    ]);
+                    const receberData = receber.data || receber || [];
+                    const pagarData = pagar.data || pagar || [];
+                    financeiroCache.contasReceber = Array.isArray(receberData) ? receberData : [];
+                    financeiroCache.contasPagar = Array.isArray(pagarData) ? pagarData : [];
+                    financeiroCache.lastFetch = Date.now();
+                    return { contasReceber: financeiroCache.contasReceber, contasPagar: financeiroCache.contasPagar };
+                } finally { financeiroCache.isLoading = false; }
+            })();
+            return financeiroCache.loadPromise;
+        }
+
+        function invalidarCacheFinanceiro() { financeiroCache.lastFetch = null; }
+
+        // ======== KPIs ========
+        async function carregarKPIs() {
+            try {
+                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
+                const totalReceber = contasReceber.reduce((sum, c) => sum + parseFloat(c.valor || 0), 0);
+                const totalPagar = contasPagar.reduce((sum, c) => sum + parseFloat(c.valor || 0), 0);
+                const saldo = totalReceber - totalPagar;
+                const vencidos = [...contasReceber, ...contasPagar].filter(c => new Date(c.data_vencimento) < new Date() && c.status !== 'pago' && c.status !== 'recebido').length;
+                const hoje = new Date().toISOString().split('T')[0];
+                const venceHoje = [...contasReceber, ...contasPagar].filter(c => c.data_vencimento === hoje && c.status !== 'pago' && c.status !== 'recebido').length;
+
+                document.getElementById('kpi-receber').textContent = formatarMoeda(totalReceber);
+                document.getElementById('kpi-pagar').textContent = formatarMoeda(totalPagar);
+                document.getElementById('kpi-saldo').textContent = formatarMoeda(saldo);
+                document.getElementById('kpi-saldo').className = 'kpi-value ' + (saldo >= 0 ? 'green' : 'red');
+                document.getElementById('kpi-vencidos').textContent = vencidos;
+
+                const totalAlertas = vencidos + venceHoje;
+                const badge = document.getElementById('notification-count');
+                badge.textContent = totalAlertas;
+                badge.classList.toggle('hidden', totalAlertas === 0);
+
+                const maxValor = Math.max(totalReceber, totalPagar, 1);
+                document.getElementById('progress-receber').style.width = ((totalReceber / maxValor) * 100) + '%';
+                document.getElementById('progress-pagar').style.width = ((totalPagar / maxValor) * 100) + '%';
+                const totalContas = contasReceber.length + contasPagar.length;
+                if (totalContas > 0) document.getElementById('progress-vencidos').style.width = Math.min((vencidos / totalContas) * 100, 100) + '%';
+            } catch (e) { console.error('Erro ao carregar KPIs:', e); }
+        }
+
+        // ======== Gráfico ========
+        let fluxoCaixaChartInstance = null;
+        async function carregarGrafico() {
+            const ctx = document.getElementById('fluxoCaixaChart').getContext('2d');
+            if (fluxoCaixaChartInstance) { fluxoCaixaChartInstance.destroy(); fluxoCaixaChartInstance = null; }
+            try {
+                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
+                const labels = [], entradas = [], saidas = [];
+                for (let i = 0; i < 30; i++) {
+                    const d = new Date(); d.setDate(d.getDate() + i);
+                    const dataStr = d.toISOString().split('T')[0];
+                    labels.push(d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }));
+                    entradas.push(contasReceber.filter(c => c.data_vencimento === dataStr && c.status !== 'recebido').reduce((sum, c) => sum + parseFloat(c.valor || 0), 0));
+                    saidas.push(contasPagar.filter(c => c.data_vencimento === dataStr && c.status !== 'pago').reduce((sum, c) => sum + parseFloat(c.valor || 0), 0));
+                }
+                fluxoCaixaChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'Entradas', data: entradas, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#22c55e' },
+                            { label: 'Saídas', data: saidas, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#ef4444' }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { backgroundColor: '#1e293b', titleColor: '#fff', bodyColor: '#fff', padding: 12, cornerRadius: 8, callbacks: { label: ctx => ctx.dataset.label + ': ' + formatarMoeda(ctx.raw) } }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 10 } },
+                            y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } }
+                        }
+                    }
+                });
+            } catch (e) { console.error('Erro ao carregar gráfico:', e); }
+        }
+
+        // ======== Vencimentos ========
+        async function carregarVencimentos() {
+            const lista = document.getElementById('lista-vencimentos');
+            try {
+                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
+                const todas = [
+                    ...contasReceber.map(c => ({ ...c, tipo: 'receber' })),
+                    ...contasPagar.map(c => ({ ...c, tipo: 'pagar' }))
+                ].filter(c => c.status !== 'pago' && c.status !== 'recebido')
+                 .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))
+                 .slice(0, 6);
+                if (todas.length === 0) { lista.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>Nenhum vencimento próximo</p></div>'; return; }
+                lista.innerHTML = todas.map(c => `
+                    <div class="vencimento-item">
+                        <div class="vencimento-left">
+                            <div class="vencimento-icon ${c.tipo}"><i class="fas fa-${c.tipo === 'receber' ? 'arrow-down' : 'arrow-up'}"></i></div>
+                            <div class="vencimento-info">
+                                <h4>${c.descricao || c.fornecedor || c.cliente || 'Sem descrição'}</h4>
+                                <span>${new Date(c.data_vencimento).toLocaleDateString('pt-BR')} • ${c.tipo === 'receber' ? 'A Receber' : 'A Pagar'}</span>
+                            </div>
+                        </div>
+                        <div class="vencimento-valor ${c.tipo === 'receber' ? 'green' : 'red'}">${formatarMoeda(c.valor)}</div>
+                    </div>
+                `).join('');
+            } catch (e) { lista.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Erro ao carregar</p></div>'; }
+        }
+
+        // ======== Lançamentos ========
+        async function carregarLancamentos() {
+            const tbody = document.getElementById('tabela-lancamentos');
+            try {
+                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
+                const todas = [
+                    ...contasReceber.map(c => ({ ...c, tipo: 'Receber' })),
+                    ...contasPagar.map(c => ({ ...c, tipo: 'Pagar' }))
+                ].sort((a, b) => new Date(b.created_at || b.data_vencimento) - new Date(a.created_at || a.data_vencimento)).slice(0, 10);
+                if (todas.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="td-loading"><i class="fas fa-inbox icon-empty"></i>Nenhum lançamento</td></tr>'; return; }
+                tbody.innerHTML = todas.map(c => `
+                    <tr>
+                        <td><span class="badge ${c.tipo === 'Receber' ? 'badge-success' : 'badge-danger'}">${c.tipo}</span></td>
+                        <td class="td-description">${c.descricao || c.fornecedor || c.cliente || 'Sem descrição'}</td>
+                        <td>${new Date(c.data_vencimento).toLocaleDateString('pt-BR')}</td>
+                        <td class="td-valor">${formatarMoeda(c.valor)}</td>
+                        <td><span class="badge ${getStatusClass(c.status)}">${formatarStatus(c.status)}</span></td>
+                    </tr>
+                `).join('');
+            } catch (e) { tbody.innerHTML = '<tr><td colspan="5" class="td-loading td-valor--danger">Erro ao carregar</td></tr>'; }
+        }
+
+        function getStatusClass(s) { s = (s || '').toLowerCase(); if (s === 'pago' || s === 'recebido') return 'badge-success'; if (s === 'vencido') return 'badge-danger'; if (s === 'parcial') return 'badge-warning'; return 'badge-info'; }
+        function formatarStatus(s) { const m = { 'pago': 'Pago', 'recebido': 'Recebido', 'pendente': 'Pendente', 'vencido': 'Vencido', 'parcial': 'Parcial' }; return m[(s || 'pendente').toLowerCase()] || s; }
+        function formatarMoeda(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0); }
+        function novoLancamento(tipo) { location.href = tipo === 'pagar' ? 'contas-pagar.html' : 'contas-receber.html'; }
+
+        // ======== Dashboard update ========
+        async function atualizarDashboard(forceRefresh = false) {
+            if (forceRefresh) invalidarCacheFinanceiro();
+            await carregarDadosFinanceiros(forceRefresh);
+            await Promise.all([carregarKPIs(), carregarGrafico(), carregarVencimentos(), carregarLancamentos()]);
+        }
+
+        // ======== Init ========
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarUsuario();
+            atualizarDashboard();
+            setInterval(() => atualizarDashboard(true), 300000);
+        });
+    </script>
+
+    <!-- ============================================================ -->
+    <!-- MODAIS -->
+    <!-- ============================================================ -->
+
+    <!-- MODAL: Escolha do Método -->
+    <div class="modal-overlay-omie" id="modalEscolhaCliente">
+        <div class="modal-omie modal-omie--sm">
+            <div class="modal-omie-header">
+                <h2>Incluir Cliente ou Fornecedor</h2>
+                <button class="modal-omie-close" onclick="fecharModalClienteFornecedor()"><span>Fechar</span> <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-omie-body">
+                <p class="modal-omie-subtitle">Utilize uma das opções de pesquisa abaixo para incluir digitando quase nada</p>
+
+                <!-- Pesquisa Atômica -->
+                <div class="opcao-card">
+                    <div class="opcao-card-header">Pesquisa Atômica</div>
+                    <div class="opcao-card-body">
+                        <div class="opcao-card-left">
+                            <div class="opcao-pesquisas-info">Você ainda possui 3 pesquisas gratuitas<br><a href="#">Quero pesquisas ilimitadas</a></div>
+                            <p>Digite aqui o que deseja pesquisar</p>
+                            <div class="opcao-card-input">
+                                <input type="text" id="pesquisaAtomicaInput" placeholder="CNPJ, CPF, Nome, Razão Social, Telefone, E-mail">
+                                <button onclick="pesquisaAtomica()"><i class="fas fa-search"></i></button>
+                            </div>
+                        </div>
+                        <div class="opcao-card-right">
+                            <div class="icon-wrapper">
+                                <svg width="50" height="50" viewBox="0 0 50 50" fill="none"><circle cx="25" cy="25" r="8" stroke="#3b82f6" stroke-width="2" fill="none" opacity="0.6"/><ellipse cx="25" cy="25" rx="20" ry="8" stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.4"/><ellipse cx="25" cy="25" rx="20" ry="8" stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.4" transform="rotate(60 25 25)"/><ellipse cx="25" cy="25" rx="20" ry="8" stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.4" transform="rotate(-60 25 25)"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CNPJ/CPF -->
+                <div class="opcao-card opcao-card--clickable" onclick="abrirModalCNPJ()">
+                    <div class="opcao-card-header">Pesquisa por CNPJ / CPF</div>
+                    <div class="opcao-card-body">
+                        <div class="opcao-card-left"><p>Encontre seus clientes e fornecedores pesquisando no site da Receita Federal e outros.</p></div>
+                        <div class="opcao-card-right">
+                            <div class="icon-wrapper">
+                                <svg width="55" height="45" viewBox="0 0 55 45" fill="none"><circle cx="18" cy="22" r="10" stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.5"/><path d="M25 30 L32 37" stroke="#3b82f6" stroke-width="2" opacity="0.5"/><rect x="32" y="8" width="20" height="30" rx="2" stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.5"/><line x1="35" y1="14" x2="49" y2="14" stroke="#3b82f6" stroke-width="1" opacity="0.4"/><line x1="35" y1="19" x2="49" y2="19" stroke="#3b82f6" stroke-width="1" opacity="0.4"/><line x1="35" y1="24" x2="49" y2="24" stroke="#3b82f6" stroke-width="1" opacity="0.4"/><line x1="35" y1="29" x2="45" y2="29" stroke="#3b82f6" stroke-width="1" opacity="0.4"/></svg>
+                                <span class="icon-label">CNPJ</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Google -->
+                <div class="opcao-card opcao-card--clickable" onclick="pesquisaGoogle()">
+                    <div class="opcao-card-header">Pesquisa no Google</div>
+                    <div class="opcao-card-body">
+                        <div class="opcao-card-left"><p>Pesquise pelo nome, razão social e até mesmo pelo endereço. Use termos para refinar.</p></div>
+                        <div class="opcao-card-right">
+                            <div class="icon-wrapper"><span class="google-text">by<span class="g-blue">G</span><span class="g-red">o</span><span class="g-yellow">o</span><span class="g-blue">g</span><span class="g-green">l</span><span class="g-red">e</span></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Inserção Manual -->
+                <div class="opcao-card opcao-card--clickable" onclick="abrirModalInsercaoManual()">
+                    <div class="opcao-card-header">Inserção Manual</div>
+                    <div class="opcao-card-body">
+                        <div class="opcao-card-left"><p>Inclua os dados manualmente ou pesquisando pelo CEP.</p></div>
+                        <div class="opcao-card-right">
+                            <div class="icon-wrapper">
+                                <svg width="45" height="35" viewBox="0 0 45 35" fill="none"><rect x="2" y="2" width="41" height="31" rx="3" stroke="#3b82f6" stroke-width="1.5" fill="none" opacity="0.5"/><rect x="6" y="7" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="13" y="7" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="20" y="7" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="27" y="7" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="34" y="7" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="6" y="14" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="13" y="14" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="20" y="14" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="27" y="14" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="34" y="14" width="5" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/><rect x="10" y="22" width="25" height="5" rx="1" stroke="#3b82f6" stroke-width="1" fill="none" opacity="0.4"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CNPJ/CPF -->
+    <div class="modal-overlay-omie" id="modalCNPJ">
+        <div class="modal-omie modal-omie--md">
+            <div class="modal-omie-header">
+                <h2>Incluir Cliente ou Fornecedor</h2>
+                <button class="modal-omie-close" onclick="fecharModalCNPJ()"><span>Fechar</span> <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-omie-body">
+                <p class="text-hint">Informe o CNPJ ou CPF para pesquisa na Receita Federal</p>
+                <input type="text" id="cnpjCpfInput" class="campo-input campo-input--narrow" placeholder="">
+                <br><br><br>
+                <button class="btn-selecionar btn--flush" onclick="pesquisarCNPJ()"><i class="fas fa-bolt"></i> Pesquisar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Google -->
+    <div class="modal-overlay-omie" id="modalGoogle">
+        <div class="modal-omie modal-omie--sm">
+            <div class="modal-omie-header">
+                <h2>Pesquisa no Google</h2>
+                <button class="modal-omie-close" onclick="fecharModalGoogle()"><span>Fechar</span> <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-omie-body modal-omie-body--spacious">
+                <div class="text-center--mb-lg">
+                    <svg width="120" height="40" viewBox="0 0 120 40" fill="none"><text x="0" y="32" font-family="Arial" font-size="32" font-weight="bold"><tspan fill="#4285f4">G</tspan><tspan fill="#ea4335">o</tspan><tspan fill="#fbbc05">o</tspan><tspan fill="#4285f4">g</tspan><tspan fill="#34a853">l</tspan><tspan fill="#ea4335">e</tspan></text></svg>
+                </div>
+                <p class="text-hint--sm">Digite o termo que deseja pesquisar:</p>
+                <div class="pos-relative">
+                    <input type="text" id="googleSearchInput" class="campo-input google-search-input" placeholder="Pesquisar nome, razão social, endereço..." onkeypress="if(event.key==='Enter') executarPesquisaGoogle()">
+                    <button onclick="executarPesquisaGoogle()" class="google-search-btn"><i class="fas fa-search icon-white"></i></button>
+                </div>
+                <div id="googleSearchLoading" class="loading-hidden"><i class="fas fa-spinner fa-spin spinner-green"></i><p class="loading-text">Pesquisando...</p></div>
+                <div class="flex-center-gap">
+                    <button onclick="executarPesquisaGoogle()" class="btn-google-search" id="btnPesquisarGoogle"><i class="fas fa-search"></i> Pesquisar</button>
+                    <button onclick="fecharModalGoogle()" class="btn-google-cancel">Cancelar</button>
+                </div>
+                <p class="text-footnote">Os resultados serão exibidos para seleção</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Resultados -->
+    <div class="modal-overlay-omie" id="modalResultados">
+        <div class="modal-omie modal-omie--lg">
+            <div class="modal-omie-header">
+                <h2>Resultados Encontrados</h2>
+                <button class="modal-omie-close" onclick="fecharModalResultados()"><span>Fechar</span> <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-omie-body modal-omie-body--flush">
+                <table class="resultados-table">
+                    <thead><tr><th><span class="resultados-filter">Localidade <i class="fas fa-filter"></i></span></th><th><span class="resultados-filter">Endereço <i class="fas fa-filter"></i></span></th></tr></thead>
+                    <tbody id="resultadosTableBody"></tbody>
+                </table>
+                <div class="resultados-pagination" id="resultadosPaginacao" style="display: none;">
+                    <span id="resultadosCount">1-20 de 20 registros</span>
+                    <button><i class="fas fa-angle-double-left"></i></button>
+                    <button>anterior</button>
+                    <span class="current">1</span>
+                    <button>próximo</button>
+                    <button><i class="fas fa-angle-double-right"></i></button>
+                </div>
+                <div class="text-center-pad">
+                    <button class="btn-selecionar" onclick="selecionarResultado()"><i class="fas fa-check"></i> Selecionar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Inserção Manual -->
+    <div class="modal-overlay-omie" id="modalInsercaoManual">
+        <div class="modal-omie modal-omie--md">
+            <div class="modal-omie-header">
+                <h2>Incluir Cliente ou Fornecedor</h2>
+                <button class="modal-omie-close" onclick="fecharModalInsercaoManual()"><span>Fechar</span> <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-omie-body">
+                <p class="text-hint">Informe o CEP e o Número do endereço para pesquisa</p>
+                <div class="flex-row-end">
+                    <div><label class="campo-label">CEP</label><input type="text" id="cepInput" class="campo-input campo-input--sm"></div>
+                    <div><label class="campo-label">Número do endereço</label><input type="text" id="numeroEnderecoInput" class="campo-input campo-input--sm"></div>
+                    <button class="btn-selecionar btn--flush-h40" onclick="pesquisarCEP()"><i class="fas fa-bolt"></i> Pesquisar</button>
+                </div>
+                <br><br>
+                <p class="add-link" onclick="abrirCadastroCompleto()">Quero continuar a inclusão manualmente<br><small class="text-muted">(não utilizarei a pesquisa por CEP agora)</small></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Cadastro Completo -->
+    <div class="modal-overlay-omie" id="modalCadastroCompleto">
+        <div class="modal-omie modal-omie--xl">
+            <div class="modal-omie-header">
+                <h2>Incluir Cliente ou Fornecedor</h2>
+                <button class="modal-omie-close" onclick="fecharCadastroCompleto()"><span>Fechar</span> <i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-cadastro-content">
+                <div class="modal-cadastro-main">
+                    <div class="cadastro-avatar-area">
+                        <div class="cadastro-avatar"><i class="fas fa-user"></i><span class="cadastro-avatar-alterar">Alterar</span></div>
+                        <div class="flex-1">
+                            <div class="grid-cadastro-main">
+                                <div><label class="campo-label">Razão Social / Nome Completo</label><input type="text" id="razaoSocialInput" class="campo-input"></div>
+                                <div><label class="campo-label">CNPJ / CPF <span class="campo-label-link">@ Pesquisar SEFAZ</span></label><input type="text" id="cnpjInput" class="campo-input"></div>
+                            </div>
+                            <div class="grid-cadastro-detail">
+                                <div><label class="campo-label">Nome Fantasia / Nome Abreviado</label><input type="text" id="nomeFantasiaInput" class="campo-input"></div>
+                                <div><label class="campo-label">DDD</label><input type="text" id="dddInput" class="campo-input"></div>
+                                <div><label class="campo-label">Telefone</label><input type="text" id="telefoneInput" class="campo-input"></div>
+                                <div><label class="campo-label">Nome do Contato</label><input type="text" id="contatoInput" class="campo-input"></div>
+                            </div>
+                            <div class="text-right-mt"><span class="campo-label-link btn--flush">@ Consulta de Crédito</span></div>
+                        </div>
+                    </div>
+
+                    <div class="cadastro-tabs">
+                        <button class="cadastro-tab active" data-tab="endereco">Endereço</button>
+                        <button class="cadastro-tab" data-tab="telefones">Telefones e E-mail</button>
+                        <button class="cadastro-tab" data-tab="bancarios">Dados Bancários</button>
+                        <button class="cadastro-tab" data-tab="inscricoes">Inscrições, CNAE e Outros</button>
+                        <button class="cadastro-tab" data-tab="integracao"><i class="fas fa-cog"></i> Integração Automática</button>
+                        <button class="cadastro-tab" data-tab="caracteristicas">Características</button>
+                        <button class="cadastro-tab" data-tab="recomendacoes">Recomendações</button>
+                        <button class="cadastro-tab" data-tab="faturamento">Faturamento e Crédito</button>
+                        <button class="cadastro-tab" data-tab="mapa">Mapa</button>
+                    </div>
+
+                    <div class="cadastro-tab-content">
+                        <!-- Endereço -->
+                        <div class="cadastro-tab-panel active" id="tab-endereco">
+                            <div class="form-row"><div class="form-group form-group--span2"><label>Endereço <span class="campo-label-link">@ Pesquisar Endereço</span></label><input type="text" id="enderecoInput" class="campo-input"></div><div class="form-group"><label>Número</label><input type="text" id="numeroInput" class="campo-input"></div></div>
+                            <div class="form-row"><div class="form-group"><label>Bairro</label><input type="text" id="bairroInput" class="campo-input"></div><div class="form-group"><label>Complemento</label><input type="text" id="complementoInput" class="campo-input"></div></div>
+                            <div class="form-row">
+                                <div class="form-group form-group--narrow"><label>Estado</label><select id="estadoSelect" class="campo-input"><option value="">UF</option><option value="AC">AC</option><option value="AL">AL</option><option value="AM">AM</option><option value="AP">AP</option><option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option><option value="MA">MA</option><option value="MG">MG</option><option value="MS">MS</option><option value="MT">MT</option><option value="PA">PA</option><option value="PB">PB</option><option value="PE">PE</option><option value="PI">PI</option><option value="PR">PR</option><option value="RJ">RJ</option><option value="RN">RN</option><option value="RO">RO</option><option value="RR">RR</option><option value="RS">RS</option><option value="SC">SC</option><option value="SE">SE</option><option value="SP">SP</option><option value="TO">TO</option></select></div>
+                                <div class="form-group form-group--flex"><label>Cidade</label><div class="flex-row-gap-sm"><input type="text" id="cidadeInput" class="campo-input campo-input--flex"><button class="btn-icon-outline"><i class="fas fa-search"></i></button></div></div>
+                                <div class="form-group"><label>CEP <span class="campo-label-link">@ Pesquisar CEP</span></label><input type="text" id="cepCadastroInput" class="campo-input"></div>
+                            </div>
+                            <p class="add-link"><i class="fas fa-plus"></i> Clique aqui para <strong>adicionar um endereço de entrega diferente</strong> deste</p>
+                            <div class="tags-area"><h4>Preencha quantas Tags quiser para este cadastro</h4><p>Clique aqui para selecionar (ou criar uma nova)</p></div>
+                        </div>
+                        <!-- Telefones -->
+                        <div class="cadastro-tab-panel" id="tab-telefones">
+                            <div class="form-row"><div class="form-group"><label>Telefone Comercial</label><input type="text" class="campo-input" placeholder="(00) 0000-0000"></div><div class="form-group"><label>Celular</label><input type="text" class="campo-input" placeholder="(00) 00000-0000"></div></div>
+                            <div class="form-row"><div class="form-group"><label>WhatsApp</label><input type="text" class="campo-input" placeholder="(00) 00000-0000"></div><div class="form-group"><label>Fax</label><input type="text" class="campo-input" placeholder="(00) 0000-0000"></div></div>
+                            <div class="form-row"><div class="form-group form-group--span2"><label>E-mail Principal</label><input type="email" class="campo-input" placeholder="email@empresa.com.br"></div></div>
+                            <div class="form-row"><div class="form-group form-group--span2"><label>E-mail para Cobrança</label><input type="email" class="campo-input" placeholder="financeiro@empresa.com.br"></div></div>
+                            <div class="form-row"><div class="form-group form-group--span2"><label>Website</label><input type="url" class="campo-input" placeholder="https://www.empresa.com.br"></div></div>
+                        </div>
+                        <!-- Bancários -->
+                        <div class="cadastro-tab-panel" id="tab-bancarios">
+                            <div class="form-row"><div class="form-group"><label>Banco</label><select class="campo-input"><option value="">Selecione o banco</option><option value="001">001 - Banco do Brasil</option><option value="033">033 - Santander</option><option value="104">104 - Caixa Econômica</option><option value="237">237 - Bradesco</option><option value="341">341 - Itaú</option><option value="756">756 - Sicoob</option></select></div><div class="form-group"><label>Tipo de Conta</label><select class="campo-input"><option value="">Selecione</option><option value="corrente">Conta Corrente</option><option value="poupanca">Conta Poupança</option></select></div></div>
+                            <div class="form-row"><div class="form-group"><label>Agência</label><input type="text" class="campo-input" placeholder="0000"></div><div class="form-group"><label>Conta</label><input type="text" class="campo-input" placeholder="00000-0"></div></div>
+                            <div class="form-row"><div class="form-group form-group--span2"><label>Chave PIX</label><input type="text" class="campo-input" placeholder="CPF, CNPJ, E-mail, Telefone ou Chave Aleatória"></div></div>
+                        </div>
+                        <!-- Inscrições -->
+                        <div class="cadastro-tab-panel" id="tab-inscricoes">
+                            <div class="form-row"><div class="form-group"><label>Inscrição Estadual</label><input type="text" class="campo-input"></div><div class="form-group"><label>Inscrição Municipal</label><input type="text" class="campo-input"></div></div>
+                            <div class="form-row"><div class="form-group"><label>Inscrição SUFRAMA</label><input type="text" class="campo-input"></div><div class="form-group"><label>CNAE Principal</label><input type="text" class="campo-input"></div></div>
+                            <div class="form-row"><div class="form-group"><label>Regime Tributário</label><select class="campo-input"><option value="">Selecione</option><option value="simples">Simples Nacional</option><option value="presumido">Lucro Presumido</option><option value="real">Lucro Real</option><option value="mei">MEI</option></select></div><div class="form-group"><label>Contribuinte ICMS</label><select class="campo-input"><option value="">Selecione</option><option value="1">Contribuinte</option><option value="2">Isento</option><option value="9">Não Contribuinte</option></select></div></div>
+                        </div>
+                        <!-- Integração -->
+                        <div class="cadastro-tab-panel" id="tab-integracao">
+                            <div class="tab-placeholder"><i class="fas fa-cog icon-placeholder"></i><h3 class="heading-placeholder">Integração Automática</h3><p>Configure integrações com sistemas externos aqui.</p></div>
+                        </div>
+                        <!-- Características -->
+                        <div class="cadastro-tab-panel" id="tab-caracteristicas">
+                            <div class="form-row"><div class="form-group"><label>Tipo de Cliente</label><select class="campo-input"><option value="">Selecione</option><option value="cliente">Cliente</option><option value="fornecedor">Fornecedor</option><option value="ambos">Cliente e Fornecedor</option></select></div><div class="form-group"><label>Segmento</label><input type="text" class="campo-input" placeholder="Ex: Indústria, Comércio"></div></div>
+                            <div class="form-row"><div class="form-group form-group--span2"><label>Observações</label><textarea class="campo-input" rows="4" placeholder="Observações gerais sobre o cliente/fornecedor"></textarea></div></div>
+                        </div>
+                        <!-- Recomendações -->
+                        <div class="cadastro-tab-panel" id="tab-recomendacoes">
+                            <div class="form-row"><div class="form-group"><label>Vendedor Responsável</label><select class="campo-input"><option value="">Selecione</option></select></div><div class="form-group"><label>Indicado Por</label><input type="text" class="campo-input" placeholder="Nome de quem indicou"></div></div>
+                        </div>
+                        <!-- Faturamento -->
+                        <div class="cadastro-tab-panel" id="tab-faturamento">
+                            <div class="form-row"><div class="form-group"><label>Limite de Crédito</label><input type="text" class="campo-input" placeholder="R$ 0,00"></div><div class="form-group"><label>Condição de Pagamento Padrão</label><select class="campo-input"><option value="">Selecione</option><option value="avista">À Vista</option><option value="7dias">7 Dias</option><option value="14dias">14 Dias</option><option value="28dias">28 Dias</option><option value="30dias">30 Dias</option><option value="30-60">30/60 Dias</option><option value="30-60-90">30/60/90 Dias</option></select></div></div>
+                            <div class="form-row"><div class="form-group"><label>Desconto Padrão (%)</label><input type="text" class="campo-input" placeholder="0,00"></div><div class="form-group"><label>Tabela de Preços</label><select class="campo-input"><option value="">Padrão</option></select></div></div>
+                        </div>
+                        <!-- Mapa -->
+                        <div class="cadastro-tab-panel" id="tab-mapa">
+                            <div class="map-placeholder"><div class="text-center"><i class="fas fa-map-marker-alt icon-placeholder"></i><p>Preencha o endereço para visualizar no mapa</p></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-cadastro-sidebar">
+                    <button class="btn-salvar-sidebar" onclick="salvarClienteFornecedor()"><i class="fas fa-save"></i></button>
+                    <div class="nav-arrow"><i class="fas fa-chevron-right"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS dos Modais -->
+    <script>
+        function abrirModalClienteFornecedor() { document.getElementById('modalEscolhaCliente').classList.add('active'); }
+        function fecharModalClienteFornecedor() { document.getElementById('modalEscolhaCliente').classList.remove('active'); }
+        function abrirModalCNPJ() { fecharModalClienteFornecedor(); document.getElementById('modalCNPJ').classList.add('active'); }
+        function fecharModalCNPJ() { document.getElementById('modalCNPJ').classList.remove('active'); }
+        function abrirModalInsercaoManual() { fecharModalClienteFornecedor(); document.getElementById('modalInsercaoManual').classList.add('active'); }
+        function fecharModalInsercaoManual() { document.getElementById('modalInsercaoManual').classList.remove('active'); }
+        function abrirCadastroCompleto() { fecharModalInsercaoManual(); fecharModalCNPJ(); fecharModalResultados(); document.getElementById('modalCadastroCompleto').classList.add('active'); }
+        function fecharCadastroCompleto() { document.getElementById('modalCadastroCompleto').classList.remove('active'); }
+        function fecharModalResultados() { document.getElementById('modalResultados').classList.remove('active'); }
+
+        async function pesquisaAtomica() {
+            const termo = document.getElementById('pesquisaAtomicaInput').value;
+            if (!termo) { alert('Digite um termo para pesquisar'); return; }
+            mostrarResultados([
+                { localidade: 'Teste', endereco: 'Rua Estrada da fazenda velha número 200 bloco 5 ap 106, São José do Rio Preto - SP, 15030-700, Brasil' },
+                { localidade: 'Empresa Teste', endereco: 'Av. Pres. Vargas - Jardim Boa Esperança, Franca - SP, 14403-720, Brasil' }
+            ]);
+        }
+
+        async function pesquisarCNPJ() {
+            const cnpj = document.getElementById('cnpjCpfInput').value.replace(/\D/g, '');
+            if (!cnpj || (cnpj.length !== 11 && cnpj.length !== 14)) { alert('Informe um CPF ou CNPJ válido'); return; }
+            try {
+                if (cnpj.length === 14) {
+                    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+                    if (response.ok) { const data = await response.json(); fecharModalCNPJ(); preencherDadosCNPJ(data); abrirCadastroCompleto(); return; }
+                }
+                alert('Não foi possível encontrar dados para este documento');
+            } catch (e) { console.error('Erro na consulta:', e); alert('Erro ao consultar. Tente a inserção manual.'); }
+        }
+
+        function preencherDadosCNPJ(data) {
+            document.getElementById('razaoSocialInput').value = data.razao_social || '';
+            document.getElementById('nomeFantasiaInput').value = data.nome_fantasia || '';
+            document.getElementById('cnpjInput').value = data.cnpj || '';
+            document.getElementById('dddInput').value = data.ddd_telefone_1 ? data.ddd_telefone_1.substring(0, 2) : '';
+            document.getElementById('telefoneInput').value = data.ddd_telefone_1 ? data.ddd_telefone_1.substring(2) : '';
+            document.getElementById('enderecoInput').value = data.logradouro || '';
+            document.getElementById('numeroInput').value = data.numero || '';
+            document.getElementById('bairroInput').value = data.bairro || '';
+            document.getElementById('complementoInput').value = data.complemento || '';
+            document.getElementById('cidadeInput').value = data.municipio || '';
+            document.getElementById('estadoSelect').value = data.uf || '';
+            document.getElementById('cepCadastroInput').value = data.cep || '';
+        }
+
+        async function pesquisarCEP() {
+            const cep = document.getElementById('cepInput').value.replace(/\D/g, '');
+            if (!cep || cep.length !== 8) { alert('Informe um CEP válido'); return; }
+            try {
+                const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (!data.erro) {
+                        fecharModalInsercaoManual();
+                        document.getElementById('enderecoInput').value = data.logradouro || '';
+                        document.getElementById('bairroInput').value = data.bairro || '';
+                        document.getElementById('cidadeInput').value = data.localidade || '';
+                        document.getElementById('estadoSelect').value = data.uf || '';
+                        document.getElementById('cepCadastroInput').value = cep;
+                        document.getElementById('numeroInput').value = document.getElementById('numeroEnderecoInput').value || '';
+                        abrirCadastroCompleto(); return;
+                    }
+                }
+                alert('CEP não encontrado');
+            } catch (e) { console.error('Erro na consulta:', e); alert('Erro ao consultar CEP'); }
+        }
+
+        function pesquisaGoogle() { fecharModalClienteFornecedor(); document.getElementById('modalGoogle').classList.add('active'); document.getElementById('googleSearchInput').value = ''; setTimeout(() => document.getElementById('googleSearchInput').focus(), 100); }
+        function fecharModalGoogle() { document.getElementById('modalGoogle').classList.remove('active'); }
+
+        let resultadosPesquisa = [];
+
+        async function executarPesquisaGoogle() {
+            const termo = document.getElementById('googleSearchInput').value.trim();
+            if (!termo) { document.getElementById('googleSearchInput').focus(); document.getElementById('googleSearchInput').style.borderColor = '#ef4444'; setTimeout(() => { document.getElementById('googleSearchInput').style.borderColor = '#ddd'; }, 2000); return; }
+            document.getElementById('googleSearchLoading').style.display = 'block';
+            document.getElementById('btnPesquisarGoogle').disabled = true;
+            try {
+                let resultados = [];
+                try {
+                    const response = await fetch(`/api/financeiro/clientes-fornecedores/buscar?termo=${encodeURIComponent(termo)}`, { credentials: 'include' });
+                    if (response.ok) { const data = await response.json(); const raw = data.data || data || []; const arr = Array.isArray(raw) ? raw : []; resultados = arr.map(item => ({ localidade: item.razao_social || item.nome_fantasia || item.nome || 'Sem nome', endereco: `${item.endereco || ''}, ${item.numero || ''} - ${item.bairro || ''}, ${item.cidade || ''} - ${item.estado || ''}, ${item.cep || ''}, Brasil`.replace(/^, | - , |, , /g, ''), dados: item })); }
+                } catch (e) { console.log('Busca interna não disponível'); }
+                if (resultados.length === 0) {
+                    const cnpjLimpo = termo.replace(/\D/g, '');
+                    if (cnpjLimpo.length === 14) {
+                        try { const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`); if (r.ok) { const d = await r.json(); resultados.push({ localidade: d.razao_social || d.nome_fantasia, endereco: `${d.logradouro||''}, ${d.numero||''} - ${d.bairro||''}, ${d.municipio||''} - ${d.uf||''}, ${d.cep||''}, Brasil`, dados: { razao_social: d.razao_social, nome_fantasia: d.nome_fantasia, cnpj_cpf: d.cnpj, endereco: d.logradouro, numero: d.numero, bairro: d.bairro, cidade: d.municipio, estado: d.uf, cep: d.cep, telefone: d.ddd_telefone_1 } }); } } catch (e) { }
+                    }
+                }
+                if (resultados.length === 0) {
+                    const cepLimpo = termo.replace(/\D/g, '');
+                    if (cepLimpo.length === 8) {
+                        try { const r = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`); if (r.ok) { const d = await r.json(); if (!d.erro) { resultados.push({ localidade: `Endereço em ${d.localidade}`, endereco: `${d.logradouro||''} - ${d.bairro||''}, ${d.localidade||''} - ${d.uf||''}, ${d.cep||''}, Brasil`, dados: { endereco: d.logradouro, bairro: d.bairro, cidade: d.localidade, estado: d.uf, cep: d.cep } }); } } } catch (e) { }
+                    }
+                }
+                if (resultados.length === 0) { resultados = [{ localidade: termo, endereco: 'Endereço não encontrado - Preencha manualmente', dados: { razao_social: termo } }]; }
+                resultadosPesquisa = resultados;
+                document.getElementById('googleSearchLoading').style.display = 'none';
+                document.getElementById('btnPesquisarGoogle').disabled = false;
+                fecharModalGoogle();
+                mostrarResultadosComDados(resultados);
+            } catch (e) { console.error('Erro na pesquisa:', e); document.getElementById('googleSearchLoading').style.display = 'none'; document.getElementById('btnPesquisarGoogle').disabled = false; alert('Erro ao realizar pesquisa.'); }
+        }
+
+        function mostrarResultadosComDados(resultados) {
+            const tbody = document.getElementById('resultadosTableBody');
+            tbody.innerHTML = resultados.map((r, i) => `<tr onclick="selecionarLinha(this)" data-index="${i}" class="cursor-pointer"><td class="fw-500">${r.localidade}</td><td>${r.endereco}</td></tr>`).join('');
+            document.getElementById('resultadosCount').textContent = `1-${resultados.length} de ${resultados.length} registros`;
+            document.getElementById('modalResultados').classList.add('active');
+        }
+
+        function mostrarResultados(resultados) {
+            fecharModalClienteFornecedor();
+            const tbody = document.getElementById('resultadosTableBody');
+            tbody.innerHTML = resultados.map((r, i) => `<tr onclick="selecionarLinha(this)" data-index="${i}"><td>${r.localidade}</td><td>${r.endereco}</td></tr>`).join('');
+            document.getElementById('resultadosCount').textContent = `1-${resultados.length} de ${resultados.length} registros`;
+            document.getElementById('modalResultados').classList.add('active');
+        }
+
+        function selecionarLinha(tr) { document.querySelectorAll('#resultadosTableBody tr').forEach(r => r.classList.remove('selected')); tr.classList.add('selected'); }
+
+        function selecionarResultado() {
+            const selected = document.querySelector('#resultadosTableBody tr.selected');
+            if (!selected) { alert('Selecione um resultado'); return; }
+            const index = parseInt(selected.dataset.index);
+            const resultado = resultadosPesquisa[index];
+            fecharModalResultados();
+            if (resultado && resultado.dados) {
+                const d = resultado.dados;
+                document.getElementById('razaoSocialInput').value = d.razao_social || d.nome || '';
+                document.getElementById('nomeFantasiaInput').value = d.nome_fantasia || '';
+                document.getElementById('cnpjInput').value = d.cnpj_cpf || d.cnpj || '';
+                document.getElementById('enderecoInput').value = d.endereco || d.logradouro || '';
+                document.getElementById('numeroInput').value = d.numero || '';
+                document.getElementById('bairroInput').value = d.bairro || '';
+                document.getElementById('complementoInput').value = d.complemento || '';
+                document.getElementById('cidadeInput').value = d.cidade || d.municipio || '';
+                document.getElementById('estadoSelect').value = d.estado || d.uf || '';
+                document.getElementById('cepCadastroInput').value = d.cep || '';
+                if (d.telefone) { const tel = d.telefone.replace(/\D/g, ''); document.getElementById('dddInput').value = tel.substring(0, 2); document.getElementById('telefoneInput').value = tel.substring(2); }
+            }
+            abrirCadastroCompleto();
+        }
+
+        async function salvarClienteFornecedor() {
+            const dados = { razao_social: document.getElementById('razaoSocialInput').value, nome_fantasia: document.getElementById('nomeFantasiaInput').value, cnpj_cpf: document.getElementById('cnpjInput').value, ddd: document.getElementById('dddInput').value, telefone: document.getElementById('telefoneInput').value, contato: document.getElementById('contatoInput').value, endereco: document.getElementById('enderecoInput').value, numero: document.getElementById('numeroInput').value, bairro: document.getElementById('bairroInput').value, complemento: document.getElementById('complementoInput').value, cidade: document.getElementById('cidadeInput').value, estado: document.getElementById('estadoSelect').value, cep: document.getElementById('cepCadastroInput').value };
+            if (!dados.razao_social) { alert('Informe a Razão Social / Nome'); return; }
+            try {
+                const response = await fetch('/api/financeiro/clientes-fornecedores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(dados) });
+                if (response.ok) { alert('Cliente/Fornecedor salvo com sucesso!'); fecharCadastroCompleto(); document.querySelectorAll('#modalCadastroCompleto input').forEach(i => i.value = ''); }
+                else { const err = await response.json(); alert('Erro ao salvar: ' + (err.message || 'Erro desconhecido')); }
+            } catch (e) { console.error('Erro:', e); alert('Erro ao salvar. Verifique a conexão.'); }
+        }
+
+        // Tab navigation
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.cadastro-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.dataset.tab;
+                    document.querySelectorAll('.cadastro-tab').forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    document.querySelectorAll('.cadastro-tab-panel').forEach(p => p.classList.remove('active'));
+                    document.getElementById('tab-' + tabId).classList.add('active');
+                });
+            });
+            document.querySelectorAll('.modal-overlay-omie').forEach(modal => {
+                modal.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('active'); });
+            });
+        });
+    </script>
+
+    <!-- Popup Confirmação -->
+    <script src="/js/popup-confirmacao.js?v=20260219"></script>
+    <!-- Funções Compartilhadas Financeiro -->
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+

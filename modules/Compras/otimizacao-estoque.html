@@ -1,0 +1,506 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Otimização de Estoque</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Mobile Enterprise Design System -->
+    <link rel="stylesheet" href="/css/design-system-mobile.css?v=20260202">
+    <link rel="stylesheet" href="/css/responsive-global.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-master-2026.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-enterprise-enhancements.css?v=20260202">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="compras-design-system.css">
+    <link rel="stylesheet" href="dashboard-compras-pro-v2.css">
+    
+    <style>
+        .optimization-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .optimization-card {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .optimization-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .optimization-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .metric-large {
+            font-size: 42px;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .metric-label {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .suggestion-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .suggestion-item {
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            border-left: 4px solid;
+            background: var(--hover-bg);
+            transition: all 0.3s;
+        }
+
+        .suggestion-item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .suggestion-item.critical {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .suggestion-item.high {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .suggestion-item.medium {
+            border-left-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .suggestion-item.low {
+            border-left-color: #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .suggestion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+
+        .suggestion-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 15px;
+        }
+
+        .suggestion-priority {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .suggestion-priority.critical {
+            background: #ef4444;
+            color: white;
+        }
+
+        .suggestion-priority.high {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .suggestion-priority.medium {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .suggestion-priority.low {
+            background: #6366f1;
+            color: white;
+        }
+
+        .suggestion-description {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .suggestion-metrics {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .suggestion-metric {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .suggestion-metric-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .suggestion-metric-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .suggestion-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .suggestion-btn {
+            flex: 1;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .suggestion-btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .suggestion-btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .suggestion-btn-secondary {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .suggestion-btn-secondary:hover {
+            background: var(--text-secondary);
+            color: white;
+        }
+
+        .chart-wrapper-small {
+            position: relative;
+            height: 250px;
+        }
+
+        .optimization-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .stat-box {
+            padding: 16px;
+            border-radius: 8px;
+            background: var(--hover-bg);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .material-recommendation {
+            padding: 12px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            background: var(--hover-bg);
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .material-recommendation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .material-code {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .recommendation-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .material-details {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .recommendation-values {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+        }
+
+        .rec-value {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .rec-value-label {
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+
+        .rec-value-number {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <script src="/js/tooltips-professional.js?v=20260216"></script>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Sidebar — Padrão ALUFORCE -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" title="Estoque" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn active" title="Otimização" onclick="window.location.href='otimizacao-estoque.html'"><i class="fas fa-chart-area"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" onclick="window.location.href='/dashboard'"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <!-- Header — Padrão ALUFORCE -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Otimização de Estoque</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar"><span id="user-initials">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+    <!-- Main Content -->
+        <div class="page-header" style="justify-content: flex-end;">
+            <div class="flex-gap-12">
+                <button class="btn-secondary" onclick="otimizacaoManager.recalcular()">
+                    <i class="fas fa-sync-alt"></i> Recalcular
+                </button>
+                <button class="btn-primary" onclick="otimizacaoManager.exportarSugestoes()">
+                    <i class="fas fa-file-export"></i> Exportar
+                </button>
+            </div>
+        </div>
+
+        <!-- Métricas Principais -->
+        <div class="optimization-grid">
+            <div class="optimization-card">
+                <div class="optimization-header">
+                    <h3 class="optimization-title">
+                        <i class="fas fa-piggy-bank"></i>
+                        Potencial de Economia
+                    </h3>
+                </div>
+                <div class="metric-large" id="economiaPotencial">R$ 0,00</div>
+                <div class="metric-label">Economia mensal estimada</div>
+                <div class="optimization-stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="reducaoEstoque">0%</div>
+                        <div class="stat-label">Redução de Estoque</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="melhoriaTurnover">0%</div>
+                        <div class="stat-label">Melhoria Turnover</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="optimization-card">
+                <div class="optimization-header">
+                    <h3 class="optimization-title">
+                        <i class="fas fa-chart-line"></i>
+                        Eficiência do Estoque
+                    </h3>
+                </div>
+                <div class="chart-wrapper-small">
+                    <canvas id="chartEficiencia"></canvas>
+                </div>
+            </div>
+
+            <div class="optimization-card">
+                <div class="optimization-header">
+                    <h3 class="optimization-title">
+                        <i class="fas fa-cube"></i>
+                        Classificação ABC
+                    </h3>
+                </div>
+                <div class="chart-wrapper-small">
+                    <canvas id="chartABC"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sugestões de Otimização -->
+        <div class="optimization-card">
+            <div class="optimization-header">
+                <h3 class="optimization-title">
+                    <i class="fas fa-lightbulb"></i>
+                    Sugestões de Otimização
+                    <span class="badge badge-primary" id="totalSugestoes">0</span>
+                </h3>
+            </div>
+            <ul class="suggestion-list" id="suggestionList">
+                <!-- Preenchido por JS -->
+            </ul>
+        </div>
+
+        <!-- Recomendações de Pedidos -->
+        <div class="optimization-card">
+            <div class="optimization-header">
+                <h3 class="optimization-title">
+                    <i class="fas fa-shopping-cart"></i>
+                    Recomendações de Pedidos
+                </h3>
+                <button class="btn-primary" onclick="otimizacaoManager.gerarPedidosAutomaticos()">
+                    <i class="fas fa-magic"></i> Gerar Pedidos
+                </button>
+            </div>
+            <div id="recommendationsList">
+                <!-- Preenchido por JS -->
+            </div>
+        </div>
+
+        <!-- Análise de Demanda -->
+        <div class="optimization-card">
+            <div class="optimization-header">
+                <h3 class="optimization-title">
+                    <i class="fas fa-chart-area"></i>
+                    Previsão de Demanda
+                </h3>
+            </div>
+            <div class="height-350">
+                <canvas id="chartDemanda"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <script src="notifications.js"></script>
+    <script src="otimizacao-estoque.js"></script>
+
+    <!-- Carregador de usuário -->
+    <script src="compras-user-loader.js?v=20260111"></script>
+
+    <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+    <!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
+    <script src="/js/popup-confirmacao.js"></script>
+
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+

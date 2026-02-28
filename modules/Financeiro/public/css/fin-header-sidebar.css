@@ -1,0 +1,486 @@
+/* ============================================================
+   FINANCEIRO HEADER & SIDEBAR — Design Institucional Refinado
+   Inspirado no padrão PCP/Omie (cabeçalho dark + sidebar ícones)
+   Versão slim/compacta — idêntico ao PCP
+   ============================================================ */
+
+/* ============================================================
+   1. DESIGN TOKENS
+   ============================================================ */
+:root {
+    /* Sidebar */
+    --fin-sidebar-w: 48px;
+    --fin-sidebar-bg: #1e1e1e;
+    --fin-sidebar-hover: rgba(255,255,255,0.08);
+    --fin-sidebar-active-bg: #3b3b3b;
+    --fin-sidebar-active-text: #fff;
+    --fin-sidebar-icon-color: #8b8b8b;
+    --fin-sidebar-icon-hover: #d4d4d4;
+
+    /* Header */
+    --fin-header-h: 42px;
+    --fin-header-bg: #1e1e1e;
+    --fin-header-text: #a1a1a1;
+    --fin-header-text-bold: #f1f5f9;
+    --fin-header-border: rgba(255,255,255,0.08);
+
+    /* Module accent */
+    --fin-accent: #ffffff;
+    --fin-accent-hover: #d4d4d4;
+    --fin-accent-soft: rgba(255,255,255,0.10);
+
+    /* Tooltip */
+    --fin-tooltip-bg: #2d2d2d;
+    --fin-tooltip-text: #e5e5e5;
+}
+
+/* ============================================================
+   2. SIDEBAR — Barra lateral fina com ícones compactos
+   ============================================================ */
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--fin-sidebar-w);
+    height: 100vh;
+    background: var(--fin-sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0 10px;
+    z-index: 1000;
+    border-right: 1px solid var(--fin-header-border);
+    overflow: visible;
+}
+
+/* Logo / Home button */
+.sidebar-logo {
+    width: 30px;
+    height: 30px;
+    background: #3b3b3b;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.sidebar-logo:hover {
+    transform: scale(1.08);
+    box-shadow: 0 2px 10px rgba(255,255,255,0.15);
+}
+
+.sidebar-logo i {
+    color: #fff;
+    font-size: 13px;
+    line-height: 1;
+}
+
+/* Nav container */
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    width: 100%;
+    padding: 0 6px;
+    overflow-y: auto;
+    overflow-x: visible;
+    scrollbar-width: none;
+}
+.sidebar-nav::-webkit-scrollbar { display: none; }
+
+/* Nav buttons */
+.sidebar-btn {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    border: none;
+    background: transparent;
+    color: var(--fin-sidebar-icon-color);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.15s ease;
+    position: relative;
+    margin: 0 auto;
+    text-decoration: none;
+    outline: none;
+    padding: 0;
+}
+
+.sidebar-btn:hover {
+    background: var(--fin-sidebar-hover);
+    color: var(--fin-sidebar-icon-hover);
+}
+
+.sidebar-btn.active {
+    background: var(--fin-accent-soft);
+    color: var(--fin-accent);
+}
+
+.sidebar-btn.active::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    background: var(--fin-accent);
+    border-radius: 0 3px 3px 0;
+}
+
+/* Tooltip on hover */
+.sidebar-btn::after {
+    content: attr(title);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--fin-tooltip-bg);
+    color: var(--fin-tooltip-text);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 9999;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    letter-spacing: 0.01em;
+}
+
+.sidebar-btn:hover::after {
+    opacity: 1;
+}
+
+/* Divider */
+.sidebar-divider {
+    width: 24px;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+    margin: 6px auto;
+    flex-shrink: 0;
+}
+
+/* Bottom section (config / logout) */
+.sidebar-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 6px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ============================================================
+   3. HEADER — Cabeçalho compacto estilo institucional
+   ============================================================ */
+.header {
+    position: fixed;
+    top: 0;
+    left: var(--fin-sidebar-w);
+    right: 0;
+    height: var(--fin-header-h);
+    background: var(--fin-header-bg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 999;
+    border-bottom: 1px solid var(--fin-header-border);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header-brand img {
+    height: 18px;
+    object-fit: contain;
+    opacity: 0.9;
+}
+
+.header-brand .brand-sep {
+    color: rgba(255,255,255,0.15);
+    font-weight: 300;
+    font-size: 16px;
+    user-select: none;
+}
+
+.header-brand .page-title {
+    color: var(--fin-header-text);
+    font-size: 13px;
+    font-weight: 400;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Header action buttons */
+.header-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--fin-header-text);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.header-btn:hover {
+    background: rgba(255,255,255,0.07);
+    color: var(--fin-header-text-bold);
+}
+
+/* Notification badge */
+.header-btn .notification-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    min-width: 14px;
+    height: 14px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 99px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 3px;
+    line-height: 1;
+}
+
+/* User greeting */
+.user-greeting {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--fin-header-text);
+    margin-left: 8px;
+    padding-left: 10px;
+    border-left: 1px solid rgba(255,255,255,0.08);
+}
+
+.user-greeting strong {
+    color: var(--fin-header-text-bold);
+    font-weight: 600;
+}
+
+/* User avatar */
+.user-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--fin-accent), var(--fin-accent-hover));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.user-avatar span {
+    color: #fff;
+    font-weight: 600;
+    font-size: 11px;
+    line-height: 1;
+}
+
+/* ============================================================
+   4. MAIN AREA — Ajuste de margens
+   ============================================================ */
+.main-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-left: var(--fin-sidebar-w);
+    min-height: 100vh;
+}
+
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--gray-50, #f9fafb);
+    margin-top: var(--fin-header-h);
+    min-height: calc(100vh - var(--fin-header-h));
+}
+
+/* ============================================================
+   5. NOTIFICATION PANEL (dropdown)
+   ============================================================ */
+.notification-container { position: relative; }
+
+.notification-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 340px;
+    max-height: 440px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    z-index: 10000;
+    display: none;
+    overflow: hidden;
+}
+.notification-panel.active { display: block; }
+
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, var(--fin-accent), var(--fin-accent-hover));
+    color: #fff;
+}
+
+.notification-header h3 {
+    margin: 0; font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+}
+
+.notification-list { max-height: 320px; overflow-y: auto; }
+
+.notification-empty {
+    padding: 32px 16px; text-align: center; color: #94a3b8;
+}
+.notification-empty i { font-size: 32px; margin-bottom: 10px; color: #10b981; }
+.notification-empty p { margin: 0; font-size: 13px; }
+
+/* ============================================================
+   6. MOBILE RESPONSIVE
+   ============================================================ */
+.mobile-menu-btn,
+.mobile-menu-toggle {
+    display: none;
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+.sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 999;
+    backdrop-filter: blur(2px);
+}
+.sidebar-overlay.active { display: block; }
+
+@media (max-width: 768px) {
+    .mobile-menu-btn,
+    .mobile-menu-toggle {
+        display: flex;
+    }
+
+    .sidebar {
+        width: 210px;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        z-index: 1001;
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar-btn {
+        width: 100%;
+        justify-content: flex-start;
+        padding-left: 14px;
+        gap: 10px;
+        font-size: 13px;
+    }
+
+    .sidebar-btn::after {
+        position: relative;
+        left: 0;
+        top: 0;
+        transform: none;
+        opacity: 1;
+        background: none;
+        box-shadow: none;
+        padding: 0;
+        font-size: 12px;
+        color: inherit;
+    }
+
+    .sidebar-btn.active::before {
+        left: 0;
+    }
+
+    .sidebar-nav { padding: 0 8px; }
+
+    .header {
+        left: 0;
+    }
+
+    .main-area {
+        margin-left: 0;
+    }
+
+    .user-greeting { display: none; }
+
+    .header-right { gap: 2px; }
+
+    .header-brand .page-title { display: none; }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .user-greeting span:first-child { display: none; }
+}
+
+/* ============================================================
+   7. PRINT — Esconder sidebar/header na impressão
+   ============================================================ */
+@media print {
+    .sidebar, .header, .sidebar-overlay,
+    .mobile-menu-btn, .mobile-menu-toggle { display: none !important; }
+    .main-area { margin-left: 0 !important; }
+    .main-content { margin-top: 0 !important; }
+}

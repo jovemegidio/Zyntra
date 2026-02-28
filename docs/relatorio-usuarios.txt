@@ -1,0 +1,214 @@
+================================================================================
+   ALUFORCE ERP - RELATÓRIO DE USUÁRIOS, LOGINS E SENHAS
+   Data: 20/02/2026
+   Sistema: ALUFORCE - V.2
+================================================================================
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  1. SISTEMA PRINCIPAL (Tabela: usuarios)                                    ║
+║  Endpoint de Login: POST /api/login                                         ║
+║  URL: https://[servidor]:3000/login.html                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Usuários Padrão (Seed/Iniciais):
+  ─────────────────────────────────────────────────────────────────────────────
+  
+  ┌─────────────────────────────┬──────────────────────┬────────────┬──────────┐
+  │ EMAIL (Login)               │ SENHA                │ ROLE       │ ADMIN?   │
+  ├─────────────────────────────┼──────────────────────┼────────────┼──────────┤
+  │ admin@aluforce.com          │ admin123             │ admin      │ Sim      │
+  │ vendedor@aluforce.com       │ vendedor123          │ comercial  │ Não      │
+  │ financeiro@aluforce.com     │ financeiro123        │ user       │ Não      │
+  │ pcp@aluforce.com            │ pcp123               │ user       │ Não      │
+  └─────────────────────────────┴──────────────────────┴────────────┴──────────┘
+
+  NOTA: Senhas são armazenadas como SHA2 ou bcrypt hash no banco.
+  As senhas acima são as senhas originais antes do hash.
+
+  Domínios de Email Permitidos:
+    • @aluforce.ind.br
+    • @aluforce.com
+    • @lumiereassessoria.com.br
+
+  Campos da Tabela:
+    - id (INT, AUTO_INCREMENT, PK)
+    - nome (VARCHAR 255)
+    - email (VARCHAR 255, UNIQUE) ← usado como login
+    - senha (VARCHAR 255, bcrypt hash)
+    - senha_hash (VARCHAR 255, bcrypt hash - legado)
+    - login (VARCHAR 100, UNIQUE) ← username alternativo (ex: thaina_cabral)
+    - is_admin (TINYINT 0/1)
+    - role (ENUM: 'admin', 'user', 'comercial')
+    - foto / avatar (VARCHAR 255)
+    - apelido (VARCHAR 100)
+    - cargo, departamento, telefone, ramal
+    - permissoes_modulos (JSON)
+    - comissao_percentual (DECIMAL 5,2)
+    - forcar_troca_senha (TINYINT 0/1)
+    - must_reset_password (TINYINT 0/1)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  2. MÓDULO RH (Tabela: funcionarios)                                        ║
+║  Endpoint de Login: POST /api/login (RH server, porta separada)             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Usuários Padrão (Seed/Iniciais):
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌─────────────────────────────┬──────────────────────┬────────────┐
+  │ EMAIL (Login)               │ SENHA                │ ROLE       │
+  ├─────────────────────────────┼──────────────────────┼────────────┤
+  │ rh@aluforce.com             │ admin123             │ admin      │
+  │ ti@aluforce.com             │ admin123             │ admin      │
+  │ andreia@aluforce.com        │ admin123             │ admin      │
+  └─────────────────────────────┴──────────────────────┴────────────┘
+
+  NOTA: Senhas armazenadas como bcrypt hash.
+
+  Campos da Tabela:
+    - id (INT, AUTO_INCREMENT, PK)
+    - nome_completo (VARCHAR 120)
+    - email (VARCHAR 120, UNIQUE) ← usado como login
+    - senha (VARCHAR 120, bcrypt hash)
+    - senha_hash (VARCHAR 255, bcrypt hash - mais recente)
+    - role (VARCHAR 60, default: 'funcionario')
+    - cpf (VARCHAR 20, UNIQUE, NOT NULL)
+    - cargo, departamento (VARCHAR)
+    - status (VARCHAR 20, default: 'Ativo')
+    - salario (DECIMAL 10,2)
+    - rg, ctps, dados bancários, etc.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  3. MÓDULO PCP (Tabela: usuarios_pcp)                                       ║
+║  Endpoint de Login: POST /api/pcp/login                                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Usuários Cadastrados:
+  ─────────────────────────────────────────────────────────────────────────────
+
+  ┌───────────────────────────────────────┬──────────────────────┬────────────┐
+  │ EMAIL (Login)                         │ SENHA                │ ROLE       │
+  ├───────────────────────────────────────┼──────────────────────┼────────────┤
+  │ admin@local                           │ (bcrypt hash)        │ admin      │
+  │ clemerson.silva@aluforce.ind.br       │ (bcrypt hash)        │ admin      │
+  │ ti@aluforce.ind.br                    │ Aluforce2025!TI      │ admin      │
+  │ andreia@aluforce.ind.br               │ Aluforce2025!And     │ pcp        │
+  │ douglas@aluforce.ind.br               │ Aluforce2025!Dou     │ pcp        │
+  │ guilherme@aluforce.ind.br             │ Aluforce2025!Gui     │ pcp        │
+  │ thiago@aluforce.ind.br                │ Aluforce2025!Thi     │ pcp        │
+  └───────────────────────────────────────┴──────────────────────┴────────────┘
+
+  ⚠️  ALERTA: Alguns usuários PCP possuem senhas em TEXTO PURO no banco!
+      Recomenda-se migrar para bcrypt hash imediatamente.
+
+  Campos da Tabela:
+    - id (INT, AUTO_INCREMENT, PK)
+    - email (VARCHAR 255, UNIQUE)
+    - senha (VARCHAR 255)
+    - nome (VARCHAR 255)
+    - role (VARCHAR 50, default: 'user')
+    - setor (VARCHAR 50, default: 'PCP')
+    - permissoes (JSON)
+    - must_change_password (TINYINT 0/1)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  4. MAPA DE PERMISSÕES POR USUÁRIO (Hardcoded no sistema)                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ┌────────────────────┬────────────────────────────────────────┬──────────────┐
+  │ NOME/LOGIN         │ MÓDULOS COM ACESSO                     │ É ADMIN?     │
+  ├────────────────────┼────────────────────────────────────────┼──────────────┤
+  │ douglas            │ Todos os módulos                       │ ✅ Sim       │
+  │ andreia            │ Todos os módulos                       │ ✅ Sim       │
+  │ ti                 │ Todos os módulos                       │ ✅ Sim       │
+  │ antonio / antônio  │ Todos os módulos                       │ ✅ Sim       │
+  │ egidio             │ Todos os módulos                       │ ✅ Sim       │
+  │ fernando           │ Todos os módulos                       │ ✅ Sim       │
+  │ teste              │ vendas, rh, pcp, financeiro, nfe,      │ ❌ Não       │
+  │                    │ compras                                │              │
+  └────────────────────┴────────────────────────────────────────┴──────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  5. USUÁRIOS BLOQUEADOS / DESLIGADOS                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Lista de emails bloqueados no código (ex-funcionários):
+  ─────────────────────────────────────────────────────────────────────────────
+    • ariel.leandro@aluforce.ind.br
+    • felipe.santos@aluforce.ind.br
+    • flavio.bezerra@aluforce.ind.br
+    • lais.luna@aluforce.ind.br
+    • nicolas.santana@aluforce.ind.br
+    • thaina.freitas@aluforce.ind.br
+    • kissia@aluforce.ind.br
+    • sarah@aluforce.ind.br
+
+  NOTA: Bloqueio está hardcoded no código-fonte (server.js), não no banco.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  6. CONFIGURAÇÃO DO BANCO DE DADOS                                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Host.........: Definido em .env (DB_HOST)
+  Porta........: Definido em .env (DB_PORT, padrão 3306)
+  Database.....: Definido em .env (DB_NAME)
+  Usuário DB...: Definido em .env (DB_USER)
+  Senha DB.....: @dminalu (hardcoded em scripts de seed)
+  JWT Secret...: Definido em .env (JWT_SECRET, min 64 caracteres)
+  JWT Expira...: 24h (configurável via JWT_EXPIRES_IN)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  7. RESUMO DO FLUXO DE AUTENTICAÇÃO                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Sistema Principal:
+    1. Usuário acessa /login.html
+    2. Envia email + senha via POST /api/login
+    3. Servidor consulta tabela "usuarios" pelo email
+    4. Compara senha com bcrypt (auto-migra plaintext → bcrypt)
+    5. Gera JWT (HS256, 8h expiry) + cookie httpOnly
+    6. Redireciona para dashboard
+
+  Módulo RH:
+    1. POST /api/login (servidor RH, porta separada)
+    2. Consulta tabela "funcionarios"
+    3. Verifica status (bloqueia inativo/desligado)
+    4. bcrypt compare + JWT
+
+  Módulo PCP:
+    1. POST /api/pcp/login
+    2. Consulta tabela "usuarios_pcp"
+    3. bcrypt compare + session cookie
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  8. ALERTAS DE SEGURANÇA                                                    ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ⚠️  1. Existem 3 tabelas de usuários separadas sem fonte única de verdade
+  ⚠️  2. Senhas em TEXTO PURO na tabela usuarios_pcp (corrigir urgente!)
+  ⚠️  3. Senha do banco (@dminalu) hardcoded em scripts de seed
+  ⚠️  4. Lista de ex-funcionários bloqueados está no código, não no banco
+  ⚠️  5. Permissões são mix de JSON no banco + mapa hardcoded no JS
+  ⚠️  6. Senhas padrão dos seeds são fracas (admin123, vendedor123, etc.)
+
+  RECOMENDAÇÕES:
+    → Migrar todas as senhas plaintext para bcrypt hash
+    → Unificar tabelas de usuários em uma única fonte
+    → Mover blocklist de ex-funcionários para campo "status" no banco
+    → Trocar senhas padrão por senhas fortes
+    → Remover senha do banco hardcoded dos scripts
+
+
+================================================================================
+   FIM DO RELATÓRIO
+   Gerado em: 20/02/2026
+   Sistema: ALUFORCE ERP V.2
+================================================================================
