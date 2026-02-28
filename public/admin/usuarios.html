@@ -132,7 +132,7 @@
         .modal-header h3 { font-size:1.1rem; font-weight:600; display:flex; align-items:center; gap:8px; }
         .modal-close { width:34px; height:34px; border:none; background:transparent; cursor:pointer; border-radius:8px; font-size:1.1rem; color:#666; transition:all .2s; }
         .modal-close:hover { background:#fee; color:var(--danger); }
-        .modal-body { padding:20px; overflow-y:auto; flex:1; }
+        .modal-body { padding:20px; overflow-y:auto; flex:1; min-height:0; }
         .modal-footer { padding:12px 20px; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:8px; flex-shrink:0; }
 
         /* === FORMS === */
@@ -386,7 +386,7 @@
                 <button class="modal-close" onclick="closeModal('modal-user')">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="user-form">
+                <form id="user-form" onsubmit="return false;">
                     <input type="hidden" id="f-user-id">
                     <div class="form-row">
                         <div class="form-group">
@@ -440,8 +440,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('modal-user')">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveUser()"><i class="fas fa-save"></i> Salvar</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-user')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveUser()"><i class="fas fa-save"></i> Salvar</button>
             </div>
         </div>
     </div>
@@ -473,7 +473,7 @@
                 <button class="modal-close" onclick="closeModal('modal-role')">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="role-form">
+                <form id="role-form" onsubmit="return false;">
                     <input type="hidden" id="f-role-id">
                     <div class="form-row">
                         <div class="form-group">
@@ -504,8 +504,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('modal-role')">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveRole()"><i class="fas fa-save"></i> Salvar Perfil</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-role')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveRole()"><i class="fas fa-save"></i> Salvar Perfil</button>
             </div>
         </div>
     </div>
@@ -518,7 +518,7 @@
                 <button class="modal-close" onclick="closeModal('modal-module')">&times;</button>
             </div>
             <div class="modal-body">
-                <form id="module-form">
+                <form id="module-form" onsubmit="return false;">
                     <input type="hidden" id="f-mod-id">
                     <div class="form-row">
                         <div class="form-group">
@@ -563,8 +563,8 @@
                 </form>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-outline" onclick="closeModal('modal-module')">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveModule()"><i class="fas fa-save"></i> Salvar</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal('modal-module')">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveModule()"><i class="fas fa-save"></i> Salvar</button>
             </div>
         </div>
     </div>
@@ -1197,14 +1197,34 @@ async function saveRole() {
         if(!modulos[m]) modulos[m]={};
         modulos[m][a]=c.classList.contains('active');
     });
+    console.log('[saveRole] Salvando perfil:', {id,nome,codigo,nivel,cor,descricao,modulos});
     showLoading(true);
     try {
-        const r = await fetch(id?`/api/auth/admin/roles/${id}`:'/api/auth/admin/roles', {method:id?'PUT':'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({nome,codigo,nivel,cor,descricao,modulos})});
+        const url = id ? `/api/auth/admin/roles/${id}` : '/api/auth/admin/roles';
+        const method = id ? 'PUT' : 'POST';
+        const r = await fetch(url, {
+            method,
+            headers:{'Content-Type':'application/json'},
+            credentials:'include',
+            body:JSON.stringify({nome,codigo,nivel,cor,descricao,modulos})
+        });
+        console.log('[saveRole] Response status:', r.status);
         const d = await r.json();
-        if (d.success) { showToast(id?'Perfil atualizado!':'Perfil criado!','success'); closeModal('modal-role'); await loadRoles(); updateStats(); }
-        else showToast(d.message||'Erro','error');
-    } catch(e) { showToast('Erro: '+e.message,'error'); }
-    finally { showLoading(false); }
+        console.log('[saveRole] Response data:', d);
+        if (d.success) {
+            showToast(id?'Perfil atualizado!':'Perfil criado!','success');
+            closeModal('modal-role');
+            await loadRoles();
+            updateStats();
+        } else {
+            showToast(d.message||'Erro ao salvar perfil','error');
+        }
+    } catch(e) {
+        console.error('[saveRole] Erro:', e);
+        showToast('Erro: '+e.message,'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // ============================================================
