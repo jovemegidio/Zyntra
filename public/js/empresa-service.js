@@ -1,4 +1,4 @@
-﻿/**
+/**
  * EMPRESA SERVICE - ALUFORCE
  * Serviço centralizado para buscar e cachear dados da empresa
  * Usado para templates de impressão, relatórios e documentos

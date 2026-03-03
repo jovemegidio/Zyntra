@@ -589,10 +589,10 @@ class OtimizacaoEstoqueManager {
                 }
                 break;
             case 'createOrders':
-                window.location.href = 'pedidos-new.html?auto=true';
+                window.location.href = 'pedidos.html?auto=true';
                 break;
             case 'viewMaterials':
-                window.location.href = 'materiais-new.html?filter=estoque_baixo';
+                window.location.href = 'materias-primas.html?filter=estoque_baixo';
                 break;
             case 'applyEOQ':
                 if (confirm('Aplicar lote econômico (EOQ) para todos os materiais sugeridos?')) {
@@ -651,7 +651,7 @@ class OtimizacaoEstoqueManager {
                     icon: 'fas fa-robot',
                     color: '#8b5cf6',
                     priority: 'medium',
-                    link: 'pedidos-new.html?filter=pendente'
+                    link: 'pedidos.html?filter=pendente'
                 });
                 window.notificationSystem.renderizarBadge();
             }

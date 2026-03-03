@@ -1,73 +1,69 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Aluforce: Eventos Faturamento</title>
+
+    <!-- Sistema de Autenticação Unificado — DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
+
+    <!-- Fonte Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- CSP Fix - Converter onclick inline para addEventListener -->
+    <script src="/js/csp-fix.js" defer></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- Design System — Faturamento Layout -->
+    <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260301">
+
+    <!-- Global Header & Sidebar — Padrão Institucional -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260301">
+
+    <!-- Performance: Skeleton Loaders -->
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
+
+    <!-- Popup Confirmação -->
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
+
+    <!-- Anti-Copy Protection -->
+    <script src="/js/anti-copy-protection.js" defer></script>
+
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260301">
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html { height:100%; }
-        html, body { font-family:'Inter',sans-serif; background:#f9fafb; color:#111827; }
-        body { height:100%; min-height:100vh; }
-        :root { --fat-primary:#10b981; --fat-secondary:#059669; }
-        .page-content { padding:20px; max-width:100%; margin:0; flex:1; }
-        .page-title { font-size:18px; font-weight:700; color:#111827; margin-bottom:20px; display:flex; align-items:center; gap:10px; }
-        .page-title i { color:var(--fat-primary); }
-        .card { background:#fff; border-radius:8px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:20px; }
-        .card-header { font-size:14px; font-weight:600; color:#111827; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-        .card-header i { color:var(--fat-primary); font-size:14px; }
-        .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
-        .form-group { display:flex; flex-direction:column; }
-        .form-group label { font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; }
-        .form-group input, .form-group select, .form-group textarea { height:36px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; padding:0 10px; font-family:inherit; outline:none; transition:border-color 0.2s; }
-        .form-group textarea { height:auto; padding:8px 10px; resize:vertical; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--fat-primary); box-shadow:0 0 0 2px rgba(16,185,129,0.1); }
-        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
-        .btn-primary { background:var(--fat-primary); color:#fff; }
-        .btn-primary:hover { background:var(--fat-secondary); }
-        .btn-danger { background:#ef4444; color:#fff; }
-        .btn-danger:hover { background:#dc2626; }
-        .btn-warning { background:#f59e0b; color:#fff; }
-        .btn-warning:hover { background:#d97706; }
-        .btn-secondary { background:#e5e7eb; color:#374151; }
-        .btn-secondary:hover { background:#d1d5db; }
-        .actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
-        .nfe-info-display { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; padding:14px; background:#f9fafb; border-radius:6px; margin-top:14px; }
-        .nfe-info-item { }
-        .nfe-info-item .lbl { font-size:10px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; }
-        .nfe-info-item .val { font-size:13px; font-weight:500; color:#111827; margin-top:2px; }
-        .warning-banner { background:#fef3c7; border:1px solid #fbbf24; border-radius:6px; padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; color:#92400e; }
-        .warning-banner i { font-size:16px; }
-        .danger-banner { background:#fef2f2; border:1px solid #fca5a5; border-radius:6px; padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; color:#991b1b; }
+        /* Page-specific styles not covered by design system */
+        .nfe-info-display { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; padding:16px; background:var(--bg-secondary,#f9fafb); border-radius:var(--radius-md,6px); margin-top:4px; }
+        .nfe-info-item .lbl { font-size:10px; font-weight:600; color:var(--text-muted,#6b7280); text-transform:uppercase; letter-spacing:0.5px; }
+        .nfe-info-item .val { font-size:13px; font-weight:500; color:var(--text-primary,#111827); margin-top:2px; }
+        .danger-banner { background:var(--danger-bg,#fef2f2); border:1px solid #fca5a5; border-radius:var(--radius-md,6px); padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; color:#991b1b; }
         .danger-banner i { font-size:16px; }
-        .char-count { font-size:11px; color:#9ca3af; margin-top:4px; }
-        .eventos-table { width:100%; border-collapse:collapse; font-size:13px; }
-        .eventos-table th { background:#f3f4f6; padding:10px 12px; font-weight:600; font-size:11px; text-transform:uppercase; color:#6b7280; border-bottom:2px solid #e5e7eb; text-align:left; }
-        .eventos-table td { padding:10px 12px; border-bottom:1px solid #f3f4f6; }
-        .status-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
-        .status-success { background:#dcfce7; color:#166534; }
-        .status-error { background:#fef2f2; color:#991b1b; }
-        .status-info { background:#e0e7ff; color:#3730a3; }
-        .empty-state { text-align:center; padding:30px; color:#9ca3af; }
-        .empty-state i { font-size:28px; margin-bottom:8px; display:block; }
-        .alert { padding:12px 16px; border-radius:6px; font-size:13px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-        .alert-success { background:#dcfce7; color:#166534; border:1px solid #86efac; }
-        .alert-danger { background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
-        .alert-warning { background:#fef3c7; color:#92400e; border:1px solid #fbbf24; }
+        .warning-banner { background:var(--warning-bg,#fef3c7); border:1px solid #fbbf24; border-radius:var(--radius-md,6px); padding:12px 16px; display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; color:#92400e; }
+        .warning-banner i { font-size:16px; }
+        .char-count { font-size:11px; color:var(--text-muted,#9ca3af); margin-top:4px; }
+        .actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+        .btn-warning { background:#f59e0b; color:#fff; border-color:#f59e0b; }
+        .btn-warning:hover { background:#d97706; border-color:#d97706; transform:translateY(-1px); }
         @media(max-width:768px) {
-            .page-content { padding:14px; }
-            .form-grid { grid-template-columns:1fr; }
             .nfe-info-display { grid-template-columns:1fr 1fr; }
         }
     </style>
-    <!-- Chat Widget BOB AI -->
-    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
 </head>
 <body>
     <div class="app-container">
@@ -116,87 +112,116 @@
             <div class="main-content">
                 <div class="page-content">
                     <div id="alertContainer"></div>
-                    <h2 class="page-title"><i class="fas fa-history"></i> Eventos da NFe</h2>
 
-                    <!-- Card: Informações da NFe -->
-                    <div class="card">
-                        <div class="card-header"><i class="fas fa-info-circle"></i> Informações da NFe</div>
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>ID / Número da NFe</label>
-                                <input type="text" id="nfeId" placeholder="Ex: 12345">
-                            </div>
-                            <div class="form-group" style="align-self:end;">
-                                <button class="btn btn-primary" onclick="carregarNFe()"><i class="fas fa-search"></i> Carregar NFe</button>
+                    <!-- Page Header -->
+                    <div class="page-header">
+                        <div class="page-header-top">
+                            <div class="page-title-wrapper">
+                                <div class="page-icon cyan"><i class="fas fa-history"></i></div>
+                                <div>
+                                    <h2 class="page-title">Eventos da NFe</h2>
+                                    <p class="page-subtitle">Consulte, cancele e registre correções em notas fiscais</p>
+                                </div>
                             </div>
                         </div>
-                        <div id="nfeInfoDisplay" class="nfe-info-display" style="display:none;">
-                            <div class="nfe-info-item"><div class="lbl">Número</div><div class="val" id="infoNumero">-</div></div>
-                            <div class="nfe-info-item"><div class="lbl">Série</div><div class="val" id="infoSerie">-</div></div>
-                            <div class="nfe-info-item"><div class="lbl">Chave de Acesso</div><div class="val" id="infoChave" style="word-break:break-all;">-</div></div>
-                            <div class="nfe-info-item"><div class="lbl">Destinatário</div><div class="val" id="infoDestinatario">-</div></div>
-                            <div class="nfe-info-item"><div class="lbl">Valor</div><div class="val" id="infoValor">-</div></div>
-                            <div class="nfe-info-item"><div class="lbl">Status</div><div class="val" id="infoStatus">-</div></div>
+                    </div>
+
+                    <!-- Card: Informações da NFe -->
+                    <div class="card" style="margin-bottom:20px;">
+                        <div class="card-header">
+                            <span class="card-title"><i class="fas fa-info-circle"></i> Informações da NFe</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>ID / Número da NFe</label>
+                                    <input type="text" class="form-control" id="nfeId" placeholder="Ex: 12345">
+                                </div>
+                                <div class="form-group" style="align-self:end;">
+                                    <button class="btn btn-primary" onclick="carregarNFe()"><i class="fas fa-search"></i> Carregar NFe</button>
+                                </div>
+                            </div>
+                            <div id="nfeInfoDisplay" class="nfe-info-display" style="display:none;">
+                                <div class="nfe-info-item"><div class="lbl">Número</div><div class="val" id="infoNumero">-</div></div>
+                                <div class="nfe-info-item"><div class="lbl">Série</div><div class="val" id="infoSerie">-</div></div>
+                                <div class="nfe-info-item"><div class="lbl">Chave de Acesso</div><div class="val" id="infoChave" style="word-break:break-all;">-</div></div>
+                                <div class="nfe-info-item"><div class="lbl">Destinatário</div><div class="val" id="infoDestinatario">-</div></div>
+                                <div class="nfe-info-item"><div class="lbl">Valor</div><div class="val" id="infoValor">-</div></div>
+                                <div class="nfe-info-item"><div class="lbl">Status</div><div class="val" id="infoStatus">-</div></div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Card: Cancelamento -->
-                    <div class="card" id="cancelamentoCard" style="display:none;">
-                        <div class="card-header"><i class="fas fa-times-circle"></i> Cancelamento de NFe</div>
-                        <div class="danger-banner">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <span><strong>Atenção:</strong> O cancelamento é irreversível e deve ser feito em até 24 horas após a autorização.</span>
+                    <div class="card" id="cancelamentoCard" style="display:none;margin-bottom:20px;">
+                        <div class="card-header">
+                            <span class="card-title"><i class="fas fa-times-circle"></i> Cancelamento de NFe</span>
                         </div>
-                        <div class="form-group">
-                            <label>Justificativa do Cancelamento <span style="color:#ef4444;">*</span></label>
-                            <textarea id="justificativaCancelamento" rows="3" placeholder="Mínimo 15 caracteres, máximo 255" minlength="15" maxlength="255" oninput="atualizarContadorCancel()"></textarea>
-                            <div class="char-count"><span id="charCountCancel">0</span>/255 caracteres (mínimo 15)</div>
-                        </div>
-                        <div class="actions">
-                            <button class="btn btn-danger" onclick="cancelarNFe()"><i class="fas fa-times-circle"></i> Cancelar NFe</button>
+                        <div class="card-body">
+                            <div class="danger-banner">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <span><strong>Atenção:</strong> O cancelamento é irreversível e deve ser feito em até 24 horas após a autorização.</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Justificativa do Cancelamento <span style="color:#ef4444;">*</span></label>
+                                <textarea class="form-control" id="justificativaCancelamento" rows="3" placeholder="Mínimo 15 caracteres, máximo 255" minlength="15" maxlength="255" oninput="atualizarContadorCancel()"></textarea>
+                                <div class="char-count"><span id="charCountCancel">0</span>/255 caracteres (mínimo 15)</div>
+                            </div>
+                            <div class="actions">
+                                <button class="btn btn-danger" onclick="cancelarNFe()"><i class="fas fa-times-circle"></i> Cancelar NFe</button>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Card: Carta de Correção -->
-                    <div class="card" id="cceCard" style="display:none;">
-                        <div class="card-header"><i class="fas fa-edit"></i> Carta de Correção Eletrônica (CC-e)</div>
-                        <div class="warning-banner">
-                            <i class="fas fa-info-circle"></i>
-                            <span>A CC-e não permite alterar valores, impostos, dados do emitente/destinatário ou a descrição da mercadoria.</span>
+                    <div class="card" id="cceCard" style="display:none;margin-bottom:20px;">
+                        <div class="card-header">
+                            <span class="card-title"><i class="fas fa-edit"></i> Carta de Correção Eletrônica (CC-e)</span>
                         </div>
-                        <div class="form-group">
-                            <label>Texto da Correção <span style="color:#ef4444;">*</span></label>
-                            <textarea id="textoCCe" rows="4" placeholder="Mínimo 15 caracteres, máximo 1000" minlength="15" maxlength="1000" oninput="atualizarContadorCCe()"></textarea>
-                            <div class="char-count"><span id="charCountCCe">0</span>/1000 caracteres (mínimo 15)</div>
-                        </div>
-                        <div class="actions">
-                            <button class="btn btn-warning" onclick="registrarCCe()"><i class="fas fa-edit"></i> Registrar CC-e</button>
+                        <div class="card-body">
+                            <div class="warning-banner">
+                                <i class="fas fa-info-circle"></i>
+                                <span>A CC-e não permite alterar valores, impostos, dados do emitente/destinatário ou a descrição da mercadoria.</span>
+                            </div>
+                            <div class="form-group">
+                                <label>Texto da Correção <span style="color:#ef4444;">*</span></label>
+                                <textarea class="form-control" id="textoCCe" rows="4" placeholder="Mínimo 15 caracteres, máximo 1000" minlength="15" maxlength="1000" oninput="atualizarContadorCCe()"></textarea>
+                                <div class="char-count"><span id="charCountCCe">0</span>/1000 caracteres (mínimo 15)</div>
+                            </div>
+                            <div class="actions">
+                                <button class="btn btn-warning" onclick="registrarCCe()"><i class="fas fa-edit"></i> Registrar CC-e</button>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Card: Histórico de Eventos -->
-                    <div class="card">
-                        <div class="card-header"><i class="fas fa-list"></i> Histórico de Eventos</div>
-                        <div style="overflow-x:auto;">
-                            <table class="eventos-table" id="eventosTable">
-                                <thead>
-                                    <tr>
-                                        <th>Tipo</th>
-                                        <th>Data/Hora</th>
-                                        <th>Protocolo</th>
-                                        <th>Descrição</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="eventosTableBody">
-                                </tbody>
-                            </table>
+                    <div class="card" style="margin-bottom:20px;">
+                        <div class="card-header">
+                            <span class="card-title"><i class="fas fa-list"></i> Histórico de Eventos</span>
                         </div>
-                        <div id="eventosEmpty" class="empty-state">
-                            <i class="fas fa-history"></i>
-                            <p style="font-size:13px;">Carregue uma NFe para visualizar seus eventos</p>
+                        <div class="card-body">
+                            <div style="overflow-x:auto;">
+                                <table class="data-table" id="eventosTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Tipo</th>
+                                            <th>Data/Hora</th>
+                                            <th>Protocolo</th>
+                                            <th>Descrição</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="eventosTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="eventosEmpty" class="empty-state">
+                                <i class="fas fa-history"></i>
+                                <p>Carregue uma NFe para visualizar seus eventos</p>
+                            </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </main>
@@ -341,13 +366,13 @@
                 empty.style.display = 'none';
                 tbody.innerHTML = eventos.map(ev => {
                     const dt = ev.data ? new Date(ev.data).toLocaleString('pt-BR') : '-';
-                    const statusClass = (ev.status||'').toLowerCase().includes('sucesso') || (ev.status||'').toLowerCase().includes('autoriza') ? 'status-success' : (ev.status||'').toLowerCase().includes('erro') || (ev.status||'').toLowerCase().includes('rejeit') ? 'status-error' : 'status-info';
+                    const statusClass = (ev.status||'').toLowerCase().includes('sucesso') || (ev.status||'').toLowerCase().includes('autoriza') ? 'success' : (ev.status||'').toLowerCase().includes('erro') || (ev.status||'').toLowerCase().includes('rejeit') ? 'danger' : 'info';
                     return `<tr>
                         <td><strong>${ev.tipo || '-'}</strong></td>
                         <td>${dt}</td>
-                        <td style="font-family:monospace;font-size:12px;">${ev.protocolo || '-'}</td>
+                        <td class="code">${ev.protocolo || '-'}</td>
                         <td>${ev.descricao || ev.texto || '-'}</td>
-                        <td><span class="status-badge ${statusClass}">${ev.status || '-'}</span></td>
+                        <td><span class="badge ${statusClass}">${ev.status || '-'}</span></td>
                     </tr>`;
                 }).join('');
             })
@@ -367,7 +392,7 @@
         function showAlert(msg, type) {
             const c = document.getElementById('alertContainer');
             const div = document.createElement('div');
-            div.className = 'alert alert-' + type;
+            div.className = 'alert ' + type;
             div.innerHTML = '<i class="fas fa-' + (type==='success'?'check-circle':type==='danger'?'times-circle':'exclamation-triangle') + '"></i> ' + msg;
             c.prepend(div);
             setTimeout(() => div.remove(), 5000);
@@ -387,14 +412,21 @@
             }
         });
     </script>
-    <script src="/js/notification-manager.js" defer></script>
-    <script src="../_shared/connection-monitor.js" defer></script>
-    <script src="/js/popup-confirmacao.js" defer></script>
-    <script src="/js/auth-unified.js?v=20260131c" defer></script>
 
-<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Sistema de Notificações Global -->
+    <script src="/js/notification-manager.js?v=20260301"></script>
+    <script src="/_shared/connection-monitor.js?v=20260301"></script>
+    <script src="/js/popup-confirmacao.js?v=20260301"></script>
+
+    <!-- Utilitários Compartilhados -->
+    <script src="/_shared/confirm-dialog.js?v=20260301"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260301" defer></script>
+
     <!-- Chat Widget BOB AI -->
-    <script src="/chat/widget.js?v=20260218" defer></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <script src="/chat/widget.js?v=20260301" defer></script>
+
+    <!-- Enterprise Shared -->
+    <script src="/js/sidebar-click-animation.js?v=20260301"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260301"></script>
 </body>
 </html>

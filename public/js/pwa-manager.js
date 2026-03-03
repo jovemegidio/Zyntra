@@ -1,23 +1,16 @@
 ﻿// ============================================================
 // ALUFORCE PWA - Gerenciamento do Progressive Web App
-// Versão: 2.0.0 - DESABILITADO
+// Versão: 3.0.0 - ATIVADO
+// Atualizado: 01/03/2026
 // ============================================================
 
 (function() {
     'use strict';
 
-    // PWA DESABILITADO - não registrar service worker nem mostrar prompts de instalação
-    const PWA_DISABLED = true;
-    
-    if (PWA_DISABLED) {
-        console.log('[PWA] PWA está desabilitado');
-        return; // Sai imediatamente sem executar nada
-    }
-
     const PWA_CONFIG = {
         swPath: '/sw.js',
         updateCheckInterval: 60000, // 1 minuto
-        showInstallPrompt: false, // Desabilitado
+        showInstallPrompt: true,
         debug: false
     };
 
@@ -115,6 +108,11 @@
     }
 
     function showInstallButton() {
+        // ✅ Mostrar botão SOMENTE no Painel de Controle (dashboard)
+        const path = window.location.pathname;
+        const isDashboard = (path === '/' || path === '/index.html' || path === '/dashboard' || path === '/painel');
+        if (!isDashboard) return;
+
         // Verificar se já existe
         if (document.getElementById('pwa-install-btn')) return;
 

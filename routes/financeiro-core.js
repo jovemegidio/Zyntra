@@ -34,21 +34,39 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
             try {
                 const user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
+                // Busca por email primeiro (evita colisão de IDs entre tabelas)
                 const [users] = await pool.query(
-                    'SELECT permissoes_financeiro, role, nome_completo FROM funcionarios WHERE email = ? OR id = ?',
-                    [user.email, user.id]
+                    'SELECT permissoes_financeiro, role, nome_completo FROM funcionarios WHERE email = ?',
+                    [user.email]
                 );
 
                 let userData = users[0];
                 if (!userData) {
                     const [usuarios] = await pool.query(
-                        'SELECT permissoes_financeiro, role, nome as nome_completo FROM usuarios WHERE email = ? OR id = ?',
-                        [user.email, user.id]
+                        'SELECT permissoes_financeiro, role, nome as nome_completo FROM usuarios WHERE email = ?',
+                        [user.email]
                     );
-                    if (!usuarios || usuarios.length === 0) {
-                        return res.status(403).json({ message: 'Usuário não encontrado' });
+                    if (usuarios && usuarios.length > 0) {
+                        userData = usuarios[0];
                     }
-                    userData = usuarios[0];
+                }
+                // Fallback: busca por ID se email não encontrado
+                if (!userData && user.id) {
+                    const [byId] = await pool.query(
+                        'SELECT permissoes_financeiro, role, nome_completo FROM funcionarios WHERE id = ?',
+                        [user.id]
+                    );
+                    if (byId && byId[0]) { userData = byId[0]; }
+                    else {
+                        const [byId2] = await pool.query(
+                            'SELECT permissoes_financeiro, role, nome as nome_completo FROM usuarios WHERE id = ?',
+                            [user.id]
+                        );
+                        if (byId2 && byId2[0]) userData = byId2[0];
+                    }
+                }
+                if (!userData) {
+                    return res.status(403).json({ message: 'Usuário não encontrado' });
                 }
 
                 // Admins têm acesso total
@@ -69,11 +87,16 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
                 // AUDIT-FIX: No hardcoded users — all permissions from DB
                 let permissoes = {};
                 if (userData.permissoes_financeiro) {
-                    try {
-                        permissoes = JSON.parse(userData.permissoes_financeiro);
-                    } catch (e) {
-                        console.error('[FINANCEIRO] Erro ao parsear permissões:', e);
-                        return res.status(500).json({ message: 'Erro ao verificar permissões' });
+                    // Coluna tipo JSON: driver mysql2 já parseia automaticamente
+                    if (typeof userData.permissoes_financeiro === 'string') {
+                        try {
+                            permissoes = JSON.parse(userData.permissoes_financeiro);
+                        } catch (e) {
+                            console.error('[FINANCEIRO] Erro ao parsear permissões:', e);
+                            return res.status(500).json({ message: 'Erro ao verificar permissões' });
+                        }
+                    } else {
+                        permissoes = userData.permissoes_financeiro;
                     }
                 } else {
                     return res.status(403).json({
@@ -81,7 +104,17 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
                     });
                 }
 
-                if (requiredPermission && !permissoes[requiredPermission]) {
+                // Suporta tanto formato array ["contas_pagar"] quanto objeto {contas_pagar: true}
+                let hasPermission = true;
+                if (requiredPermission) {
+                    if (Array.isArray(permissoes)) {
+                        hasPermission = permissoes.includes(requiredPermission);
+                    } else {
+                        hasPermission = !!permissoes[requiredPermission];
+                    }
+                }
+
+                if (!hasPermission) {
                     return res.status(403).json({
                         message: `Acesso negado. Você não tem permissão para acessar ${requiredPermission.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}.`
                     });
@@ -247,7 +280,9 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
         }
     });
 
-    router.get('/contas-pagar/:id', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
+    router.get('/contas-pagar/:id', checkFinanceiroPermission('contas_pagar'), async (req, res, next) => {
+        // Guard: pular para rotas específicas nomeadas
+        if (['vencidas', 'vencendo', 'estatisticas', 'resumo', 'lote'].includes(req.params.id)) return next();
         try {
             const [rows] = await pool.query('SELECT * FROM contas_pagar WHERE id = ?', [req.params.id]);
             if (!rows.length) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -327,7 +362,9 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
         }
     });
 
-    router.get('/contas-receber/:id', checkFinanceiroPermission('contas_receber'), async (req, res) => {
+    router.get('/contas-receber/:id', checkFinanceiroPermission('contas_receber'), async (req, res, next) => {
+        // Guard: pular para rotas específicas nomeadas
+        if (['vencidas', 'inadimplentes', 'estatisticas', 'resumo'].includes(req.params.id)) return next();
         try {
             const [rows] = await pool.query('SELECT * FROM contas_receber WHERE id = ?', [req.params.id]);
             if (!rows.length) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -383,22 +420,24 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
     // ============================================================
     // CONTAS A PAGAR — AVANÇADO (pagar, vencidas, vencendo, stats, lote)
     // ============================================================
-    router.post('/contas-pagar/:id/pagar', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
+    router.post('/contas-pagar/:id/pagar', checkFinanceiroPermission('contas_pagar'), async (req, res, next) => {
+        // Guard: pular para rota de pagamento em lote
+        if (req.params.id === 'lote') return next();
         try {
             const { id } = req.params;
-            const { valor_pago, data_pagamento, conta_bancaria_id, forma_pagamento_id, observacoes } = req.body;
+            const { valor_pago, data_pagamento, banco_id, forma_pagamento, observacoes } = req.body;
             const [conta] = await pool.query('SELECT * FROM contas_pagar WHERE id = ?', [id]);
             if (!conta || conta.length === 0) return res.status(404).json({ message: 'Conta não encontrada' });
             const valorTotal = conta[0].valor + (conta[0].valor_juros || 0) + (conta[0].valor_multa || 0) - (conta[0].valor_desconto || 0);
             const status = valor_pago >= valorTotal ? 'pago' : 'pendente';
             await pool.query(
-                `UPDATE contas_pagar SET status = ?, valor_pago = ?, data_pagamento = ?, conta_bancaria_id = ?, forma_pagamento_id = ?, observacoes = ? WHERE id = ?`,
-                [status, valor_pago, data_pagamento || new Date().toISOString().split('T')[0], conta_bancaria_id, forma_pagamento_id, observacoes, id]
+                `UPDATE contas_pagar SET status = ?, valor_pago = ?, data_pagamento = ?, banco_id = ?, forma_pagamento = ?, observacoes = ? WHERE id = ?`,
+                [status, valor_pago, data_pagamento || new Date().toISOString().split('T')[0], banco_id, forma_pagamento, observacoes, id]
             );
-            if (conta_bancaria_id && status === 'pago') {
+            if (banco_id && status === 'pago') {
                 await pool.query(
-                    `INSERT INTO movimentacoes_bancarias (conta_bancaria_id, tipo, valor, descricao, data_movimento, conta_pagar_id, forma_pagamento_id) VALUES (?, 'saida', ?, ?, ?, ?, ?)`,
-                    [conta_bancaria_id, valor_pago, conta[0].descricao, data_pagamento || new Date().toISOString().split('T')[0], id, forma_pagamento_id]
+                    `INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data, observacoes) VALUES (?, 'saida', ?, ?, ?, ?)`,
+                    [banco_id, valor_pago, conta[0].descricao || 'Pagamento conta a pagar', data_pagamento || new Date().toISOString().split('T')[0], observacoes || '']
                 );
             }
             res.json({ success: true, message: 'Pagamento registrado com sucesso' });
@@ -447,7 +486,7 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
     router.post('/contas-pagar/lote/pagar', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         let connection;
         try {
-            const { contas, data_pagamento, conta_bancaria_id, forma_pagamento_id } = req.body;
+            const { contas, data_pagamento, banco_id, forma_pagamento } = req.body;
             if (!contas || !Array.isArray(contas) || contas.length === 0) {
                 return res.status(400).json({ message: 'Nenhuma conta selecionada' });
             }
@@ -459,14 +498,14 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
                 const [conta] = await connection.query('SELECT valor FROM contas_pagar WHERE id = ? FOR UPDATE', [contaId]);
                 if (conta && conta.length > 0) {
                     await connection.query(
-                        `UPDATE contas_pagar SET status = 'pago', valor_pago = valor, data_pagamento = ?, conta_bancaria_id = ?, forma_pagamento_id = ? WHERE id = ?`,
-                        [dataPgto, conta_bancaria_id, forma_pagamento_id, contaId]
+                        `UPDATE contas_pagar SET status = 'pago', valor_pago = valor, data_pagamento = ?, banco_id = ?, forma_pagamento = ? WHERE id = ?`,
+                        [dataPgto, banco_id, forma_pagamento, contaId]
                     );
                     totalPago += conta[0].valor;
-                    if (conta_bancaria_id) {
+                    if (banco_id) {
                         await connection.query(
-                            `INSERT INTO movimentacoes_bancarias (conta_bancaria_id, tipo, valor, descricao, data_movimento, conta_pagar_id, forma_pagamento_id) VALUES (?, 'saida', ?, 'Pagamento em lote', ?, ?, ?)`,
-                            [conta_bancaria_id, conta[0].valor, dataPgto, contaId, forma_pagamento_id]
+                            `INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data, observacoes) VALUES (?, 'saida', ?, 'Pagamento em lote', ?, '')`,
+                            [banco_id, conta[0].valor, dataPgto]
                         );
                     }
                 }
@@ -488,18 +527,18 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
     router.post('/contas-receber/:id/receber', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         try {
             const { id } = req.params;
-            const { valor_recebido, data_recebimento, conta_bancaria_id, forma_pagamento_id, observacoes } = req.body;
+            const { valor_recebido, data_recebimento, banco_id, forma_recebimento, observacoes } = req.body;
             const [conta] = await pool.query('SELECT * FROM contas_receber WHERE id = ?', [id]);
             if (!conta || conta.length === 0) return res.status(404).json({ message: 'Conta não encontrada' });
             const status = valor_recebido >= conta[0].valor ? 'recebido' : 'parcial';
             await pool.query(
-                `UPDATE contas_receber SET status = ?, valor_recebido = ?, data_recebimento = ?, conta_bancaria_id = ?, forma_pagamento_id = ?, observacoes = ? WHERE id = ?`,
-                [status, valor_recebido, data_recebimento || new Date().toISOString().split('T')[0], conta_bancaria_id, forma_pagamento_id, observacoes, id]
+                `UPDATE contas_receber SET status = ?, valor_recebido = ?, data_recebimento = ?, banco_id = ?, forma_recebimento = ?, observacoes = ? WHERE id = ?`,
+                [status, valor_recebido, data_recebimento || new Date().toISOString().split('T')[0], banco_id, forma_recebimento, observacoes, id]
             );
-            if (conta_bancaria_id) {
+            if (banco_id) {
                 await pool.query(
-                    `INSERT INTO movimentacoes_bancarias (conta_bancaria_id, tipo, valor, descricao, data_movimento, conta_receber_id, forma_pagamento_id) VALUES (?, 'entrada', ?, ?, ?, ?, ?)`,
-                    [conta_bancaria_id, valor_recebido, conta[0].descricao, data_recebimento || new Date().toISOString().split('T')[0], id, forma_pagamento_id]
+                    `INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data, observacoes) VALUES (?, 'entrada', ?, ?, ?, ?)`,
+                    [banco_id, valor_recebido, conta[0].descricao || 'Recebimento conta a receber', data_recebimento || new Date().toISOString().split('T')[0], observacoes || '']
                 );
             }
             res.json({ success: true, message: 'Recebimento registrado com sucesso' });

@@ -356,6 +356,7 @@ function renderizarPedidos(lista) {
                 <div style="display:flex;gap:4px;">
                     <button class="action-btn view" onclick="verDetalhes(${p.id})" title="Detalhes"><i class="fas fa-eye"></i></button>
                     <button class="action-btn edit" onclick="abrirModalStatus(${p.id},'${p.status}')" title="Atualizar Status"><i class="fas fa-exchange-alt"></i></button>
+                    <button class="action-btn success" onclick="imprimirEtiqueta(${p.id})" title="Imprimir Etiqueta"><i class="fas fa-tag"></i></button>
                 </div>
             </td>
         </tr>
@@ -455,6 +456,42 @@ function verDetalhes(id) {
         </div>
     `;
     openModal('modal-detalhes');
+}
+
+// ========== Imprimir Etiqueta ==========
+function imprimirEtiqueta(id) {
+    const p = pedidos.find(x => x.id === id);
+    if (!p) { alert('Pedido não encontrado'); return; }
+    const esc = s => String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    const previsao = p.previsao && p.previsao !== '-' ? new Date(p.previsao).toLocaleDateString('pt-BR') : '-';
+    const priorClass = (p.prioridade||'media').toLowerCase();
+    const heights = [35,50,35,45,50,30,50,35,45,35,50,45,30,50,35,45,50,35,30,50,45,35,50,30,45,50,35,45];
+    const barcodeHtml = heights.map(h => `<span style="display:inline-block;background:#000;width:${h%3===0?3:h%2===0?2:1}px;height:${h}px;"></span>`).join('');
+    const win = window.open('', '_blank', 'width=450,height=650');
+    win.document.write(
+        `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiqueta - Pedido #${p.pedido_id||p.id}</title>` +
+        `<style>@page{size:100mm 150mm;margin:5mm;}*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,Helvetica,sans-serif;padding:10px;max-width:100mm;}` +
+        `.lbl-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:3px solid #000;margin-bottom:8px;}` +
+        `.lbl-header h4{font-size:16px;letter-spacing:2px;}.lbl-header span{font-size:10px;font-weight:600;}` +
+        `.lbl-section{margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed #999;}.lbl-section:last-child{border-bottom:none;}` +
+        `.lbl-title{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#666;margin-bottom:2px;}` +
+        `.lbl-section p{font-size:12px;margin:1px 0;}.lbl-section p strong{font-size:14px;}` +
+        `.lbl-row{display:flex;gap:15px;}.lbl-row>div{flex:1;}` +
+        `.lbl-priority{display:inline-block;padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;text-transform:uppercase;}` +
+        `.lbl-priority.alta{background:#fee2e2;color:#dc2626;}.lbl-priority.media{background:#fef3c7;color:#d97706;}.lbl-priority.baixa{background:#dcfce7;color:#16a34a;}` +
+        `.lbl-barcode{text-align:center;margin-top:10px;}.lbl-barcode-lines{display:flex;align-items:flex-end;justify-content:center;gap:1px;height:45px;margin-bottom:4px;}` +
+        `.lbl-barcode-number{font-family:monospace;font-size:11px;font-weight:600;letter-spacing:2px;}` +
+        `@media print{body{padding:0;}}</style></head><body>` +
+        `<div class="lbl-header"><h4>ALUFORCE</h4><span>LOGÍSTICA</span></div>` +
+        `<div class="lbl-section"><div class="lbl-title">Remetente</div><p><strong>Aluforce Esquadrias</strong></p><p>Barueri, SP</p></div>` +
+        `<div class="lbl-section"><div class="lbl-title">Destinatário</div><p><strong>${esc(p.cliente)}</strong></p><p>${esc(p.cidade_uf||'-')}</p></div>` +
+        `<div class="lbl-section"><div class="lbl-row"><div><div class="lbl-title">NF-e</div><p><strong>${esc(p.nfe_numero||p.nfe||'-')}</strong></p></div><div><div class="lbl-title">Pedido</div><p><strong>#${p.pedido_id||p.id}</strong></p></div></div></div>` +
+        `<div class="lbl-section"><div class="lbl-row"><div><div class="lbl-title">Transportadora</div><p>${esc(p.transportadora||'-')}</p></div><div><div class="lbl-title">Previsão</div><p>${previsao}</p></div></div></div>` +
+        `<div class="lbl-section"><div class="lbl-row"><div><div class="lbl-title">Prioridade</div><span class="lbl-priority ${priorClass}">${esc(p.prioridade||'Média')}</span></div><div><div class="lbl-title">Volumes</div><p>1</p></div></div></div>` +
+        `<div class="lbl-barcode"><div class="lbl-barcode-lines">${barcodeHtml}</div><div class="lbl-barcode-number">ALU-${String(p.pedido_id||p.id).padStart(6,'0')}</div></div>` +
+        `<script>window.onload=function(){window.print();}<\/script></body></html>`
+    );
+    win.document.close();
 }
 
 // ========== Exportar Excel ==========

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ALUFORCE - Menu Hambúrguer e Responsividade v3.0
  * Controla menu mobile/tablet, overlay e interações
  * © 2026 ALUFORCE

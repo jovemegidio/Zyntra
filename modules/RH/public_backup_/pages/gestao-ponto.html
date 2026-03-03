@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALUFORCE - Gestão do Ponto</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 56px;
+            --header-height: 48px;
+            --primary-purple: #8b5cf6;
+            --primary-dark: #1a1a2e;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; overflow-x: hidden; }
+        .app-container { display: flex; min-height: 100vh; }
+
+        /* Sidebar */
+        .sidebar { width: var(--sidebar-width); background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; position: fixed; height: 100vh; z-index: 100; }
+        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-purple); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; text-decoration: none; }
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; text-decoration: none; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-purple); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* Main */
+        .main-area { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; }
+        .header { height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; position: sticky; top: 0; z-index: 50; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; font-size: 14px; }
+        .header-brand span { color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #7c3aed); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; }
+
+        /* Content */
+        .content-area { flex: 1; padding: 24px; overflow-y: auto; }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        .page-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-purple); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+        .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+        /* Buttons */
+        .btn { padding: 10px 20px; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; text-decoration: none; }
+        .btn-primary { background: var(--primary-purple); color: white; }
+        .btn-primary:hover { background: #7c3aed; transform: translateY(-1px); }
+        .btn-success { background: var(--success-green); color: white; }
+        .btn-success:hover { background: #16a34a; }
+        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 16px; }
+        .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+        .stat-icon.purple { background: rgba(139,92,246,0.1); color: var(--primary-purple); }
+        .stat-icon.green { background: rgba(34,197,94,0.1); color: var(--success-green); }
+        .stat-icon.yellow { background: rgba(234,179,8,0.1); color: var(--warning-yellow); }
+        .stat-icon.red { background: rgba(239,68,68,0.1); color: var(--danger-red); }
+        .stat-icon.blue { background: rgba(59,130,246,0.1); color: var(--info-blue); }
+        .stat-content h4 { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
+        .stat-content .value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 0; }
+        .tab-btn { padding: 12px 20px; background: transparent; border: none; color: #64748b; font-weight: 500; cursor: pointer; position: relative; transition: all 0.2s; }
+        .tab-btn:hover { color: var(--primary-purple); }
+        .tab-btn.active { color: var(--primary-purple); }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--primary-purple); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Filters */
+        .filters-bar { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: flex-end; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.8rem; font-weight: 500; color: #64748b; }
+        .form-input, .form-select { padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.875rem; min-width: 160px; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--primary-purple); box-shadow: 0 0 0 3px rgba(139,92,246,0.1); }
+
+        /* Card */
+        .card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px; }
+        .card-header { padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+        .card-title { font-size: 1rem; font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: var(--primary-purple); }
+        .card-body { padding: 24px; }
+
+        /* Table */
+        .table-container { overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; }
+        .data-table th { background: #f8fafc; font-weight: 600; color: #64748b; white-space: nowrap; }
+        .data-table tr:hover { background: #f8fafc; }
+        .data-table td { vertical-align: middle; }
+
+        /* Status badges */
+        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+        .status-badge.normal { background: rgba(34,197,94,0.1); color: #16a34a; }
+        .status-badge.atraso { background: rgba(234,179,8,0.1); color: #ca8a04; }
+        .status-badge.falta { background: rgba(239,68,68,0.1); color: #dc2626; }
+        .status-badge.folga { background: rgba(100,116,139,0.1); color: #64748b; }
+        .status-badge.ferias { background: rgba(59,130,246,0.1); color: #2563eb; }
+        .status-badge.atestado { background: rgba(168,85,247,0.1); color: #9333ea; }
+        .status-badge.pendente { background: rgba(234,179,8,0.1); color: #ca8a04; }
+        .status-badge.aprovado { background: rgba(34,197,94,0.1); color: #16a34a; }
+        .status-badge.rejeitado { background: rgba(239,68,68,0.1); color: #dc2626; }
+
+        /* Employee info */
+        .employee-info { display: flex; align-items: center; gap: 12px; }
+        .employee-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #8b5cf6, #7c3aed); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; }
+        .employee-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .employee-name { font-weight: 500; color: #1e293b; }
+        .employee-dept { font-size: 0.75rem; color: #64748b; }
+
+        /* Action buttons */
+        .action-btns { display: flex; gap: 8px; }
+        .action-btn { width: 32px; height: 32px; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .action-btn.edit { background: rgba(59,130,246,0.1); color: #3b82f6; }
+        .action-btn.edit:hover { background: #3b82f6; color: white; }
+        .action-btn.approve { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .action-btn.approve:hover { background: #22c55e; color: white; }
+        .action-btn.reject { background: rgba(239,68,68,0.1); color: #ef4444; }
+        .action-btn.reject:hover { background: #ef4444; color: white; }
+        .action-btn.view { background: rgba(139,92,246,0.1); color: #8b5cf6; }
+        .action-btn.view:hover { background: #8b5cf6; color: white; }
+
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; border-radius: 20px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-title { font-size: 1.25rem; font-weight: 600; }
+        .modal-close { width: 36px; height: 36px; border: none; background: #f1f5f9; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .modal-close:hover { background: #e2e8f0; }
+        .modal-body { padding: 24px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* Form grid */
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .form-grid.full { grid-template-columns: 1fr; }
+        .form-textarea { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.875rem; resize: vertical; min-height: 80px; font-family: inherit; }
+        .form-textarea:focus { outline: none; border-color: var(--primary-purple); }
+
+        /* Time inputs */
+        .time-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .time-input-group { text-align: center; }
+        .time-input-group label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 6px; }
+        .time-input-group input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; text-align: center; font-size: 1rem; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 60px 20px; color: #64748b; }
+        .empty-state i { font-size: 3rem; margin-bottom: 16px; opacity: 0.5; }
+        .empty-state h3 { margin-bottom: 8px; color: #1e293b; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: white; padding: 16px 24px; border-radius: 12px; display: none; align-items: center; gap: 12px; z-index: 2000; animation: slideIn 0.3s ease; }
+        .toast.success { background: var(--success-green); }
+        .toast.error { background: var(--danger-red); }
+        .toast.show { display: flex; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-th-large"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="gestao-ponto.html" class="sidebar-btn active" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário"><i class="fas fa-calendar-alt"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-chart-line"></i></a>
+                <a href="/rh/funcionario" class="sidebar-btn" title="Portal Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main-area">
+            <header class="header">
+                <div class="header-brand">
+                    <span>RH</span> <span>|</span> <span style="color:white">Gestão do Ponto</span>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting" style="display:flex;align-items:center;gap:12px;margin-left:8px;color:#8b8b9a;font-size:13px">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name" style="color:white">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="" id="user-photo" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover">
+                            <span id="user-initial">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title"><i class="fas fa-clock"></i> Gestão do Ponto</h1>
+                        <p class="page-subtitle">Controle e gestão de marcações de ponto dos funcionários</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-outline" onclick="exportarRelatorio()"><i class="fas fa-download"></i> Exportar</button>
+                        <button class="btn btn-primary" onclick="abrirModalAjuste()"><i class="fas fa-plus"></i> Ajuste Manual</button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon purple"><i class="fas fa-users"></i></div>
+                        <div class="stat-content"><h4>Funcionários Ativos</h4><div class="value" id="stat-funcionarios">32</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-content"><h4>Presentes Hoje</h4><div class="value" id="stat-presentes">28</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-content"><h4>Atrasos no Mês</h4><div class="value" id="stat-atrasos">12</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+                        <div class="stat-content"><h4>Faltas no Mês</h4><div class="value" id="stat-faltas">3</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue"><i class="fas fa-clock"></i></div>
+                        <div class="stat-content"><h4>Ajustes Pendentes</h4><div class="value" id="stat-pendentes">5</div></div>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="registros">Registros do Dia</button>
+                    <button class="tab-btn" data-tab="historico">Histórico</button>
+                    <button class="tab-btn" data-tab="ajustes">Ajustes Pendentes</button>
+                    <button class="tab-btn" data-tab="banco-horas">Banco de Horas</button>
+                </div>
+
+                <!-- Tab: Registros do Dia -->
+                <div class="tab-content active" id="tab-registros">
+                    <div class="filters-bar">
+                        <div class="form-group">
+                            <label class="form-label">Data</label>
+                            <input type="date" class="form-input" id="filter-data" value="2026-01-12">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Departamento</label>
+                            <select class="form-select" id="filter-depto">
+                                <option value="">Todos</option>
+                                <option value="producao">Produção</option>
+                                <option value="administrativo">Administrativo</option>
+                                <option value="comercial">Comercial</option>
+                                <option value="ti">TI</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="filter-status">
+                                <option value="">Todos</option>
+                                <option value="normal">Normal</option>
+                                <option value="atraso">Atraso</option>
+                                <option value="falta">Falta</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="filtrarRegistros()"><i class="fas fa-search"></i> Filtrar</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-list"></i> Marcações - <span id="data-atual">12/01/2026</span></h3>
+                            <span class="status-badge normal" id="total-registros">28 registros</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Entrada</th>
+                                            <th>Saída Almoço</th>
+                                            <th>Retorno</th>
+                                            <th>Saída</th>
+                                            <th>Horas</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-registros"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Histórico -->
+                <div class="tab-content" id="tab-historico">
+                    <div class="filters-bar">
+                        <div class="form-group">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="filter-func-hist">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data Início</label>
+                            <input type="date" class="form-input" id="filter-inicio" value="2026-01-01">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Data Fim</label>
+                            <input type="date" class="form-input" id="filter-fim" value="2026-01-12">
+                        </div>
+                        <button class="btn btn-primary" onclick="carregarHistorico()"><i class="fas fa-search"></i> Buscar</button>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr><th>Data</th><th>Dia</th><th>Entrada</th><th>Saída Almoço</th><th>Retorno</th><th>Saída</th><th>Horas</th><th>Status</th><th>Ações</th></tr>
+                                    </thead>
+                                    <tbody id="tbody-historico"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Ajustes Pendentes -->
+                <div class="tab-content" id="tab-ajustes">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-edit"></i> Solicitações de Ajuste</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr><th>Funcionário</th><th>Data</th><th>Tipo</th><th>Horário Atual</th><th>Horário Solicitado</th><th>Motivo</th><th>Status</th><th>Ações</th></tr>
+                                    </thead>
+                                    <tbody id="tbody-ajustes"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Banco de Horas -->
+                <div class="tab-content" id="tab-banco-horas">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-piggy-bank"></i> Banco de Horas</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr><th>Funcionário</th><th>Departamento</th><th>Saldo Atual</th><th>Horas Extras</th><th>Horas Devidas</th><th>Ações</th></tr>
+                                    </thead>
+                                    <tbody id="tbody-banco"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Ajuste - Design SaaS Empresarial -->
+    <div class="modal-overlay" id="modal-ajuste">
+        <div class="modal" style="max-width: 700px; width: 95%; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);">
+            <!-- Header SaaS -->
+            <div style="background: #ffffff; padding: 28px 32px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+                <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
+                    <div style="width: 52px; height: 52px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(139, 92, 246, 0.35);">
+                        <i class="fas fa-clock" style="color: white; font-size: 22px;"></i>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #111827;">Ajuste de Ponto</h2>
+                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Registre ou corrija marcações de ponto</p>
+                    </div>
+                </div>
+                <button onclick="fecharModal('modal-ajuste')" style="width: 44px; height: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-times" style="color: #6b7280; font-size: 18px;"></i>
+                </button>
+            </div>
+            
+            <!-- Body SaaS -->
+            <div style="padding: 32px; background: #f9fafb;">
+                <!-- Funcionário e Data -->
+                <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px; margin-bottom: 24px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                                <i class="fas fa-user" style="color: #8b5cf6;"></i> Funcionário
+                            </label>
+                            <select class="form-select" id="ajuste-funcionario" style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; background: #f9fafb;"></select>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                                <i class="fas fa-calendar-alt" style="color: #3b82f6;"></i> Data
+                            </label>
+                            <input type="date" class="form-input" id="ajuste-data" style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; background: #f9fafb; box-sizing: border-box;">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Horários -->
+                <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px; margin-bottom: 24px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 16px;">
+                        <i class="fas fa-clock" style="color: #22c55e;"></i> Horários
+                    </label>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                        <div style="text-align: center;">
+                            <span style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 8px;">Entrada</span>
+                            <input type="time" id="ajuste-entrada" style="width: 100%; padding: 14px 12px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 16px; font-weight: 600; text-align: center; background: #f9fafb; box-sizing: border-box;">
+                        </div>
+                        <div style="text-align: center;">
+                            <span style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 8px;">Saída Almoço</span>
+                            <input type="time" id="ajuste-saida-almoco" style="width: 100%; padding: 14px 12px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 16px; font-weight: 600; text-align: center; background: #f9fafb; box-sizing: border-box;">
+                        </div>
+                        <div style="text-align: center;">
+                            <span style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 8px;">Retorno</span>
+                            <input type="time" id="ajuste-retorno" style="width: 100%; padding: 14px 12px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 16px; font-weight: 600; text-align: center; background: #f9fafb; box-sizing: border-box;">
+                        </div>
+                        <div style="text-align: center;">
+                            <span style="font-size: 12px; color: #6b7280; display: block; margin-bottom: 8px;">Saída</span>
+                            <input type="time" id="ajuste-saida" style="width: 100%; padding: 14px 12px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 16px; font-weight: 600; text-align: center; background: #f9fafb; box-sizing: border-box;">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Motivo -->
+                <div style="background: #ffffff; border-radius: 16px; border: 1px solid #e5e7eb; padding: 24px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
+                        <i class="fas fa-comment-alt" style="color: #f59e0b;"></i> Motivo do Ajuste
+                    </label>
+                    <textarea class="form-textarea" id="ajuste-motivo" placeholder="Descreva o motivo do ajuste..." style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; min-height: 100px; resize: vertical; background: #f9fafb; box-sizing: border-box;"></textarea>
+                </div>
+            </div>
+            
+            <!-- Footer SaaS -->
+            <div style="padding: 24px 32px; background: #ffffff; border-top: 1px solid #e5e7eb; display: flex; gap: 16px; justify-content: flex-end;">
+                <button onclick="fecharModal('modal-ajuste')" style="padding: 14px 28px; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 12px; font-size: 15px; font-weight: 500; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button onclick="salvarAjuste()" style="padding: 14px 28px; border: none; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 12px; font-size: 15px; font-weight: 600; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);">
+                    <i class="fas fa-save"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalhes -->
+    <div class="modal-overlay" id="modal-detalhes">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Detalhes do Registro</h3>
+                <button class="modal-close" onclick="fecharModal('modal-detalhes')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" id="modal-detalhes-content"></div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="fecharModal('modal-detalhes')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"><i class="fas fa-check-circle"></i><span id="toast-msg"></span></div>
+
+    <script>
+        // Mapa de avatares
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Carregar usuário logado
+        async function carregarUsuario() {
+            try {
+                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+                const response = await fetch('/api/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    const hour = new Date().getHours();
+                    let greeting = 'Bom dia';
+                    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                    else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                    document.getElementById('greeting-text').textContent = greeting;
+                    
+                    const nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    document.getElementById('user-name').textContent = nome;
+                    
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, user.nome);
+                    
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = nome.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Data
+        const funcionarios = [
+            { id: 1, nome: 'Ana Silva', depto: 'Administrativo', avatar: null },
+            { id: 2, nome: 'Carlos Santos', depto: 'Produção', avatar: null },
+            { id: 3, nome: 'Maria Oliveira', depto: 'Comercial', avatar: null },
+            { id: 4, nome: 'João Pereira', depto: 'TI', avatar: null },
+            { id: 5, nome: 'Fernanda Costa', depto: 'Produção', avatar: null },
+            { id: 6, nome: 'Pedro Lima', depto: 'Administrativo', avatar: null },
+            { id: 7, nome: 'Juliana Alves', depto: 'Comercial', avatar: null },
+            { id: 8, nome: 'Roberto Souza', depto: 'Produção', avatar: null }
+        ];
+
+        const registrosHoje = [
+            { func_id: 1, entrada: '08:00', saida_almoco: '12:00', retorno: '13:00', saida: '17:00', horas: '8h00', status: 'normal' },
+            { func_id: 2, entrada: '07:55', saida_almoco: '12:00', retorno: '13:00', saida: '17:00', horas: '8h05', status: 'normal' },
+            { func_id: 3, entrada: '08:15', saida_almoco: '12:05', retorno: '13:00', saida: '17:15', horas: '8h05', status: 'atraso' },
+            { func_id: 4, entrada: '08:00', saida_almoco: '12:00', retorno: '13:00', saida: '-', horas: '5h00', status: 'normal' },
+            { func_id: 5, entrada: '-', saida_almoco: '-', retorno: '-', saida: '-', horas: '-', status: 'falta' },
+            { func_id: 6, entrada: '08:00', saida_almoco: '12:00', retorno: '13:00', saida: '17:00', horas: '8h00', status: 'normal' },
+            { func_id: 7, entrada: '-', saida_almoco: '-', retorno: '-', saida: '-', horas: '-', status: 'ferias' },
+            { func_id: 8, entrada: '07:50', saida_almoco: '12:00', retorno: '13:00', saida: '17:00', horas: '8h10', status: 'normal' }
+        ];
+
+        const ajustesPendentes = [
+            { id: 1, func_id: 1, data: '10/01/2026', tipo: 'Entrada', atual: '08:00', solicitado: '07:45', motivo: 'Esqueci de bater o ponto na entrada', status: 'pendente' },
+            { id: 2, func_id: 3, data: '09/01/2026', tipo: 'Saída', atual: '17:00', solicitado: '18:30', motivo: 'Fiz hora extra não registrada', status: 'pendente' },
+            { id: 3, func_id: 6, data: '08/01/2026', tipo: 'Retorno Almoço', atual: '13:30', solicitado: '13:00', motivo: 'Sistema estava offline', status: 'pendente' }
+        ];
+
+        const bancoHoras = [
+            { func_id: 1, saldo: '+12h30', extras: '15h00', devidas: '2h30' },
+            { func_id: 2, saldo: '+8h00', extras: '10h00', devidas: '2h00' },
+            { func_id: 3, saldo: '-3h15', extras: '2h00', devidas: '5h15' },
+            { func_id: 4, saldo: '+20h45', extras: '22h00', devidas: '1h15' },
+            { func_id: 5, saldo: '0h00', extras: '0h00', devidas: '0h00' },
+            { func_id: 6, saldo: '+5h30', extras: '8h00', devidas: '2h30' }
+        ];
+
+        // Funções
+        function getFunc(id) { return funcionarios.find(f => f.id === id) || {}; }
+
+        function renderRegistros() {
+            const tbody = document.getElementById('tbody-registros');
+            tbody.innerHTML = registrosHoje.map(r => {
+                const f = getFunc(r.func_id);
+                return `<tr>
+                    <td><div class="employee-info">
+                        <div class="employee-avatar">${f.nome ? f.nome.charAt(0) : '?'}</div>
+                        <div><div class="employee-name">${f.nome || '-'}</div><div class="employee-dept">${f.depto || '-'}</div></div>
+                    </div></td>
+                    <td>${r.entrada}</td><td>${r.saida_almoco}</td><td>${r.retorno}</td><td>${r.saida}</td><td>${r.horas}</td>
+                    <td><span class="status-badge ${r.status}">${r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span></td>
+                    <td><div class="action-btns">
+                        <button class="action-btn view" onclick="verDetalhes(${r.func_id})" title="Ver"><i class="fas fa-eye"></i></button>
+                        <button class="action-btn edit" onclick="editarRegistro(${r.func_id})" title="Editar"><i class="fas fa-edit"></i></button>
+                    </div></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderAjustes() {
+            const tbody = document.getElementById('tbody-ajustes');
+            tbody.innerHTML = ajustesPendentes.map(a => {
+                const f = getFunc(a.func_id);
+                return `<tr>
+                    <td><div class="employee-info">
+                        <div class="employee-avatar">${f.nome ? f.nome.charAt(0) : '?'}</div>
+                        <div><div class="employee-name">${f.nome || '-'}</div></div>
+                    </div></td>
+                    <td>${a.data}</td><td>${a.tipo}</td><td>${a.atual}</td><td>${a.solicitado}</td>
+                    <td style="max-width:200px">${a.motivo}</td>
+                    <td><span class="status-badge ${a.status}">${a.status.charAt(0).toUpperCase() + a.status.slice(1)}</span></td>
+                    <td><div class="action-btns">
+                        <button class="action-btn approve" onclick="aprovarAjuste(${a.id})" title="Aprovar"><i class="fas fa-check"></i></button>
+                        <button class="action-btn reject" onclick="rejeitarAjuste(${a.id})" title="Rejeitar"><i class="fas fa-times"></i></button>
+                    </div></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderBancoHoras() {
+            const tbody = document.getElementById('tbody-banco');
+            tbody.innerHTML = bancoHoras.map(b => {
+                const f = getFunc(b.func_id);
+                const saldoClass = b.saldo.startsWith('-') ? 'color:#ef4444' : b.saldo === '0h00' ? '' : 'color:#22c55e';
+                return `<tr>
+                    <td><div class="employee-info">
+                        <div class="employee-avatar">${f.nome ? f.nome.charAt(0) : '?'}</div>
+                        <div><div class="employee-name">${f.nome || '-'}</div></div>
+                    </div></td>
+                    <td>${f.depto || '-'}</td>
+                    <td style="font-weight:600;${saldoClass}">${b.saldo}</td>
+                    <td style="color:#22c55e">${b.extras}</td>
+                    <td style="color:#ef4444">${b.devidas}</td>
+                    <td><button class="btn btn-sm btn-outline" onclick="verHistoricoBanco(${b.func_id})"><i class="fas fa-history"></i> Histórico</button></td>
+                </tr>`;
+            }).join('');
+        }
+
+        function popularSelects() {
+            const selects = ['ajuste-funcionario', 'filter-func-hist'];
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.innerHTML = '<option value="">Selecione...</option>' + funcionarios.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+                }
+            });
+        }
+
+        // Tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Modal
+        function abrirModalAjuste() { document.getElementById('modal-ajuste').classList.add('active'); }
+        function fecharModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        function verDetalhes(funcId) {
+            const f = getFunc(funcId);
+            const r = registrosHoje.find(x => x.func_id === funcId) || {};
+            document.getElementById('modal-detalhes-content').innerHTML = `
+                <div style="text-align:center;margin-bottom:20px">
+                    <div class="employee-avatar" style="width:60px;height:60px;font-size:24px;margin:0 auto">${f.nome?.charAt(0) || '?'}</div>
+                    <h3 style="margin-top:12px">${f.nome || '-'}</h3>
+                    <p style="color:#64748b">${f.depto || '-'}</p>
+                </div>
+                <div class="time-grid" style="margin-top:20px">
+                    <div class="time-input-group"><label>Entrada</label><div style="font-size:1.25rem;font-weight:600">${r.entrada || '-'}</div></div>
+                    <div class="time-input-group"><label>Saída Almoço</label><div style="font-size:1.25rem;font-weight:600">${r.saida_almoco || '-'}</div></div>
+                    <div class="time-input-group"><label>Retorno</label><div style="font-size:1.25rem;font-weight:600">${r.retorno || '-'}</div></div>
+                    <div class="time-input-group"><label>Saída</label><div style="font-size:1.25rem;font-weight:600">${r.saida || '-'}</div></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:24px;padding:16px;background:#f8fafc;border-radius:12px">
+                    <div><span style="color:#64748b">Total Trabalhado</span><div style="font-size:1.5rem;font-weight:700">${r.horas || '-'}</div></div>
+                    <div><span style="color:#64748b">Status</span><div><span class="status-badge ${r.status || ''}">${(r.status || '-').charAt(0).toUpperCase() + (r.status || '').slice(1)}</span></div></div>
+                </div>`;
+            document.getElementById('modal-detalhes').classList.add('active');
+        }
+
+        function editarRegistro(funcId) {
+            const f = getFunc(funcId);
+            const r = registrosHoje.find(x => x.func_id === funcId) || {};
+            document.getElementById('ajuste-funcionario').value = funcId;
+            document.getElementById('ajuste-data').value = '2026-01-12';
+            document.getElementById('ajuste-entrada').value = r.entrada !== '-' ? r.entrada : '';
+            document.getElementById('ajuste-saida-almoco').value = r.saida_almoco !== '-' ? r.saida_almoco : '';
+            document.getElementById('ajuste-retorno').value = r.retorno !== '-' ? r.retorno : '';
+            document.getElementById('ajuste-saida').value = r.saida !== '-' ? r.saida : '';
+            abrirModalAjuste();
+        }
+
+        function salvarAjuste() {
+            showToast('Ajuste salvo com sucesso!', 'success');
+            fecharModal('modal-ajuste');
+        }
+
+        function aprovarAjuste(id) {
+            const idx = ajustesPendentes.findIndex(a => a.id === id);
+            if (idx > -1) { ajustesPendentes[idx].status = 'aprovado'; renderAjustes(); }
+            showToast('Ajuste aprovado!', 'success');
+        }
+
+        function rejeitarAjuste(id) {
+            const idx = ajustesPendentes.findIndex(a => a.id === id);
+            if (idx > -1) { ajustesPendentes[idx].status = 'rejeitado'; renderAjustes(); }
+            showToast('Ajuste rejeitado', 'error');
+        }
+
+        function filtrarRegistros() { showToast('Filtro aplicado!', 'success'); }
+        function carregarHistorico() { showToast('Histórico carregado!', 'success'); }
+        function exportarRelatorio() { showToast('Exportando relatório...', 'success'); }
+        function verHistoricoBanco(funcId) { showToast('Carregando histórico...', 'success'); }
+
+        function showToast(msg, type = '') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // Init
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuario();
+            renderRegistros();
+            renderAjustes();
+            renderBancoHoras();
+            popularSelects();
+        });
+    </script>
+</body>
+</html>

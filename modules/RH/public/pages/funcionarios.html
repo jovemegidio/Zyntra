@@ -1,7 +1,8 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <meta charset="UTF-8">
+    <meta name="theme-color" content="#1a1a2e">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: Funcionários</title>
@@ -1585,10 +1586,10 @@
             <div class="modal-body" style="padding: 0;">
                 <!-- Header do Perfil -->
                 <div class="view-header" style="padding: 20px; border-bottom: 1px solid #e5e7eb;">
-                    <img id="viewFoto" src="/avatars/default.webp" alt="Foto" class="view-avatar">
+                    <img id="viewFoto" src="/avatars/default.webp" alt="Foto" class="view-avatar" onerror="this.onerror=null;this.src='/avatars/default.webp';">
                     <div class="view-header-info">
                         <h4 id="viewNomeCompleto">-</h4>
-                        <p><span id="viewCargo">-</span> â€“ <span id="viewDepartamento">-</span></p>
+                        <p><span id="viewCargo">-</span> — <span id="viewDepartamento">-</span></p>
                         <p id="viewEmail" style="color: #8b5cf6; font-weight: 500;">-</p>
                     </div>
                 </div>
@@ -2875,7 +2876,10 @@
                 document.getElementById('viewCargo').textContent = f.cargo || '-';
                 document.getElementById('viewDepartamento').textContent = f.departamento || '-';
                 document.getElementById('viewEmail').textContent = f.email || '-';
-                document.getElementById('viewCpf').textContent = f.cpf || '-';
+                // CPF: tratar valores null, ENC: (criptografado irrecuperável), ou ENCRYPTED
+                const cpfRaw = f.cpf || '';
+                const cpfClean = cpfRaw.startsWith('ENC:') || cpfRaw.includes('ENCRYPTED') || cpfRaw.startsWith('$2') ? '' : cpfRaw;
+                document.getElementById('viewCpf').textContent = cpfClean || 'Não informado';
                 document.getElementById('viewRg').textContent = f.rg || '-';
                 document.getElementById('viewTelefone').textContent = f.telefone || '-';
                 document.getElementById('viewDataNascimento').textContent = formatarData(f.data_nascimento);
@@ -3962,7 +3966,7 @@
     <!-- Sistema de Monitoramento de Conexão -->
     <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
     <script src="/js/popup-confirmacao.js"></script>
-    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
     <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
 
 <!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>

@@ -1,74 +1,108 @@
-﻿PCP/pages/relatorios.html<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Aluforce: Inutilização</title>
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
+    <script src="/js/csp-fix.js" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260301">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260301">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
+    <script src="/js/anti-copy-protection.js" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260301">
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        html { height:100%; }
-        html, body { font-family:'Inter',sans-serif; background:#f9fafb; color:#111827; }
-        body { height:100%; min-height:100vh; }
-        :root { --fat-primary:#10b981; --fat-secondary:#059669; }
-        .page-content { padding:20px; max-width:100%; margin:0; flex:1; }
-        .page-title { font-size:18px; font-weight:700; color:#111827; margin-bottom:20px; display:flex; align-items:center; gap:10px; }
-        .page-title i { color:#ef4444; }
-        .card { background:#fff; border-radius:8px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:20px; }
-        .card-header { font-size:14px; font-weight:600; color:#111827; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-        .card-header i { color:var(--fat-primary); font-size:14px; }
-        .danger-banner { background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:16px 20px; margin-bottom:20px; }
-        .danger-banner .danger-title { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; color:#991b1b; margin-bottom:8px; }
-        .danger-banner .danger-title i { font-size:20px; color:#ef4444; }
-        .danger-banner p { font-size:13px; color:#991b1b; line-height:1.5; }
-        .danger-banner ul { margin-top:8px; padding-left:20px; font-size:12px; color:#7f1d1d; }
-        .danger-banner ul li { margin-bottom:4px; }
-        .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
-        .form-group { display:flex; flex-direction:column; }
-        .form-group label { font-size:12px; font-weight:600; color:#374151; margin-bottom:4px; }
-        .form-group input, .form-group select, .form-group textarea { height:36px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; padding:0 10px; font-family:inherit; outline:none; transition:border-color 0.2s; }
-        .form-group textarea { height:auto; padding:8px 10px; resize:vertical; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color:var(--fat-primary); box-shadow:0 0 0 2px rgba(16,185,129,0.1); }
-        .form-group .hint { font-size:11px; color:#9ca3af; margin-top:3px; }
-        .char-count { font-size:11px; color:#9ca3af; margin-top:3px; }
-        .range-row { display:grid; grid-template-columns:1fr auto 1fr; gap:10px; align-items:end; }
-        .range-row .range-separator { font-size:14px; color:#6b7280; padding-bottom:8px; }
-        .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 16px; border-radius:6px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
-        .btn-danger { background:#ef4444; color:#fff; }
-        .btn-danger:hover { background:#dc2626; }
-        .btn-secondary { background:#e5e7eb; color:#374151; }
-        .btn-secondary:hover { background:#d1d5db; }
-        .btn-primary { background:var(--fat-primary); color:#fff; }
-        .btn-primary:hover { background:var(--fat-secondary); }
-        .actions { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
-        .suggestion-box { background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#1d4ed8; display:none; }
-        .suggestion-box i { margin-right:6px; }
-        .historico-table { width:100%; border-collapse:collapse; font-size:13px; }
-        .historico-table th { background:#f3f4f6; padding:10px 12px; font-weight:600; font-size:11px; text-transform:uppercase; color:#6b7280; border-bottom:2px solid #e5e7eb; text-align:left; }
-        .historico-table td { padding:10px 12px; border-bottom:1px solid #f3f4f6; }
-        .historico-table tr:hover { background:#f9fafb; }
-        .status-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
-        .status-homologada { background:#dcfce7; color:#166534; }
-        .status-rejeitada { background:#fef2f2; color:#991b1b; }
-        .empty-state { text-align:center; padding:30px; color:#9ca3af; }
-        .empty-state i { font-size:28px; margin-bottom:8px; display:block; }
-        .alert { padding:12px 16px; border-radius:6px; font-size:13px; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-        .alert-success { background:#dcfce7; color:#166534; border:1px solid #86efac; }
-        .alert-danger { background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; }
-        .alert-warning { background:#fef3c7; color:#92400e; border:1px solid #fbbf24; }
-        .ambiente-indicator { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:12px; font-size:11px; font-weight:600; }
-        .ambiente-homologacao { background:#fef3c7; color:#92400e; }
-        .ambiente-producao { background:#fef2f2; color:#991b1b; }
-        @media(max-width:768px) {
-            .page-content { padding:14px; }
-            .form-grid { grid-template-columns:1fr; }
-            .range-row { grid-template-columns:1fr; }
-            .range-row .range-separator { display:none; }
+        /* Page-specific styles only */
+        .danger-banner {
+            background: var(--danger-bg);
+            border: 1px solid #fca5a5;
+            border-radius: var(--radius-lg);
+            padding: var(--space-4) var(--space-5);
+            margin-bottom: var(--space-5);
+        }
+        .danger-banner .danger-title {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: 15px;
+            font-weight: 700;
+            color: #991b1b;
+            margin-bottom: var(--space-2);
+        }
+        .danger-banner .danger-title i { font-size: 20px; color: var(--danger); }
+        .danger-banner p { font-size: 13px; color: #991b1b; line-height: 1.5; }
+        .danger-banner ul { margin-top: var(--space-2); padding-left: 20px; font-size: 12px; color: #7f1d1d; }
+        .danger-banner ul li { margin-bottom: var(--space-1); }
+
+        .range-row {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: var(--space-3);
+            align-items: end;
+        }
+        .range-row .range-separator {
+            font-size: 14px;
+            color: var(--text-secondary);
+            padding-bottom: 10px;
+        }
+
+        .suggestion-box {
+            background: var(--primary-50);
+            border: 1px solid var(--primary-300);
+            border-radius: var(--radius-md);
+            padding: var(--space-3) var(--space-4);
+            margin-bottom: var(--space-4);
+            font-size: 13px;
+            color: var(--primary-700);
+            display: none;
+        }
+        .suggestion-box i { margin-right: 6px; }
+
+        .char-count {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: var(--space-1);
+        }
+
+        .actions {
+            display: flex;
+            gap: var(--space-3);
+            margin-top: var(--space-4);
+            flex-wrap: wrap;
+        }
+
+        .ambiente-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .ambiente-homologacao { background: var(--warning-bg); color: #92400e; }
+        .ambiente-producao { background: var(--danger-bg); color: #991b1b; }
+
+        .required-mark { color: var(--danger); }
+
+        @media (max-width: 768px) {
+            .range-row { grid-template-columns: 1fr; }
+            .range-row .range-separator { display: none; }
         }
     </style>
 </head>
@@ -119,7 +153,19 @@
             <div class="main-content">
                 <div class="page-content">
                     <div id="alertContainer"></div>
-                    <h2 class="page-title"><i class="fas fa-ban"></i> Inutilização de Numeração</h2>
+
+                    <!-- Page Header -->
+                    <div class="page-header">
+                        <div class="page-header-top">
+                            <div class="page-title-wrapper">
+                                <div class="page-icon red"><i class="fas fa-ban"></i></div>
+                                <div>
+                                    <h2 class="page-title">Inutilização de Numeração</h2>
+                                    <p class="page-subtitle">Inutilize faixas de numeração de NF-e não utilizadas</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Warning Banner -->
                     <div class="danger-banner">
@@ -134,103 +180,111 @@
 
                     <!-- Form Card -->
                     <div class="card">
-                        <div class="card-header"><i class="fas fa-file-signature"></i> Dados para Inutilização</div>
-                        
-                        <div id="suggestionBox" class="suggestion-box">
-                            <i class="fas fa-lightbulb"></i> <span id="suggestionText"></span>
+                        <div class="card-header">
+                            <span class="card-title"><i class="fas fa-file-signature"></i> Dados para Inutilização</span>
                         </div>
-
-                        <form id="inutilizacaoForm" onsubmit="return false;">
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label>Série <span style="color:#ef4444;">*</span></label>
-                                    <input type="text" id="serie" value="1" required>
-                                </div>
-                                <div class="form-group">
-                                    <label>Ano <span style="color:#ef4444;">*</span></label>
-                                    <input type="text" id="ano" required>
-                                    <span class="hint">Formato: 2 dígitos (ex: 26)</span>
-                                </div>
-                                <div class="form-group">
-                                    <label>Ambiente</label>
-                                    <select id="ambiente">
-                                        <option value="2">Homologação</option>
-                                        <option value="1">Produção</option>
-                                    </select>
-                                </div>
+                        <div class="card-body">
+                            <div id="suggestionBox" class="suggestion-box">
+                                <i class="fas fa-lightbulb"></i> <span id="suggestionText"></span>
                             </div>
 
-                            <div style="margin-top:14px;">
-                                <label style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">Faixa de Numeração <span style="color:#ef4444;">*</span></label>
-                                <div class="range-row">
+                            <form id="inutilizacaoForm" onsubmit="return false;">
+                                <div class="form-row">
                                     <div class="form-group">
-                                        <label>Número Inicial</label>
-                                        <input type="number" id="numInicial" min="1" required placeholder="Ex: 100">
+                                        <label>Série <span class="required-mark">*</span></label>
+                                        <input type="text" id="serie" class="form-control" value="1" required>
                                     </div>
-                                    <div class="range-separator">até</div>
                                     <div class="form-group">
-                                        <label>Número Final</label>
-                                        <input type="number" id="numFinal" min="1" required placeholder="Ex: 105">
+                                        <label>Ano <span class="required-mark">*</span></label>
+                                        <input type="text" id="ano" class="form-control" required>
+                                        <span class="form-help">Formato: 2 dígitos (ex: 26)</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Ambiente</label>
+                                        <select id="ambiente" class="form-control">
+                                            <option value="2">Homologação</option>
+                                            <option value="1">Produção</option>
+                                        </select>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="form-grid" style="margin-top:14px;">
                                 <div class="form-group">
-                                    <label>CNPJ do Emitente <span style="color:#ef4444;">*</span></label>
-                                    <input type="text" id="cnpj" placeholder="00.000.000/0000-00" required>
+                                    <label>Faixa de Numeração <span class="required-mark">*</span></label>
+                                    <div class="range-row">
+                                        <div class="form-group" style="margin-bottom:0;">
+                                            <label>Número Inicial</label>
+                                            <input type="number" id="numInicial" class="form-control" min="1" required placeholder="Ex: 100">
+                                        </div>
+                                        <div class="range-separator">até</div>
+                                        <div class="form-group" style="margin-bottom:0;">
+                                            <label>Número Final</label>
+                                            <input type="number" id="numFinal" class="form-control" min="1" required placeholder="Ex: 105">
+                                        </div>
+                                    </div>
                                 </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>CNPJ do Emitente <span class="required-mark">*</span></label>
+                                        <input type="text" id="cnpj" class="form-control" placeholder="00.000.000/0000-00" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>UF do Emitente <span class="required-mark">*</span></label>
+                                        <select id="uf" class="form-control" required>
+                                            <option value="">Selecione</option>
+                                            <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
+                                            <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
+                                            <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
+                                            <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
+                                            <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
+                                            <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
+                                            <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
+                                            <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
+                                            <option value="SP" selected>SP</option><option value="SE">SE</option><option value="TO">TO</option>
+                                        </select>
+                                    </div>
+                                </div>
+
                                 <div class="form-group">
-                                    <label>UF do Emitente <span style="color:#ef4444;">*</span></label>
-                                    <select id="uf" required>
-                                        <option value="">Selecione</option>
-                                        <option value="AC">AC</option><option value="AL">AL</option><option value="AP">AP</option>
-                                        <option value="AM">AM</option><option value="BA">BA</option><option value="CE">CE</option>
-                                        <option value="DF">DF</option><option value="ES">ES</option><option value="GO">GO</option>
-                                        <option value="MA">MA</option><option value="MT">MT</option><option value="MS">MS</option>
-                                        <option value="MG">MG</option><option value="PA">PA</option><option value="PB">PB</option>
-                                        <option value="PR">PR</option><option value="PE">PE</option><option value="PI">PI</option>
-                                        <option value="RJ">RJ</option><option value="RN">RN</option><option value="RS">RS</option>
-                                        <option value="RO">RO</option><option value="RR">RR</option><option value="SC">SC</option>
-                                        <option value="SP" selected>SP</option><option value="SE">SE</option><option value="TO">TO</option>
-                                    </select>
+                                    <label>Justificativa <span class="required-mark">*</span></label>
+                                    <textarea id="justificativa" class="form-control" rows="3" placeholder="Mínimo 15 caracteres" minlength="15" maxlength="255" oninput="atualizarContador()" required></textarea>
+                                    <div class="char-count"><span id="charCount">0</span>/255 caracteres (mínimo 15)</div>
                                 </div>
-                            </div>
 
-                            <div class="form-group" style="margin-top:14px;">
-                                <label>Justificativa <span style="color:#ef4444;">*</span></label>
-                                <textarea id="justificativa" rows="3" placeholder="Mínimo 15 caracteres" minlength="15" maxlength="255" oninput="atualizarContador()" required></textarea>
-                                <div class="char-count"><span id="charCount">0</span>/255 caracteres (mínimo 15)</div>
-                            </div>
-
-                            <div class="actions">
-                                <button type="button" class="btn btn-primary" onclick="buscarSugestao()"><i class="fas fa-lightbulb"></i> Buscar Sugestão</button>
-                                <button type="button" class="btn btn-danger" onclick="inutilizar()"><i class="fas fa-ban"></i> Inutilizar Numeração</button>
-                            </div>
-                        </form>
+                                <div class="actions">
+                                    <button type="button" class="btn btn-primary" onclick="buscarSugestao()"><i class="fas fa-lightbulb"></i> Buscar Sugestão</button>
+                                    <button type="button" class="btn btn-danger" onclick="inutilizar()"><i class="fas fa-ban"></i> Inutilizar Numeração</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
 
                     <!-- Histórico -->
                     <div class="card">
-                        <div class="card-header"><i class="fas fa-list"></i> Histórico de Inutilizações</div>
-                        <div style="overflow-x:auto;">
-                            <table class="historico-table">
-                                <thead>
-                                    <tr>
-                                        <th>Série</th>
-                                        <th>Faixa</th>
-                                        <th>Ano</th>
-                                        <th>Data</th>
-                                        <th>Protocolo</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="historicoBody"></tbody>
-                            </table>
+                        <div class="card-header">
+                            <span class="card-title"><i class="fas fa-list"></i> Histórico de Inutilizações</span>
                         </div>
-                        <div id="historicoEmpty" class="empty-state">
-                            <i class="fas fa-ban"></i>
-                            <p style="font-size:13px;">Nenhuma inutilização registrada</p>
+                        <div class="card-body" style="padding:0;">
+                            <div style="overflow-x:auto;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Série</th>
+                                            <th>Faixa</th>
+                                            <th>Ano</th>
+                                            <th>Data</th>
+                                            <th>Protocolo</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="historicoBody"></tbody>
+                                </table>
+                            </div>
+                            <div id="historicoEmpty" class="empty-state">
+                                <i class="fas fa-ban"></i>
+                                <h3>Nenhuma inutilização registrada</h3>
+                                <p>As inutilizações realizadas aparecerão aqui</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -325,7 +379,7 @@
             const qtd = parseInt(numFinal) - parseInt(numInicial) + 1;
             if (!confirm('ATENÇÃO: Você está prestes a inutilizar ' + qtd + ' número(s) de NFe (de ' + numInicial + ' a ' + numFinal + ').\n\nEsta operação é IRREVERSÍVEL.\n\nDeseja continuar?')) return;
 
-            fetch('/api/inutilizacao', {
+            fetch('/api/nfe/inutilizar', {
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
                 credentials:'include',
@@ -348,10 +402,10 @@
         }
 
         function carregarHistorico() {
-            fetch('/api/inutilizacao/historico', { credentials:'include' })
+            fetch('/api/nfe/inutilizacoes', { credentials:'include' })
             .then(r => r.json())
             .then(data => {
-                const historico = data.historico || data.data || data || [];
+                const historico = data.inutilizacoes || data.historico || data.data || data || [];
                 const tbody = document.getElementById('historicoBody');
                 const empty = document.getElementById('historicoEmpty');
                 if (!Array.isArray(historico) || historico.length === 0) {
@@ -362,14 +416,14 @@
                 empty.style.display = 'none';
                 tbody.innerHTML = historico.map(h => {
                     const dt = h.data ? new Date(h.data).toLocaleString('pt-BR') : '-';
-                    const stClass = (h.status||'').toLowerCase().includes('homolog') || (h.status||'').toLowerCase().includes('sucesso') ? 'status-homologada' : 'status-rejeitada';
+                    const stClass = (h.status||'').toLowerCase().includes('homolog') || (h.status||'').toLowerCase().includes('sucesso') ? 'approved' : 'danger';
                     return `<tr>
                         <td>${h.serie || '-'}</td>
                         <td>${h.numInicial || h.inicio || '-'} a ${h.numFinal || h.fim || '-'}</td>
                         <td>${h.ano || '-'}</td>
                         <td>${dt}</td>
-                        <td style="font-family:monospace;font-size:12px;">${h.protocolo || '-'}</td>
-                        <td><span class="status-badge ${stClass}">${h.status || '-'}</span></td>
+                        <td><span class="code">${h.protocolo || '-'}</span></td>
+                        <td><span class="badge ${stClass}">${h.status || '-'}</span></td>
                     </tr>`;
                 }).join('');
             })
@@ -386,7 +440,7 @@
         function showAlert(msg, type) {
             const c = document.getElementById('alertContainer');
             const d = document.createElement('div');
-            d.className = 'alert alert-' + type;
+            d.className = 'alert ' + type;
             d.innerHTML = '<i class="fas fa-' + (type==='success'?'check-circle':type==='danger'?'times-circle':'exclamation-triangle') + '"></i> ' + msg;
             c.prepend(d);
             setTimeout(() => d.remove(), 5000);
@@ -402,15 +456,14 @@
             carregarHistorico();
         });
     </script>
-    <script src="/js/notification-manager.js" defer></script>
-    <script src="../_shared/connection-monitor.js" defer></script>
-    <script src="/js/popup-confirmacao.js" defer></script>
-    <script src="/js/auth-unified.js?v=20260131c" defer></script>
-
-<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
-
-    <!-- Sidebar Click Animation -->
-    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <script src="/js/notification-manager.js?v=20260301"></script>
+    <script src="/_shared/connection-monitor.js?v=20260301"></script>
+    <script src="/js/popup-confirmacao.js?v=20260301"></script>
+    <script src="/_shared/confirm-dialog.js?v=20260301"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260301" defer></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260301" defer></script>
+    <script src="/js/sidebar-click-animation.js?v=20260301"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260301"></script>
 </body>
 </html>

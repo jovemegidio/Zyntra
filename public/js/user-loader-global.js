@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Carregador de Usuário Global - ALUFORCE
  * Script universal para carregar dados do usuário logado em todas as páginas
  * Inclui: Saudação dinmica, Nome, Avatar (foto ou iniciais)

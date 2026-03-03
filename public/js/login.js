@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ALUFORCE - Login Page v2.0
  * Modern glassmorphism login with animated backgrounds
  * All backend integration preserved from v1
@@ -158,8 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
     'joao': 'joao.svg', 'maria': 'maria.svg',
     'antonio': 'Antonio.webp', 'fernando': 'Fernando.webp',
     'mauricio': 'mauricio.svg', 'mauricio.torrolho': 'mauricio.svg',
-    'jamerson': 'jamerson.svg', 'jamerson.ribeiro': 'jamerson.svg',
-    'jamesson': 'jamerson.svg', 'jamesson.ribeiro': 'jamerson.svg',
+    'jamerson': null, 'jamerson.ribeiro': null,
+    'jamesson': null, 'jamesson.ribeiro': null,
     'diego': 'diego.svg', 'diego.lucena': 'diego.svg'
   };
 
@@ -220,35 +220,30 @@ document.addEventListener('DOMContentLoaded', () => {
     emailInput.addEventListener('input', () => {
       clearTimeout(avatarTimeout);
       const email = emailInput.value.trim().toLowerCase();
-      const emailParts = email.split('@');
-      const fullUsername = emailParts[0] || '';
-      const firstName = fullUsername.split('.')[0] || '';
 
-      // Update greeting dynamically - use fullUsername for length check (handles short names like "ti", "rh")
-      if (fullUsername.length >= 2) {
-        const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-        if (greetingEl) greetingEl.textContent = `Olá, ${displayName}`;
-        if (subtitleEl) subtitleEl.textContent = 'Digite sua senha para continuar';
-        if (avatarContainer) avatarContainer.classList.add('has-email');
-      } else if (fullUsername.length === 0) {
+      // Se campo vazio, resetar tudo
+      if (email.length === 0) {
         if (greetingEl) greetingEl.textContent = 'Bem-vindo de volta';
         if (subtitleEl) subtitleEl.textContent = 'Entre na sua conta para continuar';
         if (avatarContainer) avatarContainer.classList.remove('has-email');
-      }
-
-      if (email.length === 0) {
         resetAvatar();
         return;
       }
 
+      // Só exibir avatar/saudação quando o email estiver 100% digitado
+      // (deve conter @ + domínio com pelo menos um ponto)
+      const isFullEmail = /^[^@]+@[^@]+\.[^@]+$/.test(email);
+      if (!isFullEmail) return;
+
       avatarTimeout = setTimeout(() => {
-        if (email.length >= 3) showUserAvatar(email);
-      }, 300);
+        showUserAvatar(email);
+      }, 400);
     });
 
     emailInput.addEventListener('blur', () => {
       const email = emailInput.value.trim().toLowerCase();
-      if (email.includes('@')) showUserAvatar(email);
+      const isFullEmail = /^[^@]+@[^@]+\.[^@]+$/.test(email);
+      if (isFullEmail) showUserAvatar(email);
     });
   }
 
@@ -256,6 +251,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const emailParts = email.toLowerCase().split('@');
     const fullUsername = emailParts[0];
     const firstName = fullUsername.split('.')[0];
+
+    // Só prosseguir se o email estiver completo (user@dominio.ext)
+    if (!emailParts[1] || !emailParts[1].includes('.')) {
+      return;
+    }
+
+    // Ativar visual de saudação
+    const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+    if (greetingEl) greetingEl.textContent = `Olá, ${displayName}`;
+    if (subtitleEl) subtitleEl.textContent = 'Digite sua senha para continuar';
+    if (avatarContainer) avatarContainer.classList.add('has-email');
 
     // Try API first
     const result = await fetchUserPhotoFromAPI(email);
@@ -765,12 +771,20 @@ document.addEventListener('DOMContentLoaded', () => {
       try { if (window.AluforceAuth && typeof AluforceAuth.clearAuth === 'function') AluforceAuth.clearAuth(); } catch {}
 
       console.log('[LOGIN] 📡 Enviando credenciais para /api/login...');
+      // 🔐 Recuperar token de dispositivo confiável do localStorage (backup do cookie httpOnly)
+      let savedTrustedToken = null;
+      try {
+        savedTrustedToken = localStorage.getItem('trusted_device_2fa') || null;
+        if (savedTrustedToken) {
+          console.log('[LOGIN] 🔒 Token de dispositivo confiável encontrado no localStorage');
+        }
+      } catch (e) {}
       // API LOGIN CALL
       const response = await apiFetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: username, password })
+        body: JSON.stringify({ email: username, password, trustedDeviceToken: savedTrustedToken })
       });
 
       console.log('[LOGIN] 📡 Resposta recebida:', response.status);

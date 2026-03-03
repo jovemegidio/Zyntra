@@ -1,4 +1,4 @@
-﻿;/**
+;/**
  * Inicializador de Notificações para Módulos
  * Inclua este script em qualquer módulo para habilitar o sistema de notificações
  */

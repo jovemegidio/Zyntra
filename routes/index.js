@@ -203,6 +203,41 @@ module.exports = function registerAllRoutes(app, deps) {
         console.log('[ROUTES] ✅ PCP routes mounted at /api/pcp (204 routes)');
         console.log('[ROUTES] ✅ Configuracoes empresa/impostos servidas diretamente');
         console.log('[ROUTES] ✅ Demais configuracoes bridged at /api/configuracoes/*');
+
+        // Bridge: /api/servicos/* → pcpRouter (tipos de serviço, contratos, SLA)
+        app.use('/api/servicos', authenticateToken, (req, res, next) => {
+            req.url = '/api/servicos' + req.url;
+            pcpRouter(req, res, next);
+        });
+        console.log('[ROUTES] ✅ Bridge: /api/servicos → pcpRouter');
+
+        // Bridge: /api/clientes/grupos → pcpRouter (grupos de clientes CRUD)
+        app.use('/api/clientes/grupos', authenticateToken, (req, res, next) => {
+            req.url = '/api/clientes/grupos' + req.url;
+            pcpRouter(req, res, next);
+        });
+        console.log('[ROUTES] ✅ Bridge: /api/clientes/grupos → pcpRouter');
+
+        // Bridge: /api/fornecedores/tipos → pcpRouter (tipos de fornecedor CRUD)
+        app.use('/api/fornecedores/tipos', authenticateToken, (req, res, next) => {
+            req.url = '/api/fornecedores/tipos' + req.url;
+            pcpRouter(req, res, next);
+        });
+        console.log('[ROUTES] ✅ Bridge: /api/fornecedores/tipos → pcpRouter');
+
+        // Bridge: /api/transportadoras → pcpRouter (autocomplete de transportadoras)
+        app.use('/api/transportadoras', authenticateToken, (req, res, next) => {
+            req.url = '/api/transportadoras' + req.url;
+            pcpRouter(req, res, next);
+        });
+        console.log('[ROUTES] ✅ Bridge: /api/transportadoras → pcpRouter');
+
+        // Bridge: /api/gerar-ordem-excel → pcpRouter (geração de ordem Excel)
+        app.post('/api/gerar-ordem-excel', authenticateToken, (req, res, next) => {
+            req.url = '/api/gerar-ordem-excel';
+            pcpRouter(req, res, next);
+        });
+        console.log('[ROUTES] ✅ Bridge: /api/gerar-ordem-excel → pcpRouter');
     } catch (err) {
         console.error('[ROUTES] ❌ Failed to load pcp-routes:', err.message);
     }
@@ -225,6 +260,10 @@ module.exports = function registerAllRoutes(app, deps) {
         try {
             app.use('/api/rh', require(path.join(__dirname, 'rh-extras'))({ pool, authenticateToken }));
         } catch (_) {}
+        try {
+            app.use('/api/rh', require(path.join(__dirname, 'rh-treinamentos'))({ pool, authenticateToken }));
+            console.log('[ROUTES] ✅ rh-treinamentos montado em /api/rh');
+        } catch (e) { console.error('[ROUTES] ⚠️ rh-treinamentos não carregou:', e.message); }
 
         console.log('[ROUTES] ✅ RH routes mounted at /api/rh');
     } catch (err) {
@@ -458,7 +497,18 @@ module.exports = function registerAllRoutes(app, deps) {
         console.error('[ROUTES] ❌ Failed to load Faturamento v2.0 routes:', err.message);
     }
 
-    console.log(`[ROUTES] 📊 Total atualizado: 23 route modules (750+ endpoints)`);
+    // ============================================================
+    // 15. Chat Corporativo (Teams) — /api/chat/*
+    // ============================================================
+    try {
+        const registerChatRoutes = require('./chat-routes');
+        registerChatRoutes(app, { pool, authenticateToken });
+        console.log('[ROUTES] ✅ Chat Teams routes mounted at /api/chat/*');
+    } catch (err) {
+        console.error('[ROUTES] ❌ Failed to load chat-routes:', err.message);
+    }
+
+    console.log(`[ROUTES] 📊 Total atualizado: 24 route modules (760+ endpoints)`);
 
     return app;
 };

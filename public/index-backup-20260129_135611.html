@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ALUFORCE">
+    <meta name="description" content="ALUFORCE ERP - Sistema de Gestão Empresarial">
+
+    <title>Aluforce: ERP</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/css/erp-saas.css?v=20260129">
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <span>A</span>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-name">ALUFORCE</span>
+                    <span class="logo-badge">ERP</span>
+                </div>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle" title="Recolher menu">
+                <i class="fas fa-chevron-left"></i>
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <span class="nav-section-title">PRINCIPAL</span>
+                <a href="#" class="nav-item active">
+                    <i class="fas fa-th-large"></i>
+                    <span>Dashboard</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <span class="nav-section-title">MÓDULOS</span>
+                
+                <a href="/modules/Compras/index.html" class="nav-item" data-area="compras">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span>Compras</span>
+                </a>
+                
+                <a href="/Vendas/index.html" class="nav-item" data-area="vendas">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Vendas</span>
+                    <span class="nav-badge success">12</span>
+                </a>
+                
+                <a href="/modules/NFe/index.html" class="nav-item" data-area="nfe">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>NF-e & Logística</span>
+                </a>
+                
+                <a href="/modules/PCP/index.html" class="nav-item" data-area="pcp">
+                    <i class="fas fa-cogs"></i>
+                    <span>PCP</span>
+                </a>
+                
+                <a href="/modules/Financeiro/index.html" class="nav-item" data-area="financeiro">
+                    <i class="fas fa-wallet"></i>
+                    <span>Financeiro</span>
+                    <span class="nav-badge warning">3</span>
+                </a>
+                
+                <a href="#" class="nav-item" data-area="rh" onclick="navegarRH(event)">
+                    <i class="fas fa-users"></i>
+                    <span>Recursos Humanos</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <span class="nav-section-title">RELATÓRIOS</span>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Análises</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="fas fa-file-export"></i>
+                    <span>Exportar Dados</span>
+                </a>
+            </div>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a href="#" class="nav-item" onclick="showConfigModal(event)">
+                <i class="fas fa-cog"></i>
+                <span>Configurações</span>
+            </a>
+            <a href="#" class="nav-item logout" onclick="handleLogout(event)">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Sair</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="breadcrumb">
+                    <i class="fas fa-home"></i>
+                    <span class="breadcrumb-separator">/</span>
+                    <span class="breadcrumb-current">Dashboard</span>
+                </div>
+            </div>
+
+            <div class="header-center">
+                <div class="global-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Buscar pedidos, clientes, produtos..." id="globalSearch">
+                    <kbd>⌘K</kbd>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <button class="header-icon-btn" title="Ajuda">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+                
+                <button class="header-icon-btn" id="notificationBtn" title="Notificações">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-badge">4</span>
+                </button>
+                
+                <div class="header-divider"></div>
+                
+                <div class="user-menu" id="userMenu">
+                    <div class="user-avatar" id="userAvatar">
+                        <span id="userInitials">--</span>
+                    </div>
+                    <div class="user-info">
+                        <span class="user-name" id="userName">Carregando...</span>
+                        <span class="user-role" id="userRole">Usuário</span>
+                    </div>
+                    <i class="fas fa-chevron-down user-chevron"></i>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="page-content">
+            <!-- Page Header -->
+            <div class="page-header">
+                <div class="page-title-wrapper">
+                    <h1 class="page-title">Dashboard</h1>
+                    <p class="page-subtitle">Bem-vindo de volta! Aqui está o resumo do seu negócio.</p>
+                </div>
+                <div class="page-actions">
+                    <button class="btn btn-outline" id="refreshBtn">
+                        <i class="fas fa-sync-alt"></i>
+                        Atualizar
+                    </button>
+                    <button class="btn btn-primary">
+                        <i class="fas fa-plus"></i>
+                        Novo Pedido
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Pedidos Hoje</span>
+                        <div class="kpi-icon blue">
+                            <i class="fas fa-shopping-bag"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" id="kpiPedidos">24</span>
+                        <div class="kpi-change positive">
+                            <i class="fas fa-arrow-up"></i>
+                            <span>12% vs ontem</span>
+                        </div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-detail">18 aprovados • 6 pendentes</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Faturamento Mensal</span>
+                        <div class="kpi-icon green">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" id="kpiFaturamento">R$ 458.750</span>
+                        <div class="kpi-change positive">
+                            <i class="fas fa-arrow-up"></i>
+                            <span>8.5% vs mês anterior</span>
+                        </div>
+                    </div>
+                    <div class="kpi-footer">
+                        <div class="kpi-progress">
+                            <div class="kpi-progress-bar" style="width: 78%"></div>
+                        </div>
+                        <span class="kpi-detail">78% da meta (R$ 590.000)</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Clientes Ativos</span>
+                        <div class="kpi-icon purple">
+                            <i class="fas fa-users"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" id="kpiClientes">347</span>
+                        <div class="kpi-change positive">
+                            <i class="fas fa-plus"></i>
+                            <span>23 novos este mês</span>
+                        </div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-detail">298 recorrentes • 49 novos</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-label">Produtos em Estoque</span>
+                        <div class="kpi-icon orange">
+                            <i class="fas fa-box"></i>
+                        </div>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" id="kpiEstoque">1.250</span>
+                        <div class="kpi-change negative">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>5 em baixo estoque</span>
+                        </div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-detail">R$ 2.3M em estoque total</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Quick Access Modules -->
+                <div class="card modules-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Módulos do Sistema</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="modules-grid">
+                            <a href="/modules/Compras/index.html" class="module-item" data-area="compras">
+                                <div class="module-icon purple">
+                                    <i class="fas fa-shopping-cart"></i>
+                                </div>
+                                <div class="module-info">
+                                    <span class="module-name">Compras</span>
+                                    <span class="module-desc">Pedidos e fornecedores</span>
+                                </div>
+                                <i class="fas fa-chevron-right module-arrow"></i>
+                            </a>
+                            
+                            <a href="/Vendas/index.html" class="module-item" data-area="vendas">
+                                <div class="module-icon green">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <div class="module-info">
+                                    <span class="module-name">Vendas</span>
+                                    <span class="module-desc">Pedidos e clientes</span>
+                                </div>
+                                <span class="module-badge">12 novos</span>
+                                <i class="fas fa-chevron-right module-arrow"></i>
+                            </a>
+                            
+                            <a href="/modules/NFe/index.html" class="module-item" data-area="nfe">
+                                <div class="module-icon amber">
+                                    <i class="fas fa-file-invoice"></i>
+                                </div>
+                                <div class="module-info">
+                                    <span class="module-name">NF-e & Logística</span>
+                                    <span class="module-desc">Notas e entregas</span>
+                                </div>
+                                <i class="fas fa-chevron-right module-arrow"></i>
+                            </a>
+                            
+                            <a href="/modules/PCP/index.html" class="module-item" data-area="pcp">
+                                <div class="module-icon blue">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                                <div class="module-info">
+                                    <span class="module-name">PCP</span>
+                                    <span class="module-desc">Produção e qualidade</span>
+                                </div>
+                                <i class="fas fa-chevron-right module-arrow"></i>
+                            </a>
+                            
+                            <a href="/modules/Financeiro/index.html" class="module-item" data-area="financeiro">
+                                <div class="module-icon cyan">
+                                    <i class="fas fa-wallet"></i>
+                                </div>
+                                <div class="module-info">
+                                    <span class="module-name">Financeiro</span>
+                                    <span class="module-desc">Contas e fluxo de caixa</span>
+                                </div>
+                                <span class="module-badge warning">3 pendentes</span>
+                                <i class="fas fa-chevron-right module-arrow"></i>
+                            </a>
+                            
+                            <a href="#" class="module-item" data-area="rh" onclick="navegarRH(event)">
+                                <div class="module-icon pink">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="module-info">
+                                    <span class="module-name">Recursos Humanos</span>
+                                    <span class="module-desc">Colaboradores e folha</span>
+                                </div>
+                                <i class="fas fa-chevron-right module-arrow"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Orders Table -->
+                <div class="card orders-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Últimos Pedidos</h3>
+                        <a href="/Vendas/index.html" class="card-action">Ver todos →</a>
+                    </div>
+                    <div class="card-body no-padding">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Pedido</th>
+                                    <th>Cliente</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="cell-id">#2450</td>
+                                    <td class="cell-client">
+                                        <span class="client-name">Metalúrgica Silva Ltda</span>
+                                    </td>
+                                    <td class="cell-value">R$ 12.450,00</td>
+                                    <td><span class="status-pill success">Aprovado</span></td>
+                                    <td class="cell-action">
+                                        <button class="action-btn"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#2449</td>
+                                    <td class="cell-client">
+                                        <span class="client-name">Indústria ABC</span>
+                                    </td>
+                                    <td class="cell-value">R$ 8.320,00</td>
+                                    <td><span class="status-pill warning">Pendente</span></td>
+                                    <td class="cell-action">
+                                        <button class="action-btn"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#2448</td>
+                                    <td class="cell-client">
+                                        <span class="client-name">Tech Solutions EIRELI</span>
+                                    </td>
+                                    <td class="cell-value">R$ 5.890,00</td>
+                                    <td><span class="status-pill info">Produção</span></td>
+                                    <td class="cell-action">
+                                        <button class="action-btn"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#2447</td>
+                                    <td class="cell-client">
+                                        <span class="client-name">Construtora Norte S/A</span>
+                                    </td>
+                                    <td class="cell-value">R$ 23.100,00</td>
+                                    <td><span class="status-pill success">Faturado</span></td>
+                                    <td class="cell-action">
+                                        <button class="action-btn"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#2446</td>
+                                    <td class="cell-client">
+                                        <span class="client-name">Distribuidora Central</span>
+                                    </td>
+                                    <td class="cell-value">R$ 15.780,00</td>
+                                    <td><span class="status-pill info">Expedição</span></td>
+                                    <td class="cell-action">
+                                        <button class="action-btn"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Alerts Panel -->
+                <div class="card alerts-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Alertas</h3>
+                        <span class="alerts-badge">4</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="alerts-list">
+                            <div class="alert-item critical">
+                                <div class="alert-indicator"></div>
+                                <div class="alert-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="alert-content">
+                                    <span class="alert-title">Estoque Crítico</span>
+                                    <span class="alert-text">5 produtos abaixo do mínimo</span>
+                                </div>
+                                <button class="alert-action">Ver</button>
+                            </div>
+                            
+                            <div class="alert-item warning">
+                                <div class="alert-indicator"></div>
+                                <div class="alert-icon">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <div class="alert-content">
+                                    <span class="alert-title">Títulos a Vencer</span>
+                                    <span class="alert-text">3 títulos vencem hoje</span>
+                                </div>
+                                <button class="alert-action">Ver</button>
+                            </div>
+                            
+                            <div class="alert-item info">
+                                <div class="alert-indicator"></div>
+                                <div class="alert-icon">
+                                    <i class="fas fa-truck"></i>
+                                </div>
+                                <div class="alert-content">
+                                    <span class="alert-title">Entregas do Dia</span>
+                                    <span class="alert-text">8 entregas programadas</span>
+                                </div>
+                                <button class="alert-action">Ver</button>
+                            </div>
+                            
+                            <div class="alert-item success">
+                                <div class="alert-indicator"></div>
+                                <div class="alert-icon">
+                                    <i class="fas fa-trophy"></i>
+                                </div>
+                                <div class="alert-content">
+                                    <span class="alert-title">Meta Atingida!</span>
+                                    <span class="alert-text">Vendas ultrapassaram 100%</span>
+                                </div>
+                                <button class="alert-action">Ver</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Feed -->
+                <div class="card activity-card">
+                    <div class="card-header">
+                        <h3 class="card-title">Atividade Recente</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="activity-feed">
+                            <div class="activity-item">
+                                <div class="activity-dot green"></div>
+                                <div class="activity-content">
+                                    <p class="activity-text"><strong>Pedido #2450</strong> foi aprovado pelo cliente</p>
+                                    <span class="activity-time">Há 15 minutos</span>
+                                </div>
+                            </div>
+                            
+                            <div class="activity-item">
+                                <div class="activity-dot blue"></div>
+                                <div class="activity-content">
+                                    <p class="activity-text"><strong>NF-e 000012345</strong> autorizada pela SEFAZ</p>
+                                    <span class="activity-time">Há 1 hora</span>
+                                </div>
+                            </div>
+                            
+                            <div class="activity-item">
+                                <div class="activity-dot purple"></div>
+                                <div class="activity-content">
+                                    <p class="activity-text">Novo cliente <strong>Tech Solutions</strong> cadastrado</p>
+                                    <span class="activity-time">Há 2 horas</span>
+                                </div>
+                            </div>
+                            
+                            <div class="activity-item">
+                                <div class="activity-dot orange"></div>
+                                <div class="activity-content">
+                                    <p class="activity-text"><strong>OP-0234</strong> iniciou produção</p>
+                                    <span class="activity-time">Há 3 horas</span>
+                                </div>
+                            </div>
+                            
+                            <div class="activity-item">
+                                <div class="activity-dot cyan"></div>
+                                <div class="activity-content">
+                                    <p class="activity-text">Pagamento de <strong>R$ 15.430</strong> recebido</p>
+                                    <span class="activity-time">Há 4 horas</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="main-footer">
+            <span>© 2026 ALUFORCE ERP. Todos os direitos reservados.</span>
+            <span class="footer-version">v2.0.0</span>
+        </footer>
+    </main>
+
+    <!-- Notification Panel -->
+    <div class="notification-panel" id="notificationPanel">
+        <div class="panel-header">
+            <h4>Notificações</h4>
+            <button class="panel-action">Marcar como lidas</button>
+        </div>
+        <div class="panel-body">
+            <div class="notification-item unread">
+                <div class="notif-icon green"><i class="fas fa-check"></i></div>
+                <div class="notif-content">
+                    <p>Pedido #2450 aprovado</p>
+                    <span>15 min atrás</span>
+                </div>
+            </div>
+            <div class="notification-item unread">
+                <div class="notif-icon orange"><i class="fas fa-exclamation"></i></div>
+                <div class="notif-content">
+                    <p>Estoque ALU-001 baixo</p>
+                    <span>2 horas atrás</span>
+                </div>
+            </div>
+            <div class="notification-item">
+                <div class="notif-icon blue"><i class="fas fa-file"></i></div>
+                <div class="notif-content">
+                    <p>NF-e 12345 autorizada</p>
+                    <span>3 horas atrás</span>
+                </div>
+            </div>
+            <div class="notification-item">
+                <div class="notif-icon purple"><i class="fas fa-user-plus"></i></div>
+                <div class="notif-content">
+                    <p>Novo cliente cadastrado</p>
+                    <span>5 horas atrás</span>
+                </div>
+            </div>
+        </div>
+        <div class="panel-footer">
+            <a href="#">Ver todas as notificações</a>
+        </div>
+    </div>
+
+    <!-- User Dropdown -->
+    <div class="user-dropdown" id="userDropdown">
+        <div class="dropdown-user-info">
+            <div class="dropdown-avatar" id="dropdownAvatar">
+                <span id="dropdownInitials">--</span>
+            </div>
+            <div class="dropdown-details">
+                <span class="dropdown-name" id="dropdownName">Usuário</span>
+                <span class="dropdown-email" id="dropdownEmail">email@aluforce.ind.br</span>
+            </div>
+        </div>
+        <div class="dropdown-menu">
+            <a href="#" class="dropdown-item">
+                <i class="fas fa-user"></i>
+                <span>Meu Perfil</span>
+            </a>
+            <a href="#" class="dropdown-item" onclick="showConfigModal(event)">
+                <i class="fas fa-cog"></i>
+                <span>Preferências</span>
+            </a>
+            <a href="#" class="dropdown-item">
+                <i class="fas fa-question-circle"></i>
+                <span>Ajuda</span>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="#" class="dropdown-item danger" onclick="handleLogout(event)">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Sair do Sistema</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Scripts -->
+    <script>
+        // ========================================
+        // SISTEMA DE AUTENTICAÇÃO
+        // ========================================
+        
+        let currentUser = null;
+        
+        const emailPermissions = {
+            'ti@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'diretoria@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'compras@aluforce.ind.br': ['compras'],
+            'financeiro@aluforce.ind.br': ['financeiro'],
+            'vendas@aluforce.ind.br': ['vendas'],
+            'vendas1@aluforce.ind.br': ['vendas'],
+            'vendas2@aluforce.ind.br': ['vendas'],
+            'pcp@aluforce.ind.br': ['pcp', 'vendas'],
+            'expedicao@aluforce.ind.br': ['nfe', 'vendas'],
+            'rh@aluforce.ind.br': ['rh']
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initAuth();
+            initUI();
+            initAnimations();
+        });
+
+        async function initAuth() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (!response.ok) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+                
+                currentUser = await response.json();
+                updateUserUI(currentUser);
+                applyModulePermissions(currentUser.email);
+                
+            } catch (error) {
+                console.error('Auth error:', error);
+                window.location.href = '/login.html';
+            }
+        }
+
+        function updateUserUI(user) {
+            const name = user.nome || user.name || 'Usuário';
+            const email = user.email || '';
+            const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            
+            document.getElementById('userName').textContent = name.split(' ')[0];
+            document.getElementById('userRole').textContent = getRoleName(email);
+            document.getElementById('userInitials').textContent = initials;
+            
+            document.getElementById('dropdownName').textContent = name;
+            document.getElementById('dropdownEmail').textContent = email;
+            document.getElementById('dropdownInitials').textContent = initials;
+        }
+
+        function getRoleName(email) {
+            const roles = {
+                'ti@aluforce.ind.br': 'Administrador',
+                'diretoria@aluforce.ind.br': 'Diretoria',
+                'compras@aluforce.ind.br': 'Compras',
+                'financeiro@aluforce.ind.br': 'Financeiro',
+                'vendas@aluforce.ind.br': 'Comercial',
+                'pcp@aluforce.ind.br': 'Produção',
+                'rh@aluforce.ind.br': 'RH'
+            };
+            return roles[email] || 'Colaborador';
+        }
+
+        function applyModulePermissions(email) {
+            const permissions = emailPermissions[email] || [];
+            const isAdmin = ['ti@aluforce.ind.br', 'diretoria@aluforce.ind.br'].includes(email);
+            
+            if (isAdmin) return;
+            
+            document.querySelectorAll('[data-area]').forEach(el => {
+                const area = el.dataset.area;
+                if (!permissions.includes(area)) {
+                    el.style.display = 'none';
+                }
+            });
+        }
+
+        // ========================================
+        // INTERFACE DO USUÁRIO
+        // ========================================
+        
+        function initUI() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+            const overlay = document.getElementById('sidebarOverlay');
+            const userMenu = document.getElementById('userMenu');
+            const userDropdown = document.getElementById('userDropdown');
+            const notificationBtn = document.getElementById('notificationBtn');
+            const notificationPanel = document.getElementById('notificationPanel');
+            
+            // Sidebar toggle (desktop)
+            sidebarToggle?.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+                localStorage.setItem('sidebarState', sidebar.classList.contains('collapsed') ? 'collapsed' : 'expanded');
+                
+                const icon = sidebarToggle.querySelector('i');
+                icon.className = sidebar.classList.contains('collapsed') ? 'fas fa-chevron-right' : 'fas fa-chevron-left';
+            });
+            
+            // Mobile menu
+            mobileMenuBtn?.addEventListener('click', () => {
+                sidebar.classList.add('mobile-open');
+                overlay.classList.add('active');
+            });
+            
+            overlay?.addEventListener('click', closeMobileMenu);
+            
+            // Restore sidebar state
+            if (localStorage.getItem('sidebarState') === 'collapsed' && window.innerWidth > 1024) {
+                sidebar.classList.add('collapsed');
+                const icon = sidebarToggle?.querySelector('i');
+                if (icon) icon.className = 'fas fa-chevron-right';
+            }
+            
+            // User dropdown
+            userMenu?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdown.classList.toggle('active');
+                notificationPanel.classList.remove('active');
+            });
+            
+            // Notifications
+            notificationBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notificationPanel.classList.toggle('active');
+                userDropdown.classList.remove('active');
+            });
+            
+            // Close dropdowns on outside click
+            document.addEventListener('click', (e) => {
+                if (!userDropdown.contains(e.target)) userDropdown.classList.remove('active');
+                if (!notificationPanel.contains(e.target)) notificationPanel.classList.remove('active');
+            });
+            
+            // Keyboard shortcut for search
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    document.getElementById('globalSearch')?.focus();
+                }
+                if (e.key === 'Escape') {
+                    closeMobileMenu();
+                    userDropdown.classList.remove('active');
+                    notificationPanel.classList.remove('active');
+                }
+            });
+            
+            // Refresh button
+            document.getElementById('refreshBtn')?.addEventListener('click', () => {
+                location.reload();
+            });
+        }
+        
+        function closeMobileMenu() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            document.getElementById('sidebarOverlay').classList.remove('active');
+        }
+
+        function initAnimations() {
+            // Animate KPI cards on load
+            const kpiCards = document.querySelectorAll('.kpi-card');
+            kpiCards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+            });
+            
+            // Animate cards
+            const cards = document.querySelectorAll('.card');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('animate-in');
+                    }
+                });
+            }, { threshold: 0.1 });
+            
+            cards.forEach(card => observer.observe(card));
+        }
+
+        // ========================================
+        // NAVEGAÇÃO E AÇÕES
+        // ========================================
+        
+        function navegarRH(event) {
+            event.preventDefault();
+            const email = currentUser?.email || '';
+            
+            const adminUrls = ['ti@aluforce.ind.br', 'diretoria@aluforce.ind.br', 'rh@aluforce.ind.br'];
+            const url = adminUrls.includes(email) ? '/RecursosHumanos/admin.html' : '/RecursosHumanos/index.html';
+            
+            window.location.href = url;
+        }
+
+        function showConfigModal(event) {
+            event.preventDefault();
+            alert('Configurações em desenvolvimento');
+        }
+
+        function handleLogout(event) {
+            event.preventDefault();
+            if (confirm('Deseja sair do sistema?')) {
+                fetch('/api/logout', { method: 'POST', credentials: 'include' })
+                    .finally(() => window.location.href = '/login.html');
+            }
+        }
+
+        // PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+    </script>
+</body>
+</html>

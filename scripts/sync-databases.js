@@ -7,7 +7,7 @@
 const mysql = require('mysql2/promise');
 
 async function syncRailwayToLocal() {
-  console.log('=== SINCRONIZAÇÁO: Railway -> Local ===\n');
+  console.log('=== SINCRONIZAÇÃO: Railway -> Local ===\n');
   
   const railway = await mysql.createConnection({
     host: 'interchange.proxy.rlwy.net', 

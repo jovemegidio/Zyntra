@@ -1,8 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <meta charset="UTF-8">
+    <meta name="theme-color" content="#1a1a2e">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: Avaliações de Desempenho</title>
@@ -1097,11 +1098,69 @@
             });
         });
 
-        // Form submission
-        document.getElementById('formAutoavaliacao').addEventListener('submit', function(e) {
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
+        // Form submission — envia para a API
+        document.getElementById('formAutoavaliacao').addEventListener('submit', async function(e) {
             e.preventDefault();
-            showToast('Auto-avaliação enviada com sucesso!', 'success');
-            this.reset();
+            
+            const formData = new FormData(this);
+            const dados = {
+                nota_pessoal: formData.get('nota_pessoal') || formData.get('notaPessoal') || null,
+                pontos_fortes: formData.get('pontos_fortes') || formData.get('pontosFortes') || '',
+                pontos_melhoria: formData.get('pontos_melhoria') || formData.get('pontosMelhoria') || '',
+                objetivos: formData.get('objetivos') || '',
+                comentarios: formData.get('comentarios') || ''
+            };
+
+            // Tentar extrair campos do formulário por ID/name se FormData não capturou
+            if (!dados.nota_pessoal) {
+                const notaEl = this.querySelector('[name*="nota"], [id*="nota"], input[type="number"]');
+                if (notaEl) dados.nota_pessoal = notaEl.value;
+            }
+            if (!dados.pontos_fortes) {
+                const el = this.querySelector('[name*="forte"], [id*="forte"]');
+                if (el) dados.pontos_fortes = el.value;
+            }
+            if (!dados.pontos_melhoria) {
+                const el = this.querySelector('[name*="melhoria"], [id*="melhoria"]');
+                if (el) dados.pontos_melhoria = el.value;
+            }
+            if (!dados.objetivos) {
+                const el = this.querySelector('[name*="objetivo"], [id*="objetivo"]');
+                if (el) dados.objetivos = el.value;
+            }
+            if (!dados.comentarios) {
+                const el = this.querySelector('[name*="comentario"], [id*="comentario"], textarea');
+                if (el) dados.comentarios = el.value;
+            }
+
+            try {
+                const response = await fetch('/api/rh/avaliacoes', {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast('Auto-avaliação enviada com sucesso!', 'success');
+                    this.reset();
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showToast(err.message || 'Erro ao enviar auto-avaliação', 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao enviar auto-avaliação:', error);
+                showToast('Erro de conexão ao enviar auto-avaliação', 'error');
+            }
         });
 
         // Toast function
@@ -1203,7 +1262,7 @@
     <!-- Sistema de Monitoramento de Conexão -->
     <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
     <script src="/js/popup-confirmacao.js"></script>
-    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
     <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
         <!-- Chat Widget BOB AI -->
     <script src="/chat/widget.js?v=20260218" defer></script>

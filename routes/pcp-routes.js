@@ -20,7 +20,7 @@ module.exports = function createPCPRoutes(deps) {
     const fs = require('fs');
     const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 10 * 1024 * 1024 } });
     const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
-    
+
     // LGPD Crypto - descriptografia PII (pode não existir)
     let lgpdCrypto = null;
     try { lgpdCrypto = require('../lgpd-crypto'); } catch (_) {}
@@ -31,12 +31,27 @@ module.exports = function createPCPRoutes(deps) {
         next();
     };
     router.use(authenticateToken);
-    // authorizeArea('pcp') - SKIP para rotas /api/configuracoes/* que são acessadas por TODOS os módulos
-    router.use((req, res, next) => {
+    // PCP module serves Compras, Estoque and Produção
+    // Accept users with 'pcp' OR 'compras' area permission (FIX 28/02/2026)
+    router.use(async (req, res, next) => {
         if (req.path.startsWith('/api/configuracoes')) {
-            return next(); // Configuracoes são globais, não restritas ao PCP
+            return next(); // Configurações são globais, não restritas ao PCP
         }
-        authorizeArea('pcp')(req, res, next);
+        // Helper: tenta autorizar por uma área sem enviar resposta de erro
+        const tryAuth = (area) => new Promise((resolve) => {
+            const fakeRes = {
+                status: () => ({ json: () => resolve(false) })
+            };
+            authorizeArea(area)(req, fakeRes, () => resolve(true)).catch(() => resolve(false));
+        });
+
+        if (await tryAuth('pcp') || await tryAuth('compras')) {
+            return next();
+        }
+
+        return res.status(403).json({
+            message: 'Acesso negado. Você não tem permissão para acessar este módulo (PCP/Compras).'
+        });
     });
     // ----------------- ROTAS PCP (Compras, Estoque e Produção) UNIFICADAS -----------------
 
@@ -58,14 +73,14 @@ module.exports = function createPCPRoutes(deps) {
         _produtoColumnsCacheTime = now;
         return _produtoColumnsCache;
     }
-    
+
     // Rota /me para o PCP retornar dados do usuário logado
     router.get('/me', async (req, res) => {
         try {
             if (!req.user) {
                 return res.status(401).json({ message: 'Não autenticado' });
             }
-    
+
             // Buscar dados completos do usuário no banco com JOIN para foto do funcionário
             const [[dbUser]] = await pool.query(
                 `SELECT u.id, u.nome, u.email, u.role, u.is_admin,
@@ -76,11 +91,11 @@ module.exports = function createPCPRoutes(deps) {
                  WHERE u.id = ?`,
                 [req.user.id]
             );
-    
+
             if (!dbUser) {
                 return res.status(404).json({ message: 'Usuário não encontrado' });
             }
-    
+
             // Parse permissões
             let permissoes = [];
             if (dbUser.permissoes) {
@@ -91,10 +106,10 @@ module.exports = function createPCPRoutes(deps) {
                     permissoes = [];
                 }
             }
-    
+
             // Determinar a foto (prioridade: avatar > foto > foto_funcionario)
             const fotoUsuario = dbUser.avatar || dbUser.foto || dbUser.foto_funcionario || "/avatars/default.webp";
-    
+
             // Retornar dados completos do usuário
             res.json({
                 user: {
@@ -114,7 +129,7 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao buscar dados do usuário' });
         }
     });
-    
+
     // DASHBOARD / STATS DO PCP
     router.get('/dashboard', async (req, res, next) => {
         try {
@@ -123,13 +138,13 @@ module.exports = function createPCPRoutes(deps) {
             const [[produtosResult]] = await pool.query(
                 `SELECT COUNT(*) as total FROM produtos WHERE (ativo = 1 OR ativo IS NULL) AND (categoria IS NULL OR categoria != 'GERAL')`
             );
-    
+
             // Ordens em produção (status ativa ou em_producao)
             const [[ordensResult]] = await pool.query(
                 `SELECT COUNT(*) as total FROM ordens_producao
                  WHERE status IN ('ativa', 'em_producao', 'Em Produção', 'em_andamento', 'A Fazer', 'pendente')`
             );
-    
+
             // Produtos COM estoque (estoque_atual > 0)
             // Exclui categoria 'GERAL' (suprimentos, limpeza, escritório) — não são itens de produção PCP
             const [[produtosComEstoqueResult]] = await pool.query(
@@ -138,7 +153,7 @@ module.exports = function createPCPRoutes(deps) {
                  AND (ativo = 1 OR ativo IS NULL)
                  AND (categoria IS NULL OR categoria != 'GERAL')`
             );
-    
+
             // Total de Materiais cadastrados
             const [[materiaisResult]] = await pool.query(
                 'SELECT COUNT(*) as total FROM materiais'
@@ -152,7 +167,7 @@ module.exports = function createPCPRoutes(deps) {
                  AND data_prevista >= CURDATE()
                  AND data_prevista <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)`
             );
-    
+
             res.json({
                 totalProdutos: produtosResult?.total || 0,
                 ordensEmProducao: ordensResult?.total || 0,
@@ -172,14 +187,14 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // ============================================
     // ALERTAS DO SISTEMA PCP
     // ============================================
     router.get('/alertas', async (req, res) => {
         try {
             const alertas = [];
-    
+
             // 1. Produtos com estoque CRÍTICO (zerado)
             // Exclui categoria 'GERAL' (suprimentos, limpeza, escritório) — não são itens de produção PCP
             const [produtosCriticos] = await pool.query(`
@@ -191,7 +206,7 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY nome ASC
                 LIMIT 50
             `);
-    
+
             if (produtosCriticos && produtosCriticos.length > 0) {
                 alertas.push({
                     tipo: 'critico',
@@ -211,7 +226,7 @@ module.exports = function createPCPRoutes(deps) {
                     }))
                 });
             }
-    
+
             // 2. Produtos com estoque BAIXO (abaixo do mínimo)
             // Exclui categoria 'GERAL' (suprimentos, limpeza, escritório) — não são itens de produção PCP
             const [produtosBaixo] = await pool.query(`
@@ -225,7 +240,7 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY estoque_atual ASC
                 LIMIT 50
             `);
-    
+
             if (produtosBaixo && produtosBaixo.length > 0) {
                 alertas.push({
                     tipo: 'warning',
@@ -245,7 +260,7 @@ module.exports = function createPCPRoutes(deps) {
                     }))
                 });
             }
-    
+
             // 3. Ordens de Produção em atraso
             const [ordensAtraso] = await pool.query(`
                 SELECT id, codigo, produto_nome, data_previsao_entrega, status, cliente
@@ -255,7 +270,7 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY data_previsao_entrega ASC
                 LIMIT 20
             `);
-    
+
             if (ordensAtraso && ordensAtraso.length > 0) {
                 alertas.push({
                     tipo: 'critico',
@@ -275,7 +290,7 @@ module.exports = function createPCPRoutes(deps) {
                     }))
                 });
             }
-    
+
             // 4. Ordens pendentes há mais de 7 dias
             const [ordensPendentes] = await pool.query(`
                 SELECT id, codigo, produto_nome, created_at, status, cliente
@@ -285,7 +300,7 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY created_at ASC
                 LIMIT 20
             `);
-    
+
             if (ordensPendentes && ordensPendentes.length > 0) {
                 alertas.push({
                     tipo: 'warning',
@@ -305,7 +320,7 @@ module.exports = function createPCPRoutes(deps) {
                     }))
                 });
             }
-    
+
             // 5. Materiais com estoque baixo
             try {
                 const [materiaisBaixo] = await pool.query(`
@@ -316,7 +331,7 @@ module.exports = function createPCPRoutes(deps) {
                     ORDER BY quantidade_estoque ASC
                     LIMIT 30
                 `);
-    
+
                 if (materiaisBaixo && materiaisBaixo.length > 0) {
                     alertas.push({
                         tipo: 'warning',
@@ -339,7 +354,7 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[PCP/ALERTAS] Tabela materiais não encontrada:', e.message);
             }
-    
+
             res.json({
                 success: true,
                 alertas: alertas,
@@ -358,7 +373,7 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // ORDENS DE PRODUÇÁO
     router.get('/ordens', async (req, res, next) => {
         try {
@@ -402,14 +417,14 @@ module.exports = function createPCPRoutes(deps) {
             }
         } catch (error) { next(error); }
     });
-    
+
     // MATERIAIS
     router.get('/materiais', async (req, res, next) => {
         try {
             const limit = parseInt(req.query.limit) || 1000;
             const offset = parseInt(req.query.offset) || 0;
             const comRecebimento = req.query.com_recebimento === 'true';
-    
+
             let query, params;
             if (comRecebimento) {
                 // Verificar se tabela recebimentos_compras existe antes de usar
@@ -437,7 +452,7 @@ module.exports = function createPCPRoutes(deps) {
                 query = 'SELECT id, codigo_material, descricao, unidade_medida, quantidade_estoque, fornecedor_padrao FROM materiais ORDER BY descricao ASC LIMIT ? OFFSET ?';
                 params = [limit, offset];
             }
-    
+
             const [rows] = await pool.query(query, params);
             res.json(rows);
         } catch (error) { next(error); }
@@ -482,20 +497,20 @@ module.exports = function createPCPRoutes(deps) {
             }
         } catch (error) { next(error); }
     });
-    
+
     // MATERIAIS - Deletar material
     router.delete('/materiais/:id', [
         param('id').isInt({ min: 1 }).withMessage('ID do material inválido')
     ], async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             // Verificar se material existe
             const [existing] = await pool.query('SELECT id FROM materiais WHERE id = ?', [id]);
             if (existing.length === 0) {
                 return res.status(404).json({ message: 'Material não encontrado.' });
             }
-    
+
             // Verificar se há dependências (ordens de compra)
             const [dependencies] = await pool.query('SELECT COUNT(*) as count FROM ordens_compra WHERE material_id = ?', [id]);
             if (dependencies[0].count > 0) {
@@ -503,13 +518,13 @@ module.exports = function createPCPRoutes(deps) {
                     message: 'Não é possível excluir. Material possui ordens de compra associadas.'
                 });
             }
-    
+
             // Deletar material
             const [result] = await pool.query('DELETE FROM materiais WHERE id = ?', [id]);
             res.json({ message: 'Material excluído com sucesso!' });
         } catch (error) { next(error); }
     });
-    
+
     // ORDENS DE COMPRA
     router.get('/ordens-compra', async (req, res, next) => {
         try {
@@ -531,7 +546,74 @@ module.exports = function createPCPRoutes(deps) {
             res.status(201).json({ message: 'Ordem de compra criada com sucesso!', id: result.insertId });
         } catch (error) { next(error); }
     });
-    
+
+    // ORDENS DE COMPRA - Buscar por ID
+    router.get('/ordens-compra/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const [rows] = await pool.query(
+                `SELECT oc.*, m.codigo_material, m.descricao AS material_nome
+                 FROM ordens_compra oc
+                 LEFT JOIN materiais m ON oc.material_id = m.id
+                 WHERE oc.id = ?`,
+                [id]
+            );
+            if (rows.length === 0) {
+                return res.status(404).json({ message: 'Ordem de compra não encontrada' });
+            }
+            res.json(rows[0]);
+        } catch (error) { next(error); }
+    });
+
+    // ORDENS DE COMPRA - Atualizar
+    router.put('/ordens-compra/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const { fornecedor, status, previsao_entrega, observacoes, quantidade, material_id, valor_total } = req.body;
+
+            const fields = [];
+            const params = [];
+
+            if (fornecedor !== undefined) { fields.push('fornecedor = ?'); params.push(fornecedor); }
+            if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+            if (previsao_entrega !== undefined) { fields.push('previsao_entrega = ?'); params.push(previsao_entrega); }
+            if (observacoes !== undefined) { fields.push('observacoes = ?'); params.push(observacoes); }
+            if (quantidade !== undefined) { fields.push('quantidade = ?'); params.push(quantidade); }
+            if (material_id !== undefined) { fields.push('material_id = ?'); params.push(material_id); }
+            if (valor_total !== undefined) { fields.push('valor_total = ?'); params.push(valor_total); }
+
+            if (fields.length === 0) {
+                return res.status(400).json({ message: 'Nenhum campo para atualizar' });
+            }
+
+            params.push(id);
+            const [result] = await pool.query(
+                `UPDATE ordens_compra SET ${fields.join(', ')} WHERE id = ?`,
+                params
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Ordem de compra não encontrada' });
+            }
+
+            res.json({ success: true, message: 'Ordem de compra atualizada com sucesso' });
+        } catch (error) { next(error); }
+    });
+
+    // ORDENS DE COMPRA - Deletar
+    router.delete('/ordens-compra/:id', async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const [result] = await pool.query('DELETE FROM ordens_compra WHERE id = ?', [id]);
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'Ordem de compra não encontrada' });
+            }
+
+            res.json({ success: true, message: 'Ordem de compra excluída com sucesso' });
+        } catch (error) { next(error); }
+    });
+
     // PRODUTOS
     // PRODUTOS - Listar produtos (com filtros para catálogo)
     router.get('/produtos', async (req, res, next) => {
@@ -539,28 +621,28 @@ module.exports = function createPCPRoutes(deps) {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 1000; // Default maior para catálogo
             const offset = (page - 1) * limit;
-    
+
             // Filtros opcionais
             const categoria = req.query.categoria;
             const estoque = req.query.estoque; // 'todos', 'com-estoque', 'baixo', 'zerado'
             const search = req.query.search || req.query.q; // Aceita ambos os parâmetros
             const apenasAluforce = req.query.aluforce === 'true' || req.query.aluforce === '1';
-    
+
             // Construir query base
             let whereConditions = ['status = "ativo"'];
             let queryParams = [];
-    
+
             // Filtro para mostrar apenas produtos ALUFORCE CB
             if (apenasAluforce) {
                 whereConditions.push('(UPPER(nome) LIKE "%ALUFORCE CB%" OR categoria = "ALUFORCE CB")');
             }
-    
+
             // Filtro por categoria
             if (categoria && categoria !== 'todas' && categoria !== 'Todas as Categorias') {
                 whereConditions.push('categoria = ?');
                 queryParams.push(categoria);
             }
-    
+
             // Filtro por estoque
             if (estoque === 'com-estoque') {
                 whereConditions.push('estoque_atual > 0');
@@ -569,16 +651,16 @@ module.exports = function createPCPRoutes(deps) {
             } else if (estoque === 'zerado' || estoque === 'critico') {
                 whereConditions.push('estoque_atual <= 0');
             }
-    
+
             // Filtro por busca (código, nome, EAN-13, SKU, NCM)
             if (search) {
                 const searchPattern = `%${search}%`;
                 whereConditions.push('(codigo LIKE ? OR nome LIKE ? OR gtin LIKE ? OR sku LIKE ? OR ncm LIKE ?)');
                 queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
             }
-    
+
             const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
-    
+
             // Query principal com todos os campos necessários
             const query = `
                 SELECT
@@ -604,20 +686,20 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY nome ASC
                 LIMIT ? OFFSET ?
             `;
-    
+
             queryParams.push(limit, offset);
-    
+
             const [rows] = await pool.query(query, queryParams);
-    
+
             // Query de contagem total
             const countQuery = `SELECT COUNT(*) as total FROM produtos ${whereClause}`;
             const [[{ total }]] = await pool.query(countQuery, queryParams.slice(0, -2)); // Remove limit e offset
-    
+
             // Estatísticas adicionais para o catálogo (considerando filtro ALUFORCE)
             const statsWhere = apenasAluforce
                 ? 'WHERE status = "ativo" AND (UPPER(nome) LIKE "%ALUFORCE CB%" OR categoria = "ALUFORCE CB")'
                 : 'WHERE status = "ativo"';
-    
+
             const [stats] = await pool.query(`
                 SELECT
                     COUNT(*) as total_produtos,
@@ -628,7 +710,7 @@ module.exports = function createPCPRoutes(deps) {
                 FROM produtos
                 ${statsWhere}
             `);
-    
+
             res.json({
                 produtos: rows,
                 total,
@@ -642,7 +724,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // PRODUTOS - Alertas de estoque baixo (DEVE VIR ANTES DA ROTA /:id)
     router.get('/produtos/estoque-baixo', async (req, res, next) => {
         try {
@@ -664,18 +746,18 @@ module.exports = function createPCPRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // PRODUTOS - Autocomplete por código ou nome (DEVE VIR ANTES DA ROTA /:id)
     router.get('/produtos/search', async (req, res, next) => {
         try {
             const query = req.query.q || '';
             const limit = parseInt(req.query.limit) || 10;
-    
+
             if (!query) {
                 const [rows] = await pool.query('SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, preco_venda, estoque_atual, quantidade_estoque, estoque_minimo, categoria, status FROM produtos WHERE status = "ativo" LIMIT ?', [limit]);
                 return res.json(rows);
             }
-    
+
             const searchPattern = `%${query}%`;
             const [rows] = await pool.query(`
                 SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, preco_venda, estoque_atual, quantidade_estoque, estoque_minimo, categoria, status
@@ -694,27 +776,27 @@ module.exports = function createPCPRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // PRODUTOS - Buscar produto por ID (regex \\d+ garante que só números são capturados)
     router.get('/produtos/:id(\\d+)', async (req, res, next) => {
         try {
             const { id } = req.params;
             const [rows] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({ message: 'Produto não encontrado' });
             }
-    
+
             res.json(rows[0]);
         } catch (error) { next(error); }
     });
-    
+
     // PRODUTOS - Buscar movimentações por ID do produto (regex \\d+ garante que só números são capturados)
     router.get('/produtos/:id(\\d+)/movimentacoes', async (req, res, next) => {
         try {
             const { id } = req.params;
             const limit = parseInt(req.query.limit) || 50;
-    
+
             const [movimentacoes] = await pool.query(`
                 SELECT
                     me.id,
@@ -735,7 +817,7 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY COALESCE(me.criado_em, me.data_movimento, me.created_at) DESC
                 LIMIT ?
             `, [id, limit]);
-    
+
             res.json({ movimentacoes: movimentacoes || [] });
         } catch (error) {
             console.error('Erro ao buscar movimentações do produto:', error);
@@ -743,7 +825,7 @@ module.exports = function createPCPRoutes(deps) {
             res.json({ movimentacoes: [] });
         }
     });
-    
+
     // PRODUTOS - Criar novo produto
     router.post('/produtos', [
         body('codigo').notEmpty().withMessage('Código é obrigatório'),
@@ -754,7 +836,7 @@ module.exports = function createPCPRoutes(deps) {
             if (!errors.isEmpty()) {
                 return res.status(400).json({ errors: errors.array() });
             }
-    
+
             const {
                 codigo, sku, gtin, nome, descricao, categoria, marca, variacao,
                 embalagem, preco, preco_venda, preco_custo, custo_unitario, custo,
@@ -763,11 +845,11 @@ module.exports = function createPCPRoutes(deps) {
                 cfop_saida_interna, obs_internas, info_adicional_produto,
                 observacoes, tipo_produto, controle_lote, ativo
             } = req.body;
-    
+
             const precoFinal = preco_venda || preco || 0;
             const custoFinal = custo_unitario || preco_custo || custo || 0;
             const unidadeFinal = unidade_medida || embalagem || 'UN';
-            
+
             const [result] = await pool.query(`
                 INSERT INTO produtos (
                     codigo, sku, gtin, nome, descricao, categoria, marca, variacao,
@@ -787,7 +869,7 @@ module.exports = function createPCPRoutes(deps) {
                 cfop_saida_interna || '5102', obs_internas || null, info_adicional_produto || null,
                 observacoes || null, tipo_produto || 'produto', controle_lote || 0, ativo !== undefined ? ativo : 1
             ]);
-    
+
             // Emitir evento WebSocket para sincronização em tempo real
             const newProduct = {
                 id: result.insertId,
@@ -798,13 +880,13 @@ module.exports = function createPCPRoutes(deps) {
                 localizacao, ncm, cest, status: status || 'ativo',
                 cor, tipo_produto: tipo_produto || 'produto'
             };
-    
+
             // Broadcast para todos os clientes conectados
             if (global.io) {
                 global.io.emit('product-created', newProduct);
                 console.log('🔄 WebSocket: Produto criado emitido para todos os clientes');
             }
-    
+
             res.json({
                 success: true,
                 message: 'Produto criado com sucesso',
@@ -812,7 +894,7 @@ module.exports = function createPCPRoutes(deps) {
             });
         } catch (error) { next(error); }
     });
-    
+
     // PRODUTOS - Atualizar produto
     router.put('/produtos/:id', [
         body('codigo').notEmpty().withMessage('Código é obrigatório'),
@@ -823,7 +905,7 @@ module.exports = function createPCPRoutes(deps) {
             if (!errors.isEmpty()) {
                 return res.status(400).json({ errors: errors.array() });
             }
-    
+
             const { id } = req.params;
             const {
                 codigo, sku, gtin, nome, descricao, categoria, marca, variacao,
@@ -836,16 +918,16 @@ module.exports = function createPCPRoutes(deps) {
                 obs_internas, obs_fornecedor, obs_venda, observacoes, ativo, tipo_produto,
                 margem, origem, cfop_saida_interna, info_adicional_produto, controle_lote
             } = req.body;
-    
+
             // Usar valores compatíveis - priorizar campos específicos
             const custoFinal = custo_unitario || preco_custo || 0;
             const precoVendaFinal = preco_venda !== undefined ? preco_venda : (preco || 0);
             const estoqueFinal = estoque !== undefined ? estoque : (quantidade_estoque || 0);
             const unidadeFinal = unidade_medida || unidade || 'UN';
             const observacoesFinal = observacoes || null;
-    
+
             console.log('[SERVER.JS PUT /produtos/:id] Dados recebidos:', { id, estoque, quantidade_estoque, estoqueFinal, preco_venda, preco, precoVendaFinal });
-    
+
             const [result] = await pool.query(`
                 UPDATE produtos SET
                     codigo = ?, sku = ?, gtin = ?, nome = ?, descricao = ?,
@@ -880,13 +962,13 @@ module.exports = function createPCPRoutes(deps) {
                 info_adicional_produto || null, controle_lote !== undefined ? controle_lote : 0,
                 id
             ]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Produto não encontrado' });
             }
-    
+
             console.log('[SERVER.JS PUT /produtos/:id] ✅ Produto atualizado com sucesso:', { id, estoqueFinal, precoVendaFinal });
-    
+
             // Emitir evento WebSocket para sincronização em tempo real
             const updatedProduct = {
                 id, codigo, sku, gtin, nome, descricao, categoria, marca, variacao,
@@ -894,48 +976,48 @@ module.exports = function createPCPRoutes(deps) {
                 estoque_atual: estoqueFinal, quantidade_estoque: estoqueFinal,
                 status: status || 'ativo'
             };
-    
+
             // Broadcast para todos os clientes conectados
             if (global.io) {
                 global.io.emit('product-updated', updatedProduct);
                 console.log(`🔄 WebSocket: Produto ${id} atualizado emitido para todos os clientes`);
             }
-    
+
             res.json({
                 success: true,
                 message: 'Produto atualizado com sucesso'
             });
         } catch (error) { next(error); }
     });
-    
+
     // PRODUTOS - Deletar produto
     router.delete('/produtos/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             const [result] = await pool.query('DELETE FROM produtos WHERE id = ?', [id]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Produto não encontrado' });
             }
-    
+
             // Emitir evento WebSocket para sincronização em tempo real
             if (global.io) {
                 global.io.emit('product-deleted', { id });
                 console.log(`🔄 WebSocket: Produto ${id} excluído emitido para todos os clientes`);
             }
-    
+
             res.json({
                 success: true,
                 message: 'Produto excluído com sucesso'
             });
         } catch (error) { next(error); }
     });
-    
+
     // =====================================================
     // FATURAMENTOS - ENDPOINTS
     // =====================================================
-    
+
     // FATURAMENTOS - Listar todos
     router.get('/faturamentos', async (req, res, next) => {
         try {
@@ -947,12 +1029,12 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_FATURAMENTOS] Tabela programacao_faturamento não existe');
             }
-    
+
             if (!tableExists) {
                 // Retornar array vazio para compatibilidade com frontend
                 return res.json([]);
             }
-    
+
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = parseInt(req.query.offset) || 0;
             const [rows] = await pool.query(`
@@ -961,7 +1043,7 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY data_programada DESC, id DESC
                 LIMIT ? OFFSET ?
             `, [limit, offset]);
-    
+
             // Retornar array direto para compatibilidade com frontend antigo
             res.json(rows || []);
         } catch (error) {
@@ -970,21 +1052,21 @@ module.exports = function createPCPRoutes(deps) {
             res.json([]);
         }
     });
-    
+
     // FATURAMENTOS - Buscar por ID
     router.get('/faturamentos/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const [rows] = await pool.query('SELECT * FROM programacao_faturamento WHERE id = ?', [id]);
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({ message: 'Faturamento não encontrado' });
             }
-    
+
             res.json(rows[0]);
         } catch (error) { next(error); }
     });
-    
+
     // FATURAMENTOS - Criar novo
     router.post('/faturamentos', [
         body('cliente_nome').notEmpty().withMessage('Nome do cliente é obrigatório'),
@@ -996,15 +1078,15 @@ module.exports = function createPCPRoutes(deps) {
             if (!errors.isEmpty()) {
                 return res.status(400).json({ errors: errors.array() });
             }
-    
+
             const { numero, cliente_id, cliente_nome, valor, status, tipo, data_programada, data_vencimento, observacoes } = req.body;
-    
+
             const sql = `
                 INSERT INTO programacao_faturamento
                 (numero, cliente_id, cliente_nome, valor, status, tipo, data_programada, data_vencimento, observacoes, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             `;
-    
+
             const [result] = await pool.query(sql, [
                 numero || `FAT-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`,
                 cliente_id || null,
@@ -1016,7 +1098,7 @@ module.exports = function createPCPRoutes(deps) {
                 data_vencimento || null,
                 observacoes || null
             ]);
-    
+
             res.status(201).json({
                 success: true,
                 message: 'Faturamento criado com sucesso',
@@ -1024,13 +1106,13 @@ module.exports = function createPCPRoutes(deps) {
             });
         } catch (error) { next(error); }
     });
-    
+
     // FATURAMENTOS - Atualizar
     router.put('/faturamentos/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const { cliente_nome, valor, status, tipo, data_programada, data_vencimento, numero_nfe, chave_acesso, observacoes } = req.body;
-    
+
             const sql = `
                 UPDATE programacao_faturamento
                 SET cliente_nome = ?, valor = ?, status = ?, tipo = ?,
@@ -1038,50 +1120,50 @@ module.exports = function createPCPRoutes(deps) {
                     chave_acesso = ?, observacoes = ?, updated_at = NOW()
                 WHERE id = ?
             `;
-    
+
             const [result] = await pool.query(sql, [
                 cliente_nome, valor, status, tipo, data_programada,
                 data_vencimento, numero_nfe, chave_acesso, observacoes, id
             ]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Faturamento não encontrado' });
             }
-    
+
             res.json({
                 success: true,
                 message: 'Faturamento atualizado com sucesso'
             });
         } catch (error) { next(error); }
     });
-    
+
     // FATURAMENTOS - Deletar
     router.delete('/faturamentos/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const [result] = await pool.query('DELETE FROM programacao_faturamento WHERE id = ?', [id]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Faturamento não encontrado' });
             }
-    
+
             res.json({
                 success: true,
                 message: 'Faturamento excluído com sucesso'
             });
         } catch (error) { next(error); }
     });
-    
+
     // =====================================================
     // ORDENS DE PRODUÇÃO - KANBAN (Gestão Visual)
     // =====================================================
-    
+
     // GET - Próximo número de OP para o Kanban
     router.get('/ordens-kanban/proximo-numero', async (req, res) => {
         try {
             const ano = new Date().getFullYear();
             const prefix = `OP Nº ${ano}/`;
-    
+
             // Buscar o maior número sequencial do ano corrente
             const [rows] = await pool.query(
                 `SELECT codigo FROM ordens_producao
@@ -1090,7 +1172,7 @@ module.exports = function createPCPRoutes(deps) {
                  LIMIT 1`,
                 [`${prefix}%`]
             );
-    
+
             let proximoSeq = 1;
             if (rows && rows.length > 0) {
                 const ultimo = rows[0].codigo;
@@ -1098,7 +1180,7 @@ module.exports = function createPCPRoutes(deps) {
                 const ultimoNum = parseInt(partes[partes.length - 1]) || 0;
                 proximoSeq = ultimoNum + 1;
             }
-    
+
             const numero = `${prefix}${String(proximoSeq).padStart(5, '0')}`;
             res.json({ numero, sequencial: proximoSeq, ano });
         } catch (error) {
@@ -1109,7 +1191,7 @@ module.exports = function createPCPRoutes(deps) {
             res.json({ numero: `OP Nº ${ano}/${seq}`, sequencial: parseInt(seq), ano });
         }
     });
-    
+
     // GET - Listar ordens para o Kanban
     router.get('/ordens-kanban', async (req, res, next) => {
         try {
@@ -1143,7 +1225,7 @@ module.exports = function createPCPRoutes(deps) {
                     data_prevista ASC,
                     id DESC
             `);
-    
+
             // Mapear status para o formato esperado pelo frontend
             const ordensFormatadas = rows.map(ordem => ({
                 ...ordem,
@@ -1152,14 +1234,14 @@ module.exports = function createPCPRoutes(deps) {
                 produzido: ordem.produzido || 0,
                 unidade: ordem.unidade || 'M'
             }));
-    
+
             res.json(ordensFormatadas);
         } catch (error) {
             console.error('❌ Erro ao listar ordens Kanban:', error);
             next(error);
         }
     });
-    
+
     // POST - Criar nova ordem de produção (via modal)
     router.post('/ordens-kanban', async (req, res, next) => {
         try {
@@ -1169,32 +1251,32 @@ module.exports = function createPCPRoutes(deps) {
                 numero_orcamento, tipo_frete, prazo_entrega,
                 produtos // Array de produtos do modal
             } = req.body;
-    
+
             // Gerar código da ordem
             const [ultimaOrdem] = await pool.query(`
                 SELECT codigo FROM ordens_producao
                 WHERE codigo LIKE 'OP N° %'
                 ORDER BY id DESC LIMIT 1
             `);
-    
+
             let proximoNumero = 1;
             if (ultimaOrdem.length > 0 && ultimaOrdem[0].codigo) {
                 const match = ultimaOrdem[0].codigo.match(/(\d+)$/);
                 if (match) proximoNumero = parseInt(match[1]) + 1;
             }
-    
+
             const ano = new Date().getFullYear();
             const codigoOrdem = `OP N° ${ano}/${String(proximoNumero).padStart(5, '0')}`;
-    
+
             // Nome do produto (pode vir do array ou do campo direto)
             const nomeProduto = produto || (produtos && produtos[0]?.descricao) || cliente || 'Produto não especificado';
             const codigoProduto = codigo || (produtos && produtos[0]?.codigo) || '';
             const qtd = quantidade || (produtos && produtos[0]?.quantidade) || 0;
             const und = unidade || (produtos && produtos[0]?.unidade) || 'M';
-    
+
             // Observações - aceita ambos os campos
             const obs = observacoes || observacoes_pedido || null;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO ordens_producao (
                     codigo, produto_nome, quantidade, unidade,
@@ -1211,7 +1293,7 @@ module.exports = function createPCPRoutes(deps) {
                 vendedor || null,
                 obs
             ]);
-    
+
             const novaOrdem = {
                 id: result.insertId,
                 numero: codigoOrdem,
@@ -1226,7 +1308,7 @@ module.exports = function createPCPRoutes(deps) {
                 dataConclusao: data_previsao_entrega,
                 prioridade: prioridade || 'media'
             };
-    
+
             console.log('✅ Ordem de produção criada:', codigoOrdem);
             res.status(201).json(novaOrdem);
         } catch (error) {
@@ -1234,14 +1316,14 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // PUT - Atualizar ordem de produção (Kanban)
     router.put('/ordens-kanban/:id', async (req, res) => {
         const { id } = req.params;
         const { status, statusKanban, produzido, quantidade_produzida, progresso, observacoes } = req.body;
-    
+
         console.log(`[API_PCP] Atualizando ordem de produção ${id}...`);
-    
+
         try {
             // Mapear status do Kanban para status do banco
             let dbStatus = status || statusKanban;
@@ -1253,47 +1335,47 @@ module.exports = function createPCPRoutes(deps) {
                 'concluido': 'concluida',
                 'armazenado': 'concluida'
             };
-    
+
             if (statusMap[dbStatus]) {
                 dbStatus = statusMap[dbStatus];
             }
-    
+
             const updates = [];
             const values = [];
-    
+
             if (dbStatus) {
                 updates.push('status = ?');
                 values.push(dbStatus);
             }
-    
+
             if (produzido !== undefined || quantidade_produzida !== undefined) {
                 updates.push('quantidade_produzida = ?');
                 values.push(produzido || quantidade_produzida);
             }
-    
+
             if (progresso !== undefined) {
                 updates.push('progresso = ?');
                 values.push(progresso);
             }
-    
+
             if (observacoes !== undefined) {
                 updates.push('observacoes = ?');
                 values.push(observacoes);
             }
-    
+
             updates.push('updated_at = NOW()');
             values.push(id);
-    
+
             if (updates.length > 1) {
                 const [result] = await pool.query(
                     `UPDATE ordens_producao SET ${updates.join(', ')} WHERE id = ?`,
                     values
                 );
-    
+
                 if (result.affectedRows === 0) {
                     return res.status(404).json({ error: 'Ordem não encontrada' });
                 }
-    
+
                 console.log(`✅ Ordem ${id} atualizada`);
                 res.json({ success: true, message: 'Ordem atualizada com sucesso' });
             } else {
@@ -1309,27 +1391,27 @@ module.exports = function createPCPRoutes(deps) {
         try {
             const { id } = req.params;
             const { status, produzido, quantidade_produzida, responsavel, observacoes } = req.body;
-    
+
             const updates = [];
             const params = [];
-    
+
             if (status) {
                 const statusDB = mapKanbanToStatus(status);
                 updates.push('status = ?');
                 params.push(statusDB);
-    
+
                 // Se concluída, registrar data de conclusão
                 if (statusDB === 'concluida') {
                     updates.push('data_conclusao = NOW()');
                     updates.push('data_finalizacao = NOW()');
                 }
             }
-    
+
             if (produzido !== undefined || quantidade_produzida !== undefined) {
                 const qtdProduzida = produzido ?? quantidade_produzida;
                 updates.push('quantidade_produzida = ?');
                 params.push(qtdProduzida);
-    
+
                 // Calcular progresso automaticamente
                 const [ordemAtual] = await pool.query('SELECT quantidade FROM ordens_producao WHERE id = ?', [id]);
                 if (ordemAtual.length > 0 && ordemAtual[0].quantidade > 0) {
@@ -1338,33 +1420,33 @@ module.exports = function createPCPRoutes(deps) {
                     params.push(progresso.toFixed(2));
                 }
             }
-    
+
             if (responsavel) {
                 updates.push('responsavel = ?');
                 params.push(responsavel);
             }
-    
+
             if (observacoes !== undefined) {
                 updates.push('observacoes = ?');
                 params.push(observacoes);
             }
-    
+
             if (updates.length === 0) {
                 return res.status(400).json({ erro: 'Nenhum campo para atualizar' });
             }
-    
+
             updates.push('updated_at = NOW()');
             params.push(id);
-    
+
             await pool.query(`
                 UPDATE ordens_producao SET ${updates.join(', ')} WHERE id = ?
             `, params);
-    
+
             // Buscar ordem atualizada
             const [ordemAtualizada] = await pool.query(`
                 SELECT * FROM ordens_producao WHERE id = ?
             `, [id]);
-    
+
             console.log('✅ Ordem', id, 'atualizada');
             res.json({
                 sucesso: true,
@@ -1375,7 +1457,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // DELETE - Excluir ordem de produção
     // AUDIT-FIX DB-003: Added transaction + cascade cleanup for child tables
     router.delete('/ordens-kanban/:id', async (req, res, next) => {
@@ -1383,21 +1465,21 @@ module.exports = function createPCPRoutes(deps) {
         try {
             const { id } = req.params;
             await connection.beginTransaction();
-    
+
             // Clean up child tables first
             try { await connection.query('DELETE FROM tarefas_ordem_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
             try { await connection.query('DELETE FROM historico_ordem_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
             try { await connection.query('DELETE FROM anexos_ordem_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
             try { await connection.query('DELETE FROM apontamentos_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
             try { await connection.query('DELETE FROM itens_ordem_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
-    
+
             const [result] = await connection.query('DELETE FROM ordens_producao WHERE id = ?', [id]);
-    
+
             if (result.affectedRows === 0) {
                 await connection.rollback();
                 return res.status(404).json({ erro: 'Ordem não encontrada' });
             }
-    
+
             await connection.commit();
             console.log('✅ Ordem', id, 'excluída com cascata');
             res.json({ sucesso: true, mensagem: 'Ordem excluída com sucesso' });
@@ -1409,7 +1491,7 @@ module.exports = function createPCPRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // Funções auxiliares para mapeamento de status
     function mapStatusToKanban(status) {
         const map = {
@@ -1421,7 +1503,7 @@ module.exports = function createPCPRoutes(deps) {
         };
         return map[status] || 'a_produzir';
     }
-    
+
     function mapStatusToTexto(status) {
         const map = {
             'ativa': 'A Produzir',
@@ -1432,7 +1514,7 @@ module.exports = function createPCPRoutes(deps) {
         };
         return map[status] || 'Nova';
     }
-    
+
     function mapKanbanToStatus(statusKanban) {
         const map = {
             'a_produzir': 'ativa',
@@ -1445,7 +1527,7 @@ module.exports = function createPCPRoutes(deps) {
         };
         return map[statusKanban] || 'ativa';
     }
-    
+
     // ORDENS DE PRODUÇÃO - ENDPOINTS LEGADOS
     router.get('/ordens-producao', async (req, res, next) => {
         try {
@@ -1457,14 +1539,14 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY id DESC
                 LIMIT ? OFFSET ?
             `, [limit, offset]);
-    
+
             res.json({
                 success: true,
                 data: rows
             });
         } catch (error) { next(error); }
     });
-    
+
     // ÚLTIMO PEDIDO - Para gerar número sequencial
     router.get('/ultimo-pedido', async (req, res, next) => {
         try {
@@ -1476,19 +1558,19 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY id DESC
                 LIMIT 1
             `);
-    
+
             let ultimoNumero = null;
-    
+
             if (rows.length > 0) {
                 // Pegar o primeiro campo não-nulo
                 ultimoNumero = rows[0].numero_pedido || rows[0].num_pedido;
-    
+
                 // Se for string, tentar converter para número
                 if (typeof ultimoNumero === 'string') {
                     ultimoNumero = ultimoNumero.replace(/\D/g, ''); // Remove não-dígitos
                 }
             }
-    
+
             res.json({
                 success: true,
                 ultimo_numero: ultimoNumero
@@ -1498,7 +1580,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // ENDPOINT DE HEALTH CHECK PARA MONITORAMENTO
     router.get('/health', (req, res) => {
         const healthInfo = {
@@ -1519,10 +1601,10 @@ module.exports = function createPCPRoutes(deps) {
                 monitoring: process.env.MONITORING_ENABLED === 'true'
             }
         };
-    
+
         res.status(200).json(healthInfo);
     });
-    
+
     // ENDPOINT DE MÉTRICAS PARA MONITORAMENTO AVANÇADO
     // SECURITY: Requer autenticação de administrador para evitar exposição de informações do sistema
     router.get('/metrics', authenticateToken, authorizeAdmin, (req, res) => {
@@ -1545,7 +1627,7 @@ module.exports = function createPCPRoutes(deps) {
                 pool_connections: DB_AVAILABLE ? 'active' : 'inactive'
             }
         };
-    
+
         res.set('Content-Type', 'text/plain');
         res.send(`# ALUFORCE v2.0 Metrics
     aluforce_uptime_seconds ${metrics.process.uptime}
@@ -1555,16 +1637,16 @@ module.exports = function createPCPRoutes(deps) {
     aluforce_app_version_info{version="${metrics.application.version}",environment="${metrics.application.environment}"} 1
     `);
     });
-    
+
     // SISTEMA DE TEMPLATES AVANÇADO
     const AdvancedTemplateManager = require('../scripts/advanced-template-manager.js');
     const templateManager = new AdvancedTemplateManager();
-    
+
     // Servir editor de templates
     router.get('/template-editor', (req, res) => {
         res.sendFile(path.join(__dirname, '..', 'public', 'template-editor', 'index.html'));
     });
-    
+
     // API para listar templates
     router.get('/api/templates/list', authenticateToken, async (req, res) => {
         try {
@@ -1573,9 +1655,9 @@ module.exports = function createPCPRoutes(deps) {
                 company: req.query.company,
                 department: req.query.department
             };
-    
+
             const templates = await templateManager.listTemplates(filters);
-    
+
             res.json({
                 success: true,
                 templates,
@@ -1588,12 +1670,12 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para obter detalhes de um template
     router.get('/api/templates/:id', authenticateToken, async (req, res) => {
         try {
             const template = await templateManager.getTemplate(req.params.id);
-    
+
             res.json({
                 success: true,
                 template
@@ -1605,13 +1687,13 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para criar novo template
     router.post('/api/templates/create', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const templateInfo = req.body;
             const templateId = await templateManager.registerTemplate(templateInfo);
-    
+
             res.json({
                 success: true,
                 templateId,
@@ -1624,25 +1706,25 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para atualizar template
     router.post('/api/templates/update', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const templateData = req.body;
-    
+
             if (!templateData.id) {
                 return res.status(400).json({
                     success: false,
                     error: 'ID do template é obrigatório'
                 });
             }
-    
+
             // Atualizar template existente
             const template = await templateManager.getTemplate(templateData.id);
             Object.assign(template, templateData);
-    
+
             await templateManager.saveTemplateConfig();
-    
+
             res.json({
                 success: true,
                 message: 'Template atualizado com sucesso'
@@ -1654,18 +1736,18 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para criar template personalizado
     router.post('/api/templates/customize', authenticateToken, async (req, res) => {
         try {
             const { baseTemplateId, customizations, userInfo } = req.body;
-    
+
             const customTemplateId = await templateManager.createCustomTemplate(
                 baseTemplateId,
                 customizations,
                 userInfo
             );
-    
+
             res.json({
                 success: true,
                 customTemplateId,
@@ -1678,14 +1760,14 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para definir template padrão
     router.post('/api/templates/set-default', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { templateId, templateType } = req.body;
-    
+
             await templateManager.setDefaultTemplate(templateId, templateType);
-    
+
             res.json({
                 success: true,
                 message: 'Template padrão definido com sucesso'
@@ -1697,36 +1779,36 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para gerar Excel com template específico
     router.post('/api/templates/generate-excel', authenticateToken, async (req, res) => {
         try {
             const { templateId, data } = req.body;
-    
+
             const workbook = await templateManager.generateExcelWithTemplate(templateId, data);
-    
+
             // Gerar nome do arquivo
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const fileName = `documento_${templateId}_${timestamp}.xlsx`;
             const filePath = path.join(__dirname, 'temp_excel', fileName);
-    
+
             // Salvar arquivo
             await workbook.xlsx.writeFile(filePath);
-    
+
             // Ler e enviar arquivo
             const fileBuffer = await fs.promises.readFile(filePath);
-    
+
             res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Length', fileBuffer.length);
-    
+
             res.send(fileBuffer);
-    
+
             // Limpar arquivo temporário
             setTimeout(() => {
                 fs.promises.unlink(filePath).catch(console.error);
             }, 5000);
-    
+
         } catch (error) {
             res.status(500).json({
                 success: false,
@@ -1734,12 +1816,12 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para obter estatísticas de templates
     router.get('/api/templates/stats', authenticateToken, async (req, res) => {
         try {
             const stats = await templateManager.getUsageStats();
-    
+
             res.json({
                 success: true,
                 stats
@@ -1751,15 +1833,15 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para exportar template
     router.get('/api/templates/:id/export', authenticateToken, async (req, res) => {
         try {
             const templateConfig = await templateManager.exportTemplateConfig(req.params.id);
-    
+
             res.setHeader('Content-Type', 'application/json');
             res.setHeader('Content-Disposition', `attachment; filename="template-${req.params.id}.json"`);
-    
+
             res.json(templateConfig);
         } catch (error) {
             res.status(500).json({
@@ -1768,7 +1850,7 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para importar template
     // SECURITY: Requer autenticação de administrador para import de arquivos
     router.post('/api/templates/import', authenticateToken, authorizeAdmin, upload.single('templateFile'), async (req, res) => {
@@ -1779,12 +1861,12 @@ module.exports = function createPCPRoutes(deps) {
                     error: 'Arquivo de template é obrigatório'
                 });
             }
-    
+
             const templateConfig = JSON.parse(req.file.buffer.toString());
             const newFilePath = path.join(__dirname, '..', 'templates', 'custom', req.file.originalname);
-    
+
             const templateId = await templateManager.importTemplate(templateConfig, newFilePath);
-    
+
             res.json({
                 success: true,
                 templateId,
@@ -1797,9 +1879,9 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // =================== APIS PARA AUTOCOMPLETE DO MODAL PCP ===================
-    
+
     // API para buscar clientes (suporta modo gestão com todos os campos)
     // SECURITY: Requer autenticação
     router.get('/api/clientes', authenticateToken, async (req, res) => {
@@ -1808,16 +1890,16 @@ module.exports = function createPCPRoutes(deps) {
             const termoBusca = termo || busca; // Suporta ambos os parâmetros
             // SECURITY: Limitar range de resultados para evitar abuso (1-500)
             const limiteResultados = Math.min(Math.max(parseInt(limite) || 50, 1), 500);
-    
+
             // Modo gestão: retorna todos os campos para a página de gestão de clientes
             if (gestao === 'true' || gestao === '1') {
                 let query = `SELECT id, nome, razao_social, nome_fantasia, cnpj, cnpj_cpf, cpf, inscricao_estadual, contato, email, telefone, endereco, bairro, cidade, estado, cep, vendedor_responsavel, ativo, observacoes, created_at, data_ultima_alteracao as updated_at FROM clientes ORDER BY nome LIMIT ?`;
-    
+
                 const [clientes] = await pool.query(query, [limiteResultados]);
-    
+
                 // Descriptografar campos PII (LGPD)
                 const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
-    
+
                 const clientesFormatados = clientes.map(cliente => {
                     // Descriptografar campos que podem estar criptografados
                     const cnpjRaw = cliente.cnpj || cliente.cnpj_cpf || '';
@@ -1826,7 +1908,7 @@ module.exports = function createPCPRoutes(deps) {
                     const cpfDecrypted = _dec(cpfRaw);
                     const ieRaw = cliente.inscricao_estadual || '';
                     const ieDecrypted = _dec(ieRaw);
-    
+
                     return {
                     id: cliente.id,
                     nome: cliente.nome || cliente.razao_social || cliente.nome_fantasia || '',
@@ -1848,14 +1930,14 @@ module.exports = function createPCPRoutes(deps) {
                     data_criacao: cliente.data_cadastro || cliente.created_at,
                     data_atualizacao: cliente.data_ultima_alteracao || cliente.updated_at
                 }});  // fecha return + map
-    
+
                 console.log(`✅ Gestão: Encontrados ${clientesFormatados.length} clientes`);
                 return res.json(clientesFormatados);
             }
-    
+
             // Modo autocomplete: retorna apenas campos básicos
             console.log('📋 Buscando clientes para autocomplete...');
-    
+
             let query = `SELECT id,
                 COALESCE(razao_social, nome) as razao_social,
                 COALESCE(nome_fantasia, nome) as nome,
@@ -1865,7 +1947,7 @@ module.exports = function createPCPRoutes(deps) {
                 telefone, email
                 FROM clientes WHERE (ativo = 1 OR ativo IS NULL)`;
             let params = [];
-    
+
             if (termoBusca && termoBusca.length >= 2) {
                 query += ` AND (
                     razao_social LIKE ? OR
@@ -1877,11 +1959,11 @@ module.exports = function createPCPRoutes(deps) {
                 const termoLike = `%${termoBusca}%`;
                 params = [termoLike, termoLike, termoLike, termoLike, termoLike];
             }
-    
+
             query += ` ORDER BY COALESCE(razao_social, nome) LIMIT ${limiteResultados}`;
-    
+
             const [clientes] = await pool.query(query, params);
-    
+
             // Formatar resposta (descriptografar PII)
             const _dec2 = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
             const clientesFormatados = clientes.map(cliente => ({
@@ -1894,17 +1976,17 @@ module.exports = function createPCPRoutes(deps) {
                 telefone: cliente.telefone || '',
                 email: cliente.email || ''
             }));
-    
+
             console.log(`✅ Encontrados ${clientesFormatados.length} clientes`);
             res.json({ success: true, data: clientesFormatados, total: clientesFormatados.length });
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar clientes:', error.message || error, 'Code:', error.code || 'N/A', 'SQL:', error.sql || 'N/A');
             console.error('Stack:', error.stack || 'N/A');
             res.status(500).json({ error: 'Erro ao buscar clientes', message: error.message || String(error) });
         }
     });
-    
+
     // API para criar novo cliente
     // SECURITY: Requer autenticação
     router.post('/api/clientes', authenticateToken, async (req, res) => {
@@ -1915,11 +1997,11 @@ module.exports = function createPCPRoutes(deps) {
                 telefone, celular, email, email_nfe,
                 cep, endereco, numero, bairro, cidade, uf, ativo
             } = req.body;
-    
+
             if (!nome) {
                 return res.status(400).json({ error: 'Nome é obrigatório' });
             }
-    
+
             const [result] = await pool.query(`
                 INSERT INTO clientes (
                     nome, contato, cnpj, cpf, inscricao_estadual,
@@ -1932,16 +2014,16 @@ module.exports = function createPCPRoutes(deps) {
                 cep || null, endereco || null, endereco || null, numero || null, bairro || null, cidade || null, uf || null, uf || null,
                 ativo !== undefined ? (ativo ? 1 : 0) : 1
             ]);
-    
+
             console.log(`✅ Cliente criado com ID: ${result.insertId}`);
             res.status(201).json({ id: result.insertId, message: 'Cliente criado com sucesso' });
-    
+
         } catch (error) {
             console.error('❌ Erro ao criar cliente:', error);
             res.status(500).json({ error: 'Erro ao criar cliente' });
         }
     });
-    
+
     // API para buscar cliente por ID
     // SECURITY: Requer autenticação
     router.get('/api/clientes/:id', authenticateToken, async (req, res) => {
@@ -1987,14 +2069,14 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar cliente' });
         }
     });
-    
+
     // API Resumo/Inteligência do Cliente
     // SECURITY: Requer autenticação
     router.get('/api/clientes/:id/resumo', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             console.log(`📊 Buscando resumo do cliente ID: ${id}...`);
-    
+
             // Buscar dados do cliente
             const [clienteRows] = await pool.query(
                 `SELECT c.*, e.nome_fantasia as empresa_nome, e.id as emp_id
@@ -2003,9 +2085,9 @@ module.exports = function createPCPRoutes(deps) {
             );
             const cliente = clienteRows[0];
             if (!cliente) return res.status(404).json({ error: 'Cliente não encontrado.' });
-    
+
             const empresaId = cliente.empresa_id || cliente.emp_id || id;
-    
+
             // Executar todas as queries em paralelo
             const [pedidosStats, pedidosRecentes, produtosMaisComprados, pedidosPorStatus, pedidosPorMes, financeiro] = await Promise.all([
                 // 1. Estatísticas gerais de pedidos
@@ -2024,7 +2106,7 @@ module.exports = function createPCPRoutes(deps) {
                     FROM pedidos
                     WHERE empresa_id = ? OR cliente_id = ?
                 `, [empresaId, id]),
-    
+
                 // 2. Últimos 10 pedidos
                 pool.query(`
                     SELECT p.id, p.valor, p.status, p.created_at, p.produtos_preview, p.descricao
@@ -2033,7 +2115,7 @@ module.exports = function createPCPRoutes(deps) {
                     ORDER BY p.created_at DESC
                     LIMIT 10
                 `, [empresaId, id]),
-    
+
                 // 3. Produtos mais comprados (extraídos do JSON produtos_preview)
                 pool.query(`
                     SELECT p.produtos_preview
@@ -2042,7 +2124,7 @@ module.exports = function createPCPRoutes(deps) {
                     ORDER BY p.created_at DESC
                     LIMIT 50
                 `, [empresaId, id]),
-    
+
                 // 4. Pedidos por status
                 pool.query(`
                     SELECT status, COUNT(*) as total, COALESCE(SUM(valor), 0) as valor_total
@@ -2051,7 +2133,7 @@ module.exports = function createPCPRoutes(deps) {
                     GROUP BY status
                     ORDER BY total DESC
                 `, [empresaId, id]),
-    
+
                 // 5. Pedidos por mês (últimos 12 meses)
                 pool.query(`
                     SELECT
@@ -2063,7 +2145,7 @@ module.exports = function createPCPRoutes(deps) {
                     GROUP BY DATE_FORMAT(created_at, '%Y-%m')
                     ORDER BY mes DESC
                 `, [empresaId, id]),
-    
+
                 // 6. Financeiro - contas a receber
                 pool.query(`
                     SELECT
@@ -2075,7 +2157,7 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE cliente_id = ? OR cliente_id = ?
                 `, [id, empresaId])
             ]);
-    
+
             // Processar produtos mais comprados
             const produtosMap = {};
             (produtosMaisComprados[0] || []).forEach(row => {
@@ -2097,7 +2179,7 @@ module.exports = function createPCPRoutes(deps) {
             const topProdutos = Object.values(produtosMap)
                 .sort((a, b) => b.quantidade - a.quantidade)
                 .slice(0, 10);
-    
+
             // Calcular tempo como cliente
             const stats = pedidosStats[0][0] || {};
             let tempoCliente = null;
@@ -2112,9 +2194,9 @@ module.exports = function createPCPRoutes(deps) {
                 const dias = diffDias % 30;
                 tempoCliente = { anos, meses, dias, total_dias: diffDias, data_inicio: dataCadastro };
             }
-    
+
             console.log(`✅ Resumo do cliente ${id}: ${stats.total_pedidos || 0} pedidos, ${topProdutos.length} produtos`);
-    
+
             res.json({
                 estatisticas: {
                     total_pedidos: stats.total_pedidos || 0,
@@ -2140,7 +2222,7 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar resumo do cliente' });
         }
     });
-    
+
     // API Histórico de Alterações do Cliente
     router.get('/api/clientes/:id/historico', authenticateToken, async (req, res) => {
         try {
@@ -2173,24 +2255,24 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar histórico do cliente' });
         }
     });
-    
+
     // API para atualizar cliente existente
     // SECURITY: Requer autenticação
     router.put('/api/clientes/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             console.log(`📋 Atualizando cliente ID: ${id}...`);
-    
+
             const {
                 nome, nome_fantasia, contato, cnpj, cpf, inscricao_estadual,
                 telefone, celular, email, email_nfe, website,
                 cep, endereco, numero, complemento, bairro, cidade, uf, ativo
             } = req.body;
-    
+
             if (!nome) {
                 return res.status(400).json({ error: 'Nome é obrigatório' });
             }
-    
+
             const [result] = await pool.query(`
                 UPDATE clientes SET
                     nome = ?, nome_fantasia = ?, contato = ?, cnpj = ?, cpf = ?, inscricao_estadual = ?,
@@ -2205,20 +2287,20 @@ module.exports = function createPCPRoutes(deps) {
                 ativo !== undefined ? (ativo ? 1 : 0) : 1,
                 id
             ]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ error: 'Cliente não encontrado' });
             }
-    
+
             console.log(`✅ Cliente ${id} atualizado com sucesso`);
             res.json({ message: 'Cliente atualizado com sucesso' });
-    
+
         } catch (error) {
             console.error('❌ Erro ao atualizar cliente:', error);
             res.status(500).json({ error: 'Erro ao atualizar cliente' });
         }
     });
-    
+
     // API para listar usuários (para avatar no login do PCP)
     // SECURITY: Requer autenticação
     router.get('/users-list', authenticateToken, async (req, res) => {
@@ -2230,7 +2312,7 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE ativo = 1 OR ativo IS NULL
                 ORDER BY nome_completo
             `);
-    
+
             // Mapear avatares por nome
             const avatarMap = {
                 'douglas': '/avatars/douglas.webp',
@@ -2244,12 +2326,12 @@ module.exports = function createPCPRoutes(deps) {
                 'antonio': '/avatars/antonio.webp',
                 'egidio': '/avatars/egidio.webp'
             };
-    
+
             // Retornar dados sanitizados (sem senhas)
             const sanitizedUsers = users.map(user => {
                 const firstName = user.nome ? user.nome.split(' ')[0].toLowerCase() : '';
                 let fotoUrl = user.foto_perfil_url || user.avatar || avatarMap[firstName] || '/avatars/default.webp';
-    
+
                 return {
                     id: user.id,
                     nome: user.nome,
@@ -2258,31 +2340,31 @@ module.exports = function createPCPRoutes(deps) {
                     foto_url: fotoUrl
                 };
             });
-    
+
             res.json({ users: sanitizedUsers });
         } catch (err) {
             console.error('/api/pcp/users-list error:', err && err.message ? err.message : err);
             res.status(500).json({ message: 'Erro ao obter lista de usuários.', users: [] });
         }
     });
-    
+
     // API para dashboard do PCP - Contadores
     // SECURITY: Requer autenticação
     router.get('/dashboard', authenticateToken, async (req, res) => {
         try {
             console.log('📊 Carregando dashboard PCP...');
-    
+
             // Total de produtos ALUFORCE (marca = 'Aluforce')
             const [produtosResult] = await pool.query("SELECT COUNT(*) as total FROM produtos WHERE marca = 'Aluforce'");
             const totalProdutos = produtosResult[0]?.total || 0;
-    
+
             // Ordens em produção
             const [ordensResult] = await pool.query(`
                 SELECT COUNT(*) as total FROM ordens_producao
                 WHERE status IN ('em_producao', 'a_produzir', 'em_andamento', 'iniciado')
             `);
             const ordensEmProducao = ordensResult[0]?.total || 0;
-    
+
             // Estoque baixo (produtos com estoque abaixo do mínimo)
             const [estoqueBaixoResult] = await pool.query(`
                 SELECT COUNT(*) as total FROM produtos
@@ -2291,7 +2373,7 @@ module.exports = function createPCPRoutes(deps) {
                 AND marca = 'Aluforce'
             `);
             const estoqueBaixo = estoqueBaixoResult[0]?.total || 0;
-    
+
             // Entregas pendentes (esta semana) - usando data_prevista que existe na tabela
             const [entregasResult] = await pool.query(`
                 SELECT COUNT(*) as total FROM ordens_producao
@@ -2299,13 +2381,13 @@ module.exports = function createPCPRoutes(deps) {
                 AND data_prevista BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
             `);
             const entregasPendentes = entregasResult[0]?.total || 0;
-    
+
             // Total de materiais
             const [materiaisResult] = await pool.query('SELECT COUNT(*) as total FROM materiais');
             const totalMateriais = materiaisResult[0]?.total || 0;
-    
+
             console.log(`📊 Dashboard PCP: Produtos=${totalProdutos}, Ordens=${ordensEmProducao}, Estoque Baixo=${estoqueBaixo}, Entregas=${entregasPendentes}, Materiais=${totalMateriais}`);
-    
+
             res.json({
                 totalProdutos,
                 ordensEmProducao,
@@ -2324,16 +2406,16 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // ==========================================
     // API DIÁRIO DE PRODUÇÃO - CRUD
     // ==========================================
-    
+
     // GET - Listar registros do diário de produção
     router.get('/diario-producao', authenticateToken, async (req, res) => {
         try {
             const { data, operador_id, status, setor } = req.query;
-    
+
             let query = `
                 SELECT dp.*, u.nome as operador_nome
                 FROM diario_producao dp
@@ -2341,7 +2423,7 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE 1=1
             `;
             const params = [];
-    
+
             if (data) {
                 query += ' AND dp.data = ?';
                 params.push(data);
@@ -2358,18 +2440,18 @@ module.exports = function createPCPRoutes(deps) {
                 query += ' AND dp.setor = ?';
                 params.push(setor);
             }
-    
+
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
-    
+
             // Count query
             const countQuery = query.replace('SELECT dp.*, u.nome as operador_nome', 'SELECT COUNT(*) as total');
             const [[{ total }]] = await pool.query(countQuery, params);
-    
+
             query += ' ORDER BY dp.data DESC, dp.hora_inicio DESC LIMIT ? OFFSET ?';
             params.push(limit, offset);
-    
+
             const [rows] = await pool.query(query, params);
             res.json({ data: rows, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
         } catch (error) {
@@ -2377,7 +2459,7 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao listar registros', error: error.message });
         }
     });
-    
+
     // GET - Buscar registro específico
     router.get('/diario-producao/:id', authenticateToken, async (req, res) => {
         try {
@@ -2388,7 +2470,7 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN usuarios u ON dp.operador_id = u.id
                 WHERE dp.id = ?
             `, [id]);
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({ message: 'Registro não encontrado' });
             }
@@ -2398,13 +2480,13 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao buscar registro', error: error.message });
         }
     });
-    
+
     // POST - Criar novo registro
     router.post('/diario-producao', authenticateToken, async (req, res) => {
         try {
             const { titulo, descricao, data, hora_inicio, hora_fim, maquina_id, observacoes, pedido, producao, refugo, setor, tipo_registro } = req.body;
             const operador_id = req.user?.id;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO diario_producao
                 (titulo, descricao, data, operador_id, hora_inicio, hora_fim, maquina_id, observacoes, pedido, producao, refugo, setor, tipo_registro)
@@ -2424,7 +2506,7 @@ module.exports = function createPCPRoutes(deps) {
                 setor || 'producao',
                 tipo_registro || 'producao'
             ]);
-    
+
             res.status(201).json({
                 message: 'Registro criado com sucesso',
                 id: result.insertId
@@ -2434,13 +2516,13 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao criar registro', error: error.message });
         }
     });
-    
+
     // PUT - Atualizar registro
     router.put('/diario-producao/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             const { titulo, descricao, data, hora_inicio, hora_fim, status, maquina_id, observacoes, pedido, producao, refugo, setor, tipo_registro } = req.body;
-    
+
             const [result] = await pool.query(`
                 UPDATE diario_producao SET
                     titulo = COALESCE(?, titulo),
@@ -2458,7 +2540,7 @@ module.exports = function createPCPRoutes(deps) {
                     tipo_registro = COALESCE(?, tipo_registro)
                 WHERE id = ?
             `, [titulo, descricao, data, hora_inicio, hora_fim, status, maquina_id, observacoes, pedido, producao, refugo, setor, tipo_registro, id]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Registro não encontrado' });
             }
@@ -2468,13 +2550,13 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao atualizar registro', error: error.message });
         }
     });
-    
+
     // DELETE - Excluir registro
     router.delete('/diario-producao/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             const [result] = await pool.query('DELETE FROM diario_producao WHERE id = ?', [id]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Registro não encontrado' });
             }
@@ -2484,18 +2566,18 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao excluir registro', error: error.message });
         }
     });
-    
+
     // API para buscar materiais/produtos
     // SECURITY: Requer autenticação
     router.get('/materiais', authenticateToken, async (req, res) => {
         try {
             console.log('📦 Buscando materiais...');
-    
+
             const { termo, q, tipo, limit: queryLimit } = req.query;
             const busca = termo || q || ''; // Aceitar tanto 'termo' quanto 'q'
             // SECURITY: Limitar range de resultados para evitar abuso (1-2000)
             const limit = Math.min(Math.max(parseInt(queryLimit) || 1000, 1), 2000);
-    
+
             let query = `
                 SELECT
                     id,
@@ -2509,14 +2591,14 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE 1=1
             `;
             let params = [];
-    
+
             // Filtro por termo de busca
             if (busca && busca.length >= 2) {
                 query += ` AND (codigo_material LIKE ? OR descricao LIKE ?)`;
                 const termoLike = `%${busca}%`;
                 params.push(termoLike, termoLike);
             }
-    
+
             // Filtro por tipo (Veias, Cabos, Cordas, Outros)
             if (tipo) {
                 const tipoLower = tipo.toLowerCase();
@@ -2530,13 +2612,13 @@ module.exports = function createPCPRoutes(deps) {
                     query += ` AND descricao NOT LIKE '%VEIA%' AND descricao NOT LIKE '%MULTIPLEX%' AND descricao NOT LIKE '%CABO%' AND descricao NOT LIKE '%CORDA%' AND descricao NOT LIKE '%CORDINHA%'`;
                 }
             }
-    
+
             query += ` ORDER BY descricao LIMIT ${limit}`;
-    
+
             console.log('📦 Query materiais:', query, 'Params:', params);
-    
+
             const [materiais] = await pool.query(query, params);
-    
+
             // Formatar resposta
             const materiaisFormatados = materiais.map(material => ({
                 id: material.id,
@@ -2548,13 +2630,13 @@ module.exports = function createPCPRoutes(deps) {
                 fornecedor_padrao: material.fornecedor_padrao || '',
                 categoria: 'Material'
             }));
-    
+
             console.log(`✅ Encontrados ${materiaisFormatados.length} materiais`);
             res.json(materiaisFormatados);
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar materiais:', error);
-    
+
             // Fallback com dados de exemplo
             const materiaisExemplo = [
                 {
@@ -2578,11 +2660,11 @@ module.exports = function createPCPRoutes(deps) {
                     categoria: 'Chapas'
                 }
             ];
-    
+
             res.json(materiaisExemplo);
         }
     });
-    
+
     // API para buscar produtos com entrada registrada (movimentações de estoque)
     // SECURITY: Requer autenticação
     router.get('/produtos/com-entrada', authenticateToken, async (req, res) => {
@@ -2593,11 +2675,11 @@ module.exports = function createPCPRoutes(deps) {
             if (page < 1) page = 1;
             if (limit < 1) limit = 10;
             const offset = (page - 1) * limit;
-    
+
             let rows = [];
             let total = 0;
             let strategy = 'none';
-    
+
             // Tentativa 1: tabela estoque_movimentacoes (com COLLATE para resolver mix de collations)
             if (total === 0) {
                 try {
@@ -2613,7 +2695,7 @@ module.exports = function createPCPRoutes(deps) {
                         LIMIT ? OFFSET ?
                     `;
                     [rows] = await pool.query(sql1, [limit, offset]);
-    
+
                     const [countResult] = await pool.query(`
                         SELECT COUNT(DISTINCT p.id) as total
                         FROM produtos p
@@ -2646,7 +2728,7 @@ module.exports = function createPCPRoutes(deps) {
                         LIMIT ? OFFSET ?
                     `;
                     [rows] = await pool.query(sql2, [limit, offset]);
-    
+
                     const [countResult2] = await pool.query(`
                         SELECT COUNT(DISTINCT p.id) as total
                         FROM produtos p
@@ -2674,7 +2756,7 @@ module.exports = function createPCPRoutes(deps) {
                         LIMIT ? OFFSET ?
                     `;
                     [rows] = await pool.query(sql3, [limit, offset]);
-    
+
                     const [countResult3] = await pool.query(`
                         SELECT COUNT(*) as total FROM produtos
                         WHERE (estoque_atual > 0 OR quantidade_estoque > 0)
@@ -2721,7 +2803,7 @@ module.exports = function createPCPRoutes(deps) {
                     console.warn('[API_PRODUTOS_COM_ENTRADA] bobinas_estoque falhou:', err4.message);
                 }
             }
-    
+
             // Calcular estatísticas
             let comEstoque = 0, estoqueBaixo = 0, critico = 0;
             rows.forEach(p => {
@@ -2731,7 +2813,7 @@ module.exports = function createPCPRoutes(deps) {
                 else if (qtd <= min) estoqueBaixo++;
                 else comEstoque++;
             });
-    
+
             console.log('[API_PRODUTOS_COM_ENTRADA] Total:', total, 'Retornados:', rows.length, 'Strategy:', strategy);
             res.json({
                 page,
@@ -2760,21 +2842,21 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para buscar movimentações de estoque de um produto
     // SECURITY: Requer autenticação
     router.get('/estoque/movimentacoes', authenticateToken, async (req, res) => {
         console.log('[API_ESTOQUE_MOVIMENTACOES] Requisição recebida:', req.query);
         try {
             const { produto_id, codigo_material, limit = 20 } = req.query;
-    
+
             if (!produto_id && !codigo_material) {
                 return res.status(400).json({
                     success: false,
                     message: 'Informe produto_id ou codigo_material'
                 });
             }
-    
+
             // Buscar código do produto se foi passado o ID
             let codigoMaterial = codigo_material;
             if (produto_id && !codigo_material) {
@@ -2784,7 +2866,7 @@ module.exports = function createPCPRoutes(deps) {
                 );
                 codigoMaterial = produto?.codigo || produto_id;
             }
-    
+
             // Buscar movimentações
             const sql = `
                 SELECT em.*,
@@ -2796,17 +2878,17 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY em.data_movimento DESC
                 LIMIT ?
             `;
-    
+
             const [rows] = await pool.query(sql, [codigoMaterial, String(produto_id), parseInt(limit)]);
-    
+
             console.log('[API_ESTOQUE_MOVIMENTACOES] Encontradas', rows.length, 'movimentações para', codigoMaterial);
-    
+
             res.json({
                 success: true,
                 movimentacoes: rows,
                 total: rows.length
             });
-    
+
         } catch (error) {
             console.error('[API_ESTOQUE_MOVIMENTACOES] Erro:', error.message);
             res.status(500).json({
@@ -2816,7 +2898,7 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API para buscar todos os produtos (PCP)
     // SECURITY: Requer autenticação
     router.get('/produtos', authenticateToken, async (req, res) => {
@@ -2826,23 +2908,23 @@ module.exports = function createPCPRoutes(deps) {
             if (page < 1) page = 1;
             if (limit < 1) limit = 10;
             const offset = (page - 1) * limit;
-    
+
             const q = (req.query.q || '').trim();
             const like = `%${q}%`;
-    
+
             let sql = 'SELECT id, codigo, nome, descricao, sku, gtin, unidade_medida as unidade, COALESCE(preco_venda, preco_custo, 0) as preco, status, familia, categoria, estoque_atual, estoque_minimo FROM produtos';
             let params = [];
-    
+
             if (q) {
                 sql += ' WHERE codigo LIKE ? OR descricao LIKE ? OR nome LIKE ?';
                 params.push(like, like, like);
             }
-    
+
             sql += ' ORDER BY descricao ASC LIMIT ? OFFSET ?';
             params.push(limit, offset);
-    
+
             const [rows] = await pool.query(sql, params);
-    
+
             // Contar total
             let countSql = 'SELECT COUNT(*) as total FROM produtos';
             let countParams = [];
@@ -2852,7 +2934,7 @@ module.exports = function createPCPRoutes(deps) {
             }
             const [countResult] = await pool.query(countSql, countParams);
             const total = countResult[0]?.total || 0;
-    
+
             console.log('[API_PCP_PRODUTOS] Total:', total, 'Retornados:', rows.length);
             res.json({ page, limit, total, rows });
         } catch (error) {
@@ -2860,13 +2942,13 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao buscar produtos.', error: error.message });
         }
     });
-    
+
     // API para buscar transportadoras
     router.get('/api/transportadoras', authenticateToken, async (req, res) => {
         try {
             console.log('🚛 Buscando transportadoras para autocomplete...');
             const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
-    
+
             const { termo } = req.query;
             let query = `
                 SELECT
@@ -2886,18 +2968,18 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE 1=1
             `;
             let params = [];
-    
+
             if (termo && termo.length >= 2) {
                 // Buscar por nome (não por cnpj_cpf que está criptografado)
                 query += ` AND (razao_social LIKE ? OR nome_fantasia LIKE ?)`;
                 const termoLike = `%${termo}%`;
                 params = [termoLike, termoLike];
             }
-    
+
             query += ' ORDER BY razao_social LIMIT 50';
-    
+
             const [transportadoras] = await pool.query(query, params);
-    
+
             // Formatar resposta com descriptografia LGPD
             const transportadorasFormatadas = transportadoras.map(transp => ({
                 id: transp.id,
@@ -2916,38 +2998,38 @@ module.exports = function createPCPRoutes(deps) {
                 estado: transp.estado || '',
                 cep: transp.cep || ''
             }));
-    
+
             console.log(`✅ Encontradas ${transportadorasFormatadas.length} transportadoras`);
             res.json(transportadorasFormatadas);
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar transportadoras:', error);
             res.json([]);
         }
     });
-    
+
     // =================== ENDPOINTS DE COMPATIBILIDADE ===================
     // Aliases para os endpoints esperados pelo frontend
-    
+
     // Alias para empresas/buscar -> clientes
     router.get('/api/empresas/buscar', authenticateToken, async (req, res) => {
         try {
             console.log('🔄 Redirecionando /api/empresas/buscar para /api/clientes');
-    
+
             const { termo } = req.query;
             let query = "SELECT id, nome, razao_social, nome_fantasia, contato, cnpj_cpf as cnpj, cnpj_cpf as cpf, telefone, telefone as celular, email, email as email_nfe, endereco, endereco as logradouro, '' as numero, bairro, cidade, estado as uf, estado, cep FROM clientes WHERE ativo = 1";
             let params = [];
-    
+
             if (termo && termo.length >= 1) { // Funciona com 1 caractere
                 query += ` AND (nome LIKE ? OR cnpj_cpf LIKE ? OR contato LIKE ?)`;
                 const termoLike = `%${termo}%`;
                 params = [termoLike, termoLike, termoLike];
             }
-    
+
             query += ' ORDER BY nome LIMIT 50';
-    
+
             const [clientes] = await pool.query(query, params);
-    
+
             // Formatar resposta com mapeamento de campos
             const clientesFormatados = clientes.map(cliente => ({
                 id: cliente.id,
@@ -2972,23 +3054,23 @@ module.exports = function createPCPRoutes(deps) {
                 estado: cliente.estado || cliente.uf || '',
                 cep: cliente.cep || ''
             }));
-    
+
             console.log(`✅ Endpoint /api/empresas/buscar retornou ${clientesFormatados.length} registros`);
             res.json(clientesFormatados);
-    
+
         } catch (error) {
             console.error('❌ Erro em /api/empresas/buscar:', error);
             res.status(500).json({ error: 'Erro ao buscar empresas' });
         }
     });
-    
+
     // Backwards-compatible endpoint: /api/empresas (aceita ?limit=... e ?termo=...)
     router.get('/api/empresas', authenticateToken, async (req, res) => {
         try {
             console.log('🔄 Alias compatível /api/empresas chamado');
             const { termo } = req.query;
             const limit = req.query.limit ? Math.max(1, Math.min(1000, parseInt(req.query.limit))) : 500;
-    
+
             let query = "SELECT id, nome, razao_social, nome_fantasia, contato, cnpj_cpf as cnpj, cnpj_cpf as cpf, telefone, telefone as celular, email, email as email_nfe, endereco, endereco as logradouro, '' as numero, bairro, cidade, estado as uf, estado, cep FROM clientes WHERE ativo = 1";
             let params = [];
             if (termo && termo.length >= 1) {
@@ -2996,11 +3078,11 @@ module.exports = function createPCPRoutes(deps) {
                 const termoLike = `%${termo}%`;
                 params = [termoLike, termoLike, termoLike];
             }
-    
+
             query += ' ORDER BY nome LIMIT ' + limit;
-    
+
             const [clientes] = await pool.query(query, params);
-    
+
             const clientesFormatados = clientes.map(cliente => ({
                 id: cliente.id,
                 nome: cliente.nome || '',
@@ -3024,7 +3106,7 @@ module.exports = function createPCPRoutes(deps) {
                 estado: cliente.estado || cliente.uf || '',
                 cep: cliente.cep || ''
             }));
-    
+
             console.log(`✅ Endpoint /api/empresas retornou ${clientesFormatados.length} registros (limit=${limit})`);
             res.json(clientesFormatados);
         } catch (error) {
@@ -3032,13 +3114,13 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar empresas' });
         }
     });
-    
+
     // Alias para transportadoras/buscar -> transportadoras
     router.get('/api/transportadoras/buscar', authenticateToken, async (req, res) => {
         try {
             console.log('🔄 Buscando transportadoras via /buscar...');
             const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
-    
+
             const { termo } = req.query;
             let query = `
                 SELECT
@@ -3059,18 +3141,18 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE 1=1
             `;
             let params = [];
-    
+
             if (termo && termo.length >= 1) {
                 // Buscar apenas por nome (cnpj está criptografado, LIKE não funciona)
                 query += ` AND (razao_social LIKE ? OR nome_fantasia LIKE ?)`;
                 const termoLike = `%${termo}%`;
                 params = [termoLike, termoLike];
             }
-    
+
             query += ' ORDER BY razao_social LIMIT 50';
-    
+
             const [transportadoras] = await pool.query(query, params);
-    
+
             // Formatar resposta com descriptografia LGPD
             const transportadorasFormatadas = transportadoras.map(transp => ({
                 id: transp.id,
@@ -3084,24 +3166,24 @@ module.exports = function createPCPRoutes(deps) {
                 endereco: transp.endereco || (transp.bairro && transp.cidade ? `${transp.bairro}, ${transp.cidade}/${transp.estado}` : `${transp.cidade || ''}/${transp.estado || ''}`),
                 cep: transp.cep || ''
             }));
-    
+
             console.log(`✅ /api/transportadoras/buscar retornou ${transportadorasFormatadas.length} registros`);
             res.json(transportadorasFormatadas);
-    
+
         } catch (error) {
             console.error('❌ Erro em /api/transportadoras/buscar:', error);
             res.json([]);
         }
     });
-    
+
     // Alias para produtos/buscar -> busca em produtos + materiais
     router.get('/api/produtos/buscar', authenticateToken, async (req, res) => {
         try {
             console.log('🔄 Buscando em produtos e materiais...');
-    
+
             const { termo } = req.query;
             let produtosCombinados = [];
-    
+
             // 1. Buscar na tabela produtos
             try {
                 let queryProdutos = `
@@ -3118,17 +3200,17 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE 1=1
                 `;
                 let paramsProdutos = [];
-    
+
                 if (termo && termo.length >= 1) {
                     queryProdutos += ` AND (codigo LIKE ? OR nome LIKE ? OR descricao LIKE ?)`;
                     const termoLike = `%${termo}%`;
                     paramsProdutos = [termoLike, termoLike, termoLike];
                 }
-    
+
                 queryProdutos += ' ORDER BY nome LIMIT 50';
-    
+
                 const [produtos] = await pool.query(queryProdutos, paramsProdutos);
-    
+
                 // Formatar produtos
                 const produtosFormatados = produtos.map(produto => ({
                     id: `p_${produto.id}`, // Prefixo para distinguir de materiais
@@ -3148,14 +3230,14 @@ module.exports = function createPCPRoutes(deps) {
                     gtin: produto.gtin || '',
                     sku: produto.sku || ''
                 }));
-    
+
                 produtosCombinados = [...produtosCombinados, ...produtosFormatados];
                 console.log(`✅ Encontrados ${produtosFormatados.length} produtos`);
-    
+
             } catch (errorProdutos) {
                 console.log(`⚠️ Erro ao buscar produtos: ${errorProdutos.message}`);
             }
-    
+
             // 2. Buscar na tabela materiais
             try {
                 let queryMateriais = `
@@ -3171,17 +3253,17 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE 1=1
                 `;
                 let paramsMateriais = [];
-    
+
                 if (termo && termo.length >= 1) {
                     queryMateriais += ` AND (codigo_material LIKE ? OR descricao LIKE ?)`;
                     const termoLike = `%${termo}%`;
                     paramsMateriais = [termoLike, termoLike];
                 }
-    
+
                 queryMateriais += ' ORDER BY codigo_material LIMIT 25';
-    
+
                 const [materiais] = await pool.query(queryMateriais, paramsMateriais);
-    
+
                 // Formatar materiais
                 const materiaisFormatados = materiais.map(material => ({
                     id: `m_${material.id}`, // Prefixo para distinguir de produtos
@@ -3198,27 +3280,27 @@ module.exports = function createPCPRoutes(deps) {
                     categoria: 'Material',
                     tipo: 'material'
                 }));
-    
+
                 produtosCombinados = [...produtosCombinados, ...materiaisFormatados];
                 console.log(`✅ Encontrados ${materiaisFormatados.length} materiais`);
-    
+
             } catch (errorMateriais) {
                 console.log(`⚠️ Erro ao buscar materiais: ${errorMateriais.message}`);
             }
-    
+
             // Ordenar por relevância (produtos primeiro, depois materiais)
             produtosCombinados.sort((a, b) => {
                 if (a.tipo === 'produto' && b.tipo === 'material') return -1;
                 if (a.tipo === 'material' && b.tipo === 'produto') return 1;
                 return a.nome.localeCompare(b.nome);
             });
-    
+
             console.log(`✅ Total de produtos+materiais encontrados: ${produtosCombinados.length}`);
             res.json(produtosCombinados);
-    
+
         } catch (error) {
             console.error('❌ Erro em /api/produtos/buscar:', error);
-    
+
             // Fallback com dados de exemplo
             const produtosExemplo = [
                 {
@@ -3235,30 +3317,30 @@ module.exports = function createPCPRoutes(deps) {
                     categoria: 'Cabos'
                 }
             ];
-    
+
             res.json(produtosExemplo);
         }
     });
-    
+
     console.log('✅ Endpoints de compatibilidade criados:');
     console.log('   📍 /api/empresas/buscar -> /api/clientes');
     console.log('   📍 /api/transportadoras/buscar -> /api/transportadoras');
     console.log('   📍 /api/produtos/buscar -> /api/pcp/materiais');
-    
+
     // =================== API PARA PRODUTOS REAIS DA TABELA PRODUTOS ===================
-    
+
     // API para buscar produtos da tabela 'produtos' (diferente de materiais)
     // SECURITY: Requer autenticação
     router.get('/api/produtos', authenticateToken, async (req, res) => {
         try {
             console.log('🛍️ Buscando produtos da tabela produtos...');
-    
+
             const { termo } = req.query;
             // permitir ?limit=NUM (padrão 1000) ou ?limit=0 para sem LIMIT
             const rawLimit = req.query.limit;
             let limitParam = typeof rawLimit !== 'undefined' ? parseInt(rawLimit) : 1000;
             if (isNaN(limitParam) || limitParam < 0) limitParam = 1000;
-    
+
             let query = `
                 SELECT
                     id,
@@ -3274,13 +3356,13 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE 1=1
             `;
             let params = [];
-    
+
             if (termo && termo.length >= 1) { // Funciona com 1 caractere
                 query += ` AND (codigo LIKE ? OR nome LIKE ? OR descricao LIKE ?)`;
                 const termoLike = `%${termo}%`;
                 params = [termoLike, termoLike, termoLike];
             }
-    
+
             // Se limitParam for 0 => sem LIMIT (retorna todos). Caso contrário, aplica LIMIT.
             if (limitParam === 0) {
                 query += ' ORDER BY nome';
@@ -3288,14 +3370,14 @@ module.exports = function createPCPRoutes(deps) {
                 query += ' ORDER BY nome LIMIT ?';
                 params.push(limitParam);
             }
-    
+
             const [produtos] = await pool.query(query, params);
-    
+
             // Formatar resposta compatível com frontend
             const produtosFormatados = produtos.map(produto => {
                 // Tentar obter preço da coluna custo_unitario
                 const preco = produto.custo_unitario || 0;
-    
+
                 return {
                     id: produto.id,
                     codigo: produto.codigo || '',
@@ -3310,19 +3392,19 @@ module.exports = function createPCPRoutes(deps) {
                     categoria: produto.marca || 'Produto'
                 };
             });
-    
+
             console.log(`✅ Endpoint /api/produtos retornou ${produtosFormatados.length} registros`);
-    
+
             // Formato compatível com frontend que espera {rows: [...]}
             res.json({
                 rows: produtosFormatados,
                 items: produtosFormatados,
                 total: produtosFormatados.length
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar produtos:', error);
-    
+
             // Fallback com produtos reais do catálogo
             const produtosFallback = [
                 {
@@ -3391,11 +3473,11 @@ module.exports = function createPCPRoutes(deps) {
                     categoria: 'TRIPLEX'
                 }
             ];
-    
+
             res.json(produtosFallback);
         }
     });
-    
+
     // ========== ROTAS BOBINAS CAPACIDADE ==========
     // GET /api/pcp/bobinas/categorias - Listar categorias disponíveis
     router.get('/bobinas/categorias', authenticateToken, async (req, res) => {
@@ -3407,7 +3489,7 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao listar categorias' });
         }
     });
-    
+
     // GET /api/pcp/bobinas/secoes/:categoria - Listar seções de uma categoria
     router.get('/bobinas/secoes/:categoria', authenticateToken, async (req, res) => {
         try {
@@ -3421,32 +3503,32 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao listar seções' });
         }
     });
-    
+
     // POST /api/pcp/bobinas/calcular - Calcular bobina ideal
     router.post('/bobinas/calcular', authenticateToken, async (req, res) => {
         try {
             const { categoria, secao, metragem } = req.body;
-    
+
             if (!categoria || !secao || !metragem) {
                 return res.status(400).json({ error: 'categoria, secao e metragem são obrigatórios' });
             }
-    
+
             const metrosDesejados = parseFloat(metragem);
             if (isNaN(metrosDesejados) || metrosDesejados <= 0) {
                 return res.status(400).json({ error: 'metragem deve ser um número positivo' });
             }
-    
+
             const [rows] = await pool.query(
                 'SELECT * FROM bobinas_capacidade WHERE categoria = ? AND secao = ?',
                 [categoria, secao]
             );
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({ error: 'Combinação categoria/seção não encontrada' });
             }
-    
+
             const dados = rows[0];
-    
+
             // Definir bobinas disponíveis com seus nomes
             const bobinas = [
                 { nome: '65/25', campo: 'bob_65_25', capacidade: parseFloat(dados.bob_65_25) || 0 },
@@ -3457,7 +3539,7 @@ module.exports = function createPCPRoutes(deps) {
                 { nome: '125/70', campo: 'bob_125_70', capacidade: parseFloat(dados.bob_125_70) || 0 },
                 { nome: '125/100', campo: 'bob_125_100', capacidade: parseFloat(dados.bob_125_100) || 0 }
             ].filter(b => b.capacidade > 0);
-    
+
             // Calcular para cada bobina: quantas precisa e qual o aproveitamento
             const resultados = bobinas.map(b => {
                 const qtdBobinas = Math.ceil(metrosDesejados / b.capacidade);
@@ -3473,18 +3555,18 @@ module.exports = function createPCPRoutes(deps) {
                     aproveitamento: parseFloat(aproveitamento)
                 };
             });
-    
+
             // Ordenar por melhor aproveitamento (maior primeiro)
             resultados.sort((a, b) => b.aproveitamento - a.aproveitamento);
-    
+
             // Melhor opção = maior aproveitamento
             const melhor = resultados[0];
-    
+
             // Bobina mínima viável = menor bobina que cabe toda a metragem em 1 unidade
             const minimaViavel = bobinas
                 .filter(b => b.capacidade >= metrosDesejados)
                 .sort((a, b) => a.capacidade - b.capacidade)[0] || null;
-    
+
             res.json({
                 categoria: dados.categoria,
                 norma: dados.norma,
@@ -3510,7 +3592,7 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro no cálculo de bobinas' });
         }
     });
-    
+
     // GET /api/pcp/bobinas/tabela - Retornar tabela completa para visualização
     router.get('/bobinas/tabela', authenticateToken, async (req, res) => {
         try {
@@ -3539,8 +3621,8 @@ module.exports = function createPCPRoutes(deps) {
         }
     });
     // ========== FIM ROTAS BOBINAS ==========
-    
-    
+
+
     // ========================================
     // API: CRIAR PRODUTO (POST)
     // ========================================
@@ -3549,18 +3631,18 @@ module.exports = function createPCPRoutes(deps) {
         try {
             console.log('➕ Criando novo produto...');
             const dados = req.body;
-    
+
             // Validar campos obrigatórios
             if (!dados.codigo || !dados.nome) {
                 return res.status(400).json({ error: 'Código e Nome são obrigatórios' });
             }
-    
+
             // Verificar se código já existe
             const [existe] = await pool.query('SELECT id FROM produtos WHERE codigo = ?', [dados.codigo]);
             if (existe.length > 0) {
                 return res.status(400).json({ error: 'Código já existe' });
             }
-    
+
             // Construir INSERT dinamicamente com campos básicos
             const camposParaInserir = {
                 codigo: dados.codigo,
@@ -3572,7 +3654,7 @@ module.exports = function createPCPRoutes(deps) {
                 variacao: dados.variacao || '',
                 custo_unitario: parseFloat(dados.preco || 0)
             };
-    
+
             // Adicionar campos opcionais se fornecidos
             const camposOpcionais = {
                 unidade_medida: dados.unidade_medida,
@@ -3585,23 +3667,23 @@ module.exports = function createPCPRoutes(deps) {
                 norma: dados.norma,
                 cor: dados.cor
             };
-    
+
             Object.keys(camposOpcionais).forEach(campo => {
                 if (camposOpcionais[campo] !== undefined) {
                     camposParaInserir[campo] = camposOpcionais[campo];
                 }
             });
-    
+
             const colunas = Object.keys(camposParaInserir);
             const valores = Object.values(camposParaInserir);
             const placeholders = colunas.map(() => '?').join(', ');
-    
+
             const query = `INSERT INTO produtos (${colunas.join(', ')}) VALUES (${placeholders})`;
-    
+
             const [result] = await pool.query(query, valores);
-    
+
             console.log(`✅ Produto criado com ID: ${result.insertId}`);
-    
+
             res.json({
                 success: true,
                 id: result.insertId,
@@ -3609,13 +3691,13 @@ module.exports = function createPCPRoutes(deps) {
                 nome: dados.nome,
                 message: 'Produto criado com sucesso'
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao criar produto:', error);
             res.status(500).json({ error: 'Erro ao criar produto: ' + error.message });
         }
     });
-    
+
     // ========================================
     // API: ATUALIZAR PRODUTO (PUT)
     // ========================================
@@ -3624,22 +3706,22 @@ module.exports = function createPCPRoutes(deps) {
         try {
             const { id } = req.params;
             const dados = req.body;
-    
+
             console.log(`🔄 Atualizando produto ID: ${id}`);
-    
+
             // Verificar se produto existe
             const [produto] = await pool.query('SELECT id FROM produtos WHERE id = ?', [id]);
             if (produto.length === 0) {
                 return res.status(404).json({ error: 'Produto não encontrado' });
             }
-    
+
             // Obter colunas existentes na tabela produtos (com cache)
             const colunasExistentes = await getProdutoColumns(pool);
             console.log('📋 Colunas disponíveis na tabela:', colunasExistentes.join(', '));
-    
+
             // Construir query dinamicamente apenas com campos que existem na tabela
             const camposParaAtualizar = {};
-    
+
             // Mapeamento de campos do frontend para o banco
             const mapeamentoCampos = {
                 codigo: dados.codigo,
@@ -3684,7 +3766,7 @@ module.exports = function createPCPRoutes(deps) {
                 controle_lote: dados.controle_lote,
                 familia: dados.familia
             };
-    
+
             // Adicionar campo de preço (pode ser preco, preco_venda ou custo_unitario)
             if (dados.preco !== undefined) {
                 if (colunasExistentes.includes('preco')) {
@@ -3695,79 +3777,79 @@ module.exports = function createPCPRoutes(deps) {
                     mapeamentoCampos.custo_unitario = dados.preco;
                 }
             }
-    
+
             // Filtrar apenas campos que existem na tabela e têm valor
             Object.keys(mapeamentoCampos).forEach(campo => {
                 if (colunasExistentes.includes(campo) && mapeamentoCampos[campo] !== undefined) {
                     camposParaAtualizar[campo] = mapeamentoCampos[campo];
                 }
             });
-    
+
             if (Object.keys(camposParaAtualizar).length === 0) {
                 return res.status(400).json({ error: 'Nenhum campo válido para atualizar' });
             }
-    
+
             console.log('📝 Campos que serão atualizados:', Object.keys(camposParaAtualizar).join(', '));
-    
+
             // Construir SET clause
             const setClauses = Object.keys(camposParaAtualizar).map(campo => `${campo} = ?`);
             const valores = Object.values(camposParaAtualizar);
             valores.push(id); // WHERE id = ?
-    
+
             const query = `UPDATE produtos SET ${setClauses.join(', ')} WHERE id = ?`;
-    
+
             await pool.query(query, valores);
-    
+
             console.log(`✅ Produto ${id} atualizado com sucesso`);
-    
+
             res.json({
                 success: true,
                 id: parseInt(id),
                 message: 'Produto atualizado com sucesso'
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao atualizar produto:', error);
             res.status(500).json({ error: 'Erro ao atualizar produto: ' + error.message });
         }
     });
-    
+
     // ========================================
     // API: BUSCAR PRODUTO POR ID (GET)
     // ========================================
     router.get('/api/produtos/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-    
+
             const [produtos] = await pool.query('SELECT * FROM produtos WHERE id = ?', [id]);
-    
+
             if (produtos.length === 0) {
                 return res.status(404).json({ error: 'Produto não encontrado' });
             }
-    
+
             res.json(produtos[0]);
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar produto:', error);
             res.status(500).json({ error: 'Erro ao buscar produto: ' + error.message });
         }
     });
-    
+
     // ========================================
     // API PCP: PRODUTOS (Alias para /api/produtos)
     // ========================================
-    
+
     // ========================================
     // API VENDAS: Rotas consolidadas em seção dedicada (linhas 11245+)
     // ========================================
-    
+
     // ========================================
     // API: ALERTAS DE ESTOQUE
     // ========================================
     router.get('/api/alertas-estoque', authenticateToken, async (req, res) => {
         try {
             console.log('⚠️ Buscando alertas de estoque...');
-    
+
             // AUDIT-FIX R-08: Buscar dados REAIS de estoque do banco de dados
             const query = `
                 SELECT
@@ -3786,14 +3868,14 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY nome
                 LIMIT 200
             `;
-    
+
             const [produtos] = await pool.query(query);
-    
+
             // AUDIT-FIX R-08: Classificar produtos por status usando dados REAIS do banco
             const alertasFormatados = produtos.map((produto) => {
                 const quantidade_atual = parseInt(produto.quantidade_atual) || 0;
                 const estoque_minimo = parseInt(produto.estoque_minimo) || 10;
-    
+
                 let status = 'normal';
                 if (quantidade_atual === 0) {
                     status = 'critico';
@@ -3802,7 +3884,7 @@ module.exports = function createPCPRoutes(deps) {
                 } else if (quantidade_atual < estoque_minimo) {
                     status = 'baixo';
                 }
-    
+
                 return {
                     id: produto.id,
                     codigo: produto.codigo || `PROD-${produto.id}`,
@@ -3816,16 +3898,16 @@ module.exports = function createPCPRoutes(deps) {
                     preco: parseFloat(produto.custo_unitario) || 0
                 };
             });
-    
+
             // Filtrar apenas produtos com status baixo ou crítico
             const alertasFiltrados = alertasFormatados.filter(a => a.status === 'baixo' || a.status === 'critico');
-    
+
             console.log(`✅ ${alertasFiltrados.length} alertas de estoque encontrados`);
             res.json({
                 total: alertasFiltrados.length,
                 alertas: alertasFiltrados
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar alertas de estoque:', error);
             res.status(500).json({
@@ -3835,18 +3917,18 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // ========================================
     // API: CONFIGURAÇÕES DA EMPRESA
     // ========================================
-    
+
     // GET - Buscar configurações da empresa
     router.get('/api/configuracoes/empresa', authenticateToken, cacheMiddleware('cfg_empresa', CACHE_CONFIG.configuracoes), async (req, res) => {
         try {
             console.log('📋 Buscando configurações da empresa...');
-    
+
             const [rows] = await pool.query('SELECT * FROM configuracoes_empresa LIMIT 1');
-    
+
             if (rows.length > 0) {
                 res.json(rows[0]);
             } else {
@@ -3870,20 +3952,20 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar configurações' });
         }
     });
-    
+
     // POST - Salvar configurações da empresa
     router.post('/api/configuracoes/empresa', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('💾 Salvando configurações da empresa...');
-    
+
             const {
                 razao_social, nome_fantasia, cnpj, inscricao_estadual, inscricao_municipal,
                 telefone, email, site, cep, estado, cidade, bairro, endereco, numero, complemento
             } = req.body;
-    
+
             // Verificar se já existe registro
             const [existing] = await pool.query('SELECT id FROM configuracoes_empresa LIMIT 1');
-    
+
             if (existing.length > 0) {
                 // Atualizar registro existente
                 await pool.query(`
@@ -3895,7 +3977,7 @@ module.exports = function createPCPRoutes(deps) {
                 `, [razao_social, nome_fantasia, cnpj, inscricao_estadual, inscricao_municipal,
                     telefone, email, site, cep, estado, cidade, bairro, endereco, numero, complemento,
                     existing[0].id]);
-    
+
                 console.log('✅ Configurações atualizadas');
             } else {
                 // Inserir novo registro
@@ -3906,15 +3988,15 @@ module.exports = function createPCPRoutes(deps) {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `, [razao_social, nome_fantasia, cnpj, inscricao_estadual, inscricao_municipal,
                     telefone, email, site, cep, estado, cidade, bairro, endereco, numero, complemento]);
-    
+
                 console.log('✅ Configurações criadas');
             }
-    
+
             res.json({
                 success: true,
                 message: 'Configurações salvas com sucesso!'
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao salvar configurações:', error);
             res.status(500).json({
@@ -3924,35 +4006,35 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // POST - Upload de logo da empresa
     router.post('/api/configuracoes/upload-logo', authenticateToken, authorizeAdmin, upload.single('logo'), async (req, res) => {
         try {
             console.log('🖼️ Upload de logo da empresa...');
-    
+
             if (!req.file) {
                 return res.status(400).json({ success: false, error: 'Nenhum arquivo enviado' });
             }
-    
+
             const logoPath = '/uploads/empresa/' + req.file.filename;
-    
+
             // Atualizar URL do logo no banco de dados
             const [existing] = await pool.query('SELECT id FROM configuracoes_empresa LIMIT 1');
-    
+
             if (existing.length > 0) {
                 await pool.query('UPDATE configuracoes_empresa SET logo_url = ? WHERE id = ?', [logoPath, existing[0].id]);
             } else {
                 await pool.query('INSERT INTO configuracoes_empresa (logo_url) VALUES (?)', [logoPath]);
             }
-    
+
             console.log('✅ Logo atualizado:', logoPath);
-    
+
             res.json({
                 success: true,
                 url: logoPath,
                 message: 'Logo atualizado com sucesso!'
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao fazer upload do logo:', error);
             res.status(500).json({
@@ -3962,35 +4044,35 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // POST - Upload de favicon da empresa
     router.post('/api/configuracoes/upload-favicon', authenticateToken, authorizeAdmin, upload.single('favicon'), async (req, res) => {
         try {
             console.log('🖼️ Upload de favicon da empresa...');
-    
+
             if (!req.file) {
                 return res.status(400).json({ success: false, error: 'Nenhum arquivo enviado' });
             }
-    
+
             const faviconPath = '/uploads/empresa/' + req.file.filename;
-    
+
             // Atualizar URL do favicon no banco de dados
             const [existing] = await pool.query('SELECT id FROM configuracoes_empresa LIMIT 1');
-    
+
             if (existing.length > 0) {
                 await pool.query('UPDATE configuracoes_empresa SET favicon_url = ? WHERE id = ?', [faviconPath, existing[0].id]);
             } else {
                 await pool.query('INSERT INTO configuracoes_empresa (favicon_url) VALUES (?)', [faviconPath]);
             }
-    
+
             console.log('✅ Favicon atualizado:', faviconPath);
-    
+
             res.json({
                 success: true,
                 url: faviconPath,
                 message: 'Favicon atualizado com sucesso!'
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao fazer upload do favicon:', error);
             res.status(500).json({
@@ -4000,18 +4082,18 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // ========================================
     // API: POPULAR DADOS DE EXEMPLO
     // ========================================
     router.post('/api/admin/popular-dados', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('📝 Populando dados de exemplo...');
-    
+
             // 1. Verificar produtos
             const [produtos] = await pool.query('SELECT COUNT(*) as total FROM produtos');
             let produtosInseridos = 0;
-    
+
             if (produtos[0].total === 0) {
                 const produtosExemplo = [
                     ['DUN10', 'CABO DUPLEX NEUTRO NU 2x10mm² LABOR 0,6/1KV', 'Preto / Nu', 'Labor Energy', 'Cabo multiplexado duplex com neutro nu', '7894567890123', 'SKU-DUN10', 28.90],
@@ -4025,7 +4107,7 @@ module.exports = function createPCPRoutes(deps) {
                     ['QDN95', 'CABO QUADRUPLEX 3x95mm² + 1x95mm² LABOR 0,6/1KV', 'Preto / Preto / Preto / Nu', 'Aluforce', 'Cabo multiplexado quadruplex', '7894567890131', 'SKU-QDN95', 225.50],
                     ['DUN35', 'CABO DUPLEX NEUTRO NU 2x35mm² LABOR 0,6/1KV', 'Preto / Nu', 'Aluforce', 'Cabo multiplexado duplex', '7894567890132', 'SKU-DUN35', 78.90]
                 ];
-    
+
                 for (const prod of produtosExemplo) {
                     await pool.query(`
                         INSERT INTO produtos (codigo, nome, variacao, marca, descricao, gtin, sku, custo_unitario)
@@ -4034,11 +4116,11 @@ module.exports = function createPCPRoutes(deps) {
                     produtosInseridos++;
                 }
             }
-    
+
             // 2. Verificar materiais
             const [materiais] = await pool.query('SELECT COUNT(*) as total FROM materiais');
             let materiaisInseridos = 0;
-    
+
             if (materiais[0].total === 0) {
                 const materiaisExemplo = [
                     ['ALU-PERFIL-20X20', 'Perfil de Alumínio 20x20mm', 'M', 15.50, 100.00, 'ALUFORCE'],
@@ -4052,7 +4134,7 @@ module.exports = function createPCPRoutes(deps) {
                     ['ALU-TUBO-32MM', 'Tubo de Alumínio Redondo 32mm', 'M', 32.90, 90.00, 'ALUFORCE'],
                     ['ALU-PERFIL-T-25MM', 'Perfil T de Alumínio 25mm', 'M', 21.75, 110.00, 'FORNECEDOR A']
                 ];
-    
+
                 for (const mat of materiaisExemplo) {
                     await pool.query(`
                         INSERT INTO materiais (codigo_material, descricao, unidade_medida, custo_unitario, quantidade_estoque, fornecedor_padrao)
@@ -4061,13 +4143,13 @@ module.exports = function createPCPRoutes(deps) {
                     materiaisInseridos++;
                 }
             }
-    
+
             // 3. Retornar resumo
             const [produtosTotal] = await pool.query('SELECT COUNT(*) as total FROM produtos');
             const [materiaisTotal] = await pool.query('SELECT COUNT(*) as total FROM materiais');
-    
+
             console.log(`✅ Dados populados: ${produtosInseridos} produtos + ${materiaisInseridos} materiais`);
-    
+
             res.json({
                 success: true,
                 message: 'Dados populados com sucesso',
@@ -4078,7 +4160,7 @@ module.exports = function createPCPRoutes(deps) {
                     materiais: materiaisTotal[0].total
                 }
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao popular dados:', error);
             res.status(500).json({
@@ -4088,18 +4170,18 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // ========================================
     // API: CONFIGURAÇÕES ESTENDIDAS
     // ========================================
-    
+
     // Venda de Produtos
     router.post('/api/configuracoes/venda-produtos', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { etapas, tabelas_preco, numeracao, reserva_estoque } = req.body;
-    
+
             const [existing] = await pool.query('SELECT id FROM configuracoes_venda_produtos LIMIT 1');
-    
+
             if (existing.length > 0) {
                 await pool.query(`
                     UPDATE configuracoes_venda_produtos
@@ -4112,21 +4194,21 @@ module.exports = function createPCPRoutes(deps) {
                     VALUES (?, ?, ?, ?)
                 `, [JSON.stringify(etapas), JSON.stringify(tabelas_preco), JSON.stringify(numeracao), JSON.stringify(reserva_estoque)]);
             }
-    
+
             res.json({ success: true });
         } catch (error) {
             console.error('Erro ao salvar config venda produtos:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
     // Venda de Serviços
     router.post('/api/configuracoes/venda-servicos', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { etapas, proposta, numeracao } = req.body;
-    
+
             const [existing] = await pool.query('SELECT id FROM configuracoes_venda_servicos LIMIT 1');
-    
+
             if (existing.length > 0) {
                 await pool.query(`
                     UPDATE configuracoes_venda_servicos
@@ -4139,21 +4221,21 @@ module.exports = function createPCPRoutes(deps) {
                     VALUES (?, ?, ?)
                 `, [JSON.stringify(etapas), JSON.stringify(proposta), JSON.stringify(numeracao)]);
             }
-    
+
             res.json({ success: true });
         } catch (error) {
             console.error('Erro ao salvar config venda serviços:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
     // Clientes e Fornecedores
     router.post('/api/configuracoes/clientes-fornecedores', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { validacoes, credito, tags } = req.body;
-    
+
             const [existing] = await pool.query('SELECT id FROM configuracoes_clientes_fornecedores LIMIT 1');
-    
+
             if (existing.length > 0) {
                 await pool.query(`
                     UPDATE configuracoes_clientes_fornecedores
@@ -4166,21 +4248,21 @@ module.exports = function createPCPRoutes(deps) {
                     VALUES (?, ?, ?)
                 `, [JSON.stringify(validacoes), JSON.stringify(credito), JSON.stringify(tags)]);
             }
-    
+
             res.json({ success: true });
         } catch (error) {
             console.error('Erro ao salvar config clientes/fornecedores:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
     // Finanças
     router.post('/api/configuracoes/financas', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { contas_atraso, email_remessa, juros_mes, multa_atraso } = req.body;
-    
+
             const [existing] = await pool.query('SELECT id FROM configuracoes_financas LIMIT 1');
-    
+
             if (existing.length > 0) {
                 await pool.query(`
                     UPDATE configuracoes_financas
@@ -4193,23 +4275,23 @@ module.exports = function createPCPRoutes(deps) {
                     VALUES (?, ?, ?, ?)
                 `, [contas_atraso, email_remessa, juros_mes, multa_atraso]);
             }
-    
+
             res.json({ success: true });
         } catch (error) {
             console.error('Erro ao salvar config finanças:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
     // ========================================
     // GET - Buscar etapas do processo de vendas
     // ========================================
     router.get('/api/configuracoes/venda-produtos', authenticateToken, cacheMiddleware('cfg_venda_prod', CACHE_CONFIG.configuracoes), async (req, res) => {
         try {
             // AUDIT-FIX ARCH-002: Removed duplicate CREATE TABLE (already in POST route)
-    
+
             const [rows] = await pool.query('SELECT * FROM configuracoes_venda_produtos LIMIT 1');
-    
+
             if (rows.length > 0) {
                 const config = rows[0];
                 res.json({
@@ -4241,7 +4323,768 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
+    // ========================================
+    // GET - Buscar configurações de venda de serviços
+    // ========================================
+    router.get('/api/configuracoes/venda-servicos', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_venda_servicos (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                etapas TEXT,
+                proposta TEXT,
+                numeracao TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [rows] = await pool.query('SELECT * FROM configuracoes_venda_servicos LIMIT 1');
+            if (rows.length > 0) {
+                const config = rows[0];
+                res.json({
+                    success: true,
+                    etapas: config.etapas ? JSON.parse(config.etapas) : null,
+                    proposta: config.proposta ? JSON.parse(config.proposta) : null,
+                    numeracao: config.numeracao ? JSON.parse(config.numeracao) : null
+                });
+            } else {
+                res.json({
+                    success: true,
+                    etapas: { ordem_servico: true, em_execucao: true, executada: true, faturar_servico: true },
+                    proposta: { permitir_proposta: false },
+                    numeracao: { proximo_os: 1001 }
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao buscar config venda serviços:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // GET - Buscar configurações de clientes e fornecedores
+    // ========================================
+    router.get('/api/configuracoes/clientes-fornecedores', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_clientes_fornecedores (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                validacoes TEXT,
+                credito TEXT,
+                tags TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [rows] = await pool.query('SELECT * FROM configuracoes_clientes_fornecedores LIMIT 1');
+            if (rows.length > 0) {
+                const config = rows[0];
+                res.json({
+                    success: true,
+                    validacoes: config.validacoes ? JSON.parse(config.validacoes) : null,
+                    credito: config.credito ? JSON.parse(config.credito) : null,
+                    tags: config.tags ? JSON.parse(config.tags) : null
+                });
+            } else {
+                res.json({
+                    success: true,
+                    validacoes: { obrigar_cnpj_cpf: false, obrigar_endereco: false, obrigar_email: false, validar_unicidade: false },
+                    credito: { bloquear_novos: false, limite_padrao: '0' },
+                    tags: { tags_automaticas: false }
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao buscar config clientes/fornecedores:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // GET - Buscar configurações de finanças
+    // ========================================
+    router.get('/api/configuracoes/financas', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_financas (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                contas_atraso VARCHAR(50) DEFAULT 'nao-mostrar',
+                email_remessa VARCHAR(255) DEFAULT '',
+                juros_mes VARCHAR(10) DEFAULT '1.0',
+                multa_atraso VARCHAR(10) DEFAULT '2.0',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [rows] = await pool.query('SELECT * FROM configuracoes_financas LIMIT 1');
+            if (rows.length > 0) {
+                const config = rows[0];
+                res.json({
+                    success: true,
+                    contas_atraso: config.contas_atraso || 'nao-mostrar',
+                    email_remessa: config.email_remessa || '',
+                    juros_mes: config.juros_mes || '1.0',
+                    multa_atraso: config.multa_atraso || '2.0'
+                });
+            } else {
+                res.json({
+                    success: true,
+                    contas_atraso: 'nao-mostrar',
+                    email_remessa: '',
+                    juros_mes: '1.0',
+                    multa_atraso: '2.0'
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao buscar config finanças:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // TIPOS DE ENTREGA - CRUD completo
+    // ========================================
+    router.get('/api/configuracoes/tipos-entrega', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS tipos_entrega (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(100) NOT NULL,
+                prazo INT DEFAULT 0,
+                transportadora_id INT DEFAULT NULL,
+                situacao VARCHAR(20) DEFAULT 'ativo',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [tipos] = await pool.query(`
+                SELECT te.*, t.nome as transportadora_nome 
+                FROM tipos_entrega te 
+                LEFT JOIN transportadoras t ON te.transportadora_id = t.id 
+                ORDER BY te.nome
+            `);
+            res.json({ data: tipos });
+        } catch (error) {
+            console.error('Erro ao buscar tipos de entrega:', error);
+            // Fallback sem JOIN de transportadoras
+            try {
+                const [tipos] = await pool.query('SELECT * FROM tipos_entrega ORDER BY nome');
+                res.json({ data: tipos.map(t => ({...t, transportadora_nome: null})) });
+            } catch(e2) {
+                res.status(500).json({ error: e2.message });
+            }
+        }
+    });
+
+    router.post('/api/configuracoes/tipos-entrega', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, prazo, transportadora_id, situacao } = req.body;
+            if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+            const [result] = await pool.query(
+                'INSERT INTO tipos_entrega (nome, prazo, transportadora_id, situacao) VALUES (?, ?, ?, ?)',
+                [nome, prazo || 0, transportadora_id || null, situacao || 'ativo']
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar tipo de entrega:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/configuracoes/tipos-entrega/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, prazo, transportadora_id, situacao } = req.body;
+            await pool.query(
+                'UPDATE tipos_entrega SET nome = ?, prazo = ?, transportadora_id = ?, situacao = ? WHERE id = ?',
+                [nome, prazo || 0, transportadora_id || null, situacao || 'ativo', req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar tipo de entrega:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/configuracoes/tipos-entrega/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM tipos_entrega WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir tipo de entrega:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // INFORMAÇÕES DE FRETE - GET/POST
+    // ========================================
+    router.get('/api/configuracoes/info-frete', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_info_frete (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                modalidade VARCHAR(50) DEFAULT 'CIF',
+                frete_minimo DECIMAL(10,2) DEFAULT 0,
+                url_rastreio VARCHAR(500) DEFAULT '',
+                habilitar_rastreamento TINYINT(1) DEFAULT 0,
+                notificar_despacho TINYINT(1) DEFAULT 0,
+                notificar_entrega TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [rows] = await pool.query('SELECT * FROM configuracoes_info_frete LIMIT 1');
+            if (rows.length > 0) {
+                const config = rows[0];
+                res.json({
+                    success: true,
+                    modalidade: config.modalidade || 'CIF',
+                    frete_minimo: config.frete_minimo || 0,
+                    url_rastreio: config.url_rastreio || '',
+                    habilitar_rastreamento: !!config.habilitar_rastreamento,
+                    notificar_despacho: !!config.notificar_despacho,
+                    notificar_entrega: !!config.notificar_entrega
+                });
+            } else {
+                res.json({
+                    success: true,
+                    modalidade: 'CIF',
+                    frete_minimo: 0,
+                    url_rastreio: '',
+                    habilitar_rastreamento: false,
+                    notificar_despacho: false,
+                    notificar_entrega: false
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao buscar info frete:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.post('/api/configuracoes/info-frete', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { modalidade, frete_minimo, url_rastreio, habilitar_rastreamento, notificar_despacho, notificar_entrega } = req.body;
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_info_frete (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                modalidade VARCHAR(50) DEFAULT 'CIF',
+                frete_minimo DECIMAL(10,2) DEFAULT 0,
+                url_rastreio VARCHAR(500) DEFAULT '',
+                habilitar_rastreamento TINYINT(1) DEFAULT 0,
+                notificar_despacho TINYINT(1) DEFAULT 0,
+                notificar_entrega TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [existing] = await pool.query('SELECT id FROM configuracoes_info_frete LIMIT 1');
+            if (existing.length > 0) {
+                await pool.query(`
+                    UPDATE configuracoes_info_frete
+                    SET modalidade = ?, frete_minimo = ?, url_rastreio = ?,
+                        habilitar_rastreamento = ?, notificar_despacho = ?, notificar_entrega = ?
+                    WHERE id = ?
+                `, [modalidade || 'CIF', frete_minimo || 0, url_rastreio || '', 
+                    habilitar_rastreamento ? 1 : 0, notificar_despacho ? 1 : 0, notificar_entrega ? 1 : 0,
+                    existing[0].id]);
+            } else {
+                await pool.query(`
+                    INSERT INTO configuracoes_info_frete (modalidade, frete_minimo, url_rastreio, habilitar_rastreamento, notificar_despacho, notificar_entrega)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `, [modalidade || 'CIF', frete_minimo || 0, url_rastreio || '',
+                    habilitar_rastreamento ? 1 : 0, notificar_despacho ? 1 : 0, notificar_entrega ? 1 : 0]);
+            }
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao salvar info frete:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // NFS-e CONFIGURAÇÕES - GET/POST
+    // ========================================
+    router.get('/api/configuracoes/nfse', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_nfse (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                inscricao_municipal VARCHAR(50) DEFAULT '',
+                codigo_municipio VARCHAR(20) DEFAULT '',
+                ambiente VARCHAR(20) DEFAULT 'homologacao',
+                regime_tributacao VARCHAR(10) DEFAULT '1',
+                envio_automatico TINYINT(1) DEFAULT 1,
+                reter_iss TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [rows] = await pool.query('SELECT * FROM configuracoes_nfse LIMIT 1');
+            if (rows.length > 0) {
+                const config = rows[0];
+                res.json({
+                    success: true,
+                    inscricao_municipal: config.inscricao_municipal || '',
+                    codigo_municipio: config.codigo_municipio || '',
+                    ambiente: config.ambiente || 'homologacao',
+                    regime_tributacao: config.regime_tributacao || '1',
+                    envio_automatico: !!config.envio_automatico,
+                    reter_iss: !!config.reter_iss
+                });
+            } else {
+                res.json({
+                    success: true,
+                    inscricao_municipal: '',
+                    codigo_municipio: '',
+                    ambiente: 'homologacao',
+                    regime_tributacao: '1',
+                    envio_automatico: true,
+                    reter_iss: false
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao buscar config NFS-e:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.post('/api/configuracoes/nfse', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { inscricao_municipal, codigo_municipio, ambiente, regime_tributacao, envio_automatico, reter_iss } = req.body;
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_nfse (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                inscricao_municipal VARCHAR(50) DEFAULT '',
+                codigo_municipio VARCHAR(20) DEFAULT '',
+                ambiente VARCHAR(20) DEFAULT 'homologacao',
+                regime_tributacao VARCHAR(10) DEFAULT '1',
+                envio_automatico TINYINT(1) DEFAULT 1,
+                reter_iss TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [existing] = await pool.query('SELECT id FROM configuracoes_nfse LIMIT 1');
+            if (existing.length > 0) {
+                await pool.query(`
+                    UPDATE configuracoes_nfse
+                    SET inscricao_municipal = ?, codigo_municipio = ?, ambiente = ?,
+                        regime_tributacao = ?, envio_automatico = ?, reter_iss = ?
+                    WHERE id = ?
+                `, [inscricao_municipal || '', codigo_municipio || '', ambiente || 'homologacao',
+                    regime_tributacao || '1', envio_automatico ? 1 : 0, reter_iss ? 1 : 0,
+                    existing[0].id]);
+            } else {
+                await pool.query(`
+                    INSERT INTO configuracoes_nfse (inscricao_municipal, codigo_municipio, ambiente, regime_tributacao, envio_automatico, reter_iss)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `, [inscricao_municipal || '', codigo_municipio || '', ambiente || 'homologacao',
+                    regime_tributacao || '1', envio_automatico ? 1 : 0, reter_iss ? 1 : 0]);
+            }
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao salvar config NFS-e:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // CUSTOS E PRECIFICAÇÃO - GET/PUT
+    // ========================================
+    router.get('/api/configuracoes/custos-precificacao', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_custos_precificacao (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                metodo_precificacao VARCHAR(50) DEFAULT 'markup',
+                margem_padrao DECIMAL(10,2) DEFAULT 30,
+                preco_venda_padrao DECIMAL(10,2) DEFAULT 0,
+                custo_unitario_padrao DECIMAL(10,2) DEFAULT 0,
+                incluir_frete VARCHAR(10) DEFAULT 'sim',
+                incluir_impostos VARCHAR(10) DEFAULT 'nao',
+                custo_mao_obra DECIMAL(10,2) DEFAULT 15,
+                custos_indiretos DECIMAL(10,2) DEFAULT 10,
+                casas_decimais INT DEFAULT 2,
+                arredondamento VARCHAR(20) DEFAULT 'matematico',
+                ncm_padrao VARCHAR(20) DEFAULT '',
+                icms_padrao DECIMAL(10,2) DEFAULT 0,
+                regime_tributario VARCHAR(30) DEFAULT 'simples',
+                uf_origem VARCHAR(5) DEFAULT 'SP',
+                exibir_moeda TINYINT(1) DEFAULT 1,
+                exibir_margem TINYINT(1) DEFAULT 1,
+                alerta_margem_min DECIMAL(10,2) DEFAULT 10,
+                alerta_preco_custo VARCHAR(20) DEFAULT 'aviso',
+                notif_email TINYINT(1) DEFAULT 0,
+                notif_sistema TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [rows] = await pool.query('SELECT * FROM configuracoes_custos_precificacao LIMIT 1');
+            if (rows.length > 0) {
+                const c = rows[0];
+                res.json({
+                    success: true,
+                    metodo_precificacao: c.metodo_precificacao || 'markup',
+                    margem_padrao: parseFloat(c.margem_padrao) || 30,
+                    preco_venda_padrao: parseFloat(c.preco_venda_padrao) || 0,
+                    custo_unitario_padrao: parseFloat(c.custo_unitario_padrao) || 0,
+                    incluir_frete: c.incluir_frete || 'sim',
+                    incluir_impostos: c.incluir_impostos || 'nao',
+                    custo_mao_obra: parseFloat(c.custo_mao_obra) || 15,
+                    custos_indiretos: parseFloat(c.custos_indiretos) || 10,
+                    casas_decimais: parseInt(c.casas_decimais) || 2,
+                    arredondamento: c.arredondamento || 'matematico',
+                    ncm_padrao: c.ncm_padrao || '',
+                    icms_padrao: parseFloat(c.icms_padrao) || 0,
+                    regime_tributario: c.regime_tributario || 'simples',
+                    uf_origem: c.uf_origem || 'SP',
+                    exibir_moeda: !!c.exibir_moeda,
+                    exibir_margem: !!c.exibir_margem,
+                    alerta_margem_min: parseFloat(c.alerta_margem_min) || 10,
+                    alerta_preco_custo: c.alerta_preco_custo || 'aviso',
+                    notif_email: !!c.notif_email,
+                    notif_sistema: !!c.notif_sistema
+                });
+            } else {
+                res.json({
+                    success: true,
+                    metodo_precificacao: 'markup', margem_padrao: 30, preco_venda_padrao: 0,
+                    custo_unitario_padrao: 0, incluir_frete: 'sim', incluir_impostos: 'nao',
+                    custo_mao_obra: 15, custos_indiretos: 10, casas_decimais: 2,
+                    arredondamento: 'matematico', ncm_padrao: '', icms_padrao: 0,
+                    regime_tributario: 'simples', uf_origem: 'SP', exibir_moeda: true,
+                    exibir_margem: true, alerta_margem_min: 10, alerta_preco_custo: 'aviso',
+                    notif_email: false, notif_sistema: true
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao buscar config custos/precificação:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/configuracoes/custos-precificacao', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { metodo_precificacao, margem_padrao, preco_venda_padrao, custo_unitario_padrao,
+                    incluir_frete, incluir_impostos, custo_mao_obra, custos_indiretos,
+                    casas_decimais, arredondamento, ncm_padrao, icms_padrao,
+                    regime_tributario, uf_origem, exibir_moeda, exibir_margem,
+                    alerta_margem_min, alerta_preco_custo, notif_email, notif_sistema } = req.body;
+            
+            await pool.query(`CREATE TABLE IF NOT EXISTS configuracoes_custos_precificacao (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                metodo_precificacao VARCHAR(50) DEFAULT 'markup',
+                margem_padrao DECIMAL(10,2) DEFAULT 30,
+                preco_venda_padrao DECIMAL(10,2) DEFAULT 0,
+                custo_unitario_padrao DECIMAL(10,2) DEFAULT 0,
+                incluir_frete VARCHAR(10) DEFAULT 'sim',
+                incluir_impostos VARCHAR(10) DEFAULT 'nao',
+                custo_mao_obra DECIMAL(10,2) DEFAULT 15,
+                custos_indiretos DECIMAL(10,2) DEFAULT 10,
+                casas_decimais INT DEFAULT 2,
+                arredondamento VARCHAR(20) DEFAULT 'matematico',
+                ncm_padrao VARCHAR(20) DEFAULT '',
+                icms_padrao DECIMAL(10,2) DEFAULT 0,
+                regime_tributario VARCHAR(30) DEFAULT 'simples',
+                uf_origem VARCHAR(5) DEFAULT 'SP',
+                exibir_moeda TINYINT(1) DEFAULT 1,
+                exibir_margem TINYINT(1) DEFAULT 1,
+                alerta_margem_min DECIMAL(10,2) DEFAULT 10,
+                alerta_preco_custo VARCHAR(20) DEFAULT 'aviso',
+                notif_email TINYINT(1) DEFAULT 0,
+                notif_sistema TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+
+            const [existing] = await pool.query('SELECT id FROM configuracoes_custos_precificacao LIMIT 1');
+            if (existing.length > 0) {
+                await pool.query(`
+                    UPDATE configuracoes_custos_precificacao SET
+                        metodo_precificacao = ?, margem_padrao = ?, preco_venda_padrao = ?,
+                        custo_unitario_padrao = ?, incluir_frete = ?, incluir_impostos = ?,
+                        custo_mao_obra = ?, custos_indiretos = ?, casas_decimais = ?,
+                        arredondamento = ?, ncm_padrao = ?, icms_padrao = ?,
+                        regime_tributario = ?, uf_origem = ?, exibir_moeda = ?,
+                        exibir_margem = ?, alerta_margem_min = ?, alerta_preco_custo = ?,
+                        notif_email = ?, notif_sistema = ?
+                    WHERE id = ?
+                `, [metodo_precificacao || 'markup', margem_padrao || 30, preco_venda_padrao || 0,
+                    custo_unitario_padrao || 0, incluir_frete || 'sim', incluir_impostos || 'nao',
+                    custo_mao_obra || 15, custos_indiretos || 10, casas_decimais || 2,
+                    arredondamento || 'matematico', ncm_padrao || '', icms_padrao || 0,
+                    regime_tributario || 'simples', uf_origem || 'SP', exibir_moeda ? 1 : 0,
+                    exibir_margem ? 1 : 0, alerta_margem_min || 10, alerta_preco_custo || 'aviso',
+                    notif_email ? 1 : 0, notif_sistema ? 1 : 0, existing[0].id]);
+            } else {
+                await pool.query(`
+                    INSERT INTO configuracoes_custos_precificacao 
+                    (metodo_precificacao, margem_padrao, preco_venda_padrao, custo_unitario_padrao,
+                     incluir_frete, incluir_impostos, custo_mao_obra, custos_indiretos,
+                     casas_decimais, arredondamento, ncm_padrao, icms_padrao,
+                     regime_tributario, uf_origem, exibir_moeda, exibir_margem,
+                     alerta_margem_min, alerta_preco_custo, notif_email, notif_sistema)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [metodo_precificacao || 'markup', margem_padrao || 30, preco_venda_padrao || 0,
+                    custo_unitario_padrao || 0, incluir_frete || 'sim', incluir_impostos || 'nao',
+                    custo_mao_obra || 15, custos_indiretos || 10, casas_decimais || 2,
+                    arredondamento || 'matematico', ncm_padrao || '', icms_padrao || 0,
+                    regime_tributario || 'simples', uf_origem || 'SP', exibir_moeda ? 1 : 0,
+                    exibir_margem ? 1 : 0, alerta_margem_min || 10, alerta_preco_custo || 'aviso',
+                    notif_email ? 1 : 0, notif_sistema ? 1 : 0]);
+            }
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao salvar config custos/precificação:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // GRUPOS DE CLIENTES - CRUD
+    // ========================================
+    router.get('/api/clientes/grupos', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS grupos_clientes (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(100) NOT NULL,
+                desconto DECIMAL(5,2) DEFAULT 0,
+                prazo_padrao INT DEFAULT 0,
+                descricao TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [grupos] = await pool.query(`
+                SELECT gc.*, 
+                    (SELECT COUNT(*) FROM clientes c WHERE c.grupo_id = gc.id) as total_clientes
+                FROM grupos_clientes gc
+                ORDER BY gc.nome
+            `);
+            res.json({ data: grupos });
+        } catch (error) {
+            console.error('Erro ao buscar grupos de clientes:', error);
+            try {
+                const [grupos] = await pool.query('SELECT *, 0 as total_clientes FROM grupos_clientes ORDER BY nome');
+                res.json({ data: grupos });
+            } catch(e2) {
+                res.status(500).json({ error: e2.message });
+            }
+        }
+    });
+
+    router.post('/api/clientes/grupos', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, desconto, prazo_padrao, descricao } = req.body;
+            if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+            const [result] = await pool.query(
+                'INSERT INTO grupos_clientes (nome, desconto, prazo_padrao, descricao) VALUES (?, ?, ?, ?)',
+                [nome, desconto || 0, prazo_padrao || 0, descricao || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar grupo de clientes:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/clientes/grupos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, desconto, prazo_padrao, descricao } = req.body;
+            await pool.query(
+                'UPDATE grupos_clientes SET nome = ?, desconto = ?, prazo_padrao = ?, descricao = ? WHERE id = ?',
+                [nome, desconto || 0, prazo_padrao || 0, descricao || null, req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar grupo:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/clientes/grupos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM grupos_clientes WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir grupo:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // TIPOS DE FORNECEDOR - CRUD
+    // ========================================
+    router.get('/api/fornecedores/tipos', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS tipos_fornecedor (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(100) NOT NULL,
+                descricao TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [tipos] = await pool.query(`
+                SELECT tf.*, 
+                    (SELECT COUNT(*) FROM fornecedores f WHERE f.tipo_id = tf.id) as total_fornecedores
+                FROM tipos_fornecedor tf
+                ORDER BY tf.nome
+            `);
+            res.json({ data: tipos });
+        } catch (error) {
+            console.error('Erro ao buscar tipos de fornecedor:', error);
+            try {
+                const [tipos] = await pool.query('SELECT *, 0 as total_fornecedores FROM tipos_fornecedor ORDER BY nome');
+                res.json({ data: tipos });
+            } catch(e2) {
+                res.status(500).json({ error: e2.message });
+            }
+        }
+    });
+
+    router.post('/api/fornecedores/tipos', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, descricao } = req.body;
+            if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+            const [result] = await pool.query(
+                'INSERT INTO tipos_fornecedor (nome, descricao) VALUES (?, ?)',
+                [nome, descricao || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar tipo de fornecedor:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/fornecedores/tipos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, descricao } = req.body;
+            await pool.query(
+                'UPDATE tipos_fornecedor SET nome = ?, descricao = ? WHERE id = ?',
+                [nome, descricao || null, req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar tipo de fornecedor:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/fornecedores/tipos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM tipos_fornecedor WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir tipo de fornecedor:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // TIPOS DE SERVIÇO - CRUD
+    // ========================================
+    router.get('/api/servicos/tipos', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS tipos_servico (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(100) NOT NULL,
+                codigo_lc VARCHAR(20) DEFAULT '',
+                iss DECIMAL(5,2) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [tipos] = await pool.query('SELECT * FROM tipos_servico ORDER BY nome');
+            res.json({ data: tipos });
+        } catch (error) {
+            console.error('Erro ao buscar tipos de serviço:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/api/servicos/tipos', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, codigo_lc, iss } = req.body;
+            if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+            const [result] = await pool.query(
+                'INSERT INTO tipos_servico (nome, codigo_lc, iss) VALUES (?, ?, ?)',
+                [nome, codigo_lc || '', iss || 0]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar tipo de serviço:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/servicos/tipos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, codigo_lc, iss } = req.body;
+            await pool.query(
+                'UPDATE tipos_servico SET nome = ?, codigo_lc = ?, iss = ? WHERE id = ?',
+                [nome, codigo_lc || '', iss || 0, req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar tipo de serviço:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/servicos/tipos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM tipos_servico WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir tipo de serviço:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // ========================================
+    // MODELOS DE CONTRATO - CRUD
+    // ========================================
+    router.get('/api/servicos/contratos/modelos', authenticateToken, async (req, res) => {
+        try {
+            await pool.query(`CREATE TABLE IF NOT EXISTS modelos_contrato (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nome VARCHAR(200) NOT NULL,
+                tipo VARCHAR(50) DEFAULT 'servico',
+                descricao TEXT,
+                conteudo LONGTEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )`);
+            const [modelos] = await pool.query('SELECT * FROM modelos_contrato ORDER BY nome');
+            res.json({ data: modelos });
+        } catch (error) {
+            console.error('Erro ao buscar modelos de contrato:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/api/servicos/contratos/modelos', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, tipo, descricao, conteudo } = req.body;
+            if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+            const [result] = await pool.query(
+                'INSERT INTO modelos_contrato (nome, tipo, descricao, conteudo) VALUES (?, ?, ?, ?)',
+                [nome, tipo || 'servico', descricao || null, conteudo || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar modelo de contrato:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/servicos/contratos/modelos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, tipo, descricao, conteudo } = req.body;
+            await pool.query(
+                'UPDATE modelos_contrato SET nome = ?, tipo = ?, descricao = ?, conteudo = ? WHERE id = ?',
+                [nome, tipo || 'servico', descricao || null, conteudo || null, req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar modelo de contrato:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/servicos/contratos/modelos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM modelos_contrato WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir modelo de contrato:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     // ========================================
     // BAIXA AUTOMÁTICA DE ESTOQUE EM TEMPO REAL
     // ========================================
@@ -4251,16 +5094,16 @@ module.exports = function createPCPRoutes(deps) {
      */
     async function baixarEstoqueAutomatico(connection, pedidoId, itens, usuarioId = null) {
         console.log(`[ESTOQUE_AUTO] Iniciando baixa automática para pedido ${pedidoId}`);
-    
+
         const movimentacoes = [];
-    
+
         for (const item of itens) {
             const codigoMaterial = item.codigo || item.codigo_material || item.sku;
             const quantidade = parseFloat(item.quantidade || 0);
             const unidade = item.unidade || 'm';
-    
+
             if (!codigoMaterial || quantidade <= 0) continue;
-    
+
             try {
                 // Buscar produto no estoque
                 const [produtos] = await connection.query(`
@@ -4269,16 +5112,16 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE codigo = ? OR sku = ? OR LOWER(descricao) LIKE LOWER(?)
                     LIMIT 1
                 `, [codigoMaterial, codigoMaterial, `%${codigoMaterial}%`]);
-    
+
                 if (produtos.length === 0) {
                     console.log(`[ESTOQUE_AUTO] Produto não encontrado: ${codigoMaterial}`);
                     continue;
                 }
-    
+
                 const produto = produtos[0];
                 const estoqueAnterior = parseFloat(produto.estoque_atual || 0);
                 const novoEstoque = Math.max(0, estoqueAnterior - quantidade);
-    
+
                 // Atualizar estoque do produto
                 await connection.query(`
                     UPDATE produtos
@@ -4286,7 +5129,7 @@ module.exports = function createPCPRoutes(deps) {
                         ultima_saida = NOW()
                     WHERE id = ?
                 `, [novoEstoque, produto.id]);
-    
+
                 // Registrar movimentação
                 await connection.query(`
                     INSERT INTO estoque_movimentacoes
@@ -4302,7 +5145,7 @@ module.exports = function createPCPRoutes(deps) {
                     usuarioId,
                     `Baixa automática - Pedido #${pedidoId} - ${quantidade}${unidade}`
                 ]);
-    
+
                 movimentacoes.push({
                     produto: produto.codigo,
                     descricao: produto.descricao,
@@ -4311,34 +5154,34 @@ module.exports = function createPCPRoutes(deps) {
                     estoque_atual: novoEstoque,
                     unidade: unidade
                 });
-    
+
                 console.log(`[ESTOQUE_AUTO] Baixa realizada: ${produto.codigo} - ${quantidade}${unidade} (${estoqueAnterior} -> ${novoEstoque})`);
-    
+
             } catch (err) {
                 console.error(`[ESTOQUE_AUTO] Erro ao baixar ${codigoMaterial}:`, err.message);
             }
         }
-    
+
         return movimentacoes;
     }
-    
+
     // Rota para baixar estoque manualmente (admin)
     router.post('/api/estoque/baixar', authenticateToken, async (req, res) => {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-    
+
             const { pedido_id, itens } = req.body;
             const usuario_id = req.user?.id;
-    
+
             if (!itens || !Array.isArray(itens) || itens.length === 0) {
                 throw new Error('Itens não informados');
             }
-    
+
             const movimentacoes = await baixarEstoqueAutomatico(connection, pedido_id || 0, itens, usuario_id);
-    
+
             await connection.commit();
-    
+
             res.json({
                 success: true,
                 message: `Estoque baixado com sucesso! ${movimentacoes.length} produtos atualizados.`,
@@ -4352,7 +5195,7 @@ module.exports = function createPCPRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // Rota para buscar produtos com estoque disponível (para PCP)
     router.get('/estoque/produtos', authenticateToken, async (req, res) => {
         try {
@@ -4386,7 +5229,7 @@ module.exports = function createPCPRoutes(deps) {
                 )
                 ORDER BY p.codigo ASC
             `);
-    
+
             res.json({
                 success: true,
                 total: produtos.length,
@@ -4397,11 +5240,11 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
     // =========================
     // ETAPAS DO PROCESSO PCP
     // =========================
-    
+
     // GET /api/pcp/etapas - Buscar etapas configuradas do processo de faturamento
     router.get('/etapas', authenticateToken, async (req, res) => {
         try {
@@ -4412,7 +5255,7 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE ativo = 1
                 ORDER BY ordem ASC
             `);
-    
+
             // Se não houver etapas, inserir as padrão
             if (etapas.length === 0) {
                 const etapasPadrao = [
@@ -4423,14 +5266,14 @@ module.exports = function createPCPRoutes(deps) {
                     { nome: 'Faturado', cor: '#22c55e', icone: 'fa-check-circle', ordem: 5 },
                     { nome: 'Recibo', cor: '#8b5cf6', icone: 'fa-receipt', ordem: 6 }
                 ];
-    
+
                 for (const etapa of etapasPadrao) {
                     await pool.query(
                         'INSERT INTO pcp_etapas_processo (nome, cor, icone, ordem) VALUES (?, ?, ?, ?)',
                         [etapa.nome, etapa.cor, etapa.icone, etapa.ordem]
                     );
                 }
-    
+
                 // Buscar novamente
                 const [novasEtapas] = await pool.query(`
                     SELECT id, nome, cor, icone, ordem
@@ -4438,13 +5281,13 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE ativo = 1
                     ORDER BY ordem ASC
                 `);
-    
+
                 return res.json({
                     success: true,
                     etapas: novasEtapas
                 });
             }
-    
+
             res.json({
                 success: true,
                 etapas: etapas
@@ -4454,29 +5297,29 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
     // POST /api/pcp/etapas - Salvar configuração de etapas
     router.post('/etapas', authenticateToken, async (req, res) => {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-    
+
             const { etapas, alterarNumeracao } = req.body;
-    
+
             if (!Array.isArray(etapas) || etapas.length < 2) {
                 return res.status(400).json({
                     success: false,
                     message: 'É necessário pelo menos 2 etapas'
                 });
             }
-    
+
             // Desativar todas as etapas atuais
             await connection.query('UPDATE pcp_etapas_processo SET ativo = 0');
-    
+
             // Inserir ou atualizar cada etapa
             for (let i = 0; i < etapas.length; i++) {
                 const etapa = etapas[i];
-    
+
                 if (etapa.id && typeof etapa.id === 'number' && etapa.id < 100000000) {
                     // Atualizar etapa existente
                     await connection.query(`
@@ -4492,9 +5335,9 @@ module.exports = function createPCPRoutes(deps) {
                     `, [etapa.nome, etapa.cor || '#64748b', etapa.icone || 'fa-tag', i + 1]);
                 }
             }
-    
+
             await connection.commit();
-    
+
             // Buscar etapas atualizadas
             const [etapasAtualizadas] = await pool.query(`
                 SELECT id, nome, cor, icone, ordem
@@ -4502,9 +5345,9 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE ativo = 1
                 ORDER BY ordem ASC
             `);
-    
+
             console.log(`[PCP_ETAPAS] ${etapasAtualizadas.length} etapas salvas com sucesso`);
-    
+
             res.json({
                 success: true,
                 message: 'Etapas atualizadas com sucesso',
@@ -4518,16 +5361,16 @@ module.exports = function createPCPRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // =========================
     // CONFIGURAÇÕES DE IMPOSTOS
     // =========================
-    
+
     // GET /api/configuracoes/impostos - Buscar configurações de impostos do sistema
     router.get('/api/configuracoes/impostos', authenticateToken, async (req, res) => {
         try {
             const [rows] = await pool.query('SELECT * FROM configuracoes_impostos LIMIT 1');
-    
+
             if (rows && rows.length > 0) {
                 res.json(rows[0]);
             } else {
@@ -4536,7 +5379,7 @@ module.exports = function createPCPRoutes(deps) {
                     INSERT INTO configuracoes_impostos (icms, ipi, pis, cofins, iss)
                     VALUES (18.00, 5.00, 1.65, 7.60, 5.00)
                 `);
-    
+
                 res.json({
                     icms: 18.00,
                     ipi: 5.00,
@@ -4561,14 +5404,14 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // POST /api/configuracoes/impostos - Salvar configurações de impostos
     router.post('/api/configuracoes/impostos', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { icms, ipi, pis, cofins, iss, csll, irpj, icms_st, mva } = req.body;
-    
+
             const [existing] = await pool.query('SELECT id FROM configuracoes_impostos LIMIT 1');
-    
+
             if (existing && existing.length > 0) {
                 await pool.query(`
                     UPDATE configuracoes_impostos
@@ -4584,38 +5427,365 @@ module.exports = function createPCPRoutes(deps) {
                 `, [icms || 18, ipi || 5, pis || 1.65, cofins || 7.6, iss || 5,
                     csll || 9, irpj || 15, icms_st || 0, mva || 0]);
             }
-    
+
             res.json({ success: true, message: 'Configurações de impostos salvas' });
         } catch (error) {
             console.error('Erro ao salvar config impostos:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
+    // =========================
+    // REGIÕES DE VENDA
+    // =========================
+
+    router.get('/api/vendas/regioes', authenticateToken, async (req, res) => {
+        try {
+            const [regioes] = await pool.query(`
+                SELECT r.*, 
+                    (SELECT COUNT(*) FROM clientes c WHERE c.regiao_id = r.id) as total_clientes,
+                    v.nome as vendedor_responsavel
+                FROM regioes_venda r
+                LEFT JOIN vendedores v ON r.vendedor_id = v.id
+                ORDER BY r.nome
+            `);
+            res.json({ data: regioes });
+        } catch (error) {
+            console.error('Erro ao buscar regiões:', error);
+            // Fallback se a coluna regiao_id não existir em clientes
+            try {
+                const [regioes] = await pool.query('SELECT * FROM regioes_venda ORDER BY nome');
+                res.json({ data: regioes.map(r => ({...r, total_clientes: 0})) });
+            } catch(e2) {
+                res.status(500).json({ error: e2.message });
+            }
+        }
+    });
+
+    router.post('/api/vendas/regioes', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, estados, descricao, vendedor_id } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO regioes_venda (nome, estados, descricao, vendedor_id) VALUES (?, ?, ?, ?)',
+                [nome, estados || null, descricao || null, vendedor_id || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar região:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/vendas/regioes/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, estados, descricao, vendedor_id } = req.body;
+            await pool.query(
+                'UPDATE regioes_venda SET nome = ?, estados = ?, descricao = ?, vendedor_id = ? WHERE id = ?',
+                [nome, estados || null, descricao || null, vendedor_id || null, req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar região:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/vendas/regioes/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM regioes_venda WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir região:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // =========================
+    // CONDIÇÕES DE PAGAMENTO
+    // =========================
+
+    router.get('/api/configuracoes/condicoes-pagamento', authenticateToken, async (req, res) => {
+        try {
+            const [condicoes] = await pool.query('SELECT * FROM condicoes_pagamento ORDER BY nome');
+            res.json({ data: condicoes });
+        } catch (error) {
+            console.error('Erro ao buscar condições:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/api/configuracoes/condicoes-pagamento', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, parcelas, prazo, acrescimo, descricao } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO condicoes_pagamento (nome, dias, descricao) VALUES (?, ?, ?)',
+                [nome, prazo || dias || null, descricao || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar condição:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/configuracoes/condicoes-pagamento/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, parcelas, prazo, acrescimo, descricao } = req.body;
+            await pool.query(
+                'UPDATE condicoes_pagamento SET nome = ?, dias = ?, descricao = ? WHERE id = ?',
+                [nome, prazo || null, descricao || null, req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar condição:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/configuracoes/condicoes-pagamento/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM condicoes_pagamento WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir condição:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // =========================
+    // TABELAS DE PREÇO
+    // =========================
+
+    router.get('/api/produtos/tabelas-preco', authenticateToken, async (req, res) => {
+        try {
+            const [tabelas] = await pool.query(`
+                SELECT t.*,
+                    (SELECT COUNT(*) FROM produtos_tabela_preco pt WHERE pt.tabela_id = t.id) as total_produtos
+                FROM tabelas_preco t
+                ORDER BY t.nome
+            `);
+            res.json({ data: tabelas });
+        } catch (error) {
+            // Fallback if join table doesn't exist
+            try {
+                const [tabelas] = await pool.query('SELECT *, 0 as total_produtos FROM tabelas_preco ORDER BY nome');
+                res.json({ data: tabelas });
+            } catch(e2) {
+                console.error('Erro ao buscar tabelas de preço:', e2);
+                res.status(500).json({ error: e2.message });
+            }
+        }
+    });
+
+    router.post('/api/produtos/tabelas-preco', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, tipo, validade, descricao, status } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO tabelas_preco (nome, tipo, validade, descricao, status) VALUES (?, ?, ?, ?, ?)',
+                [nome, tipo || 'padrao', validade || null, descricao || null, status || 'ativo']
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar tabela de preço:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/produtos/tabelas-preco/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, tipo, validade, descricao, status } = req.body;
+            await pool.query(
+                'UPDATE tabelas_preco SET nome = ?, tipo = ?, validade = ?, descricao = ?, status = ? WHERE id = ?',
+                [nome, tipo || 'padrao', validade || null, descricao || null, status || 'ativo', req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar tabela de preço:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/produtos/tabelas-preco/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM tabelas_preco WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir tabela de preço:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // =========================
+    // UNIDADES DE MEDIDA
+    // =========================
+
+    router.get('/api/produtos/unidades-medida', authenticateToken, async (req, res) => {
+        try {
+            const [unidades] = await pool.query('SELECT * FROM unidades_medida ORDER BY nome');
+            res.json({ data: unidades });
+        } catch (error) {
+            console.error('Erro ao buscar unidades de medida:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/api/produtos/unidades-medida', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { sigla, nome, tipo } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO unidades_medida (sigla, nome, tipo) VALUES (?, ?, ?)',
+                [sigla, nome, tipo || 'quantidade']
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar unidade de medida:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/produtos/unidades-medida/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { sigla, nome, tipo } = req.body;
+            await pool.query(
+                'UPDATE unidades_medida SET sigla = ?, nome = ?, tipo = ? WHERE id = ?',
+                [sigla, nome, tipo || 'quantidade', req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar unidade de medida:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/produtos/unidades-medida/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM unidades_medida WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir unidade de medida:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // =========================
+    // CÓDIGOS NCM
+    // =========================
+
+    router.get('/api/produtos/ncm', authenticateToken, async (req, res) => {
+        try {
+            const [ncms] = await pool.query('SELECT * FROM ncm_codigos ORDER BY codigo LIMIT 500');
+            res.json({ data: ncms });
+        } catch (error) {
+            console.error('Erro ao buscar NCMs:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/api/produtos/ncm', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { codigo, descricao, aliquota_ipi } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO ncm_codigos (codigo, descricao, aliquota_ipi) VALUES (?, ?, ?)',
+                [codigo, descricao || null, aliquota_ipi || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar NCM:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // =========================
+    // SLA DE ATENDIMENTO
+    // =========================
+
+    router.get('/api/servicos/sla', authenticateToken, async (req, res) => {
+        try {
+            const [slas] = await pool.query('SELECT * FROM sla_atendimento ORDER BY nome');
+            res.json({ data: slas });
+        } catch (error) {
+            console.error('Erro ao buscar SLAs:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    router.post('/api/servicos/sla', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, prioridade, tempo_resposta, tempo_resolucao, descricao } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO sla_atendimento (nome, prioridade, tempo_resposta, tempo_resolucao, descricao) VALUES (?, ?, ?, ?, ?)',
+                [nome, prioridade || 'media', tempo_resposta || 24, tempo_resolucao || 48, descricao || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar SLA:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/servicos/sla/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, prioridade, tempo_resposta, tempo_resolucao, descricao, status } = req.body;
+            await pool.query(
+                'UPDATE sla_atendimento SET nome = ?, prioridade = ?, tempo_resposta = ?, tempo_resolucao = ?, descricao = ?, status = ? WHERE id = ?',
+                [nome, prioridade || 'media', tempo_resposta || 24, tempo_resolucao || 48, descricao || null, status || 'ativo', req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar SLA:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.delete('/api/servicos/sla/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM sla_atendimento WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir SLA:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     // =========================
     // FAMÍLIAS DE PRODUTOS
     // =========================
-    
-    router.get('/api/configuracoes/familias-produtos', authenticateToken, async (req, res) => {
+
+    // Alias route: /api/configuracoes/familias -> familias-produtos (compatibility)
+    router.get('/api/configuracoes/familias', authenticateToken, async (req, res) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
             const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM familias_produtos');
-            const [familias] = await pool.query('SELECT id, nome, codigo, created_at, updated_at FROM familias_produtos ORDER BY nome LIMIT ? OFFSET ?', [limit, offset]);
+            const [familias] = await pool.query('SELECT id, nome, descricao, ativo, created_at, created_at as updated_at FROM familias_produtos ORDER BY nome LIMIT ? OFFSET ?', [limit, offset]);
             res.json({ data: familias, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
         } catch (error) {
             console.error('Erro ao buscar famílias:', error);
             res.status(500).json({ error: error.message });
         }
     });
-    
+
+    router.get('/api/configuracoes/familias-produtos', authenticateToken, async (req, res) => {
+        try {
+            const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+            const page = Math.max(parseInt(req.query.page) || 1, 1);
+            const offset = (page - 1) * limit;
+            const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM familias_produtos');
+            const [familias] = await pool.query('SELECT id, nome, descricao, ativo, created_at, created_at as updated_at FROM familias_produtos ORDER BY nome LIMIT ? OFFSET ?', [limit, offset]);
+            res.json({ data: familias, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+        } catch (error) {
+            console.error('Erro ao buscar famílias:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     router.post('/api/configuracoes/familias-produtos', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
-            const { nome, codigo } = req.body;
+            const { nome, descricao } = req.body;
             const [result] = await pool.query(
-                'INSERT INTO familias_produtos (nome, codigo) VALUES (?, ?)',
-                [nome, codigo]
+                'INSERT INTO familias_produtos (nome, descricao) VALUES (?, ?)',
+                [nome, descricao || null]
             );
             res.json({ success: true, id: result.insertId });
         } catch (error) {
@@ -4623,7 +5793,32 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
+    router.post('/api/configuracoes/familias', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, descricao } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO familias_produtos (nome, descricao) VALUES (?, ?)',
+                [nome, descricao || null]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar família:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/configuracoes/familias/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, descricao } = req.body;
+            await pool.query('UPDATE familias_produtos SET nome = ?, descricao = ? WHERE id = ?', [nome, descricao || null, req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar família:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     router.delete('/api/configuracoes/familias-produtos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             await pool.query('DELETE FROM familias_produtos WHERE id = ?', [req.params.id]);
@@ -4633,11 +5828,21 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
+    router.delete('/api/configuracoes/familias/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM familias_produtos WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir família:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     // =========================
     // CARACTERÍSTICAS DE PRODUTOS
     // =========================
-    
+
     router.get('/api/configuracoes/caracteristicas-produtos', authenticateToken, async (req, res) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
@@ -4651,7 +5856,22 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: error.message });
         }
     });
-    
+
+    // Alias route for compatibility
+    router.get('/api/configuracoes/caracteristicas', authenticateToken, async (req, res) => {
+        try {
+            const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+            const page = Math.max(parseInt(req.query.page) || 1, 1);
+            const offset = (page - 1) * limit;
+            const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM caracteristicas_produtos');
+            const [caracteristicas] = await pool.query('SELECT id, nome, conteudos_possiveis, visualizar_em, preenchimento, created_at, updated_at FROM caracteristicas_produtos ORDER BY nome LIMIT ? OFFSET ?', [limit, offset]);
+            res.json({ data: caracteristicas, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+        } catch (error) {
+            console.error('Erro ao buscar características:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     router.post('/api/configuracoes/caracteristicas-produtos', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { nome, conteudos_possiveis, visualizar_em, preenchimento } = req.body;
@@ -4665,7 +5885,35 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
+    router.post('/api/configuracoes/caracteristicas', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, conteudos_possiveis, visualizar_em, preenchimento } = req.body;
+            const [result] = await pool.query(
+                'INSERT INTO caracteristicas_produtos (nome, conteudos_possiveis, visualizar_em, preenchimento) VALUES (?, ?, ?, ?)',
+                [nome, conteudos_possiveis, visualizar_em, preenchimento]
+            );
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('Erro ao criar característica:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    router.put('/api/configuracoes/caracteristicas/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, conteudos_possiveis, visualizar_em, preenchimento } = req.body;
+            await pool.query(
+                'UPDATE caracteristicas_produtos SET nome = ?, conteudos_possiveis = ?, visualizar_em = ?, preenchimento = ? WHERE id = ?',
+                [nome, conteudos_possiveis, visualizar_em, preenchimento, req.params.id]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar característica:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     router.delete('/api/configuracoes/caracteristicas-produtos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             await pool.query('DELETE FROM caracteristicas_produtos WHERE id = ?', [req.params.id]);
@@ -4675,11 +5923,21 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
+    router.delete('/api/configuracoes/caracteristicas/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            await pool.query('DELETE FROM caracteristicas_produtos WHERE id = ?', [req.params.id]);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao excluir característica:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     // =========================
     // VENDEDORES
     // =========================
-    
+
     router.get('/api/configuracoes/vendedores', authenticateToken, async (req, res) => {
         try {
             await pool.query(`
@@ -4695,7 +5953,7 @@ module.exports = function createPCPRoutes(deps) {
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
             `);
-    
+
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
@@ -4721,35 +5979,35 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: error.message });
         }
     });
-    
+
     router.post('/api/configuracoes/vendedores', authenticateToken, authorizeAdmin, async (req, res) => {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
             const { nome, email, comissao, permissoes, situacao } = req.body;
-    
+
             // Criar usuário no sistema com acesso ao módulo de vendas
             // AUDIT-FIX HIGH-010: Use crypto.randomBytes instead of Math.random for temp password
             const senhaTemp = require('crypto').randomBytes(12).toString('base64url').slice(0, 12);
             const senhaHash = await bcrypt.hash(senhaTemp, 12);
-    
+
             const [usuario] = await connection.query(
                 'INSERT INTO usuarios (nome, email, senha_hash, tipo) VALUES (?, ?, ?, ?)',
                 [nome, email, senhaHash, 'vendedor']
             );
-    
+
             // Dar permissão ao módulo de vendas
             await connection.query(
                 'INSERT INTO permissoes_modulos (usuario_id, modulo) VALUES (?, ?)',
                 [usuario.insertId, 'vendas']
             );
-    
+
             // Criar registro de vendedor
             const [result] = await connection.query(
                 'INSERT INTO vendedores (nome, email, comissao, permissoes, situacao, usuario_id) VALUES (?, ?, ?, ?, ?, ?)',
                 [nome, email, comissao, permissoes, situacao, usuario.insertId]
             );
-    
+
             await connection.commit();
             res.json({ success: true, id: result.insertId, senhaTemp });
         } catch (error) {
@@ -4760,20 +6018,43 @@ module.exports = function createPCPRoutes(deps) {
             connection.release();
         }
     });
-    
+
+    router.put('/api/configuracoes/vendedores/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, email, comissao, permissoes, situacao, telefone } = req.body;
+            const fields = [];
+            const values = [];
+            if (nome !== undefined) { fields.push('nome = ?'); values.push(nome); }
+            if (email !== undefined) { fields.push('email = ?'); values.push(email); }
+            if (comissao !== undefined) { fields.push('comissao = ?'); values.push(comissao); }
+            if (permissoes !== undefined) { fields.push('permissoes = ?'); values.push(permissoes); }
+            if (situacao !== undefined) { fields.push('situacao = ?'); values.push(situacao); }
+            if (telefone !== undefined) { fields.push('telefone = ?'); values.push(telefone); }
+            
+            if (fields.length === 0) return res.json({ success: true });
+            
+            values.push(req.params.id);
+            await pool.query(`UPDATE vendedores SET ${fields.join(', ')} WHERE id = ?`, values);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar vendedor:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     router.delete('/api/configuracoes/vendedores/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-    
+
             // Buscar usuario_id do vendedor
             const [vendedor] = await connection.query('SELECT usuario_id FROM vendedores WHERE id = ?', [req.params.id]);
-    
+
             if (vendedor.length === 0) {
                 await connection.rollback();
                 return res.status(404).json({ success: false, error: 'Vendedor não encontrado' });
             }
-    
+
             // Verificar se vendedor tem pedidos vinculados
             const [pedidos] = await connection.query('SELECT COUNT(*) as count FROM pedidos WHERE vendedor_id = ?', [req.params.id]);
             if (pedidos[0].count > 0) {
@@ -4783,17 +6064,17 @@ module.exports = function createPCPRoutes(deps) {
                     error: `Vendedor possui ${pedidos[0].count} pedido(s) vinculado(s). Inative-o em vez de excluir.`
                 });
             }
-    
+
             if (vendedor[0].usuario_id) {
                 // Remover permissões
                 await connection.query('DELETE FROM permissoes_modulos WHERE usuario_id = ?', [vendedor[0].usuario_id]);
                 // Remover usuário
                 await connection.query('DELETE FROM usuarios WHERE id = ?', [vendedor[0].usuario_id]);
             }
-    
+
             // Remover vendedor
             await connection.query('DELETE FROM vendedores WHERE id = ?', [req.params.id]);
-    
+
             await connection.commit();
             res.json({ success: true });
         } catch (error) {
@@ -4804,11 +6085,11 @@ module.exports = function createPCPRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // =========================
     // COMPRADORES
     // =========================
-    
+
     router.get('/api/configuracoes/compradores', authenticateToken, async (req, res) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
@@ -4817,12 +6098,11 @@ module.exports = function createPCPRoutes(deps) {
             const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM compradores');
             const [compradores] = await pool.query(`
                 SELECT
-                    id,
-                    nome,
-                    situacao,
+                    id, nome, email, telefone, departamento,
+                    limite_aprovacao, situacao, observacoes, foto_url,
                     COALESCE(incluido_por, 'Sistema') as incluido_por,
                     created_at as inclusao,
-                    updated_at as última_alteracao
+                    updated_at as ultima_alteracao
                 FROM compradores
                 ORDER BY nome
                 LIMIT ? OFFSET ?
@@ -4833,13 +6113,15 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: error.message });
         }
     });
-    
+
     router.post('/api/configuracoes/compradores', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
-            const { nome, situacao, incluido_por } = req.body;
+            const { nome, email, telefone, departamento, limite_aprovacao, situacao, observacoes, foto_url } = req.body;
+            const incluido_por = req.body.incluido_por || (req.user ? req.user.nome : 'Sistema');
             const [result] = await pool.query(
-                'INSERT INTO compradores (nome, situacao, incluido_por) VALUES (?, ?, ?)',
-                [nome, situacao, incluido_por]
+                `INSERT INTO compradores (nome, email, telefone, departamento, limite_aprovacao, situacao, observacoes, foto_url, incluido_por)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [nome, email || null, telefone || null, departamento || null, limite_aprovacao || 0, situacao || 'ativo', observacoes || null, foto_url || null, incluido_por]
             );
             res.json({ success: true, id: result.insertId });
         } catch (error) {
@@ -4847,7 +6129,37 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
+    // PUT - Atualizar comprador
+    router.put('/api/configuracoes/compradores/:id', authenticateToken, authorizeAdmin, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { nome, email, telefone, departamento, limite_aprovacao, situacao, observacoes, foto_url } = req.body;
+            const fields = [];
+            const values = [];
+
+            if (nome !== undefined) { fields.push('nome = ?'); values.push(nome); }
+            if (email !== undefined) { fields.push('email = ?'); values.push(email || null); }
+            if (telefone !== undefined) { fields.push('telefone = ?'); values.push(telefone || null); }
+            if (departamento !== undefined) { fields.push('departamento = ?'); values.push(departamento || null); }
+            if (limite_aprovacao !== undefined) { fields.push('limite_aprovacao = ?'); values.push(limite_aprovacao || 0); }
+            if (situacao !== undefined) { fields.push('situacao = ?'); values.push(situacao); }
+            if (observacoes !== undefined) { fields.push('observacoes = ?'); values.push(observacoes || null); }
+            if (foto_url !== undefined) { fields.push('foto_url = ?'); values.push(foto_url || null); }
+
+            if (fields.length === 0) {
+                return res.status(400).json({ success: false, error: 'Nenhum campo para atualizar' });
+            }
+
+            values.push(id);
+            await pool.query(`UPDATE compradores SET ${fields.join(', ')} WHERE id = ?`, values);
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao atualizar comprador:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
     router.delete('/api/configuracoes/compradores/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             await pool.query('DELETE FROM compradores WHERE id = ?', [req.params.id]);
@@ -4857,16 +6169,16 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, error: error.message });
         }
     });
-    
+
     // =================================================================
     // ROTAS ADICIONAIS DE CONFIGURAÇÓES
     // =================================================================
-    
+
     // GET - Listar categorias
     router.get('/api/configuracoes/categorias', authenticateToken, async (req, res) => {
         try {
             console.log('📋 Buscando categorias...');
-    
+
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
@@ -4878,55 +6190,55 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY nome
                 LIMIT ? OFFSET ?
             `, [limit, offset]);
-    
+
             res.json({ data: categorias, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
         } catch (error) {
             console.error('❌ Erro ao buscar categorias:', error);
             res.status(500).json({ error: 'Erro ao buscar categorias' });
         }
     });
-    
+
     // POST - Criar categoria
     router.post('/api/configuracoes/categorias', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('💾 Criando categoria...');
-    
+
             const { nome, descricao, cor } = req.body;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO categorias (nome, descricao, cor, ativo, created_at, updated_at)
                 VALUES (?, ?, ?, 1, NOW(), NOW())
             `, [nome, descricao, cor || '#6366f1']);
-    
+
             console.log('✅ Categoria criada com sucesso');
             res.json({ success: true, id: result.insertId });
-    
+
         } catch (error) {
             console.error('❌ Erro ao criar categoria:', error);
             res.status(500).json({ error: 'Erro ao criar categoria' });
         }
     });
-    
+
     // DELETE - Excluir categoria
     router.delete('/api/configuracoes/categorias/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('🗑️ Excluindo categoria...');
-    
+
             const { id } = req.params;
-    
+
             await pool.query(`
                 UPDATE categorias SET ativo = 0, updated_at = NOW() WHERE id = ?
             `, [id]);
-    
+
             console.log('✅ Categoria excluída com sucesso');
             res.json({ success: true });
-    
+
         } catch (error) {
             console.error('❌ Erro ao excluir categoria:', error);
             res.status(500).json({ error: 'Erro ao excluir categoria' });
         }
     });
-    
+
     // GET - Buscar categoria por ID
     router.get('/api/configuracoes/categorias/:id', authenticateToken, async (req, res) => {
         try {
@@ -4934,28 +6246,28 @@ module.exports = function createPCPRoutes(deps) {
             const [categorias] = await pool.query(`
                 SELECT id, nome, descricao, cor FROM categorias WHERE id = ? AND ativo = 1
             `, [id]);
-    
+
             if (categorias.length === 0) {
                 return res.status(404).json({ error: 'Categoria não encontrada' });
             }
-    
+
             res.json(categorias[0]);
         } catch (error) {
             console.error('❌ Erro ao buscar categoria:', error);
             res.status(500).json({ error: 'Erro ao buscar categoria' });
         }
     });
-    
+
     // PUT - Atualizar categoria
     router.put('/api/configuracoes/categorias/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { nome, descricao, cor } = req.body;
-    
+
             await pool.query(`
                 UPDATE categorias SET nome = ?, descricao = ?, cor = ?, updated_at = NOW() WHERE id = ?
             `, [nome, descricao, cor, id]);
-    
+
             console.log('✅ Categoria atualizada com sucesso');
             res.json({ success: true });
         } catch (error) {
@@ -4963,12 +6275,12 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao atualizar categoria' });
         }
     });
-    
+
     // GET - Listar departamentos
     router.get('/api/configuracoes/departamentos', authenticateToken, async (req, res) => {
         try {
             console.log('📋 Buscando departamentos...');
-    
+
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
@@ -4980,55 +6292,55 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY nome
                 LIMIT ? OFFSET ?
             `, [limit, offset]);
-    
+
             res.json({ data: departamentos, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
         } catch (error) {
             console.error('❌ Erro ao buscar departamentos:', error);
             res.status(500).json({ error: 'Erro ao buscar departamentos' });
         }
     });
-    
+
     // POST - Criar departamento
     router.post('/api/configuracoes/departamentos', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('💾 Criando departamento...');
-    
+
             const { nome, descricao, responsavel } = req.body;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO departamentos (nome, descricao, responsavel, ativo, created_at, updated_at)
                 VALUES (?, ?, ?, 1, NOW(), NOW())
             `, [nome, descricao, responsavel || null]);
-    
+
             console.log('✅ Departamento criado com sucesso');
             res.json({ success: true, id: result.insertId });
-    
+
         } catch (error) {
             console.error('❌ Erro ao criar departamento:', error);
             res.status(500).json({ error: 'Erro ao criar departamento' });
         }
     });
-    
+
     // DELETE - Excluir departamento
     router.delete('/api/configuracoes/departamentos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('🗑️ Excluindo departamento...');
-    
+
             const { id } = req.params;
-    
+
             await pool.query(`
                 UPDATE departamentos SET ativo = 0, updated_at = NOW() WHERE id = ?
             `, [id]);
-    
+
             console.log('✅ Departamento excluído com sucesso');
             res.json({ success: true });
-    
+
         } catch (error) {
             console.error('❌ Erro ao excluir departamento:', error);
             res.status(500).json({ error: 'Erro ao excluir departamento' });
         }
     });
-    
+
     // GET - Buscar departamento por ID
     router.get('/api/configuracoes/departamentos/:id', authenticateToken, async (req, res) => {
         try {
@@ -5036,28 +6348,28 @@ module.exports = function createPCPRoutes(deps) {
             const [departamentos] = await pool.query(`
                 SELECT id, nome, descricao, responsavel FROM departamentos WHERE id = ? AND ativo = 1
             `, [id]);
-    
+
             if (departamentos.length === 0) {
                 return res.status(404).json({ error: 'Departamento não encontrado' });
             }
-    
+
             res.json(departamentos[0]);
         } catch (error) {
             console.error('❌ Erro ao buscar departamento:', error);
             res.status(500).json({ error: 'Erro ao buscar departamento' });
         }
     });
-    
+
     // PUT - Atualizar departamento
     router.put('/api/configuracoes/departamentos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { nome, descricao, responsavel } = req.body;
-    
+
             await pool.query(`
                 UPDATE departamentos SET nome = ?, descricao = ?, responsavel = ?, updated_at = NOW() WHERE id = ?
             `, [nome, descricao, responsavel, id]);
-    
+
             console.log('✅ Departamento atualizado com sucesso');
             res.json({ success: true });
         } catch (error) {
@@ -5065,33 +6377,33 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao atualizar departamento' });
         }
     });
-    
+
     // GET - Listar projetos
     router.get('/api/configuracoes/projetos', authenticateToken, async (req, res) => {
         try {
             console.log('📋 Buscando projetos...');
-    
+
             const [projetos] = await pool.query(`
                 SELECT id, nome, descricao, created_at, updated_at
                 FROM projetos
                 WHERE ativo = 1
                 ORDER BY nome
             `);
-    
+
             res.json(projetos);
         } catch (error) {
             console.error('❌ Erro ao buscar projetos:', error);
             res.status(500).json({ error: 'Erro ao buscar projetos' });
         }
     });
-    
+
     // POST - Criar projeto
     router.post('/api/configuracoes/projetos', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('💾 Criando projeto...');
-    
+
             const { nome, descricao, data_inicio, data_fim, status } = req.body;
-    
+
             // Mapear status do frontend para o ENUM do banco
             const statusMap = {
                 'ativo': 'em_andamento',
@@ -5100,41 +6412,41 @@ module.exports = function createPCPRoutes(deps) {
                 'cancelado': 'cancelado'
             };
             const dbStatus = statusMap[status] || 'em_andamento';
-    
+
             const [result] = await pool.query(`
                 INSERT INTO projetos (nome, descricao, data_inicio, data_previsao_fim, status, ativo, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())
             `, [nome, descricao, data_inicio || null, data_fim || null, dbStatus]);
-    
+
             console.log('✅ Projeto criado com sucesso');
             res.json({ success: true, id: result.insertId });
-    
+
         } catch (error) {
             console.error('❌ Erro ao criar projeto:', error);
             res.status(500).json({ error: 'Erro ao criar projeto' });
         }
     });
-    
+
     // DELETE - Excluir projeto
     router.delete('/api/configuracoes/projetos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('🗑️ Excluindo projeto...');
-    
+
             const { id } = req.params;
-    
+
             await pool.query(`
                 UPDATE projetos SET ativo = 0, updated_at = NOW() WHERE id = ?
             `, [id]);
-    
+
             console.log('✅ Projeto excluído com sucesso');
             res.json({ success: true });
-    
+
         } catch (error) {
             console.error('❌ Erro ao excluir projeto:', error);
             res.status(500).json({ error: 'Erro ao excluir projeto' });
         }
     });
-    
+
     // GET - Buscar projeto por ID
     router.get('/api/configuracoes/projetos/:id', authenticateToken, async (req, res) => {
         try {
@@ -5142,24 +6454,24 @@ module.exports = function createPCPRoutes(deps) {
             const [projetos] = await pool.query(`
                 SELECT id, nome, descricao, data_inicio, data_previsao_fim as data_fim, status FROM projetos WHERE id = ? AND ativo = 1
             `, [id]);
-    
+
             if (projetos.length === 0) {
                 return res.status(404).json({ error: 'Projeto não encontrado' });
             }
-    
+
             res.json(projetos[0]);
         } catch (error) {
             console.error('❌ Erro ao buscar projeto:', error);
             res.status(500).json({ error: 'Erro ao buscar projeto' });
         }
     });
-    
+
     // PUT - Atualizar projeto
     router.put('/api/configuracoes/projetos/:id', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const { id } = req.params;
             const { nome, descricao, data_inicio, data_fim, status } = req.body;
-    
+
             // Mapear status do frontend para o ENUM do banco
             const statusMap = {
                 'ativo': 'em_andamento',
@@ -5168,11 +6480,11 @@ module.exports = function createPCPRoutes(deps) {
                 'cancelado': 'cancelado'
             };
             const dbStatus = statusMap[status] || 'em_andamento';
-    
+
             await pool.query(`
                 UPDATE projetos SET nome = ?, descricao = ?, data_inicio = ?, data_previsao_fim = ?, status = ?, updated_at = NOW() WHERE id = ?
             `, [nome, descricao, data_inicio || null, data_fim || null, dbStatus, id]);
-    
+
             console.log('✅ Projeto atualizado com sucesso');
             res.json({ success: true });
         } catch (error) {
@@ -5180,14 +6492,14 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao atualizar projeto' });
         }
     });
-    
+
     // GET - Buscar dados do certificado (integrado com módulo NFe)
     router.get('/api/configuracoes/certificado', authenticateToken, async (req, res) => {
         try {
             console.log('📋 Buscando certificado digital...');
-    
+
             const empresaId = 1; // Empresa padrão
-    
+
             // Primeiro tentar buscar da tabela nfe_configuracoes (mais completa)
             const [nfeConfig] = await pool.query(`
                 SELECT certificado_validade as validade,
@@ -5200,12 +6512,12 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE empresa_id = ?
                 LIMIT 1
             `, [empresaId]);
-    
+
             if (nfeConfig && nfeConfig.length > 0 && nfeConfig[0].tem_certificado) {
                 const cert = nfeConfig[0];
                 const diasRestantes = cert.validade ?
                     Math.ceil((new Date(cert.validade) - new Date()) / (1000 * 60 * 60 * 24)) : null;
-    
+
                 res.json({
                     configurado: true,
                     validade: cert.validade,
@@ -5218,14 +6530,14 @@ module.exports = function createPCPRoutes(deps) {
                 });
                 return;
             }
-    
+
             // Fallback: buscar da tabela certificados_digitais
             const [rows] = await pool.query(`
                 SELECT validade, created_at, updated_at
                 FROM certificados_digitais
                 ORDER BY id DESC LIMIT 1
             `);
-    
+
             if (rows.length > 0) {
                 res.json({
                     configurado: true,
@@ -5241,24 +6553,24 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar certificado' });
         }
     });
-    
+
     // POST - Salvar certificado digital (integrado com módulo NFe)
     router.post('/api/configuracoes/certificado', authenticateToken, authorizeAdmin, upload.single('certificado'), async (req, res) => {
         try {
             console.log('💾 Salvando certificado digital...');
-    
+
             if (!req.file) {
                 return res.status(400).json({ error: 'Arquivo de certificado não enviado' });
             }
-    
+
             const { senha } = req.body;
             if (!senha) {
                 return res.status(400).json({ error: 'Senha do certificado é obrigatória' });
             }
-    
+
             const empresaId = 1; // Empresa padrão
             const pfxBuffer = req.file.buffer;
-    
+
             // Validar certificado usando node-forge
             let certInfo = null;
             try {
@@ -5267,23 +6579,23 @@ module.exports = function createPCPRoutes(deps) {
                 const pfxAsn1 = forge.util.decode64(pfxBase64);
                 const p12Asn1 = forge.asn1.fromDer(pfxAsn1);
                 const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, senha);
-    
+
                 const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
                 if (certBags && certBags[forge.pki.oids.certBag] && certBags[forge.pki.oids.certBag].length > 0) {
                     const cert = certBags[forge.pki.oids.certBag][0].cert;
-    
+
                     // Extrair informações
                     const cn = cert.subject.getField('CN');
                     const cnValue = cn ? cn.value : '';
                     const cnpjMatch = cnValue.match(/(\d{14})/);
-    
+
                     certInfo = {
                         cnpj: cnpjMatch ? cnpjMatch[1] : '',
                         razaoSocial: cnValue.split(':')[0].trim(),
                         validade: cert.validity.notAfter,
                         emissao: cert.validity.notBefore
                     };
-    
+
                     // Verificar se certificado está válido
                     const agora = new Date();
                     if (cert.validity.notAfter < agora) {
@@ -5297,16 +6609,16 @@ module.exports = function createPCPRoutes(deps) {
                 }
                 return res.status(400).json({ error: 'Certificado inválido: ' + forgeError.message });
             }
-    
+
             // Criptografar senha (base64 simples - em produção usar algo mais seguro)
             const senhaCriptografada = Buffer.from(senha).toString('base64');
-    
+
             // Verificar se já existe configuração para a empresa na tabela nfe_configuracoes
             const [existing] = await pool.query(
                 'SELECT id FROM nfe_configuracoes WHERE empresa_id = ?',
                 [empresaId]
             );
-    
+
             if (existing && existing.length > 0) {
                 // Atualizar configuração existente
                 await pool.query(`
@@ -5341,7 +6653,7 @@ module.exports = function createPCPRoutes(deps) {
                     certInfo ? certInfo.razaoSocial : req.file.originalname
                 ]);
             }
-    
+
             // Também salvar na tabela certificados_digitais para compatibilidade
             await pool.query(`
                 INSERT INTO certificados_digitais (arquivo_nome, senha_hash, validade, created_at, updated_at)
@@ -5356,9 +6668,9 @@ module.exports = function createPCPRoutes(deps) {
                 senhaCriptografada,
                 certInfo ? certInfo.validade : new Date(Date.now() + 365*24*60*60*1000)
             ]);
-    
+
             console.log('✅ Certificado salvo com sucesso nas tabelas nfe_configuracoes e certificados_digitais');
-    
+
             res.json({
                 success: true,
                 message: 'Certificado instalado com sucesso',
@@ -5369,24 +6681,24 @@ module.exports = function createPCPRoutes(deps) {
                     diasRestantes: Math.ceil((certInfo.validade - new Date()) / (1000 * 60 * 60 * 24))
                 } : null
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao salvar certificado:', error);
             res.status(500).json({ error: 'Erro ao salvar certificado: ' + error.message });
         }
     });
-    
+
     // GET - Buscar configuração de importação de NF-e
     router.get('/api/configuracoes/nfe-import', authenticateToken, async (req, res) => {
         try {
             console.log('📋 Buscando config de NF-e...');
-    
+
             const [rows] = await pool.query(`
                 SELECT ativo, data_ativacao, updated_at
                 FROM configuracoes_nfe
                 ORDER BY id DESC LIMIT 1
             `);
-    
+
             if (rows.length > 0) {
                 res.json(rows[0]);
             } else {
@@ -5397,17 +6709,17 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar configuração' });
         }
     });
-    
+
     // POST - Salvar configuração de importação de NF-e
     router.post('/api/configuracoes/nfe-import', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             console.log('💾 Salvando config de NF-e...');
-    
+
             const { ativo, data_ativacao } = req.body;
-    
+
             // Verificar se já existe registro
             const [existing] = await pool.query('SELECT id FROM configuracoes_nfe LIMIT 1');
-    
+
             if (existing.length > 0) {
                 // Atualizar
                 await pool.query(`
@@ -5422,27 +6734,27 @@ module.exports = function createPCPRoutes(deps) {
                     VALUES (?, ?, NOW(), NOW())
                 `, [ativo, data_ativacao]);
             }
-    
+
             console.log('✅ Config de NF-e salva com sucesso');
             res.json({ success: true });
-    
+
         } catch (error) {
             console.error('❌ Erro ao salvar config de NF-e:', error);
             res.status(500).json({ error: 'Erro ao salvar configuração' });
         }
     });
-    
+
     // =================================================================
     // ROTAS DA API DE IMPRESSÃO
     // =================================================================
-    
+
     // Obter fila de impressão
     // SECURITY: Requer autenticação
     router.get('/api/print/queue', authenticateToken, async (req, res) => {
         try {
             const autoPrintSystem = require('../scripts/auto-print-system');
             const queue = await autoPrintSystem.getQueue();
-    
+
             res.json({
                 success: true,
                 queue: queue
@@ -5455,14 +6767,14 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Obter histórico de impressões
     // SECURITY: Requer autenticação
     router.get('/api/print/queue/history', authenticateToken, async (req, res) => {
         try {
             const autoPrintSystem = require('../scripts/auto-print-system');
             const history = await autoPrintSystem.getHistory();
-    
+
             res.json({
                 success: true,
                 history: history
@@ -5475,13 +6787,13 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Obter impressoras disponíveis (SECURITY: Added authenticateToken)
     router.get('/api/print/printers', authenticateToken, async (req, res) => {
         try {
             const autoPrintSystem = require('../scripts/auto-print-system');
             const printers = await autoPrintSystem.detectPrinters();
-    
+
             res.json({
                 success: true,
                 printers: printers
@@ -5494,13 +6806,13 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Detectar impressoras (SECURITY: Added authenticateToken)
     router.post('/api/print/printers/detect', authenticateToken, async (req, res) => {
         try {
             const autoPrintSystem = require('../scripts/auto-print-system');
             const printers = await autoPrintSystem.detectPrinters();
-    
+
             res.json({
                 success: true,
                 count: printers.length,
@@ -5514,7 +6826,7 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Adicionar job à fila de impressão
     // SECURITY: Requer autenticação
     router.post('/api/print/add', authenticateToken, upload.single('file'), async (req, res) => {
@@ -5525,10 +6837,10 @@ module.exports = function createPCPRoutes(deps) {
                     error: 'Nenhum arquivo fornecido'
                 });
             }
-    
+
             const settings = JSON.parse(req.body.settings || '{}');
             const autoPrintSystem = require('../scripts/auto-print-system');
-    
+
             const job = await autoPrintSystem.addToQueue(req.file.path, {
                 printer: settings.printer,
                 copies: settings.copies || 1,
@@ -5543,7 +6855,7 @@ module.exports = function createPCPRoutes(deps) {
                     mimeType: req.file.mimetype
                 }
             });
-    
+
             res.json({
                 success: true,
                 jobId: job.id,
@@ -5557,23 +6869,23 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Cancelar job de impressão
     // SECURITY: Requer autenticação
     router.post('/api/print/cancel', authenticateToken, async (req, res) => {
         try {
             const { jobId } = req.body;
-    
+
             if (!jobId) {
                 return res.status(400).json({
                     success: false,
                     error: 'ID do job não fornecido'
                 });
             }
-    
+
             const autoPrintSystem = require('../scripts/auto-print-system');
             const result = await autoPrintSystem.cancelJob(jobId);
-    
+
             res.json({
                 success: true,
                 cancelled: result
@@ -5586,14 +6898,14 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Limpar fila de impressão
     // SECURITY: Requer autenticação de administrador
     router.post('/api/print/queue/clear', authenticateToken, authorizeAdmin, async (req, res) => {
         try {
             const autoPrintSystem = require('../scripts/auto-print-system');
             const result = await autoPrintSystem.clearQueue();
-    
+
             res.json({
                 success: true,
                 cancelledCount: result.cancelledCount
@@ -5606,13 +6918,13 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Obter estatísticas de impressão
     router.get('/api/print/stats', async (req, res) => {
         try {
             const autoPrintSystem = require('../scripts/auto-print-system');
             const stats = await autoPrintSystem.getStatistics();
-    
+
             res.json({
                 success: true,
                 stats: stats
@@ -5625,23 +6937,23 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Definir impressora padrão
     // 🔐 SECURITY AUDIT: Added authenticateToken - system settings require auth
     router.post('/api/print/settings/default-printer', authenticateToken, async (req, res) => {
         try {
             const { printerName } = req.body;
-    
+
             if (!printerName) {
                 return res.status(400).json({
                     success: false,
                     error: 'Nome da impressora não fornecido'
                 });
             }
-    
+
             const autoPrintSystem = require('../scripts/auto-print-system');
             const result = await autoPrintSystem.setDefaultPrinter(printerName);
-    
+
             res.json({
                 success: true,
                 defaultPrinter: result
@@ -5654,7 +6966,7 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Atualizar configurações do sistema de impressão
     // 🔐 SECURITY AUDIT: Added authenticateToken
     router.post('/api/print/settings', authenticateToken, async (req, res) => {
@@ -5662,7 +6974,7 @@ module.exports = function createPCPRoutes(deps) {
             const settings = req.body;
             const autoPrintSystem = require('../scripts/auto-print-system');
             const result = await autoPrintSystem.updateSettings(settings);
-    
+
             res.json({
                 success: true,
                 settings: result
@@ -5675,12 +6987,12 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API PARA BUSCAR ÚLTIMO NÚMERO DE PEDIDO
     router.get('/ultimo-pedido', authenticateToken, async (req, res) => {
         try {
             console.log('🔍 Buscando último número de pedido...');
-    
+
             const connection = await pool.getConnection();
             try {
                 // Buscar o maior número de pedido registrado
@@ -5690,24 +7002,24 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE numero_pedido IS NOT NULL
                     AND numero_pedido REGEXP '^[0-9]+$'
                 `);
-    
+
                 let ultimoNumero = '0002025000'; // Número inicial padrão
-    
+
                 if (rows && rows.length > 0 && rows[0].ultimo_numero) {
                     ultimoNumero = String(rows[0].ultimo_numero);
                 }
-    
+
                 console.log('✅ Último número de pedido:', ultimoNumero);
-    
+
                 res.json({
                     success: true,
                     ultimo_numero: ultimoNumero
                 });
-    
+
             } finally {
                 connection.release();
             }
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar último pedido:', error);
             // Retornar número padrão em caso de erro
@@ -5717,14 +7029,14 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // API PARA GERAR ORDEM DE PRODUÇÁO EM EXCEL
     router.post('/api/gerar-ordem-excel', authenticateToken, async (req, res) => {
         try {
             console.log('📊 Iniciando geração de Ordem de Produção em Excel...');
-    
+
             const dadosOrdem = req.body;
-    
+
             console.log('🔍 DADOS RECEBIDOS - TRANSPORTADORA:', {
                 transportadora_nome: dadosOrdem.transportadora_nome,
                 transportadora_fone: dadosOrdem.transportadora_fone,
@@ -5733,23 +7045,23 @@ module.exports = function createPCPRoutes(deps) {
                 transportadora_cpf_cnpj: dadosOrdem.transportadora_cpf_cnpj,
                 transportadora_email_nfe: dadosOrdem.transportadora_email_nfe
             });
-    
+
             // Validar dados obrigatórios
             if (!dadosOrdem.numero_orcamento || !dadosOrdem.cliente) {
                 return res.status(400).json({
                     error: 'Dados obrigatórios não fornecidos (numero_orcamento, cliente)'
                 });
             }
-    
+
             try {
                 console.log('📊 Tentando gerar XLSX usando template com ExcelJS...');
-    
+
                 const ExcelJS = require('exceljs');
                 const fs = require('fs');
                 const path = require('path');
-    
+
                 console.log('✅ ExcelJS carregado');
-    
+
                 // Usar caminho relativo simples para evitar problemas de encoding
                 // 🔧 USAR TEMPLATE ORIGINAL COMPLETO para preservar formatação e fórmulas
                 const templatePath = 'modules/PCP/Ordem de Produção.xlsx';
@@ -5758,49 +7070,49 @@ module.exports = function createPCPRoutes(deps) {
                 const nomeCliente = (dadosOrdem.cliente || dadosOrdem.cliente_razao || 'Cliente').replace(/[/\\:*?"<>|]/g, '_').trim();
                 const nomeArquivo = `Ordem de Produção - ${nomeCliente} - ERP.xlsx`;
                 const outputPath = path.join(__dirname, nomeArquivo);
-    
+
                 console.log('📂 Template path:', templatePath);
                 console.log('📄 Output path:', outputPath);
-    
+
                 // Verificar se template existe
                 if (!fs.existsSync(templatePath)) {
                     throw new Error(`Template não encontrado: ${templatePath}`);
                 }
-    
+
                 // Usar função existente que carrega e preenche o template
                 const fileBuffer = await gerarExcelOrdemProducaoCompleta(dadosOrdem, ExcelJS, templatePath);
-    
+
                 console.log('✅ Template processado');
                 console.log(`📊 Buffer gerado: ${fileBuffer.length} bytes`);
-    
+
                 // Configurar headers para download
                 res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
                 res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
                 res.setHeader('Content-Length', fileBuffer.length);
-    
+
                 res.send(fileBuffer);
-    
+
                 console.log(`✅ Excel gerado com sucesso usando template: ${nomeArquivo}`);
-    
+
             } catch (excelError) {
                 console.log('❌ ERRO ao gerar XLSX:', excelError.message);
                 console.log('📍 Stack trace:', excelError.stack);
-    
+
                 // Fallback para CSV
                 const csvBuffer = await gerarExcelOrdemProducaoFallback(dadosOrdem);
-    
+
                 const nomeCliente = (dadosOrdem.cliente || 'Cliente').replace(/[/\\:*?"<>|]/g, '_').trim();
                 const nomeArquivo = `Ordem de Produção - ${nomeCliente} - ERP.csv`;
-    
+
                 res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
                 res.setHeader('Content-Type', 'text/csv; charset=utf-8');
                 res.setHeader('Content-Length', csvBuffer.length);
-    
+
                 res.send(csvBuffer);
-    
+
                 console.log(`✅ CSV gerado com sucesso como fallback: ${nomeArquivo}`);
             }
-    
+
         } catch (error) {
             console.error('❌ Erro ao gerar Excel da ordem de produção:', error);
             res.status(500).json({
@@ -5809,42 +7121,42 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Função para gerar Excel da Ordem de Produção usando ExcelJS COM TEMPLATE CORRETO
     async function gerarExcelOrdemProducaoCompleta(dados, ExcelJS, templatePath) {
         console.log('📂 Carregando template Excel...');
-    
+
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.readFile(templatePath);
-    
+
         // 🎯 CORREÇÃO: Usar a aba VENDAS_PCP explicitamente
         const abaVendas = workbook.getWorksheet('VENDAS_PCP') || workbook.worksheets[0];
         const abaProducao = workbook.getWorksheet('PRODUÇÃO') || workbook.getWorksheet('PRODUCAO') || workbook.worksheets[1];
-    
+
         if (!abaVendas) {
             throw new Error('Aba VENDAS_PCP não encontrada no template!');
         }
-    
+
         console.log(`✅ Template carregado! Abas encontradas: ${workbook.worksheets.map(w => w.name).join(', ')}`);
         console.log('🔧 Usando template PREENCHIDO - fórmulas serão preservadas!\n');
         console.log('✏️ Preenchendo aba VENDAS_PCP...\n');
-    
+
         // ========================================
         // ABA VENDAS_PCP - CABEÇALHO (linhas 4-9)
         // ========================================
-    
+
         console.log('📝 Preenchendo cabeçalho...');
-    
+
         // C4 - Número do Orçamento (como número se possível)
         const numOrcamento = dados.numero_orcamento || '';
         abaVendas.getCell('C4').value = isNaN(numOrcamento) ? numOrcamento : parseFloat(numOrcamento);
-    
+
         // G4 - Número do Pedido (como número se possível)
         const numPedido = dados.numero_pedido || dados.num_pedido || '0';
         // Se for vazio ou NaN, usar 0
         const numPedidoFinal = numPedido === '' || numPedido === null || numPedido === undefined ? '0' : numPedido;
         abaVendas.getCell('G4').value = isNaN(numPedidoFinal) ? numPedidoFinal : parseFloat(numPedidoFinal);
-    
+
         // J4 - Data de Liberação (como objeto Date)
         if (dados.data_liberacao) {
             // Se já é Date, usa direto
@@ -5854,7 +7166,7 @@ module.exports = function createPCPRoutes(deps) {
                 // Tentar converter string para Date (formato dd/mm/yyyy ou yyyy-mm-dd)
                 const dataStr = String(dados.data_liberacao);
                 let dataObj;
-    
+
                 if (dataStr.includes('/')) {
                     const [d, m, y] = dataStr.split('/');
                     dataObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
@@ -5863,7 +7175,7 @@ module.exports = function createPCPRoutes(deps) {
                 } else {
                     dataObj = new Date();
                 }
-    
+
                 abaVendas.getCell('J4').value = dataObj;
             }
             abaVendas.getCell('J4').numFmt = 'dd/mm/yyyy';
@@ -5871,10 +7183,10 @@ module.exports = function createPCPRoutes(deps) {
             abaVendas.getCell('J4').value = new Date();
             abaVendas.getCell('J4').numFmt = 'dd/mm/yyyy';
         }
-    
+
         // Vendedor (linha 6)
         abaVendas.getCell('C6').value = dados.vendedor || '';
-    
+
         // 🔧 H6 - Calcular prazo de entrega (data liberação + dias) ao invés de usar fórmula
         if (dados.prazo_entrega) {
             // Se veio uma data específica, usar
@@ -5898,28 +7210,28 @@ module.exports = function createPCPRoutes(deps) {
                 abaVendas.getCell('H6').numFmt = 'dd/mm/yyyy';
             }
         }
-    
+
         // Cliente (linhas 7-9)
         abaVendas.getCell('C7').value = dados.cliente || '';
         abaVendas.getCell('C8').value = dados.contato || dados.contato_cliente || '';
-    
+
         // H8 - Telefone (como número se possível, sem formatação)
         const telefone = dados.telefone || dados.fone_cliente || '';
         const telefoneNum = String(telefone).replace(/\D/g, ''); // Remove não-dígitos
         abaVendas.getCell('H8').value = telefoneNum ? parseFloat(telefoneNum) : telefone;
-    
+
         abaVendas.getCell('C9').value = dados.email || dados.email_cliente || '';
         abaVendas.getCell('J9').value = dados.frete || dados.tipo_frete || '';
-    
+
         // ========================================
         // ABA VENDAS_PCP - TRANSPORTADORA (linhas 12-15)
         // ========================================
-    
+
         // C12 - Nome da Transportadora
         const nomeTransp = dados.transportadora_nome || dados.transportadora?.nome || '';
         abaVendas.getCell('C12').value = nomeTransp;
         console.log(`   Transportadora Nome: ${nomeTransp}`);
-    
+
         // 🔧 H12 - Telefone da transportadora (calcular ao invés de fórmula)
         const telefoneTransp = dados.transportadora_fone || dados.transportadora?.fone || telefone || '';
         if (telefoneTransp) {
@@ -5929,36 +7241,36 @@ module.exports = function createPCPRoutes(deps) {
         } else {
             abaVendas.getCell('H12').value = '';
         }
-    
+
         // C13 - CEP da Transportadora
         const cepTransp = dados.transportadora_cep || dados.transportadora?.cep || '';
         abaVendas.getCell('C13').value = cepTransp;
         console.log(`   Transportadora CEP: ${cepTransp}`);
-    
+
         // F13 - Endereço da Transportadora
         const endTransp = dados.transportadora_endereco || dados.transportadora?.endereco || '';
         abaVendas.getCell('F13').value = endTransp;
         console.log(`   Transportadora Endereço: ${endTransp}`);
-    
+
         // ========================================
         // ABA VENDAS_PCP - DADOS PARA COBRANÇA (linha 14)
         // ========================================
-    
+
         console.log('💰 Dados para cobrança...');
-    
+
         // C14 - NÃO PREENCHER (conforme template original)
         // A célula C14 deve ficar vazia/em branco
         const cellC14 = abaVendas.getCell('C14');
         cellC14.value = ''; // Manter vazio conforme template
         console.log(`   C14: Mantido em branco (conforme template)`);
-    
+
         // G14 - Email NF-e para Cobrança (PRIORIZAR EMAIL DO CLIENTE!)
         const emailNfeCobranca = dados.email_nfe_cobranca || dados.email_cliente || dados.email ||
                                  dados.email_nfe;
         if (emailNfeCobranca) {
             abaVendas.getCell('G14').value = emailNfeCobranca;
         }
-    
+
         // C15 - CPF/CNPJ do CLIENTE (Dados para Cobrança - conforme template)
         // CORREÇÃO: Usar CNPJ do cliente, não da transportadora
         const cnpjCliente = dados.cpf_cnpj || dados.cliente_cpf_cnpj || '';
@@ -5972,14 +7284,14 @@ module.exports = function createPCPRoutes(deps) {
         cellC15.value = cnpjStr;
         // Formatação visual igual ao template preenchido
         cellC15.numFmt = '[<=99999999999]000.000.000-00;00.000.000/0000-00';
-    
+
         // 🔧 G15 - Email NF-e da transportadora (calcular ao invés de fórmula)
         const emailNfe = dados.transportadora_email_nfe || dados.transportadora?.email_nfe ||
                          dados.email_nfe || dados.email_cliente;
         if (emailNfe) {
             abaVendas.getCell('G15').value = emailNfe;
         }
-    
+
         // ========================================
         // ABA VENDAS_PCP - PRODUTOS (linhas 18-32)
         // ========================================
@@ -6004,10 +7316,10 @@ module.exports = function createPCPRoutes(deps) {
         // - NÃO existe coluna de "Variação" no template VENDAS_PCP
         // - Produtos começam na LINHA 18 (não 19!)
         // ========================================
-    
+
         console.log('📦 Preenchendo produtos...');
         let produtos = dados.produtos || dados.items || dados.itens || [];
-    
+
         // Converter string JSON se necessário
         if (typeof produtos === 'string') {
             try {
@@ -6017,16 +7329,16 @@ module.exports = function createPCPRoutes(deps) {
                 produtos = [];
             }
         }
-    
+
         // Garantir que é array
         if (!Array.isArray(produtos)) {
             produtos = [];
         }
-    
+
         // ⚠️ LINHA 17 É CABEÇALHO, PRODUTOS COMEÇAM NA LINHA 18!
         let linhaAtual = 18;
         const LINHA_MAXIMA_PRODUTOS = 32; // Última linha de produtos
-    
+
         // 🔧 Construir catálogo de produtos do template (colunas N:O)
         const catalogoProdutos = {};
         for (let r = 18; r <= 180; r++) {
@@ -6037,12 +7349,12 @@ module.exports = function createPCPRoutes(deps) {
             }
         }
         console.log(`📚 Catálogo carregado: ${Object.keys(catalogoProdutos).length} produtos`);
-    
+
         produtos.forEach((prod, index) => {
             if (prod && linhaAtual <= LINHA_MAXIMA_PRODUTOS) {
                 const codigoProd = String(prod.codigo || '').trim().toUpperCase();
                 const descricaoCatalogo = catalogoProdutos[codigoProd] || prod.descricao || '';
-    
+
                 console.log(`   📦 Produto ${index + 1} → Linha ${linhaAtual}:`);
                 console.log(`      Código: ${codigoProd}`);
                 console.log(`      Descrição (catálogo): ${descricaoCatalogo}`);
@@ -6050,13 +7362,13 @@ module.exports = function createPCPRoutes(deps) {
                 console.log(`      Lances: ${prod.lances}`);
                 console.log(`      Qtd: ${prod.quantidade}`);
                 console.log(`      Valor: ${prod.valor_unitario}`);
-    
+
                 // A - Número do item (sequencial)
                 abaVendas.getCell(`A${linhaAtual}`).value = index + 1;
-    
+
                 // B - Código do produto (usado pelo VLOOKUP da coluna C)
                 abaVendas.getCell(`B${linhaAtual}`).value = codigoProd;
-    
+
                 // C - Atualizar o RESULT da fórmula VLOOKUP para garantir que aparece a descrição
                 // Preservar a fórmula mas forçar o resultado
                 const cellC = abaVendas.getCell(`C${linhaAtual}`);
@@ -6070,27 +7382,27 @@ module.exports = function createPCPRoutes(deps) {
                     // Se não tem fórmula, colocar direto
                     cellC.value = descricaoCatalogo;
                 }
-    
+
                 // F - Embalagem
                 abaVendas.getCell(`F${linhaAtual}`).value = prod.embalagem || '';
-    
+
                 // G - Lance(s)
                 abaVendas.getCell(`G${linhaAtual}`).value = prod.lances || '';
-    
+
                 // H - Quantidade
                 const quantidade = parseFloat(prod.quantidade) || 0;
                 abaVendas.getCell(`H${linhaAtual}`).value = quantidade;
-    
+
                 // I - Valor Unitário
                 const valorUnitario = parseFloat(prod.valor_unitario) || parseFloat(prod.preco) || 0;
                 abaVendas.getCell(`I${linhaAtual}`).value = valorUnitario;
                 abaVendas.getCell(`I${linhaAtual}`).numFmt = 'R$ #,##0.00';
-    
+
                 // J - Valor Total (calculado, não fórmula para garantir valor correto)
                 const valorTotal = quantidade * valorUnitario;
                 abaVendas.getCell(`J${linhaAtual}`).value = valorTotal;
                 abaVendas.getCell(`J${linhaAtual}`).numFmt = 'R$ #,##0.00';
-    
+
                 console.log(`      ✅ Linha ${linhaAtual} preenchida!`);
                 linhaAtual++;
             }
@@ -6104,7 +7416,7 @@ module.exports = function createPCPRoutes(deps) {
             if (typeof valorUnit === 'number') {
                 abaVendas.getCell(`I${i}`).value = Number(valorUnit.toFixed(2));
             }
-    
+
             // Total - calcular sempre, mesmo se estiver vazio
             const qtd = parseFloat(abaVendas.getCell(`H${i}`).value) || 0;
             const preco = parseFloat(abaVendas.getCell(`I${i}`).value) || 0;
@@ -6112,7 +7424,7 @@ module.exports = function createPCPRoutes(deps) {
             abaVendas.getCell(`J${i}`).value = total;
             abaVendas.getCell(`J${i}`).numFmt = 'R$ #,##0.00';
         }
-    
+
         // Calcular e preencher TOTAL GERAL (somando todas as linhas de produtos)
         // Produtos nas linhas 18-32
         let totalGeral = 0;
@@ -6120,19 +7432,19 @@ module.exports = function createPCPRoutes(deps) {
             const valorLinha = parseFloat(abaVendas.getCell(`J${i}`).value) || 0;
             totalGeral += valorLinha;
         }
-    
+
         // Preencher célula de total (I35 conforme template)
         // Template mostra: I34="Total do Pedido:$" e I35=fórmula de soma
         abaVendas.getCell('I35').value = totalGeral;
         abaVendas.getCell('I35').numFmt = 'R$ #,##0.00';
         console.log(`💰 Total Geral calculado: R$ ${totalGeral.toFixed(2)}`);
-    
+
         console.log(`✅ ${produtos.length} produtos preenchidos!`);
-    
+
         // ========================================
         // ABA VENDAS_PCP - OBSERVAÇÕES (linhas 36-54)
         // ========================================
-    
+
         // Observações do Pedido (área 36-42 tem merge de células A-J)
         if (dados.observacoes || dados.observacoes_pedido) {
             console.log('📝 Preenchendo observações do pedido...');
@@ -6140,18 +7452,18 @@ module.exports = function createPCPRoutes(deps) {
             const obs = dados.observacoes || dados.observacoes_pedido || '';
             abaVendas.getCell('B37').value = obs;
         }
-    
+
         // ========================================
         // CONDIÇÕES DE PAGAMENTO (linhas 44-46)
         // ========================================
-    
+
         console.log('💳 Preenchendo condições de pagamento...');
-    
+
         // Linha 45-46: Formas de pagamento (respeitar merged cells - preencher apenas célula principal)
         // Template: A44:D44=header, A45:D45=forma1, E45=%, F45:H45=método, I45:J45=valor
         //           A46:D46=forma2, E46=%, F46:H46=método, I45:J46=valor
         const formasPag = dados.formas_pagamento || [];
-    
+
         if (formasPag.length > 0) {
             // Linha 45: Primeira forma de pagamento
             abaVendas.getCell('A45').value = formasPag[0].forma || dados.forma_pagamento || 'A_VISTA';
@@ -6162,7 +7474,7 @@ module.exports = function createPCPRoutes(deps) {
             const valor1 = totalGeral * perc1;
             abaVendas.getCell('I45').value = valor1;
             abaVendas.getCell('I45').numFmt = 'R$ #,##0.00';
-    
+
             // Linha 46: Segunda forma de pagamento (se houver)
             if (formasPag.length > 1) {
                 abaVendas.getCell('A46').value = formasPag[1].forma || 'ENTREGA';
@@ -6180,7 +7492,7 @@ module.exports = function createPCPRoutes(deps) {
             abaVendas.getCell('F45').value = dados.metodo_pagamento || 'BOLETO';
             abaVendas.getCell('I45').value = totalGeral;
             abaVendas.getCell('I45').numFmt = 'R$ #,##0.00';
-    
+
             // Se parcelado, calcular segunda linha
             if (perc < 1) {
                 abaVendas.getCell('A46').value = 'ENTREGA';
@@ -6188,11 +7500,11 @@ module.exports = function createPCPRoutes(deps) {
                 abaVendas.getCell('E46').numFmt = '0%';
             }
         }
-    
+
         // ========================================
         // EMBALAGEM E OBSERVAÇÕES FINAIS (linhas 48-54)
         // ========================================
-    
+
         // E50-E54: Seção OBSERVAÇÕES do template
         // E51:J54 são merged - preencher apenas E51 (célula principal)
         // Template: C51="COMPLETO", C53="PARCIAL" (status da entrega)
@@ -6203,7 +7515,7 @@ module.exports = function createPCPRoutes(deps) {
             console.log('📝 Preenchendo observações finais (E51)...');
             abaVendas.getCell('E51').value = obsTexto;
         }
-    
+
         // Status de entrega: COMPLETO ou PARCIAL (C51/C53)
         const statusEntrega = dados.status_entrega || 'COMPLETO';
         if (statusEntrega === 'PARCIAL') {
@@ -6213,11 +7525,11 @@ module.exports = function createPCPRoutes(deps) {
             abaVendas.getCell('C51').value = 'X';
             abaVendas.getCell('C53').value = '';
         }
-    
+
         // ========================================
         // ABA VENDAS_PCP - CONDIÇÕES DE PAGAMENTO (linhas 43-46)
         // ========================================
-    
+
         // A43 é label fixo "CONDIÇOES DE PAGAMENTO." - NÃO sobrescrever
         // Condições extras vão na área de observações (B37) junto com as obs do pedido
         if (dados.condicoes_pagamento) {
@@ -6225,19 +7537,19 @@ module.exports = function createPCPRoutes(deps) {
             const condPag = `Cond. Pagamento: ${dados.condicoes_pagamento}`;
             abaVendas.getCell('B37').value = obsExistente ? `${obsExistente}\n${condPag}` : condPag;
         }
-    
+
         // ========================================
         // ABA VENDAS_PCP - VOLUMES E EMBALAGEM (linha 48)
         // ========================================
-    
+
         if (dados.qtd_volumes) {
             abaVendas.getCell('C48').value = dados.qtd_volumes;
         }
-    
+
         if (dados.tipo_embalagem_entrega) {
             abaVendas.getCell('H48').value = dados.tipo_embalagem_entrega;
         }
-    
+
         // ========================================
         // ========================================
         // REFORÇO FINAL: Preencher C15 (CNPJ do CLIENTE para cobrança)
@@ -6253,25 +7565,25 @@ module.exports = function createPCPRoutes(deps) {
         // ========================================
         if (abaProducao) {
             console.log('\n🔧 Atualizando aba PRODUÇÃO...');
-    
+
             // A aba PRODUÇÃO tem suas próprias fórmulas VLOOKUP na coluna C
             // As linhas de produtos são: 13, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 52 (de 3 em 3)
             // Também precisa atualizar a coluna F (Código de Cores)
-    
+
             // Pegar produtos já preenchidos na VENDAS_PCP
             const linhasProducao = [13, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 52];
-    
+
             // Mapeamento: linha VENDAS_PCP (18,19,20...) -> linha PRODUÇÃO (13,16,19...)
             // VENDAS_PCP linha 18 = primeiro produto -> PRODUÇÃO linha 13
             // VENDAS_PCP linha 19 = segundo produto -> PRODUÇÃO linha 16
             // etc.
-    
+
             produtos.forEach((prod, index) => {
                 if (index < linhasProducao.length && prod) {
                     const linhaProd = linhasProducao[index];
                     const codigoProd = String(prod.codigo || '').trim().toUpperCase();
                     const descricaoCatalogo = catalogoProdutos[codigoProd] || prod.descricao || '';
-    
+
                     // B - Código (pode ser uma fórmula referenciando VENDAS_PCP ou valor direto)
                     const cellB = abaProducao.getCell(`B${linhaProd}`);
                     if (cellB.value && typeof cellB.value === 'object' && cellB.value.formula) {
@@ -6280,7 +7592,7 @@ module.exports = function createPCPRoutes(deps) {
                     } else {
                         cellB.value = codigoProd;
                     }
-    
+
                     // C - Descrição do produto (tem VLOOKUP próprio)
                     const cellC = abaProducao.getCell(`C${linhaProd}`);
                     if (cellC.value && typeof cellC.value === 'object' && cellC.value.formula) {
@@ -6288,7 +7600,7 @@ module.exports = function createPCPRoutes(deps) {
                     } else if (descricaoCatalogo) {
                         cellC.value = descricaoCatalogo;
                     }
-    
+
                     // Também verificar se há fórmula na linha +1 e +2 (layout 3-em-3)
                     for (let offset = 1; offset <= 2; offset++) {
                         const cellCExtra = abaProducao.getCell(`C${linhaProd + offset}`);
@@ -6297,7 +7609,7 @@ module.exports = function createPCPRoutes(deps) {
                             cellCExtra.value = { formula: cellCExtra.value.formula, result: '' };
                         }
                     }
-    
+
                     // 🔧 CORREÇÃO: Preencher QUANTIDADE na coluna J com formato NUMÉRICO (SEM R$)
                     const quantidade = parseFloat(prod.quantidade) || 0;
                     if (quantidade > 0) {
@@ -6306,7 +7618,7 @@ module.exports = function createPCPRoutes(deps) {
                         cellQtd.numFmt = '#,##0.00'; // Formato numérico SEM R$
                         console.log(`   J${linhaProd} (QTD) = ${quantidade} (formato numérico sem R$)`);
                     }
-    
+
                     // Preencher P.LIQUIDO na coluna E da linha seguinte (linhaProd + 1)
                     const pesoLiquido = parseFloat(prod.peso_liquido) || 0;
                     if (pesoLiquido > 0) {
@@ -6314,20 +7626,20 @@ module.exports = function createPCPRoutes(deps) {
                         cellPeso.value = pesoLiquido;
                         cellPeso.numFmt = '#,##0.00';
                     }
-    
+
                     // Preencher LOTE na coluna G da linha seguinte (linhaProd + 1)
                     if (prod.lote) {
                         const cellLote = abaProducao.getCell(`G${linhaProd + 1}`);
                         cellLote.value = prod.lote;
                     }
-    
+
                     console.log(`   📦 PRODUÇÃO Linha ${linhaProd}: ${codigoProd} = ${descricaoCatalogo.substring(0, 40)}...`);
                 }
             });
-    
+
             console.log(`   ✅ ${Math.min(produtos.length, linhasProducao.length)} produtos atualizados na aba PRODUÇÃO`);
         }
-    
+
         console.log('\n✅ Excel completo gerado com sucesso!');
         console.log('📊 Estrutura:');
         console.log('   - Cabeçalho: C4, G4, J4, C6, C7-C9');
@@ -6336,14 +7648,14 @@ module.exports = function createPCPRoutes(deps) {
         console.log('   - Pagamento: M, N, O, P, Q preenchidos');
         console.log(`   - Total Geral: R$ ${totalGeral.toFixed(2)}`);
         console.log('   ✨ Todos os valores calculados diretamente (sem fórmulas)\n');
-    
+
         return await workbook.xlsx.writeBuffer();
     }
-    
+
     // Função fallback para CSV
     async function gerarExcelOrdemProducaoFallback(dados) {
         const csv = [];
-    
+
         // Header da Ordem de Produção
         csv.push(['ORDEM DE PRODUÇÁO ALUFORCE']);
         csv.push(['']);
@@ -6354,7 +7666,7 @@ module.exports = function createPCPRoutes(deps) {
         csv.push(['Vendedor:', dados.vendedor || '']);
         csv.push(['Prazo de Entrega:', dados.prazo_entrega || '']);
         csv.push(['']);
-    
+
         // Dados do Cliente
         csv.push(['Dados do Cliente:']);
         csv.push(['Nome do Cliente:', dados.cliente || '']);
@@ -6363,7 +7675,7 @@ module.exports = function createPCPRoutes(deps) {
         csv.push(['Email:', dados.email_cliente || '']);
         csv.push(['Tipo de Frete:', dados.tipo_frete || '']);
         csv.push(['']);
-    
+
         // Dados da Transportadora
         csv.push(['Dados da Transportadora:']);
         csv.push(['Nome:', dados.transportadora_nome || '']);
@@ -6373,11 +7685,11 @@ module.exports = function createPCPRoutes(deps) {
         csv.push(['CPF/CNPJ:', dados.transportadora_cpf_cnpj || '']);
         csv.push(['Email NFe:', dados.transportadora_email_nfe || '']);
         csv.push(['']);
-    
+
         // Produtos
         csv.push(['PRODUTOS:']);
         csv.push(['Código', 'Descrição', 'Embalagem', 'Lances', 'Quantidade', 'Valor Unitário', 'Total']);
-    
+
         if (dados.produtos && Array.isArray(dados.produtos)) {
             dados.produtos.forEach(produto => {
                 const total = (produto.quantidade || 0) * (produto.valor_unitario || 0);
@@ -6391,22 +7703,22 @@ module.exports = function createPCPRoutes(deps) {
                     `R$ ${total.toFixed(2)}`
                 ]);
             });
-    
+
             // Total geral
             const valorTotal = dados.produtos.reduce((total, produto) => {
                 return total + ((produto.quantidade || 0) * (produto.valor_unitario || 0));
             }, 0);
-    
+
             csv.push(['', '', '', '', '', 'TOTAL GERAL:', `R$ ${valorTotal.toFixed(2)}`]);
         }
-    
+
         csv.push(['']);
-    
+
         // Observações
         csv.push(['OBSERVAÇÕES:']);
         csv.push([dados.observacoes_pedido || 'Nenhuma observação especial.']);
         csv.push(['']);
-    
+
         // Dados de Pagamento e Entrega
         csv.push(['CONDIÇÕES DE PAGAMENTO:']);
         csv.push([dados.condicoes_pagamento || '30 dias após faturamento']);
@@ -6416,21 +7728,21 @@ module.exports = function createPCPRoutes(deps) {
         csv.push(['Quantidade de Volumes:', dados.qtd_volumes || '']);
         csv.push(['Tipo de Embalagem:', dados.tipo_embalagem_entrega || '']);
         csv.push(['Observações de Entrega:', dados.observacoes_entrega || '']);
-    
+
         // Converter CSV para Buffer
         const csvString = csv.map(row => row.join('\t')).join('\n');
         const buffer = Buffer.from('\ufeff' + csvString, 'utf8'); // BOM para UTF-8
-    
+
         return buffer;
     }
-    
+
     // PEDIDOS - AUDITORIA 02/02/2026: Otimizado com campos específicos
     router.get('/pedidos', async (req, res, next) => {
         try {
             const page = parseInt(req.query.page) || 1;
             const limit = parseInt(req.query.limit) || 10;
             const offset = (page - 1) * limit;
-    
+
             const [rows] = await pool.query(`
                 SELECT
                     p.id, p.cliente_id, p.empresa_id, p.vendedor_id,
@@ -6444,11 +7756,11 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN empresas_emissoras e ON p.empresa_id = e.id
                 ORDER BY p.id DESC LIMIT ? OFFSET ?`, [limit, offset]);
             const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM pedidos');
-    
+
             res.json({ pedidos: rows, total, page, limit });
         } catch (error) { next(error); }
     });
-    
+
     // PEDIDOS FATURADOS - AUDITORIA 02/02/2026: Otimizado
     router.get('/pedidos/faturados', async (req, res, next) => {
         try {
@@ -6466,7 +7778,7 @@ module.exports = function createPCPRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // PEDIDOS PRAZOS
     router.get('/pedidos/prazos', async (req, res, next) => {
         try {
@@ -6474,7 +7786,7 @@ module.exports = function createPCPRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // ACOMPANHAMENTO
     router.get('/acompanhamento', async (req, res, next) => {
         try {
@@ -6483,14 +7795,14 @@ module.exports = function createPCPRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // CLIENTES - Autocomplete
     router.get('/clientes', async (req, res, next) => {
         try {
             const query = req.query.q || '';
             const limit = parseInt(req.query.limit) || 500; // Aumentado para 500 resultados
             const empresaId = req.query.empresa_id || 1; // Default empresa 1
-    
+
             if (!query) {
                 const [rows] = await pool.query(
                     'SELECT id, nome, nome_fantasia, razao_social, cnpj, cnpj_cpf, contato, email, telefone, vendedor_responsavel FROM clientes WHERE empresa_id = ? ORDER BY nome LIMIT ?',
@@ -6498,7 +7810,7 @@ module.exports = function createPCPRoutes(deps) {
                 );
                 return res.json(rows);
             }
-    
+
             const searchPattern = `%${query}%`;
             const [rows] = await pool.query(
                 `SELECT id, nome, nome_fantasia, razao_social, cnpj, cnpj_cpf, contato, email, telefone, vendedor_responsavel
@@ -6511,14 +7823,14 @@ module.exports = function createPCPRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // TRANSPORTADORAS - Autocomplete
     router.get('/transportadoras', async (req, res, next) => {
         try {
             const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
             const query = req.query.q || '';
             const limit = parseInt(req.query.limit) || 10;
-    
+
             let sql, params;
             if (!query) {
                 sql = 'SELECT id, razao_social, nome_fantasia, cnpj_cpf, inscricao_estadual, contato, telefone, email, bairro, cidade, estado, cep FROM transportadoras LIMIT ?';
@@ -6529,7 +7841,7 @@ module.exports = function createPCPRoutes(deps) {
                 sql = 'SELECT id, razao_social, nome_fantasia, cnpj_cpf, inscricao_estadual, contato, telefone, email, bairro, cidade, estado, cep FROM transportadoras WHERE razao_social LIKE ? OR nome_fantasia LIKE ? LIMIT ?';
                 params = [searchPattern, searchPattern, limit];
             }
-    
+
             const [rows] = await pool.query(sql, params);
             const resultado = rows.map(r => ({
                 id: r.id,
@@ -6551,14 +7863,14 @@ module.exports = function createPCPRoutes(deps) {
             res.json(resultado);
         } catch (error) { next(error); }
     });
-    
+
     // VENDEDORES/FUNCIONÁRIOS - Autocomplete para PCP
-    
+
     // API para criar ordem de produção completa
     router.post('/ordem-producao-completa', async (req, res, next) => {
         try {
             console.log('📋 Criando ordem de produção completa...');
-    
+
             const {
                 vendedor = 'Vendedor Padrão',
                 cliente = 'Cliente Teste',
@@ -6576,21 +7888,21 @@ module.exports = function createPCPRoutes(deps) {
                 condicoes_pagamento = '30 dias',
                 prazo_entrega = '15 dias úteis'
             } = req.body;
-    
+
             // Gerar número sequencial único
             const timestamp = Date.now();
             const novoSequencial = String(timestamp).slice(-5);
             const numeroOrcamento = `ORC-${novoSequencial}`;
             const numeroPedido = `PED-${novoSequencial}`;
-    
+
             // Calcular total
             let valorTotal = 0;
             produtos.forEach(produto => {
                 valorTotal += (produto.quantidade || 0) * (produto.valor_unitario || 0);
             });
-    
+
             console.log(`💰 Valor total calculado: R$ ${valorTotal.toFixed(2)}`);
-    
+
             // Preparar dados para o script de geração
             const dadosCompletos = {
                 numero_sequencial: novoSequencial,
@@ -6621,17 +7933,17 @@ module.exports = function createPCPRoutes(deps) {
                 condicoes_pagamento,
                 data_previsao_entrega: prazo_entrega
             };
-    
+
             // Gerar Excel usando novo gerador funcional
             const TemplateXlsxGenerator = require('./template-xlsx-generator');
-    
+
             try {
                 console.log('🔧 Usando novo gerador funcional...');
-    
+
                 const gerador = new TemplateXlsxGenerator();
                 const filename = `ORDEM_PRODUCAO_${novoSequencial}_${Date.now()}.xlsx`;
                 const outputPath = path.join(__dirname, filename);
-    
+
                 // Preparar dados no formato esperado
                 const dadosFormatados = {
                     numero_orcamento: dadosCompletos.numero_orcamento,
@@ -6654,14 +7966,14 @@ module.exports = function createPCPRoutes(deps) {
                     })),
                     observacoes: dadosCompletos.observacoes_pedido || 'Produto conforme especificação técnica.'
                 };
-    
+
                 // Gerar arquivo usando novo gerador
                 const resultado = await gerador.aplicarMapeamentoCompleto(dadosFormatados, outputPath);
-    
+
                 if (resultado.sucesso) {
                     console.log(`✅ Ordem de produção gerada com novo gerador: ${filename}`);
                     console.log(`💰 Total: R$ ${resultado.totalGeral.toFixed(2)}`);
-    
+
                     // Retornar arquivo para download
                     res.download(outputPath, `Ordem_Producao_${numeroOrcamento}.xlsx`, (err) => {
                         if (!err) {
@@ -6678,12 +7990,12 @@ module.exports = function createPCPRoutes(deps) {
                 } else {
                     throw new Error('Falha na geração do arquivo com novo gerador');
                 }
-    
+
             } catch (excelError) {
                 console.error('❌ Erro ao gerar Excel:', excelError);
                 throw new Error(`Erro na geração do arquivo Excel: ${excelError.message}`);
             }
-    
+
         } catch (error) {
             console.error('❌ Erro ao criar ordem de produção:', error);
             res.status(500).json({
@@ -6693,11 +8005,11 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Função para gerar ordem com ExcelJS (formato válido)
     async function gerarOrdemComExcelJS(workbook, worksheet, dados, outputPath) {
         console.log('\n🎯 GERANDO ORDEM COM EXCELJS...');
-    
+
         // === CABEÇALHO ===
         worksheet.mergeCells('A1:K1');
         const tituloCell = worksheet.getCell('A1');
@@ -6706,49 +8018,49 @@ module.exports = function createPCPRoutes(deps) {
         tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0070C0' } };
         tituloCell.alignment = { horizontal: 'center', vertical: 'middle' };
         worksheet.getRow(1).height = 30;
-    
+
         // === DADOS DA ORDEM ===
         worksheet.getCell('A3').value = 'Dados da Ordem:';
         worksheet.getCell('A3').font = { bold: true };
-    
+
         worksheet.getCell('A4').value = 'Número do Orçamento:';
         worksheet.getCell('B4').value = dados.numero_orcamento || dados.orcamento || '';
-    
+
         worksheet.getCell('D4').value = 'Número do Pedido:';
         worksheet.getCell('E4').value = dados.numero_pedido || dados.pedido || '';
-    
+
         worksheet.getCell('A5').value = 'Data de Liberação:';
         worksheet.getCell('B5').value = dados.data_liberacao || new Date().toLocaleDateString('pt-BR');
-    
+
         worksheet.getCell('D5').value = 'Vendedor:';
         worksheet.getCell('E5').value = dados.vendedor_nome || dados.vendedor || '';
-    
+
         worksheet.getCell('G5').value = 'Prazo de Entrega:';
         worksheet.getCell('H5').value = dados.prazo_entrega || '';
-    
+
         // === DADOS DO CLIENTE ===
         worksheet.getCell('A7').value = 'Dados do Cliente:';
         worksheet.getCell('A7').font = { bold: true };
-    
+
         worksheet.getCell('A8').value = 'Nome do Cliente:';
         worksheet.getCell('B8').value = dados.cliente_nome || dados.cliente || '';
-    
+
         worksheet.getCell('A9').value = 'Contato:';
         worksheet.getCell('B9').value = dados.cliente_contato || '';
-    
+
         worksheet.getCell('D9').value = 'Telefone:';
         worksheet.getCell('E9').value = dados.cliente_fone || dados.cliente_telefone || '';
-    
+
         worksheet.getCell('A10').value = 'Email:';
         worksheet.getCell('B10').value = dados.cliente_email || '';
-    
+
         worksheet.getCell('D10').value = 'Tipo de Frete:';
         worksheet.getCell('E10').value = dados.frete || '';
-    
+
         // === DADOS DA TRANSPORTADORA ===
         worksheet.getCell('A12').value = 'Dados da Transportadora:';
         worksheet.getCell('A12').font = { bold: true };
-    
+
         const transportadoraFields = [
             { label: 'Nome:', cell: 'B13', value: dados.transportadora_nome || '' },
             { label: 'Telefone:', cell: 'B14', value: dados.transportadora_fone || dados.transportadora_telefone || '' },
@@ -6757,38 +8069,38 @@ module.exports = function createPCPRoutes(deps) {
             { label: 'CPF/CNPJ:', cell: 'B17', value: dados.transportadora_cpf_cnpj || '' },
             { label: 'Email NFe:', cell: 'B18', value: dados.transportadora_email_nfe || dados.email_nfe || '' }
         ];
-    
+
         transportadoraFields.forEach((field, index) => {
             worksheet.getCell(`A${13 + index}`).value = field.label;
             worksheet.getCell(field.cell).value = field.value;
         });
-    
+
         // === PRODUTOS ===
         let currentRow = 20;
         worksheet.getCell(`A${currentRow}`).value = 'PRODUTOS:';
         worksheet.getCell(`A${currentRow}`).font = { bold: true };
-    
+
         currentRow++;
         const headerRow = worksheet.getRow(currentRow);
         headerRow.values = ['Código', 'Descrição', 'Embalagem', 'Lances', 'Quantidade', 'Valor Unitário', 'Total'];
         headerRow.font = { bold: true };
         headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
-    
+
         let produtos = dados.produtos || dados.itens || [];
         if (typeof produtos === 'string') {
             try { produtos = JSON.parse(produtos); } catch(e) { produtos = []; }
         }
-    
+
         let totalGeral = 0;
         let produtosProcessados = 0;
-    
+
         currentRow++;
         produtos.forEach((produto, index) => {
             const row = worksheet.getRow(currentRow + index);
             const quantidade = parseFloat(produto.quantidade) || 0;
             const valorUnitario = parseFloat(produto.valor_unitario || produto.preco_unitario || produto.preco || 0);
             const total = quantidade * valorUnitario;
-    
+
             row.values = [
                 produto.codigo || '',
                 produto.descricao || produto.nome || '',
@@ -6798,59 +8110,59 @@ module.exports = function createPCPRoutes(deps) {
                 valorUnitario.toFixed(2),
                 total.toFixed(2)
             ];
-    
+
             totalGeral += total;
             produtosProcessados++;
         });
-    
+
         currentRow += produtos.length + 1;
-    
+
         // === TOTAL ===
         worksheet.getCell(`F${currentRow}`).value = 'TOTAL GERAL:';
         worksheet.getCell(`F${currentRow}`).font = { bold: true };
         worksheet.getCell(`G${currentRow}`).value = `R$ ${totalGeral.toFixed(2)}`;
         worksheet.getCell(`G${currentRow}`).font = { bold: true };
-    
+
         // === OBSERVAÇÕES ===
         currentRow += 2;
         worksheet.getCell(`A${currentRow}`).value = 'OBSERVAÇÕES:';
         worksheet.getCell(`A${currentRow}`).font = { bold: true };
         worksheet.getCell(`A${currentRow + 1}`).value = dados.observacoes || 'Nenhuma observação especial.';
-    
+
         // === CONDIÇÕES DE PAGAMENTO ===
         currentRow += 3;
         worksheet.getCell(`A${currentRow}`).value = 'CONDIÇÕES DE PAGAMENTO:';
         worksheet.getCell(`A${currentRow}`).font = { bold: true };
         worksheet.getCell(`A${currentRow + 1}`).value = dados.condicoes_pagamento || '30 dias após faturamento';
-    
+
         // === DADOS DE ENTREGA ===
         currentRow += 3;
         worksheet.getCell(`A${currentRow}`).value = 'DADOS DE ENTREGA:';
         worksheet.getCell(`A${currentRow}`).font = { bold: true };
-    
+
         worksheet.getCell(`A${currentRow + 1}`).value = 'Data Prevista:';
         worksheet.getCell(`B${currentRow + 1}`).value = dados.data_entrega || '';
-    
+
         worksheet.getCell(`A${currentRow + 2}`).value = 'Quantidade de Volumes:';
         worksheet.getCell(`B${currentRow + 2}`).value = dados.quantidade_volumes || '';
-    
+
         worksheet.getCell(`A${currentRow + 3}`).value = 'Tipo de Embalagem:';
         worksheet.getCell(`B${currentRow + 3}`).value = dados.tipo_embalagem || '';
-    
+
         worksheet.getCell(`A${currentRow + 4}`).value = 'Observações de Entrega:';
         worksheet.getCell(`B${currentRow + 4}`).value = dados.observacoes_entrega || '';
-    
+
         // Ajustar largura das colunas
         worksheet.columns = [
             { width: 15 }, { width: 40 }, { width: 15 }, { width: 10 },
             { width: 12 }, { width: 15 }, { width: 15 }, { width: 15 },
             { width: 15 }, { width: 15 }, { width: 15 }
         ];
-    
+
         // Salvar arquivo
         await workbook.xlsx.writeFile(outputPath);
         console.log(`✅ Arquivo salvo: ${outputPath}`);
-    
+
         return {
             sucesso: true,
             totalGeral,
@@ -6858,38 +8170,38 @@ module.exports = function createPCPRoutes(deps) {
             arquivo: outputPath
         };
     }
-    
+
     // Nova rota otimizada para gerar ordem de produção com gerador funcional
     router.post('/gerar-ordem', async (req, res, next) => {
         try {
             console.log('🏭 Gerando ordem via rota otimizada com ExcelJS...');
-    
+
             const ExcelJS = require('exceljs');
-    
+
             // Preparar dados recebidos
             const dadosOrdem = req.body;
             console.log('📋 Dados recebidos:', Object.keys(dadosOrdem));
-    
+
             // Gerar número de ordem único
             const numeroOrdem = `OP${Date.now()}`;
-    
+
             // Gerar nome único para arquivo
             const timestamp = Date.now();
             const filename = `ordem_producao_${timestamp}.xlsx`;
             const outputPath = path.join(__dirname, filename);
-    
+
             // Criar workbook com ExcelJS
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Ordem de Produção');
-    
+
             // Gerar ordem usando ExcelJS
             const resultado = await gerarOrdemComExcelJS(workbook, worksheet, dadosOrdem, outputPath);
-    
+
             if (resultado.sucesso) {
                 console.log(`✅ Ordem gerada: ${filename}`);
                 console.log(`💰 Total: R$ ${resultado.totalGeral.toFixed(2)}`);
                 console.log(`📦 Produtos: ${resultado.produtosProcessados}`);
-    
+
                 // Salvar ordem no banco de dados
                 try {
                     const [insertResult] = await pool.query(`
@@ -6934,9 +8246,9 @@ module.exports = function createPCPRoutes(deps) {
                         'pendente',
                         req.user ? req.user.id : null
                     ]);
-    
+
                     console.log(`✅ Ordem salva no banco: ID ${insertResult.insertId}`);
-    
+
                     res.json({
                         sucesso: true,
                         ordemId: insertResult.insertId,
@@ -6961,7 +8273,7 @@ module.exports = function createPCPRoutes(deps) {
             } else {
                 throw new Error('Falha na geração da ordem');
             }
-    
+
         } catch (error) {
             console.error('❌ Erro na nova rota:', error);
             res.status(500).json({
@@ -6971,12 +8283,12 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // LISTAR ORDENS DE PRODUÇÁO - Para página Controle de Produção
     router.get('/ordens', async (req, res, next) => {
         try {
             const { status, data_inicio, data_fim, cliente, limit = 50, offset = 0 } = req.query;
-    
+
             let query = `
                 SELECT
                     id, numero_ordem, numero_orcamento, numero_pedido,
@@ -6989,38 +8301,38 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE 1=1
             `;
             const params = [];
-    
+
             if (status) {
                 query += ` AND status = ?`;
                 params.push(status);
             }
-    
+
             if (data_inicio) {
                 query += ` AND data_emissao >= ?`;
                 params.push(data_inicio);
             }
-    
+
             if (data_fim) {
                 query += ` AND data_emissao <= ?`;
                 params.push(data_fim);
             }
-    
+
             if (cliente) {
                 query += ` AND cliente_nome LIKE ?`;
                 params.push(`%${cliente}%`);
             }
-    
+
             query += ` ORDER BY data_emissao DESC LIMIT ? OFFSET ?`;
             params.push(parseInt(limit), parseInt(offset));
-    
+
             const [ordens] = await pool.query(query, params);
-    
+
             // Contar total de ordens (para paginação)
             const [countResult] = await pool.query(`
                 SELECT COUNT(*) as total FROM ordens_producao WHERE 1=1
                 ${status ? 'AND status = ?' : ''}
             `, status ? [status] : []);
-    
+
             res.json({
                 ordens,
                 total: countResult[0].total,
@@ -7032,7 +8344,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // OBTER ÚLTIMO NÚMERO DE PEDIDO PCP (Auto-increment)
     router.get('/ultimo-pedido', async (req, res, next) => {
         try {
@@ -7044,13 +8356,13 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY CAST(numero_pedido AS UNSIGNED) DESC
                 LIMIT 1
             `);
-    
+
             let ultimo_numero = '0002025000'; // Valor padrão inicial
-    
+
             if (result.length > 0 && result[0].numero_pedido) {
                 ultimo_numero = result[0].numero_pedido;
             }
-    
+
             console.log(`✅ Último pedido PCP: ${ultimo_numero}`);
             res.json({ ultimo_numero });
         } catch (error) {
@@ -7059,22 +8371,22 @@ module.exports = function createPCPRoutes(deps) {
             res.json({ ultimo_numero: '0002025000' });
         }
     });
-    
+
     // OBTER DETALHES DE UMA ORDEM ESPECÍFICA
     router.get('/ordens/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             const [ordens] = await pool.query(`
                 SELECT * FROM ordens_producao WHERE id = ?
             `, [id]);
-    
+
             if (ordens.length === 0) {
                 return res.status(404).json({ erro: 'Ordem não encontrada' });
             }
-    
+
             const ordem = ordens[0];
-    
+
             // Parse produtos JSON
             if (ordem.produtos) {
                 try {
@@ -7084,44 +8396,44 @@ module.exports = function createPCPRoutes(deps) {
                     ordem.produtos = [];
                 }
             }
-    
+
             res.json(ordem);
         } catch (error) {
             console.error('❌ Erro ao buscar ordem:', error);
             next(error);
         }
     });
-    
+
     // ATUALIZAR STATUS DE ORDEM
     router.patch('/ordens/:id/status', async (req, res, next) => {
         try {
             const { id } = req.params;
             const { status } = req.body;
-    
+
             const statusValidos = ['pendente', 'em_producao', 'concluida', 'cancelada'];
             if (!statusValidos.includes(status)) {
                 return res.status(400).json({ erro: 'Status inválido' });
             }
-    
+
             await pool.query(`
                 UPDATE ordens_producao
                 SET status = ?, atualizado_em = CURRENT_TIMESTAMP
                 WHERE id = ?
             `, [status, id]);
-    
+
             res.json({ sucesso: true, mensagem: 'Status atualizado com sucesso' });
         } catch (error) {
             console.error('❌ Erro ao atualizar status:', error);
             next(error);
         }
     });
-    
+
     // VENDEDORES/FUNCIONÁRIOS - Autocomplete para PCP
     router.get('/vendedores', async (req, res, next) => {
         try {
             const query = req.query.q || '';
             const limit = parseInt(req.query.limit) || 10;
-    
+
             if (!query) {
                 const [rows] = await pool.query(`
                     SELECT id, nome_completo as nome, cargo, departamento
@@ -7131,7 +8443,7 @@ module.exports = function createPCPRoutes(deps) {
                 `, [limit]);
                 return res.json(rows);
             }
-    
+
             const searchPattern = `%${query}%`;
             const [rows] = await pool.query(`
                 SELECT id, nome_completo as nome, cargo, departamento
@@ -7144,9 +8456,9 @@ module.exports = function createPCPRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // ===================== INTEGRAÇÃO COMPRAS <-> PCP =====================
-    
+
     // LISTAR MATERIAIS CRÍTICOS (estoque abaixo do mínimo)
     router.get('/materiais-criticos', async (req, res, next) => {
         try {
@@ -7160,7 +8472,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // CRIAR PEDIDO DE COMPRA A PARTIR DO PCP
     // AUDIT-FIX HIGH-012: Wrapped PCP purchase order creation in transaction
     router.post('/gerar-pedido-compra', async (req, res, next) => {
@@ -7174,7 +8486,7 @@ module.exports = function createPCPRoutes(deps) {
                 data_entrega_prevista,
                 observacoes
             } = req.body;
-    
+
             // Validações
             if (!fornecedor_id || !materiais || materiais.length === 0) {
                 connection.release();
@@ -7182,14 +8494,14 @@ module.exports = function createPCPRoutes(deps) {
                     erro: 'fornecedor_id e materiais são obrigatórios'
                 });
             }
-    
+
             await connection.beginTransaction();
-    
+
             // Calcular valor total
             const valorTotal = materiais.reduce((total, item) => {
                 return total + (item.quantidade * item.preco_unitario);
             }, 0);
-    
+
             // Criar pedido de compra
             const [result] = await connection.query(`
                 INSERT INTO pedidos_compras (
@@ -7205,9 +8517,9 @@ module.exports = function createPCPRoutes(deps) {
                 observacoes,
                 req.user ? req.user.id : null
             ]);
-    
+
             const pedidoId = result.insertId;
-    
+
             // Inserir itens do pedido
             for (const material of materiais) {
                 await connection.query(`
@@ -7223,7 +8535,7 @@ module.exports = function createPCPRoutes(deps) {
                     material.preco_unitario,
                     material.quantidade * material.preco_unitario
                 ]);
-    
+
                 // Criar/atualizar notificação de estoque
                 await connection.query(`
                     UPDATE notificacoes_estoque
@@ -7231,7 +8543,7 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE produto_id = ? AND status = 'pendente'
                 `, [pedidoId, material.produto_id]);
             }
-    
+
             // Atualizar ordem de produção (se informada)
             if (ordem_producao_id) {
                 await connection.query(`
@@ -7244,16 +8556,16 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE id = ?
                 `, [pedidoId, ordem_producao_id]);
             }
-    
+
             await connection.commit();
-    
+
             res.json({
                 sucesso: true,
                 pedido_id: pedidoId,
                 valor_total: valorTotal,
                 mensagem: 'Pedido de compra criado com sucesso'
             });
-    
+
         } catch (error) {
             await connection.rollback();
             console.error('❌ Erro ao gerar pedido de compra:', error);
@@ -7262,12 +8574,12 @@ module.exports = function createPCPRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // LISTAR NOTIFICAÇÕES DE ESTOQUE
     router.get('/notificacoes-estoque', async (req, res, next) => {
         try {
             const { status = 'pendente', tipo } = req.query;
-    
+
             let query = `
                 SELECT
                     n.*,
@@ -7281,17 +8593,17 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE 1=1
             `;
             const params = [];
-    
+
             if (status) {
                 query += ` AND n.status = ?`;
                 params.push(status);
             }
-    
+
             if (tipo) {
                 query += ` AND n.tipo = ?`;
                 params.push(tipo);
             }
-    
+
             query += ` ORDER BY
                 CASE n.tipo
                     WHEN 'estoque_zero' THEN 1
@@ -7300,26 +8612,26 @@ module.exports = function createPCPRoutes(deps) {
                 END,
                 n.criado_em DESC
             `;
-    
+
             const [notificacoes] = await pool.query(query, params);
             res.json(notificacoes);
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar notificações:', error);
             next(error);
         }
     });
-    
+
     // RESOLVER/IGNORAR NOTIFICAÇÃO DE ESTOQUE
     router.patch('/notificacoes-estoque/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const { status, observacoes } = req.body;
-    
+
             if (!['resolvido', 'ignorado'].includes(status)) {
                 return res.status(400).json({ erro: 'Status inválido' });
             }
-    
+
             await pool.query(`
                 UPDATE notificacoes_estoque
                 SET status = ?,
@@ -7328,36 +8640,36 @@ module.exports = function createPCPRoutes(deps) {
                     observacoes = ?
                 WHERE id = ?
             `, [status, req.user ? req.user.id : null, observacoes, id]);
-    
+
             res.json({ sucesso: true, mensagem: 'Notificação atualizada' });
-    
+
         } catch (error) {
             console.error('❌ Erro ao atualizar notificação:', error);
             next(error);
         }
     });
-    
+
     // VERIFICAR MATERIAIS NECESSÁRIOS PARA UMA ORDEM
     router.get('/ordens/:id/materiais-necessarios', async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             // Buscar ordem
             const [ordens] = await pool.query(`
                 SELECT produtos FROM ordens_producao WHERE id = ?
             `, [id]);
-    
+
             if (ordens.length === 0) {
                 return res.status(404).json({ erro: 'Ordem não encontrada' });
             }
-    
+
             let produtosOrdem = [];
             try {
                 produtosOrdem = JSON.parse(ordens[0].produtos || '[]');
             } catch (e) {
                 console.error('Erro ao parsear produtos:', e);
             }
-    
+
             // Batch: carregar todos os produtos dos códigos necessários
             const codigosProdutos = produtosOrdem.map(p => p.codigo).filter(Boolean);
             let produtosMap = {};
@@ -7393,25 +8705,25 @@ module.exports = function createPCPRoutes(deps) {
                     }
                 }
             }
-    
+
             res.json({
                 ordem_id: id,
                 materiais_necessarios: materiaisNecessarios,
                 total_itens_faltando: materiaisNecessarios.length
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao verificar materiais:', error);
             next(error);
         }
     });
-    
+
     // ESTOQUE - Produtos disponíveis (para módulo Vendas e outros)
     // IMPORTANTE: Retorna APENAS produtos que têm movimentação registrada no PCP
     router.get('/estoque/produtos-disponiveis', async (req, res, next) => {
         try {
             const { search, categoria, status } = req.query;
-    
+
             // Buscar APENAS produtos que têm movimentação de estoque registrada OU estoque > 0
             let sql = `
                 SELECT
@@ -7435,33 +8747,33 @@ module.exports = function createPCPRoutes(deps) {
                       OR EXISTS (SELECT 1 FROM movimentacoes_estoque me WHERE me.produto_id = p.id)
                   )
             `;
-    
+
             const params = [];
-    
+
             // Filtro de busca
             if (search) {
                 sql += ` AND (p.codigo LIKE ? OR p.nome LIKE ? OR p.sku LIKE ? OR p.gtin LIKE ?)`;
                 const searchTerm = `%${search}%`;
                 params.push(searchTerm, searchTerm, searchTerm, searchTerm);
             }
-    
+
             // Filtro de categoria
             if (categoria) {
                 sql += ` AND p.categoria = ?`;
                 params.push(categoria);
             }
-    
+
             // Filtro de status de estoque
             if (status === 'disponivel') {
                 sql += ` AND p.quantidade_estoque > 0`;
             } else if (status === 'baixo') {
                 sql += ` AND p.quantidade_estoque > 0 AND p.quantidade_estoque <= p.estoque_minimo`;
             }
-    
+
             sql += ` ORDER BY p.nome ASC LIMIT 500`;
-    
+
             const [produtos] = await pool.query(sql, params);
-    
+
             // Estatísticas
             const stats = {
                 total: produtos.length,
@@ -7469,40 +8781,40 @@ module.exports = function createPCPRoutes(deps) {
                 estoqueBaixo: produtos.filter(p => p.estoque_atual > 0 && p.estoque_atual <= p.estoque_minimo).length,
                 semEstoque: produtos.filter(p => p.estoque_atual <= 0).length
             };
-    
+
             res.json({
                 success: true,
                 produtos: produtos,
                 stats: stats,
                 total: produtos.length
             });
-    
+
         } catch (error) {
             console.error('❌ Erro ao buscar produtos disponíveis:', error);
             next(error);
         }
     });
-    
+
     // ===================== GESTÃO DE PRODUÇÃO - APIs =====================
-    
+
     // Criar tabela de máquinas se não existir
     const criarTabelaMaquinasPrincipal = async () => {
         // Tables managed by startup migration
         console.log('[GESTAO] Tabelas maquinas_producao e historico_manutencoes gerenciadas pela migração de inicialização');
     };
-    
+
     // Criar tabela de gestão de produção se não existir
     const criarTabelaGestaoProducaoPrincipal = async () => {
         // Table managed by startup migration
         console.log('[GESTAO] Tabela gestao_producao gerenciada pela migração de inicialização');
     };
-    
+
     // Inicializar tabelas de gestão de produção
     setTimeout(async () => {
         await criarTabelaMaquinasPrincipal();
         await criarTabelaGestaoProducaoPrincipal();
     }, 3000);
-    
+
     // Listar máquinas
     router.get('/maquinas', async (req, res, next) => {
         try {
@@ -7516,20 +8828,20 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Criar nova máquina
     router.post('/maquinas', async (req, res, next) => {
         try {
             const { codigo, nome, setor, status, ultima_manutencao, proxima_manutencao, observacoes } = req.body;
-    
+
             // Gerar código se não fornecido
             const codigoFinal = codigo || `MAQ-${Date.now().toString().slice(-6)}`;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO maquinas_producao (codigo, nome, setor, status, ultima_manutencao, proxima_manutencao, observacoes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             `, [codigoFinal, nome, setor || 'Geral', status || 'ativa', ultima_manutencao, proxima_manutencao, observacoes]);
-    
+
             res.status(201).json({
                 message: 'Máquina criada com sucesso',
                 id: result.insertId,
@@ -7540,25 +8852,25 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Atualizar máquina
     router.put('/maquinas/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const { nome, setor, status, ultima_manutencao, proxima_manutencao, observacoes } = req.body;
-    
+
             await pool.query(`
                 UPDATE maquinas_producao SET nome = ?, setor = ?, status = ?, ultima_manutencao = ?, proxima_manutencao = ?, observacoes = ?
                 WHERE id = ?
             `, [nome, setor, status, ultima_manutencao, proxima_manutencao, observacoes, id]);
-    
+
             res.json({ message: 'Máquina atualizada com sucesso' });
         } catch (error) {
             console.error('[API_MAQUINAS] Erro ao atualizar:', error.message);
             next(error);
         }
     });
-    
+
     // Excluir máquina
     router.delete('/maquinas/:id', async (req, res, next) => {
         try {
@@ -7570,9 +8882,9 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // ===================== HISTÓRICO DE MANUTENÇÕES =====================
-    
+
     // Listar histórico de manutenções de uma máquina
     router.get('/maquinas/:id/manutencoes', async (req, res, next) => {
         try {
@@ -7589,23 +8901,23 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Adicionar manutenção ao histórico
     router.post('/maquinas/:id/manutencoes', async (req, res, next) => {
         try {
             const { id } = req.params;
             const { data_manutencao, tipo, descricao, pecas_trocadas, custo, responsavel, tempo_parada_horas, status } = req.body;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO historico_manutencoes (maquina_id, data_manutencao, tipo, descricao, pecas_trocadas, custo, responsavel, tempo_parada_horas, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [id, data_manutencao, tipo || 'preventiva', descricao, pecas_trocadas, custo || 0, responsavel, tempo_parada_horas || 0, status || 'concluida']);
-    
+
             // Atualizar data de última manutenção na máquina
             await pool.query(`
                 UPDATE maquinas_producao SET ultima_manutencao = ? WHERE id = ?
             `, [data_manutencao, id]);
-    
+
             res.status(201).json({
                 message: 'Manutenção registrada com sucesso',
                 id: result.insertId
@@ -7615,7 +8927,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Excluir manutenção
     router.delete('/manutencoes/:id', async (req, res, next) => {
         try {
@@ -7627,20 +8939,20 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // =====================================================
     // GESTÃO DE PRODUÇÃO - API INTEGRADA COM OPs
     // =====================================================
-    
+
     // Listar registros de gestão de produção (integrado com ordens_producao)
     router.get('/gestao-producao', async (req, res, next) => {
         try {
             const { periodo, maquina, busca, fonte } = req.query;
-    
+
             // Se fonte = 'ordens', busca diretamente das ordens de produção
             let registros = [];
             let periodoSQL = '';
-    
+
             // Construir filtro de período
             if (periodo && periodo !== 'todos') {
                 switch(periodo) {
@@ -7658,7 +8970,7 @@ module.exports = function createPCPRoutes(deps) {
                         break;
                 }
             }
-    
+
             // Buscar ordens de produção
             let queryOP = `
                 SELECT
@@ -7694,19 +9006,19 @@ module.exports = function createPCPRoutes(deps) {
                 FROM ordens_producao op
                 WHERE 1=1 ${periodoSQL}
             `;
-    
+
             const params = [];
-    
+
             // Filtro por busca
             if (busca) {
                 queryOP += ' AND (op.codigo LIKE ? OR op.produto_nome LIKE ? OR op.responsavel LIKE ?)';
                 params.push(`%${busca}%`, `%${busca}%`, `%${busca}%`);
             }
-    
+
             queryOP += ' ORDER BY op.created_at DESC LIMIT 100';
-    
+
             const [ordensProducao] = await pool.query(queryOP, params);
-    
+
             // Formatar dados
             registros = ordensProducao.map(op => ({
                 id: op.id,
@@ -7730,7 +9042,7 @@ module.exports = function createPCPRoutes(deps) {
                 created_at: op.created_at,
                 fonte: 'ordens_producao'
             }));
-    
+
             // Calcular estatísticas baseadas nas OPs
             const [statsOP] = await pool.query(`
                 SELECT
@@ -7755,11 +9067,11 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE status != 'cancelada'
                   AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
             `);
-    
+
             const [maquinasAtivas] = await pool.query(`
                 SELECT COUNT(*) as total FROM maquinas_producao WHERE status = 'ativa'
             `);
-    
+
             // Contar materiais únicos usados (estimativa baseada em produtos)
             const [materiaisCount] = await pool.query(`
                 SELECT COUNT(DISTINCT produto_nome) as total
@@ -7767,9 +9079,9 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE status IN ('em_producao', 'concluida')
                   AND MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
             `);
-    
+
             const tempoTotal = statsOP[0]?.tempo_total_minutos || 0;
-    
+
             res.json({
                 registros,
                 estatisticas: {
@@ -7791,7 +9103,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Função auxiliar para formatar tempo
     function formatarTempo(minutos) {
         if (!minutos || minutos <= 0) return '0h';
@@ -7801,7 +9113,7 @@ module.exports = function createPCPRoutes(deps) {
         if (mins === 0) return `${horas}h`;
         return `${horas}h ${mins}min`;
     }
-    
+
     // Dashboard de estatísticas detalhadas
     router.get('/gestao-producao/dashboard', async (req, res, next) => {
         try {
@@ -7816,7 +9128,7 @@ module.exports = function createPCPRoutes(deps) {
                     COUNT(CASE WHEN status = 'cancelada' THEN 1 END) as canceladas
                 FROM ordens_producao
             `);
-    
+
             // Produção por setor/máquina
             const [maquinas] = await pool.query(`
                 SELECT
@@ -7825,7 +9137,7 @@ module.exports = function createPCPRoutes(deps) {
                 FROM maquinas_producao m
                 ORDER BY m.setor, m.nome
             `);
-    
+
             // Produção por dia (últimos 7 dias)
             const [producaoDiaria] = await pool.query(`
                 SELECT
@@ -7837,7 +9149,7 @@ module.exports = function createPCPRoutes(deps) {
                 GROUP BY DATE(created_at)
                 ORDER BY data
             `);
-    
+
             // Ordens por prioridade
             const [porPrioridade] = await pool.query(`
                 SELECT
@@ -7847,7 +9159,7 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE status NOT IN ('concluida', 'cancelada')
                 GROUP BY prioridade
             `);
-    
+
             res.json({
                 estatisticas: statsGerais[0],
                 maquinas,
@@ -7859,7 +9171,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Criar registro de gestão de produção
     router.post('/gestao-producao', async (req, res, next) => {
         try {
@@ -7869,13 +9181,13 @@ module.exports = function createPCPRoutes(deps) {
                 quantidade_produzida, quantidade_planejada, status,
                 data_inicio, data_fim, observacoes
             } = req.body;
-    
+
             // Calcular eficiência
             let eficiencia = 0;
             if (quantidade_planejada && quantidade_produzida) {
                 eficiencia = Math.round((quantidade_produzida / quantidade_planejada) * 100);
             }
-    
+
             const [result] = await pool.query(`
                 INSERT INTO gestao_producao
                 (pedido_id, numero_pedido, cliente_nome, produto_nome, tempo_producao_minutos,
@@ -7888,7 +9200,7 @@ module.exports = function createPCPRoutes(deps) {
                 quantidade_produzida || 0, quantidade_planejada || 0,
                 status || 'planejado', data_inicio, data_fim, eficiencia, observacoes
             ]);
-    
+
             res.status(201).json({
                 message: 'Registro de produção criado',
                 id: result.insertId
@@ -7898,7 +9210,7 @@ module.exports = function createPCPRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Atualizar registro de gestão de produção
     router.put('/gestao-producao/:id', async (req, res, next) => {
         try {
@@ -7908,13 +9220,13 @@ module.exports = function createPCPRoutes(deps) {
                 quantidade_produzida, quantidade_planejada, status,
                 data_inicio, data_fim, observacoes
             } = req.body;
-    
+
             // Calcular eficiência
             let eficiencia = 0;
             if (quantidade_planejada && quantidade_produzida) {
                 eficiencia = Math.round((quantidade_produzida / quantidade_planejada) * 100);
             }
-    
+
             await pool.query(`
                 UPDATE gestao_producao SET
                     tempo_producao_minutos = ?, materiais_gastos = ?, maquinas_utilizadas = ?,
@@ -7927,69 +9239,69 @@ module.exports = function createPCPRoutes(deps) {
                 quantidade_produzida, quantidade_planejada, status,
                 data_inicio, data_fim, eficiencia, observacoes, id
             ]);
-    
+
             res.json({ message: 'Registro atualizado' });
         } catch (error) {
             console.error('[API_GESTAO_PRODUCAO] Erro ao atualizar:', error.message);
             next(error);
         }
     });
-    
+
     // Buscar detalhes de um registro
     router.get('/gestao-producao/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const [registros] = await pool.query('SELECT * FROM gestao_producao WHERE id = ?', [id]);
-    
+
             if (registros.length === 0) {
                 return res.status(404).json({ message: 'Registro não encontrado' });
             }
-    
+
             res.json(registros[0]);
         } catch (error) {
             console.error('[API_GESTAO_PRODUCAO] Erro:', error.message);
             next(error);
         }
     });
-    
+
     // =================== CONTROLE PCP (ORDENS PRODUÇÃO) ===================
-    
+
     // Função reutilizável para listar ordens de controle PCP
     async function listarOrdensPCP(req, res) {
         console.log('[API_CONTROLE_PCP] Listando ordens para controle...');
         try {
             const { busca, vendedor, extrusora, status } = req.query;
-    
+
             let whereParts = [];
             let params = [];
-    
+
             // Filtro de busca
             if (busca && busca.trim()) {
                 const like = `%${busca.trim()}%`;
                 whereParts.push('(op.codigo LIKE ? OR op.produto_nome LIKE ? OR op.cliente LIKE ?)');
                 params.push(like, like, like);
             }
-    
+
             // Filtro de vendedor/responsável
             if (vendedor && vendedor.trim()) {
                 whereParts.push('op.responsavel = ?');
                 params.push(vendedor.trim());
             }
-    
+
             // Filtro de extrusora/máquina
             if (extrusora && extrusora.trim()) {
                 whereParts.push('op.maquina = ?');
                 params.push(extrusora.trim());
             }
-    
+
             // Filtro de status
             if (status && status.trim()) {
                 whereParts.push('op.status = ?');
                 params.push(status.trim());
             }
-    
+
             const whereClause = whereParts.length > 0 ? 'WHERE ' + whereParts.join(' AND ') : '';
-    
+
             const sql = `
                 SELECT
                     op.id, op.codigo, op.produto_nome, op.quantidade, op.unidade,
@@ -8009,9 +9321,9 @@ module.exports = function createPCPRoutes(deps) {
                     op.data_prevista ASC
                 LIMIT 100
             `;
-    
+
             const [ordens] = await pool.query(sql, params);
-    
+
             console.log(`[API_CONTROLE_PCP] Retornando ${ordens.length} ordens`);
             res.json({
                 success: true,
@@ -8027,42 +9339,42 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     }
-    
+
     // Rota principal: /controle-pcp
     router.get('/controle-pcp', listarOrdensPCP);
-    
+
     // Alias para compatibilidade: /controle-producao (usa mesma função)
     router.get('/controle-producao', listarOrdensPCP);
-    
+
     // Atualizar status de uma ordem no controle PCP
     router.put('/controle-pcp/:id/status', async (req, res) => {
         const { id } = req.params;
         const { status, observacao } = req.body;
         console.log(`[API_CONTROLE_PCP] Atualizando status da ordem ${id} para ${status}...`);
-    
+
         try {
             if (!status) {
                 return res.status(400).json({ success: false, message: 'Status é obrigatório' });
             }
-    
+
             let updateSql = 'UPDATE ordens_producao SET status = ?, updated_at = NOW()';
             let params = [status];
-    
+
             if (observacao) {
                 updateSql += ', observacoes = ?';
                 params.push(observacao);
             }
-    
+
             // Atualizar data de conclusão se status for concluída
             if (status === 'concluida' || status === 'Concluída') {
                 updateSql += ', data_conclusao = NOW(), progresso = 100';
             }
-    
+
             updateSql += ' WHERE id = ?';
             params.push(id);
-    
+
             const [result] = await pool.query(updateSql, params);
-    
+
             if (result.affectedRows > 0) {
                 console.log(`[API_CONTROLE_PCP] Status da ordem ${id} atualizado para ${status}`);
                 res.json({ success: true, message: 'Status atualizado com sucesso' });
@@ -8074,12 +9386,12 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao atualizar status', error: error.message });
         }
     });
-    
+
     // Buscar materiais de uma ordem no controle PCP
     router.get('/controle-pcp/:id/materiais', async (req, res) => {
         const { id } = req.params;
         console.log(`[API_CONTROLE_PCP] Buscando materiais da ordem ${id}...`);
-    
+
         try {
             // Tentar buscar materiais vinculados à ordem
             let materiais = [];
@@ -8096,33 +9408,33 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_CONTROLE_PCP] Tabela ordem_materiais não existe, retornando vazio');
             }
-    
+
             res.json({ success: true, data: materiais, total: materiais.length });
         } catch (error) {
             console.error('[API_CONTROLE_PCP] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao buscar materiais', error: error.message });
         }
     });
-    
+
     // Buscar itens de uma ordem de produção
     router.get('/ordens-producao/:id/itens', async (req, res) => {
         const { id } = req.params;
         console.log(`[API_PCP] Buscando itens da ordem de produção ${id}...`);
-    
+
         try {
             // Primeiro, buscar informações da ordem de produção
             const [opRows] = await pool.query(`
                 SELECT id, codigo, produto_nome, quantidade, unidade
                 FROM ordens_producao WHERE id = ?
             `, [id]);
-    
+
             if (!opRows || opRows.length === 0) {
                 return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
             }
-    
+
             const op = opRows[0];
             const quantidadeOP = parseFloat(op.quantidade) || 0;
-    
+
             // Buscar itens já salvos na tabela itens_ordem_producao
             let itens = [];
             try {
@@ -8138,7 +9450,7 @@ module.exports = function createPCPRoutes(deps) {
                     WHERE ordem_producao_id = ?
                     ORDER BY principal DESC, tipo_item, id ASC
                 `, [id]);
-    
+
                 if (savedItems && savedItems.length > 0) {
                     // Batch: buscar estoque de todos os materiais de uma vez
                     const codigosMateriais = savedItems.map(i => i.codigo_material).filter(Boolean);
@@ -8189,27 +9501,27 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_PCP] Tabela itens_ordem_producao não existe ou erro:', e.message);
             }
-    
+
             // Se não há itens salvos, tentar gerar baseado na estrutura do produto
             if (itens.length === 0) {
                 console.log(`[API_PCP] Buscando estrutura para produto: ${op.produto_nome}`);
-    
+
                 // Tentar encontrar estrutura correspondente ao produto
                 try {
                     // Buscar por nome parcial
                     const produtoNome = (op.produto_nome || '').toUpperCase();
                     let estrutura = [];
-    
+
                     // Buscar estruturas que correspondam ao produto
                     const [estruturas] = await pool.query(`
                         SELECT DISTINCT produto_codigo, produto_descricao
                         FROM estrutura_produto
                         WHERE ativo = 1
                     `);
-    
+
                     // Tentar encontrar correspondência
                     let produtoEstrutura = null;
-    
+
                     // 1. Verificar se o produto_nome contém diretamente o código (ex: "TRN70", "POT120")
                     for (const est of estruturas) {
                         const codigo = est.produto_codigo;
@@ -8220,13 +9532,13 @@ module.exports = function createPCPRoutes(deps) {
                             break;
                         }
                     }
-    
+
                     // 2. Se não encontrou, tentar extrair código do nome (ex: "TRIPLEX 70mm² NEUTRO" -> TRN70 ou TRI70)
                     if (!produtoEstrutura) {
                         // Extrair bitola (número) do nome
                         const bitolaMatch = produtoNome.match(/(\d+)\s*MM/);
                         const bitola = bitolaMatch ? bitolaMatch[1] : null;
-    
+
                         if (bitola) {
                             // Verificar tipo de cabo
                             if (produtoNome.includes('TRIPLEX')) {
@@ -8273,9 +9585,9 @@ module.exports = function createPCPRoutes(deps) {
                                     produtoEstrutura = `CET${bitola}`;
                                 }
                             }
-    
+
                             console.log(`[API_PCP] Código extraído do nome: ${produtoEstrutura}`);
-    
+
                             // Verificar se o código existe na tabela
                             const existe = estruturas.find(e => e.produto_codigo === produtoEstrutura);
                             if (!existe) {
@@ -8284,7 +9596,7 @@ module.exports = function createPCPRoutes(deps) {
                             }
                         }
                     }
-    
+
                     // 3. Fallback: correspondência por palavras
                     if (!produtoEstrutura) {
                         for (const est of estruturas) {
@@ -8299,7 +9611,7 @@ module.exports = function createPCPRoutes(deps) {
                             }
                         }
                     }
-    
+
                     if (produtoEstrutura) {
                         // Buscar componentes da estrutura
                         const [componentes] = await pool.query(`
@@ -8309,9 +9621,9 @@ module.exports = function createPCPRoutes(deps) {
                             WHERE produto_codigo = ? AND ativo = 1
                             ORDER BY componente_tipo, id
                         `, [produtoEstrutura]);
-    
+
                         console.log(`[API_PCP] Encontrados ${componentes.length} componentes na estrutura ${produtoEstrutura}`);
-    
+
                         // Batch: buscar estoque de todos os componentes de uma vez
                         const codigosComp = componentes.map(c => c.componente_codigo).filter(Boolean);
                         let estoqueCompMap = {};
@@ -8350,7 +9662,7 @@ module.exports = function createPCPRoutes(deps) {
                 } catch (e) {
                     console.log('[API_PCP] Erro ao buscar estrutura:', e.message);
                 }
-    
+
                 // Se ainda não há itens, mostrar apenas o produto principal
                 if (itens.length === 0) {
                     itens = [{
@@ -8369,7 +9681,7 @@ module.exports = function createPCPRoutes(deps) {
                     }];
                 }
             }
-    
+
             console.log(`[API_PCP] Retornando ${itens.length} itens da ordem ${id}`);
             res.json({ success: true, data: itens, total: itens.length });
         } catch (error) {
@@ -8377,11 +9689,11 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao buscar itens da ordem', error: error.message });
         }
     });
-    
+
     // ========================================
     // GERENCIAMENTO DE COLUNAS/ETAPAS DO KANBAN PCP
     // ========================================
-    
+
     // Listar todas as colunas/etapas do kanban
     router.get('/kanban-colunas', async (req, res) => {
         try {
@@ -8397,7 +9709,7 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao listar colunas', error: error.message });
         }
     });
-    
+
     // Listar todas as colunas (incluindo inativas) - para admin
     router.get('/kanban-colunas/todas', async (req, res) => {
         try {
@@ -8412,25 +9724,25 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao listar colunas', error: error.message });
         }
     });
-    
+
     // Criar nova coluna/etapa
     router.post('/kanban-colunas', async (req, res) => {
         const { codigo, nome, descricao, cor, icone } = req.body;
         console.log('[API_PCP] Criando nova coluna kanban:', nome);
-    
+
         try {
             // Buscar próxima ordem
             const [[maxOrdem]] = await pool.query('SELECT MAX(ordem) as max FROM kanban_colunas_pcp');
             const novaOrdem = (maxOrdem.max || 0) + 1;
-    
+
             // Gerar código único se não fornecido
             const codigoFinal = codigo || nome.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
-    
+
             const [result] = await pool.query(`
                 INSERT INTO kanban_colunas_pcp (codigo, nome, descricao, cor, icone, ordem, ativo, permite_exclusao)
                 VALUES (?, ?, ?, ?, ?, ?, 1, 1)
             `, [codigoFinal, nome, descricao || '', cor || '#6b7280', icone || 'fa-circle', novaOrdem]);
-    
+
             res.json({
                 success: true,
                 message: 'Coluna criada com sucesso',
@@ -8444,12 +9756,12 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao criar coluna', error: error.message });
         }
     });
-    
+
     // Reordenar colunas (IMPORTANTE: deve vir ANTES das rotas com :id)
     router.put('/kanban-colunas/reordenar', async (req, res) => {
         const { ordem } = req.body; // Array de { id, ordem }
         console.log('[API_PCP] Reordenando colunas kanban');
-    
+
         try {
             for (const item of ordem) {
                 await pool.query('UPDATE kanban_colunas_pcp SET ordem = ? WHERE id = ?', [item.ordem, item.id]);
@@ -8460,13 +9772,13 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao reordenar colunas', error: error.message });
         }
     });
-    
+
     // Atualizar coluna/etapa
     router.put('/kanban-colunas/:id', async (req, res) => {
         const { id } = req.params;
         const { nome, descricao, cor, icone, ativo } = req.body;
         console.log('[API_PCP] Atualizando coluna kanban:', id);
-    
+
         try {
             await pool.query(`
                 UPDATE kanban_colunas_pcp
@@ -8477,61 +9789,61 @@ module.exports = function createPCPRoutes(deps) {
                     ativo = COALESCE(?, ativo)
                 WHERE id = ?
             `, [nome, descricao, cor, icone, ativo, id]);
-    
+
             res.json({ success: true, message: 'Coluna atualizada com sucesso' });
         } catch (error) {
             console.error('[API_PCP] Erro ao atualizar coluna kanban:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao atualizar coluna', error: error.message });
         }
     });
-    
+
     // Excluir coluna/etapa
     router.delete('/kanban-colunas/:id', async (req, res) => {
         const { id } = req.params;
         console.log('[API_PCP] Excluindo coluna kanban:', id);
-    
+
         try {
             // Verificar se permite exclusão
             const [[coluna]] = await pool.query('SELECT permite_exclusao, codigo FROM kanban_colunas_pcp WHERE id = ?', [id]);
-    
+
             if (!coluna) {
                 return res.status(404).json({ success: false, message: 'Coluna não encontrada' });
             }
-    
+
             if (!coluna.permite_exclusao) {
                 return res.status(400).json({ success: false, message: 'Esta coluna não pode ser excluída (é uma coluna do sistema)' });
             }
-    
+
             // Verificar se há ordens nesta coluna
             const [[countOrdens]] = await pool.query('SELECT COUNT(*) as total FROM ordens_producao WHERE status = ?', [coluna.codigo]);
-    
+
             if (countOrdens.total > 0) {
                 return res.status(400).json({
                     success: false,
                     message: `Não é possível excluir: existem ${countOrdens.total} ordens nesta etapa. Mova-as primeiro.`
                 });
             }
-    
+
             await pool.query('DELETE FROM kanban_colunas_pcp WHERE id = ?', [id]);
-    
+
             res.json({ success: true, message: 'Coluna excluída com sucesso' });
         } catch (error) {
             console.error('[API_PCP] Erro ao excluir coluna kanban:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao excluir coluna', error: error.message });
         }
     });
-    
+
     // Excluir ordem de produção
     // AUDIT-FIX DB-003: Added transaction for safe cascading delete
     router.delete('/ordens-producao/:id', async (req, res) => {
         const { id } = req.params;
         console.log(`[API_PCP] Excluindo ordem de produção ${id}...`);
         const connection = await pool.getConnection();
-    
+
         try {
             await connection.beginTransaction();
             let deleted = false;
-    
+
             // Excluir itens relacionados primeiro
             try {
                 await connection.query('DELETE FROM itens_ordem_producao WHERE ordem_producao_id = ?', [id]);
@@ -8542,7 +9854,7 @@ module.exports = function createPCPRoutes(deps) {
             try { await connection.query('DELETE FROM historico_ordem_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
             try { await connection.query('DELETE FROM anexos_ordem_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
             try { await connection.query('DELETE FROM apontamentos_producao WHERE ordem_producao_id = ?', [id]); } catch(e) {}
-    
+
             // Tentar excluir de ordens_producao
             try {
                 const [result] = await connection.query('DELETE FROM ordens_producao WHERE id = ?', [id]);
@@ -8553,7 +9865,7 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_PCP] Erro ao excluir de ordens_producao:', e.message);
             }
-    
+
             // Tentar excluir de ordens_producao_kanban também
             try {
                 const [resultKanban] = await connection.query('DELETE FROM ordens_producao_kanban WHERE id = ?', [id]);
@@ -8564,7 +9876,7 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_PCP] Tabela ordens_producao_kanban não existe');
             }
-    
+
             if (deleted) {
                 await connection.commit();
                 res.json({ success: true, message: 'Ordem excluída com sucesso' });
@@ -8580,17 +9892,17 @@ module.exports = function createPCPRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // Salvar/atualizar ordem de produção
     router.put('/ordens-producao/:id', async (req, res) => {
         const { id } = req.params;
         const dados = req.body;
         console.log(`[API_PCP] Atualizando ordem de produção ${id}...`);
-    
+
         try {
             const updateFields = [];
             const params = [];
-    
+
             if (dados.data_prevista) {
                 updateFields.push('data_prevista = ?');
                 params.push(dados.data_prevista);
@@ -8619,17 +9931,17 @@ module.exports = function createPCPRoutes(deps) {
                 updateFields.push('progresso = ?');
                 params.push(dados.progresso);
             }
-    
+
             if (updateFields.length === 0) {
                 return res.status(400).json({ success: false, message: 'Nenhum campo para atualizar' });
             }
-    
+
             updateFields.push('updated_at = NOW()');
             params.push(id);
-    
+
             const sql = `UPDATE ordens_producao SET ${updateFields.join(', ')} WHERE id = ?`;
             const [result] = await pool.query(sql, params);
-    
+
             if (result.affectedRows > 0) {
                 res.json({ success: true, message: 'Ordem atualizada com sucesso' });
             } else {
@@ -8640,27 +9952,27 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao atualizar ordem', error: error.message });
         }
     });
-    
+
     // Duplicar ordem de produção
     router.post('/ordens-producao/:id/duplicar', async (req, res) => {
         const { id } = req.params;
         console.log(`[API_PCP] Duplicando ordem de produção ${id}...`);
-    
+
         try {
             // Buscar ordem original
             const [ordens] = await pool.query('SELECT * FROM ordens_producao WHERE id = ?', [id]);
-    
+
             if (!ordens || ordens.length === 0) {
                 return res.status(404).json({ success: false, message: 'Ordem não encontrada' });
             }
-    
+
             const ordemOriginal = ordens[0];
-    
+
             // Gerar novo código
             const [maxCodigo] = await pool.query("SELECT MAX(CAST(REPLACE(REPLACE(codigo, 'OP-', ''), 'OP Nº ', '') AS UNSIGNED)) as max FROM ordens_producao");
             const proximoNumero = (maxCodigo[0].max || 0) + 1;
             const novoCodigo = `OP-${proximoNumero}`;
-    
+
             // Inserir cópia
             const [result] = await pool.query(`
                 INSERT INTO ordens_producao
@@ -8678,7 +9990,7 @@ module.exports = function createPCPRoutes(deps) {
                 ordemOriginal.observacoes ? `[CÓPIA] ${ordemOriginal.observacoes}` : '[CÓPIA]',
                 ordemOriginal.cliente
             ]);
-    
+
             // Copiar itens se existirem
             try {
                 const [itens] = await pool.query('SELECT * FROM itens_ordem_producao WHERE ordem_producao_id = ?', [id]);
@@ -8692,7 +10004,7 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_PCP] Sem itens para copiar');
             }
-    
+
             res.json({
                 success: true,
                 message: 'Ordem duplicada com sucesso',
@@ -8703,12 +10015,12 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao duplicar ordem', error: error.message });
         }
     });
-    
+
     // Concluir ordem de produção
     router.post('/ordens-producao/:id/concluir', async (req, res) => {
         const { id } = req.params;
         console.log(`[API_PCP] Concluindo ordem de produção ${id}...`);
-    
+
         try {
             const [result] = await pool.query(`
                 UPDATE ordens_producao
@@ -8719,7 +10031,7 @@ module.exports = function createPCPRoutes(deps) {
                     updated_at = NOW()
                 WHERE id = ?
             `, [id]);
-    
+
             if (result.affectedRows > 0) {
                 res.json({ success: true, message: 'Ordem concluída com sucesso' });
             } else {
@@ -8730,11 +10042,11 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao concluir ordem', error: error.message });
         }
     });
-    
+
     // Buscar anexos de uma ordem
     router.get('/ordens-producao/:id/anexos', async (req, res) => {
         const { id } = req.params;
-    
+
         try {
             const [anexos] = await pool.query(`
                 SELECT id, nome_arquivo, tipo_arquivo, tamanho, descricao, created_at
@@ -8742,18 +10054,18 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE ordem_producao_id = ?
                 ORDER BY created_at DESC
             `, [id]);
-    
+
             res.json({ success: true, data: anexos || [] });
         } catch (error) {
             console.error('[API_PCP] Erro ao buscar anexos:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao buscar anexos', error: error.message });
         }
     });
-    
+
     // Buscar histórico de alterações de uma ordem
     router.get('/ordens-producao/:id/historico', async (req, res) => {
         const { id } = req.params;
-    
+
         try {
             const [historico] = await pool.query(`
                 SELECT id, usuario, acao, campo_alterado, valor_anterior, valor_novo, created_at
@@ -8762,18 +10074,18 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY created_at DESC
                 LIMIT 50
             `, [id]);
-    
+
             res.json({ success: true, data: historico || [] });
         } catch (error) {
             console.error('[API_PCP] Erro ao buscar histórico:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao buscar histórico', error: error.message });
         }
     });
-    
+
     // Buscar tarefas de uma ordem
     router.get('/ordens-producao/:id/tarefas', async (req, res) => {
         const { id } = req.params;
-    
+
         try {
             const [tarefas] = await pool.query(`
                 SELECT id, titulo, descricao, responsavel, status, prioridade, data_prevista, data_conclusao, created_at
@@ -8784,35 +10096,35 @@ module.exports = function createPCPRoutes(deps) {
                     prioridade DESC,
                     data_prevista ASC
             `, [id]);
-    
+
             res.json({ success: true, data: tarefas || [] });
         } catch (error) {
             console.error('[API_PCP] Erro ao buscar tarefas:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao buscar tarefas', error: error.message });
         }
     });
-    
+
     // Criar tarefa para uma ordem
     router.post('/ordens-producao/:id/tarefas', async (req, res) => {
         const { id } = req.params;
         const { titulo, descricao, responsavel, prioridade, data_prevista } = req.body;
-    
+
         try {
             const [result] = await pool.query(`
                 INSERT INTO tarefas_ordem_producao
                 (ordem_producao_id, titulo, descricao, responsavel, prioridade, data_prevista)
                 VALUES (?, ?, ?, ?, ?, ?)
             `, [id, titulo, descricao, responsavel, prioridade || 'media', data_prevista]);
-    
+
             res.json({ success: true, message: 'Tarefa criada com sucesso', data: { id: result.insertId } });
         } catch (error) {
             console.error('[API_PCP] Erro ao criar tarefa:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao criar tarefa', error: error.message });
         }
     });
-    
+
     // =================== ETIQUETAS DE PRODUÇÃO ===================
-    
+
     // Gerar etiqueta de Bobina usando template Excel
     router.get('/ordens-producao/:id/etiqueta-bobina', async (req, res) => {
         const { id } = req.params;
@@ -8820,7 +10132,7 @@ module.exports = function createPCPRoutes(deps) {
         const qtdEtiquetas = parseInt(quantidade_etiquetas) || 1;
         const ExcelJS = require('exceljs');
         const path = require('path');
-    
+
         try {
             // Buscar dados da ordem de produção
             const [[ordem]] = await pool.query(`
@@ -8829,24 +10141,24 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN clientes p ON op.cliente COLLATE utf8mb4_general_ci = p.razao_social COLLATE utf8mb4_general_ci
                 WHERE op.id = ?
             `, [id]);
-    
+
             if (!ordem) {
                 return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
             }
-    
+
             // Carregar template Excel preenchido como base
             const templatePath = path.join(__dirname, '..', 'modules', 'PCP', 'Etiquetas', 'Bobinas.xlsx');
             const workbook = new ExcelJS.Workbook();
-    
+
             try {
                 await workbook.xlsx.readFile(templatePath);
             } catch (e) {
                 console.error('[ETIQUETA_BOBINA] Template não encontrado:', templatePath);
                 return res.status(500).json({ success: false, message: 'Template de etiqueta não encontrado' });
             }
-    
+
             const worksheet = workbook.worksheets[0];
-    
+
             // Extrair código do cabo (número) do produto
             const produto = ordem.produto_nome || '';
             let codigoCabo = '-';
@@ -8858,7 +10170,7 @@ module.exports = function createPCPRoutes(deps) {
                 const numMatch = produto.match(/\b(\d+)\b/);
                 if (numMatch) codigoCabo = numMatch[1];
             }
-    
+
             // Extrair cor do produto (usar cor1 do query param se fornecida)
             let cor = cor1 || '';
             if (!cor) {
@@ -8874,7 +10186,7 @@ module.exports = function createPCPRoutes(deps) {
                     }
                 }
             }
-    
+
             // Dados para preencher
             const dataAtual = new Date();
             const dataFormatada = dataAtual.toLocaleDateString('pt-BR').replace(/\//g, '.');
@@ -8886,20 +10198,20 @@ module.exports = function createPCPRoutes(deps) {
             const pesoBruto = parseFloat(ordem.peso_bruto) || 0;
             const pesoLiquido = parseFloat(ordem.peso_liquido) || 0;
             const dimensaoBobina = ordem.dimensao_bobina || '0,80x0,45';
-    
+
             // ============== MAPEAMENTO CORRETO BASEADO NO TEMPLATE PREENCHIDO ==============
             // C2: "CABO: 70"
             worksheet.getCell('C2').value = `CABO: ${codigoCabo}`;
-    
+
             // F2: "  Nº  PEDIDO  236"
             worksheet.getCell('F2').value = `  Nº  PEDIDO  ${numeroPedido}`;
-    
+
             // B5: "500               METROS"
             worksheet.getCell('B5').value = `${quantidade}               ${unidade}`;
-    
+
             // F5: "CLIENTE:    VALTER ARAUJO NUNES"
             worksheet.getCell('F5').value = `CLIENTE:    ${cliente}`;
-    
+
             // C8: Cores marcadas - manter template ou marcar a cor atual
             // As cores ficam no formato ( PT ) ( CZ ) ( VM ) ( AZ ) ( NÚ )
             // Vamos destacar a cor selecionada se houver
@@ -8907,23 +10219,23 @@ module.exports = function createPCPRoutes(deps) {
                 const coresTexto = `( ${cor === 'PT' ? '●PT' : 'PT'} ) ( ${cor === 'CZ' ? '●CZ' : 'CZ'} ) ( ${cor === 'VM' ? '●VM' : 'VM'} ) ( ${cor === 'AZ' ? '●AZ' : 'AZ'} ) ( ${cor === 'NÚ' ? '●NÚ' : 'NÚ'} )`;
                 worksheet.getCell('C8').value = coresTexto;
             }
-    
+
             // B12: "PESO BRUTO: " (label) - D12: valor
             worksheet.getCell('B12').value = 'PESO BRUTO: ';
             worksheet.getCell('D12').value = pesoBruto || '';
-    
+
             // G12: "BOBINA: " (label) - H12: dimensão
             worksheet.getCell('G12').value = 'BOBINA: ';
             worksheet.getCell('H12').value = dimensaoBobina;
-    
+
             // B15: "PESO LIQUIDO: " (label) - D15: valor
             worksheet.getCell('B15').value = 'PESO LIQUIDO: ';
             worksheet.getCell('D15').value = pesoLiquido || '';
-    
+
             // G15: "LOTE:" (label) - H15: lote
             worksheet.getCell('G15').value = 'LOTE:';
             worksheet.getCell('H15').value = lote;
-    
+
             // Se formato for PDF, converter Excel para PDF
             if (formato === 'pdf') {
                 const PDFDocument = require('pdfkit');
@@ -8932,65 +10244,65 @@ module.exports = function createPCPRoutes(deps) {
                     layout: 'landscape',
                     margin: 20
                 });
-    
+
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', `inline; filename=Etiqueta_Bobina_${lote.replace(/\s/g, '_')}.pdf`);
                 doc.pipe(res);
-    
+
                 // Desenhar etiqueta de bobina
                 const w = 380, h = 250;
                 doc.rect(10, 10, w, h).stroke();
-    
+
                 // Título CABO
                 doc.fontSize(16).font('Helvetica-Bold').text(`CABO: ${codigoCabo}`, 30, 25);
                 doc.fontSize(12).text(`Nº PEDIDO  ${numeroPedido}`, 200, 28);
-    
+
                 // Quantidade
                 doc.fontSize(20).font('Helvetica-Bold').text(`${quantidade}`, 30, 60);
                 doc.fontSize(14).text(unidade, 120, 65);
-    
+
                 // Cliente
                 doc.fontSize(11).font('Helvetica').text(`CLIENTE: ${cliente}`, 200, 60);
-    
+
                 // Cores
                 doc.fontSize(10).text(`( PT ) ( CZ ) ( VM ) ( AZ ) ( NÚ )`, 80, 100);
                 if (cor) {
                     // Destacar cor selecionada
                     doc.fontSize(10).font('Helvetica-Bold');
                 }
-    
+
                 // Linha divisória
                 doc.moveTo(20, 130).lineTo(380, 130).stroke();
-    
+
                 // Peso Bruto e Bobina
                 doc.fontSize(10).font('Helvetica').text('PESO BRUTO:', 30, 145);
                 doc.font('Helvetica-Bold').text(`${pesoBruto}`, 110, 145);
                 doc.font('Helvetica').text('BOBINA:', 220, 145);
                 doc.font('Helvetica-Bold').text(dimensaoBobina, 275, 145);
-    
+
                 // Peso Líquido e Lote
                 doc.font('Helvetica').text('PESO LIQUIDO:', 30, 175);
                 doc.font('Helvetica-Bold').text(`${pesoLiquido}`, 115, 175);
                 doc.font('Helvetica').text('LOTE:', 220, 175);
                 doc.font('Helvetica-Bold').text(lote, 260, 175);
-    
+
                 doc.end();
                 return;
             }
-    
+
             // Retornar Excel
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename=Etiqueta_Bobina_${lote.replace(/\s/g, '_')}.xlsx`);
-    
+
             await workbook.xlsx.write(res);
             res.end();
-    
+
         } catch (error) {
             console.error('[ETIQUETA_BOBINA] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao gerar etiqueta', error: error.message });
         }
     });
-    
+
     // Gerar etiqueta de Identificação de Produto usando template Excel
     router.get('/ordens-producao/:id/etiqueta-produto', async (req, res) => {
         const { id } = req.params;
@@ -8998,7 +10310,7 @@ module.exports = function createPCPRoutes(deps) {
         const qtdEtiquetas = parseInt(quantidade_etiquetas) || 4; // 1, 2, 4 ou 6
         const ExcelJS = require('exceljs');
         const path = require('path');
-    
+
         try {
             // Buscar dados da ordem de produção
             const [[ordem]] = await pool.query(`
@@ -9007,11 +10319,11 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN clientes p ON op.cliente COLLATE utf8mb4_general_ci = p.razao_social COLLATE utf8mb4_general_ci
                 WHERE op.id = ?
             `, [id]);
-    
+
             if (!ordem) {
                 return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
             }
-    
+
             // Carregar template Excel - tentar múltiplos nomes de arquivo
             const fs = require('fs');
             const possibleNames = [
@@ -9022,10 +10334,10 @@ module.exports = function createPCPRoutes(deps) {
                 'Identificacao_Produto.xlsx',
                 'identificacao_produto.xlsx'
             ];
-    
+
             let templatePath = null;
             const etiquetasDir = path.join(__dirname, '..', 'modules', 'PCP', 'Etiquetas');
-    
+
             for (const name of possibleNames) {
                 const testPath = path.join(etiquetasDir, name);
                 if (fs.existsSync(testPath)) {
@@ -9034,25 +10346,25 @@ module.exports = function createPCPRoutes(deps) {
                     break;
                 }
             }
-    
+
             if (!templatePath) {
                 console.error('[ETIQUETA_PRODUTO] Nenhum template encontrado em:', etiquetasDir);
                 const files = fs.readdirSync(etiquetasDir);
                 console.error('[ETIQUETA_PRODUTO] Arquivos disponíveis:', files);
                 return res.status(500).json({ success: false, message: 'Template de etiqueta não encontrado' });
             }
-    
+
             const workbook = new ExcelJS.Workbook();
-    
+
             try {
                 await workbook.xlsx.readFile(templatePath);
             } catch (e) {
                 console.error('[ETIQUETA_PRODUTO] Template não encontrado:', templatePath);
                 return res.status(500).json({ success: false, message: 'Template de etiqueta não encontrado' });
             }
-    
+
             const worksheet = workbook.worksheets[0];
-    
+
             // Extrair código do cabo (número) do produto
             const produto = ordem.produto_nome || '';
             let codigoCabo = '-';
@@ -9063,7 +10375,7 @@ module.exports = function createPCPRoutes(deps) {
                 const numMatch = produto.match(/\b(\d+)\b/);
                 if (numMatch) codigoCabo = numMatch[1];
             }
-    
+
             // Extrair cor do produto se não informada
             let corProduto = cor1 || '';
             if (!corProduto) {
@@ -9080,7 +10392,7 @@ module.exports = function createPCPRoutes(deps) {
                 }
             }
             const corEtiqueta2 = cor2 || corProduto;
-    
+
             // Dados para preencher
             const dataAtual = new Date();
             const dataFormatada = dataAtual.toLocaleDateString('pt-BR').replace(/\//g, '.');
@@ -9090,7 +10402,7 @@ module.exports = function createPCPRoutes(deps) {
             const cliente = ordem.cliente || ordem.cliente_nome || 'Estoque';
             const numeroPedido = ordem.numero_pedido || '-';
             const observacoes = ordem.observacoes || '';
-    
+
             // ============== MAPEAMENTO PARA TEMPLATE "Indentificação de Produto.xlsx" ==============
             // Template com 4 etiquetas em formato 2x2:
             // - Etiquetas 1 e 2: Linhas 1-16 (superior)
@@ -9104,67 +10416,67 @@ module.exports = function createPCPRoutes(deps) {
             // - QUANT: B (col 2 ou 10)
             // - CLIENTE: B (col 2 ou 10)
             // - OBS: B (col 2 ou 10)
-    
+
             // Função para preencher uma etiqueta baseado na posição
             const preencherEtiquetaTemplate = (baseRow, baseCol, numEtiqueta, corUsada) => {
                 // baseCol: 1 para esquerda (A), 9 para direita (I)
                 const col = (offset) => baseCol + offset;
-    
+
                 try {
                     // LOTE (linha 3 relativa = baseRow + 2)
                     worksheet.getRow(baseRow + 2).getCell(col(1)).value = lote;
-    
+
                     // COR (linha 3 relativa, coluna +5)
                     worksheet.getRow(baseRow + 2).getCell(col(5)).value = corUsada;
-    
+
                     // CABO (linha 5 relativa = baseRow + 4)
                     worksheet.getRow(baseRow + 4).getCell(col(1)).value = codigoCabo;
-    
+
                     // Nº PEDIDO (linha 5 relativa, coluna +4)
                     worksheet.getRow(baseRow + 4).getCell(col(4)).value = numeroPedido;
-    
+
                     // QUANT (linha 8 relativa = baseRow + 7)
                     worksheet.getRow(baseRow + 7).getCell(col(1)).value = quantidade;
-    
+
                     // CLIENTE (linha 11 relativa = baseRow + 10)
                     worksheet.getRow(baseRow + 10).getCell(col(1)).value = cliente;
-    
+
                     // OBS (linha 14 relativa = baseRow + 13)
                     worksheet.getRow(baseRow + 13).getCell(col(1)).value = observacoes || '';
-    
+
                     console.log('[ETIQUETA] Etiqueta', numEtiqueta, 'preenchida - LOTE:', lote, 'COR:', corUsada, 'CABO:', codigoCabo);
                 } catch (e) {
                     console.log('[ETIQUETA] Erro ao preencher etiqueta', numEtiqueta, ':', e.message);
                 }
             };
-    
+
             // -------- PREENCHER ETIQUETAS CONFORME QUANTIDADE SELECIONADA --------
             const totalRows = worksheet.rowCount;
             console.log('[ETIQUETA] Template tem', totalRows, 'linhas, quantidade solicitada:', qtdEtiquetas);
-    
+
             // Etiqueta 1 - Superior Esquerda (base: linha 1, coluna A=1)
             if (qtdEtiquetas >= 1) {
                 preencherEtiquetaTemplate(1, 1, 1, corProduto);
             }
-    
+
             // Etiqueta 2 - Superior Direita (base: linha 1, coluna I=9)
             if (qtdEtiquetas >= 2) {
                 preencherEtiquetaTemplate(1, 9, 2, corEtiqueta2);
             }
-    
+
             // Se o template tiver mais de 20 linhas, preencher etiquetas 3 e 4
             if (totalRows > 20) {
                 // Etiqueta 3 - Inferior Esquerda (base: linha 18, coluna A=1)
                 if (qtdEtiquetas >= 3) {
                     preencherEtiquetaTemplate(18, 1, 3, corProduto);
                 }
-    
+
                 // Etiqueta 4 - Inferior Direita (base: linha 18, coluna I=9)
                 if (qtdEtiquetas >= 4) {
                     preencherEtiquetaTemplate(18, 9, 4, corEtiqueta2);
                 }
             }
-    
+
             // Se formato for PDF, converter Excel para PDF
             if (formato === 'pdf') {
                 const PDFDocument = require('pdfkit');
@@ -9173,54 +10485,54 @@ module.exports = function createPCPRoutes(deps) {
                     layout: 'landscape',
                     margin: 15
                 });
-    
+
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', `inline; filename=Etiqueta_Produto_${lote.replace(/\s/g, '_')}.pdf`);
                 doc.pipe(res);
-    
+
                 // Função para desenhar uma etiqueta
                 const desenharEtiqueta = (x, y, num, cor) => {
                     const w = 250, h = 170;
-    
+
                     // Borda
                     doc.rect(x, y, w, h).stroke();
-    
+
                     // Título
                     doc.fontSize(10).font('Helvetica-Bold')
                        .text('IDENTIFICAÇÃO DE PRODUTO', x + 10, y + 8, { width: w - 40 });
                     doc.fontSize(12).text(num, x + w - 25, y + 5);
-    
+
                     // Linha
                     doc.moveTo(x + 5, y + 25).lineTo(x + w - 5, y + 25).stroke();
-    
+
                     // LOTE e COR
                     doc.fontSize(9).font('Helvetica-Bold').text('LOTE:', x + 10, y + 32);
                     doc.font('Helvetica').text(lote, x + 45, y + 32);
                     doc.font('Helvetica-Bold').text('COR', x + 160, y + 32);
                     doc.font('Helvetica').fontSize(10).text(cor, x + 190, y + 32);
-    
+
                     // CABO e PEDIDO
                     doc.fontSize(9).font('Helvetica-Bold').text('CABO', x + 10, y + 55);
                     doc.font('Helvetica').fontSize(14).text(codigoCabo, x + 50, y + 52);
                     doc.fontSize(9).font('Helvetica-Bold').text('Nº PEDIDO', x + 130, y + 55);
                     doc.font('Helvetica').fontSize(12).text(numeroPedido, x + 195, y + 52);
-    
+
                     // QUANTIDADE
                     doc.fontSize(9).font('Helvetica-Bold').text('QUANT:', x + 10, y + 80);
                     doc.font('Helvetica').fontSize(16).text(quantidade, x + 55, y + 77);
                     doc.fontSize(10).text(unidade, x + 150, y + 80);
-    
+
                     // CLIENTE
                     doc.fontSize(9).font('Helvetica-Bold').text('CLIENTE', x + 10, y + 105);
                     doc.font('Helvetica').fontSize(9).text(cliente.substring(0, 35), x + 10, y + 118, { width: w - 20 });
-    
+
                     // OBS
                     doc.fontSize(8).font('Helvetica-Bold').text('OBS:', x + 10, y + 140);
                     if (observacoes) {
                         doc.font('Helvetica').fontSize(7).text(observacoes.substring(0, 50), x + 35, y + 140, { width: w - 50 });
                     }
                 };
-    
+
                 // Desenhar etiquetas conforme quantidade solicitada
                 const posicoes = [
                     { x: 15, y: 15 },    // Superior Esquerda
@@ -9230,36 +10542,36 @@ module.exports = function createPCPRoutes(deps) {
                     { x: 15, y: 385 },   // Página 2 Superior Esquerda (para 5+)
                     { x: 285, y: 385 }   // Página 2 Superior Direita (para 6)
                 ];
-    
+
                 for (let i = 0; i < Math.min(qtdEtiquetas, posicoes.length); i++) {
                     if (i === 4) doc.addPage(); // Nova página para 5ª e 6ª etiqueta
                     const pos = i < 4 ? posicoes[i] : { x: posicoes[i - 4].x, y: posicoes[i - 4].y };
                     desenharEtiqueta(pos.x, pos.y, String(i + 1), corProduto);
                 }
-    
+
                 doc.end();
                 return;
             }
-    
+
             // Retornar Excel
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename=Etiqueta_Produto_${lote.replace(/\s/g, '_')}.xlsx`);
-    
+
             await workbook.xlsx.write(res);
             res.end();
-    
+
         } catch (error) {
             console.error('[ETIQUETA_PRODUTO] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao gerar etiqueta', error: error.message });
         }
     });
-    
+
     // Gerar etiqueta de Identificação de Produto em PDF para visualização (rota legado)
     router.get('/ordens-producao/:id/etiqueta-produto-pdf', async (req, res) => {
         const { id } = req.params;
         const { cor1 = '', cor2 = '' } = req.query;
         const PDFDocument = require('pdfkit');
-    
+
         try {
             // Buscar dados da ordem de produção
             const [[ordem]] = await pool.query(`
@@ -9268,11 +10580,11 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN clientes p ON op.cliente COLLATE utf8mb4_general_ci = p.razao_social COLLATE utf8mb4_general_ci
                 WHERE op.id = ?
             `, [id]);
-    
+
             if (!ordem) {
                 return res.status(404).json({ success: false, message: 'Ordem de produção não encontrada' });
             }
-    
+
             // Extrair código do cabo (número) do produto
             const produto = ordem.produto_nome || '';
             let codigoCabo = '-';
@@ -9283,7 +10595,7 @@ module.exports = function createPCPRoutes(deps) {
                 const numMatch = produto.match(/\b(\d+)\b/);
                 if (numMatch) codigoCabo = numMatch[1];
             }
-    
+
             // Extrair cor do produto se não informada
             let corProduto = cor1 || '';
             if (!corProduto) {
@@ -9300,7 +10612,7 @@ module.exports = function createPCPRoutes(deps) {
                 }
             }
             const corEtiqueta2 = cor2 || corProduto;
-    
+
             // Dados para preencher
             const dataAtual = new Date();
             const dataFormatada = dataAtual.toLocaleDateString('pt-BR').replace(/\//g, '.');
@@ -9310,63 +10622,63 @@ module.exports = function createPCPRoutes(deps) {
             const cliente = ordem.cliente || ordem.cliente_nome || 'Estoque';
             const observacoes = ordem.observacoes || '';
             const numeroPedido = ordem.numero_pedido || '-';
-    
+
             // Criar PDF com duas etiquetas lado a lado
             const doc = new PDFDocument({
                 size: 'A5',
                 layout: 'landscape',
                 margin: 15
             });
-    
+
             // Configurar headers
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `inline; filename=Etiqueta_Produto_${lote.replace(/\s/g, '_')}.pdf`);
-    
+
             doc.pipe(res);
-    
+
             // Função para desenhar uma etiqueta
             const desenharEtiqueta = (x, y, num, cor) => {
                 const w = 250, h = 170;
-    
+
                 // Borda
                 doc.rect(x, y, w, h).stroke();
-    
+
                 // Título
                 doc.fontSize(10).font('Helvetica-Bold')
                    .text('IDENTIFICAÇÃO DE PRODUTO', x + 10, y + 8, { width: w - 40 });
                 doc.fontSize(12).text(num, x + w - 25, y + 5);
-    
+
                 // Linha
                 doc.moveTo(x + 5, y + 25).lineTo(x + w - 5, y + 25).stroke();
-    
+
                 // LOTE e COR
                 doc.fontSize(9).font('Helvetica-Bold').text('LOTE:', x + 10, y + 32);
                 doc.font('Helvetica').text(lote, x + 45, y + 32);
                 doc.font('Helvetica-Bold').text('COR', x + 160, y + 32);
                 doc.font('Helvetica').fontSize(10).text(cor, x + 190, y + 32);
-    
+
                 // CABO e PEDIDO
                 doc.fontSize(9).font('Helvetica-Bold').text('CABO', x + 10, y + 55);
                 doc.font('Helvetica').fontSize(14).text(codigoCabo, x + 50, y + 52);
                 doc.fontSize(9).font('Helvetica-Bold').text('Nº PEDIDO', x + 130, y + 55);
                 doc.font('Helvetica').fontSize(12).text(numeroPedido, x + 195, y + 52);
-    
+
                 // QUANTIDADE
                 doc.fontSize(9).font('Helvetica-Bold').text('QUANT:', x + 10, y + 80);
                 doc.font('Helvetica').fontSize(16).text(quantidade, x + 55, y + 77);
                 doc.fontSize(10).text(unidade, x + 150, y + 80);
-    
+
                 // CLIENTE
                 doc.fontSize(9).font('Helvetica-Bold').text('CLIENTE', x + 10, y + 105);
                 doc.font('Helvetica').fontSize(9).text(cliente.substring(0, 35), x + 10, y + 118, { width: w - 20 });
-    
+
                 // OBS
                 doc.fontSize(8).font('Helvetica-Bold').text('OBS:', x + 10, y + 140);
                 if (observacoes) {
                     doc.font('Helvetica').fontSize(7).text(observacoes.substring(0, 50), x + 35, y + 140, { width: w - 50 });
                 }
             };
-    
+
             // Desenhar as 4 etiquetas (2x2)
             // Linha superior
             desenharEtiqueta(15, 15, '1', corProduto);
@@ -9374,26 +10686,26 @@ module.exports = function createPCPRoutes(deps) {
             // Linha inferior
             desenharEtiqueta(15, 200, '3', corProduto);
             desenharEtiqueta(285, 200, '4', corProduto);
-    
+
             // Data no rodapé
             doc.fontSize(7).font('Helvetica')
                .text(`Gerado em: ${dataAtual.toLocaleDateString('pt-BR')}`, 400, 385);
-    
+
             doc.end();
-    
+
         } catch (error) {
             console.error('[ETIQUETA_PRODUTO_PDF] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao gerar PDF', error: error.message });
         }
     });
-    
+
     // =================== MULTIPLEXADO (PRODUÇÃO CABOS) ===================
-    
+
     // Salvar ordem multiplexado
     router.post('/multiplexado', async (req, res) => {
         try {
             const dados = req.body;
-    
+
             // Inserir dados
             const sql = `
                 INSERT INTO ordens_multiplexado
@@ -9402,9 +10714,9 @@ module.exports = function createPCPRoutes(deps) {
                  cores, secao, veias, semana, observacoes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
-    
+
             const produtosJson = dados.produtos ? JSON.stringify(dados.produtos) : null;
-    
+
             const [result] = await pool.query(sql, [
                 dados.numero_op || null,
                 dados.cliente || null,
@@ -9424,14 +10736,14 @@ module.exports = function createPCPRoutes(deps) {
                 dados.semana || null,
                 dados.observacoes || null
             ]);
-    
+
             console.log('[API_MULTIPLEXADO] Ordem multiplexado salva com sucesso, ID:', result.insertId);
             res.status(201).json({
                 success: true,
                 message: 'Dados multiplexado salvos com sucesso!',
                 id: result.insertId
             });
-    
+
         } catch (error) {
             console.error('[API_MULTIPLEXADO] Erro:', error && error.message ? error.message : error);
             res.status(500).json({
@@ -9441,17 +10753,17 @@ module.exports = function createPCPRoutes(deps) {
             });
         }
     });
-    
+
     // Listar ordens multiplexado
     router.get('/multiplexado', async (req, res) => {
         try {
             // Verificar se tabela existe
             const [tables] = await pool.query("SHOW TABLES LIKE 'ordens_multiplexado'");
-    
+
             if (!tables || tables.length === 0) {
                 return res.json([]);
             }
-    
+
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
@@ -9462,22 +10774,22 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
             `, [limit, offset]);
-    
+
             res.json({ data: rows, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
-    
+
         } catch (error) {
             console.error('[API_MULTIPLEXADO] Erro ao listar:', error && error.message ? error.message : error);
             res.status(500).json({ message: 'Erro ao buscar dados multiplexado' });
         }
     });
-    
+
     // =================== COMPOSIÇÃO DE CABOS (Peso por Material) ===================
-    
+
     // Buscar composição de um cabo pelo código
     router.get('/cabos-composicao/:codigo', async (req, res) => {
         try {
             const { codigo } = req.params;
-    
+
             let [rows] = await pool.query(`
                 SELECT
                     codigo,
@@ -9508,7 +10820,7 @@ module.exports = function createPCPRoutes(deps) {
                 FROM cabos_composicao
                 WHERE codigo = ? AND ativo = 1
             `, [codigo]);
-    
+
             // Fallback: se não encontrou, tentar sem sufixo de variação (ex: C=Compacto, R=Redondo)
             if (rows.length === 0 && /[A-Z]$/i.test(codigo)) {
                 const codigoBase = codigo.replace(/[A-Z]$/i, '');
@@ -9523,16 +10835,16 @@ module.exports = function createPCPRoutes(deps) {
                     FROM cabos_composicao WHERE codigo = ? AND ativo = 1
                 `, [codigoBase]);
             }
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({
                     success: false,
                     message: `Composição não encontrada para o código: ${codigo}`
                 });
             }
-    
+
             const cabo = rows[0];
-    
+
             // Retornar com cálculos em gramas também
             res.json({
                 success: true,
@@ -9545,32 +10857,32 @@ module.exports = function createPCPRoutes(deps) {
                     peso_total_g_m: parseFloat(cabo.peso_total_kg_m) * 1000
                 }
             });
-    
+
         } catch (error) {
             console.error('[API_COMPOSICAO] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao buscar composição', error: error.message });
         }
     });
-    
+
     // Calcular materiais necessários para uma ordem de produção
     router.post('/cabos-composicao/calcular', async (req, res) => {
         try {
             const { codigo, metragem } = req.body;
-    
+
             if (!codigo || !metragem) {
                 return res.status(400).json({
                     success: false,
                     message: 'Código do produto e metragem são obrigatórios'
                 });
             }
-    
+
             const metros = parseFloat(metragem);
-    
+
             // Buscar composição
             let [rows] = await pool.query(`
                 SELECT * FROM cabos_composicao WHERE codigo = ? AND ativo = 1
             `, [codigo]);
-    
+
             // Fallback: se não encontrou, tentar sem sufixo de variação (ex: C=Compacto, R=Redondo)
             if (rows.length === 0 && /[A-Z]$/i.test(codigo)) {
                 const codigoBase = codigo.replace(/[A-Z]$/i, '');
@@ -9578,22 +10890,22 @@ module.exports = function createPCPRoutes(deps) {
                     SELECT * FROM cabos_composicao WHERE codigo = ? AND ativo = 1
                 `, [codigoBase]);
             }
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({
                     success: false,
                     message: `Composição não encontrada para: ${codigo}`
                 });
             }
-    
+
             const cabo = rows[0];
-    
+
             // Helper para calcular material
             const calcMat = (campo) => {
                 const v = parseFloat(cabo[campo]) || 0;
                 return { kg_m: v, total_kg: v * metros, total_g: v * metros * 1000 };
             };
-    
+
             // Calcular materiais necessários (base)
             const materiais = {
                 aluminio: calcMat('peso_aluminio_kg_m'),
@@ -9605,7 +10917,7 @@ module.exports = function createPCPRoutes(deps) {
                 mb_pvc: calcMat('peso_mb_pvc_kg_m'),
                 mbuvpe: calcMat('peso_mbuvpe_kg_m')
             };
-    
+
             // Pigmentos individuais detalhados
             const pigmentos = {
                 mbuvpt:  calcMat('peso_mbuvpt_kg_m'),   // MB UV Preto
@@ -9622,7 +10934,7 @@ module.exports = function createPCPRoutes(deps) {
                 mbpemr:  calcMat('peso_mbpemr_kg_m'),    // MB PE Marrom
                 mbuvvm:  calcMat('peso_mbuvvm_kg_m')     // MB UV Vermelho
             };
-    
+
             // Agrupar pigmentos por COR para o frontend
             const coresPigmento = {
                 pt: (pigmentos.mbuvpt.total_kg + pigmentos.mbpvcpt.total_kg),   // Preto total
@@ -9635,11 +10947,11 @@ module.exports = function createPCPRoutes(deps) {
                 lj: pigmentos.mbpelj.total_kg,                                  // Laranja
                 mr: pigmentos.mbpemr.total_kg                                   // Marrom
             };
-    
+
             // Totais
             const peso_total_kg = parseFloat(cabo.peso_total_kg_m) * metros;
             const kg_km = parseFloat(cabo.peso_total_kg_m) * 1000; // kg por quilômetro
-    
+
             res.json({
                 success: true,
                 data: {
@@ -9658,49 +10970,49 @@ module.exports = function createPCPRoutes(deps) {
                     }
                 }
             });
-    
+
         } catch (error) {
             console.error('[API_COMPOSICAO] Erro calcular:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao calcular materiais', error: error.message });
         }
     });
-    
+
     // Atualizar campos de peso em pcp_multiplexado_completo baseado na composição
     router.post('/controle-pcp/:id/atualizar-composicao', async (req, res) => {
         try {
             const { id } = req.params;
-    
+
             // Buscar ordem
             const [ordens] = await pool.query(`
                 SELECT id, produto_codigo, metragem_producao, quantidade
                 FROM pcp_multiplexado_completo WHERE id = ?
             `, [id]);
-    
+
             if (ordens.length === 0) {
                 return res.status(404).json({ success: false, message: 'Ordem não encontrada' });
             }
-    
+
             const ordem = ordens[0];
             const metragem = parseFloat(ordem.metragem_producao) || parseFloat(ordem.quantidade) || 0;
-    
+
             if (!ordem.produto_codigo) {
                 return res.status(400).json({ success: false, message: 'Ordem sem código de produto' });
             }
-    
+
             // Buscar composição pelo código
             const [composicao] = await pool.query(`
                 SELECT * FROM cabos_composicao WHERE codigo = ? AND ativo = 1
             `, [ordem.produto_codigo]);
-    
+
             if (composicao.length === 0) {
                 return res.status(404).json({
                     success: false,
                     message: `Composição não encontrada para: ${ordem.produto_codigo}`
                 });
             }
-    
+
             const cabo = composicao[0];
-    
+
             // Calcular totais
             const al_kg = parseFloat(cabo.peso_aluminio_kg_m) * metragem;
             const pe_kg = (parseFloat(cabo.peso_pe_kg_m) + parseFloat(cabo.peso_xlpe_kg_m) +
@@ -9708,7 +11020,7 @@ module.exports = function createPCPRoutes(deps) {
             const peso_liquido = parseFloat(cabo.peso_total_kg_m) * metragem;
             const peso_bruto = peso_liquido * 1.05;
             const kg_km = parseFloat(cabo.peso_total_kg_m) * 1000;
-    
+
             // Atualizar ordem
             await pool.query(`
                 UPDATE pcp_multiplexado_completo SET
@@ -9721,9 +11033,9 @@ module.exports = function createPCPRoutes(deps) {
                     updated_at = NOW()
                 WHERE id = ?
             `, [al_kg, pe_kg, peso_liquido, peso_bruto, kg_km, peso_liquido, id]);
-    
+
             console.log(`[API_COMPOSICAO] Ordem ${id} atualizada com composição de ${ordem.produto_codigo}`);
-    
+
             res.json({
                 success: true,
                 message: 'Composição atualizada com sucesso',
@@ -9738,18 +11050,18 @@ module.exports = function createPCPRoutes(deps) {
                     kg_km: kg_km.toFixed(4)
                 }
             });
-    
+
         } catch (error) {
             console.error('[API_COMPOSICAO] Erro atualizar:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao atualizar composição', error: error.message });
         }
     });
-    
+
     // Listar todos os cabos com composição cadastrada
     router.get('/cabos-composicao', async (req, res) => {
         try {
             const { busca } = req.query;
-    
+
             let query = `
                 SELECT
                     codigo,
@@ -9779,36 +11091,36 @@ module.exports = function createPCPRoutes(deps) {
                 WHERE ativo = 1
             `;
             const params = [];
-    
+
             if (busca) {
                 query += ' AND (codigo LIKE ? OR descricao LIKE ? OR bitola LIKE ?)';
                 params.push(`%${busca}%`, `%${busca}%`, `%${busca}%`);
             }
-    
+
             query += ' ORDER BY codigo ASC';
-    
+
             const [rows] = await pool.query(query, params);
-    
+
             res.json({
                 success: true,
                 total: rows.length,
                 data: rows
             });
-    
+
         } catch (error) {
             console.error('[API_COMPOSICAO] Erro listar:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao listar composições', error: error.message });
         }
     });
-    
+
     // =================== MATERIAIS POR PEDIDO (Integração Vendas → PCP) ===================
-    
+
     // Calcular materiais necessários para um pedido de vendas
     router.get('/pedidos/:id/materiais', async (req, res) => {
         try {
             const { id } = req.params;
             console.log(`[API_MATERIAIS_PEDIDO] Calculando materiais para pedido ${id}`);
-    
+
             // Buscar dados do pedido
             const [pedidos] = await pool.query(`
                 SELECT p.id, p.cliente_id, p.valor, p.status,
@@ -9817,13 +11129,13 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN clientes c ON p.cliente_id = c.id
                 WHERE p.id = ?
             `, [id]);
-    
+
             if (pedidos.length === 0) {
                 return res.status(404).json({ error: 'Pedido não encontrado' });
             }
-    
+
             const pedido = pedidos[0];
-    
+
             // Buscar itens do pedido na tabela correta (pedido_itens)
             const [itens] = await pool.query(`
                 SELECT
@@ -9841,9 +11153,9 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN produtos pr ON pi.produto_id = pr.id
                 WHERE pi.pedido_id = ?
             `, [id]);
-    
+
             console.log(`[API_MATERIAIS_PEDIDO] Pedido ${id} tem ${itens.length} itens`);
-    
+
             // Calcular materiais para cada item usando a tabela cabos_composicao
             const itensCalculados = [];
             let totalAlKg = 0;
@@ -9857,7 +11169,7 @@ module.exports = function createPCPRoutes(deps) {
             let totalPigPt = 0, totalPigCz = 0, totalPigAz = 0;
             let totalPigAm = 0, totalPigVd = 0, totalPigBc = 0;
             let totalPigLj = 0, totalPigMr = 0;
-    
+
             // PERFORMANCE: Pré-carregar TODAS as composições ativas em memória (1 query em vez de 5-6 por item)
             const [allComposicoes] = await pool.query(`SELECT id, codigo, descricao, cores, bitola,
                 peso_aluminio_kg_m, peso_pe_kg_m, peso_xlpe_kg_m, peso_xlpe_at_kg_m, peso_hepr_kg_m,
@@ -9874,12 +11186,12 @@ module.exports = function createPCPRoutes(deps) {
                 }
                 composicaoMap.get(comp.codigo).push(comp);
             }
-    
+
             for (const item of itens) {
                 const codigoOriginal = item.codigo || item.produto_codigo || '';
                 const metros = parseFloat(item.metros) || 0;
                 totalMetros += metros;
-    
+
                 // Tentar encontrar composição com diferentes variações do código (in-memory)
                 let composicao = [];
                 const codigosParaTentar = [
@@ -9889,7 +11201,7 @@ module.exports = function createPCPRoutes(deps) {
                     codigoOriginal.replace(/N$/i, ''),
                     codigoOriginal.replace(/I$/i, ''),
                 ];
-    
+
                 let codigoEncontrado = null;
                 for (const codigoTeste of codigosParaTentar) {
                     if (!codigoTeste) continue;
@@ -9900,7 +11212,7 @@ module.exports = function createPCPRoutes(deps) {
                         break;
                     }
                 }
-    
+
                 // Também tenta busca parcial se não encontrou (in-memory prefix match)
                 if (composicao.length === 0 && codigoOriginal.length >= 3) {
                     const prefix = codigoOriginal.substring(0, codigoOriginal.length - 1);
@@ -9912,7 +11224,7 @@ module.exports = function createPCPRoutes(deps) {
                         }
                     }
                 }
-    
+
                 let itemCalculado = {
                     id: item.id,
                     codigo: codigoOriginal,
@@ -9939,7 +11251,7 @@ module.exports = function createPCPRoutes(deps) {
                     pigmentos: { pt: 0, cz: 0, az: 0, am: 0, vd: 0, bc: 0, lj: 0, mr: 0 },
                     cores: ''
                 };
-    
+
                 if (composicao.length > 0) {
                     const comp = composicao[0];
                     const alKgM = parseFloat(comp.peso_aluminio_kg_m) || 0;
@@ -9947,13 +11259,13 @@ module.exports = function createPCPRoutes(deps) {
                     const xlpeKgM = parseFloat(comp.peso_xlpe_kg_m) || 0;
                     const pvcKgM = parseFloat(comp.peso_pvc_kg_m) || 0;
                     const pesoTotalKgM = parseFloat(comp.peso_total_kg_m) || 0;
-    
+
                     itemCalculado.al_kg_m = alKgM;
                     itemCalculado.pe_kg_m = peKgM;
                     itemCalculado.xlpe_kg_m = xlpeKgM;
                     itemCalculado.pvc_kg_m = pvcKgM;
                     itemCalculado.peso_total_kg_m = pesoTotalKgM;
-    
+
                     itemCalculado.al_kg = alKgM * metros;
                     itemCalculado.pe_kg = peKgM * metros;
                     itemCalculado.xlpe_kg = xlpeKgM * metros;
@@ -9962,7 +11274,7 @@ module.exports = function createPCPRoutes(deps) {
                     itemCalculado.peso_bruto = itemCalculado.peso_liquido * 1.05;
                     itemCalculado.composicao_encontrada = true;
                     itemCalculado.cores = comp.cores || '';
-    
+
                     // Calcular pigmentos por cor
                     const pf = (campo) => (parseFloat(comp[campo]) || 0) * metros;
                     itemCalculado.pigmentos = {
@@ -9975,14 +11287,14 @@ module.exports = function createPCPRoutes(deps) {
                         lj: pf('peso_mbpelj_kg_m'),
                         mr: pf('peso_mbpemr_kg_m')
                     };
-    
+
                     totalAlKg += itemCalculado.al_kg;
                     totalPeKg += itemCalculado.pe_kg;
                     totalXlpeKg += itemCalculado.xlpe_kg;
                     totalPvcKg += itemCalculado.pvc_kg;
                     totalPesoLiquido += itemCalculado.peso_liquido;
                     totalPesoBruto += itemCalculado.peso_bruto;
-    
+
                     // Acumular pigmentos nos totais
                     totalPigPt += itemCalculado.pigmentos.pt;
                     totalPigCz += itemCalculado.pigmentos.cz;
@@ -9992,15 +11304,15 @@ module.exports = function createPCPRoutes(deps) {
                     totalPigBc += itemCalculado.pigmentos.bc;
                     totalPigLj += itemCalculado.pigmentos.lj;
                     totalPigMr += itemCalculado.pigmentos.mr;
-    
+
                     console.log(`[API_MATERIAIS_PEDIDO] Item ${codigoOriginal} -> ${codigoEncontrado}: ${metros}m x ${pesoTotalKgM}kg/m = ${itemCalculado.peso_liquido.toFixed(2)}kg | Cores: ${itemCalculado.cores}`);
                 } else {
                     console.log(`[API_MATERIAIS_PEDIDO] ⚠️ Composição não encontrada para: ${codigoOriginal}`);
                 }
-    
+
                 itensCalculados.push(itemCalculado);
             }
-    
+
             res.json({
                 pedido: {
                     id: pedido.id,
@@ -10027,15 +11339,15 @@ module.exports = function createPCPRoutes(deps) {
                     }
                 }
             });
-    
+
         } catch (error) {
             console.error('[API_MATERIAIS_PEDIDO] Erro:', error.message);
             res.status(500).json({ error: 'Erro ao calcular materiais', message: error.message });
         }
     });
-    
+
     // =================== OPERADORES (FUNCIONÁRIOS PCP) ===================
-    
+
     router.get('/operadores', async (req, res) => {
         console.log('[API_OPERADORES] Listando operadores...');
         try {
@@ -10052,7 +11364,7 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_OPERADORES] Tabela funcionarios não encontrada, tentando usuarios...');
             }
-    
+
             // Se não encontrou funcionários, buscar de usuarios
             if (funcionarios.length === 0) {
                 try {
@@ -10067,7 +11379,7 @@ module.exports = function createPCPRoutes(deps) {
                     console.log('[API_OPERADORES] Tabela usuarios também falhou');
                 }
             }
-    
+
             // Se ainda não encontrou, retornar lista padrão
             if (funcionarios.length === 0) {
                 funcionarios = [
@@ -10076,7 +11388,7 @@ module.exports = function createPCPRoutes(deps) {
                     { id: 3, nome: 'Operador 3', cargo: 'Operador', departamento: 'Produção' }
                 ];
             }
-    
+
             console.log(`[API_OPERADORES] Retornando ${funcionarios.length} operadores`);
             res.json({ funcionarios, total: funcionarios.length });
         } catch (error) {
@@ -10084,9 +11396,9 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ message: 'Erro ao listar operadores', error: error.message });
         }
     });
-    
+
     // =================== MATÉRIAS PRIMAS ===================
-    
+
     router.get('/materias-primas', async (req, res) => {
         console.log('[API_MATERIAS_PRIMAS] Listando matérias-primas...');
         try {
@@ -10103,7 +11415,7 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_MATERIAS_PRIMAS] Tabela materiais não encontrada, tentando produtos...');
             }
-    
+
             // Se não encontrou materiais, buscar de produtos (como alternativa)
             if (materias.length === 0) {
                 try {
@@ -10120,7 +11432,7 @@ module.exports = function createPCPRoutes(deps) {
                     console.log('[API_MATERIAS_PRIMAS] Tabela produtos também falhou');
                 }
             }
-    
+
             console.log(`[API_MATERIAS_PRIMAS] Retornando ${materias.length} matérias-primas`);
             res.json({ success: true, data: materias, total: materias.length });
         } catch (error) {
@@ -10128,9 +11440,9 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao listar matérias-primas', error: error.message });
         }
     });
-    
+
     // =================== APONTAMENTOS DE PRODUÇÃO ===================
-    
+
     // Estatísticas de apontamentos
     router.get('/apontamentos/stats', async (req, res) => {
         console.log('[API_APONTAMENTOS] Buscando estatísticas...');
@@ -10140,7 +11452,7 @@ module.exports = function createPCPRoutes(deps) {
             let opsEmProducao = 0;
             let apontamentosHoje = 0;
             let qtdProduzidaHoje = 0;
-    
+
             try {
                 const [result] = await pool.query(`
                     SELECT COUNT(*) as total FROM ordens_producao
@@ -10148,7 +11460,7 @@ module.exports = function createPCPRoutes(deps) {
                 `);
                 opsAtivas = result[0]?.total || 0;
             } catch (e) { /* Tabela pode não existir */ }
-    
+
             try {
                 const [result] = await pool.query(`
                     SELECT COUNT(*) as total FROM ordens_producao
@@ -10156,7 +11468,7 @@ module.exports = function createPCPRoutes(deps) {
                 `);
                 opsEmProducao = result[0]?.total || 0;
             } catch (e) { /* Tabela pode não existir */ }
-    
+
             try {
                 const [result] = await pool.query(`
                     SELECT COUNT(*) as total, COALESCE(SUM(duracao_segundos), 0) as total_segundos
@@ -10166,7 +11478,7 @@ module.exports = function createPCPRoutes(deps) {
                 apontamentosHoje = result[0]?.total || 0;
                 qtdProduzidaHoje = result[0]?.total_segundos || 0;
             } catch (e) { /* Tabela pode não existir */ }
-    
+
             res.json({
                 success: true,
                 stats: {
@@ -10181,13 +11493,13 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao buscar estatísticas' });
         }
     });
-    
+
     // Listar OPs para apontamento
     router.get('/apontamentos/ordens', async (req, res) => {
         console.log('[API_APONTAMENTOS] Listando OPs para apontamento...');
         try {
             const { status } = req.query;
-    
+
             let whereClause = "WHERE status NOT IN ('concluida', 'Concluída', 'cancelada')";
             if (status === 'ativas') {
                 whereClause = "WHERE status IN ('ativa', 'Ativa')";
@@ -10196,7 +11508,7 @@ module.exports = function createPCPRoutes(deps) {
             } else if (status === 'pendentes') {
                 whereClause = "WHERE status IN ('pendente', 'Pendente', 'A Fazer')";
             }
-    
+
             const [ordens] = await pool.query(`
                 SELECT
                     op.id, op.codigo, op.produto_nome, op.quantidade, op.unidade,
@@ -10213,23 +11525,23 @@ module.exports = function createPCPRoutes(deps) {
                     END,
                     op.data_prevista ASC
             `);
-    
+
             res.json({ success: true, data: ordens });
         } catch (error) {
             console.error('[API_APONTAMENTOS] Erro:', error.message);
             res.status(500).json({ success: false, message: 'Erro ao listar OPs' });
         }
     });
-    
+
     // Relatório de apontamentos (para supervisores/gerentes)
     router.get('/apontamentos/relatorio', async (req, res) => {
         console.log('[API_APONTAMENTOS] Gerando relatório...');
         try {
             const { dataInicio, dataFim, usuario, atividade, pedido } = req.query;
-    
+
             let whereClause = 'WHERE 1=1';
             const params = [];
-    
+
             if (dataInicio) {
                 whereClause += ' AND DATE(COALESCE(ap.hora_inicio, ap.data_apontamento)) >= ?';
                 params.push(dataInicio);
@@ -10250,7 +11562,7 @@ module.exports = function createPCPRoutes(deps) {
                 whereClause += ' AND ap.pedido_id = ?';
                 params.push(pedido);
             }
-    
+
             // Verificar se a tabela existe
             let tableExists = false;
             try {
@@ -10259,7 +11571,7 @@ module.exports = function createPCPRoutes(deps) {
             } catch (e) {
                 console.log('[API_APONTAMENTOS] Tabela apontamentos_producao não existe');
             }
-    
+
             if (!tableExists) {
                 return res.json({
                     success: true,
@@ -10271,7 +11583,7 @@ module.exports = function createPCPRoutes(deps) {
                     totalApontamentos: 0
                 });
             }
-    
+
             // Buscar apontamentos
             const [apontamentos] = await pool.query(`
                 SELECT
@@ -10298,7 +11610,7 @@ module.exports = function createPCPRoutes(deps) {
                 ORDER BY COALESCE(ap.hora_inicio, ap.data_apontamento, ap.created_at) DESC
                 LIMIT 500
             `, params);
-    
+
             // Buscar funcionários únicos que fizeram apontamentos
             const [funcionarios] = await pool.query(`
                 SELECT DISTINCT
@@ -10311,13 +11623,13 @@ module.exports = function createPCPRoutes(deps) {
                 LEFT JOIN usuarios u ON ap.usuario_id = u.id
                 ${whereClause}
             `, params);
-    
+
             // Calcular estatísticas
             const totalSegundos = apontamentos.reduce((acc, a) => acc + (a.duracao || 0), 0);
             const producaoSegundos = apontamentos
                 .filter(a => ['producao', '1', '1A'].includes(a.tipo))
                 .reduce((acc, a) => acc + (a.duracao || 0), 0);
-    
+
             res.json({
                 success: true,
                 apontamentos,
@@ -10332,7 +11644,7 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao gerar relatório' });
         }
     });
-    
+
     // Salvar apontamento
     router.post('/apontamentos', async (req, res) => {
         console.log('[API_APONTAMENTOS] Salvando apontamento...', req.body);
@@ -10340,7 +11652,7 @@ module.exports = function createPCPRoutes(deps) {
             const { tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos, ordem_producao_id, pedido_numero, produto_descricao, observacoes } = req.body;
             const usuario_id = req.user?.id;
             const operador = req.user?.nome || 'Desconhecido';
-    
+
             // Validação básica
             if (!tipo_atividade || !nome_atividade) {
                 return res.status(400).json({
@@ -10348,7 +11660,7 @@ module.exports = function createPCPRoutes(deps) {
                     message: 'tipo_atividade e nome_atividade são obrigatórios'
                 });
             }
-    
+
             // Formatação segura das datas
             const horaInicioFormatada = hora_inicio ? new Date(hora_inicio).toISOString().slice(0, 19).replace('T', ' ') : null;
             const horaFimFormatada = hora_fim ? new Date(hora_fim).toISOString().slice(0, 19).replace('T', ' ') : null;
@@ -10408,7 +11720,7 @@ module.exports = function createPCPRoutes(deps) {
                     duracao_segundos || 0
                 ]);
             }
-    
+
             console.log('[API_APONTAMENTOS] Apontamento salvo com sucesso, id:', result.insertId);
             res.json({ success: true, id: result.insertId });
         } catch (error) {
@@ -10416,22 +11728,22 @@ module.exports = function createPCPRoutes(deps) {
             res.status(500).json({ success: false, message: 'Erro ao salvar apontamento', error: error.message });
         }
     });
-    
+
     // Listar apontamentos do usuário logado
     router.get('/apontamentos/meus', async (req, res) => {
         console.log('[API_APONTAMENTOS] Listando apontamentos do usuário...');
         try {
             const usuario_id = req.user?.id;
             const { data } = req.query;
-    
+
             let whereClause = 'WHERE usuario_id = ?';
             const params = [usuario_id];
-    
+
             if (data) {
                 whereClause += ' AND DATE(hora_inicio) = ?';
                 params.push(data);
             }
-    
+
             const [apontamentos] = await pool.query(`
                 SELECT
                     ap.id,
@@ -10450,7 +11762,7 @@ module.exports = function createPCPRoutes(deps) {
                 ${whereClause}
                 ORDER BY ap.hora_inicio DESC
             `, params);
-    
+
             res.json({ success: true, apontamentos });
         } catch (error) {
             console.error('[API_APONTAMENTOS] Erro:', error.message);
@@ -10474,7 +11786,7 @@ module.exports = function createPCPRoutes(deps) {
             }
 
             const [porQuantidade] = await pool.query(`
-                SELECT 
+                SELECT
                     pi.codigo,
                     pi.descricao,
                     SUM(pi.quantidade) as total_quantidade,
@@ -10491,7 +11803,7 @@ module.exports = function createPCPRoutes(deps) {
             `, [...params, maxResults]);
 
             const [porValor] = await pool.query(`
-                SELECT 
+                SELECT
                     pi.codigo,
                     pi.descricao,
                     SUM(pi.quantidade) as total_quantidade,
@@ -10508,7 +11820,7 @@ module.exports = function createPCPRoutes(deps) {
             `, [...params, maxResults]);
 
             const [resumo] = await pool.query(`
-                SELECT 
+                SELECT
                     COUNT(DISTINCT pi.codigo) as total_produtos_vendidos,
                     SUM(pi.quantidade) as quantidade_total,
                     SUM(pi.subtotal) as valor_total,
@@ -10526,7 +11838,7 @@ module.exports = function createPCPRoutes(deps) {
             }
 
             const [ordensProducao] = await pool.query(`
-                SELECT 
+                SELECT
                     produto_nome,
                     codigo,
                     SUM(quantidade) as total_quantidade,
@@ -10567,7 +11879,7 @@ module.exports = function createPCPRoutes(deps) {
             }
 
             const [porVendedor] = await pool.query(`
-                SELECT 
+                SELECT
                     COALESCE(p.vendedor_nome, 'Não informado') as vendedor,
                     COUNT(*) as total_pedidos,
                     SUM(p.valor) as valor_total,
@@ -10582,7 +11894,7 @@ module.exports = function createPCPRoutes(deps) {
             `, params);
 
             const [porCliente] = await pool.query(`
-                SELECT 
+                SELECT
                     COALESCE(p.cliente_nome, 'Não informado') as cliente,
                     COUNT(*) as total_pedidos,
                     SUM(p.valor) as valor_total,
@@ -10596,7 +11908,7 @@ module.exports = function createPCPRoutes(deps) {
             `, params);
 
             const [totais] = await pool.query(`
-                SELECT 
+                SELECT
                     COUNT(*) as total_pedidos,
                     SUM(p.valor) as valor_total,
                     AVG(p.valor) as ticket_medio,
@@ -10607,7 +11919,7 @@ module.exports = function createPCPRoutes(deps) {
             `, params);
 
             const [evolucaoMensal] = await pool.query(`
-                SELECT 
+                SELECT
                     DATE_FORMAT(p.created_at, '%Y-%m') as mes,
                     COUNT(*) as total_pedidos,
                     SUM(p.valor) as valor_total
@@ -10641,7 +11953,7 @@ module.exports = function createPCPRoutes(deps) {
             const inicio = data_inicio || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
             const [apontamentosDiarios] = await pool.query(`
-                SELECT 
+                SELECT
                     DATE(ap.data_apontamento) as data,
                     SUM(ap.quantidade_produzida) as quantidade_produzida,
                     SUM(ap.tempo_producao) as tempo_total_min,
@@ -10655,32 +11967,32 @@ module.exports = function createPCPRoutes(deps) {
             `, [inicio, fim]);
 
             const [ordensConcluidasDia] = await pool.query(`
-                SELECT 
+                SELECT
                     DATE(COALESCE(data_conclusao, data_inicio)) as data,
                     SUM(metragem) as total_metragem,
                     SUM(quantidade) as total_quantidade,
                     COUNT(*) as total_ordens,
                     GROUP_CONCAT(DISTINCT produto_nome SEPARATOR ', ') as produtos
-                FROM ordens_producao 
+                FROM ordens_producao
                 WHERE (data_conclusao BETWEEN ? AND ? OR data_inicio BETWEEN ? AND ?)
                 GROUP BY DATE(COALESCE(data_conclusao, data_inicio))
                 ORDER BY data ASC
             `, [inicio, fim, inicio, fim]);
 
             const [resumoApontamentos] = await pool.query(`
-                SELECT 
+                SELECT
                     SUM(quantidade_produzida) as total_produzido,
                     AVG(quantidade_produzida) as media_diaria,
                     MAX(quantidade_produzida) as max_dia,
                     MIN(quantidade_produzida) as min_dia,
                     SUM(tempo_producao) as tempo_total,
                     COUNT(DISTINCT DATE(data_apontamento)) as dias_com_producao
-                FROM apontamentos_producao 
+                FROM apontamentos_producao
                 WHERE data_apontamento BETWEEN ? AND ?
             `, [inicio, fim]);
 
             const [resumoOrdens] = await pool.query(`
-                SELECT 
+                SELECT
                     SUM(metragem) as total_metragem,
                     SUM(quantidade) as total_quantidade,
                     COUNT(*) as total_ordens,
@@ -10711,20 +12023,20 @@ module.exports = function createPCPRoutes(deps) {
             const anoFiltro = parseInt(ano) || new Date().getFullYear();
 
             const [faturamentoPF] = await pool.query(`
-                SELECT 
+                SELECT
                     DATE_FORMAT(data_faturamento, '%Y-%m') as mes,
                     MONTH(data_faturamento) as mes_num,
                     COUNT(*) as total_pedidos,
                     SUM(total) as valor_total,
                     AVG(total) as ticket_medio
-                FROM pedidos_faturados 
+                FROM pedidos_faturados
                 WHERE YEAR(data_faturamento) = ?
                 GROUP BY DATE_FORMAT(data_faturamento, '%Y-%m'), MONTH(data_faturamento)
                 ORDER BY mes_num ASC
             `, [anoFiltro]);
 
             const [faturamentoPedidos] = await pool.query(`
-                SELECT 
+                SELECT
                     DATE_FORMAT(p.created_at, '%Y-%m') as mes,
                     MONTH(p.created_at) as mes_num,
                     COUNT(*) as total_pedidos,
@@ -10738,27 +12050,27 @@ module.exports = function createPCPRoutes(deps) {
             `, [anoFiltro]);
 
             const [faturamentoAnoAnterior] = await pool.query(`
-                SELECT 
+                SELECT
                     SUM(total) as valor_total,
                     COUNT(*) as total_pedidos
-                FROM pedidos_faturados 
+                FROM pedidos_faturados
                 WHERE YEAR(data_faturamento) = ?
             `, [anoFiltro - 1]);
 
             const [faturamentoAnoAtual] = await pool.query(`
-                SELECT 
+                SELECT
                     SUM(total) as valor_total,
                     COUNT(*) as total_pedidos
-                FROM pedidos_faturados 
+                FROM pedidos_faturados
                 WHERE YEAR(data_faturamento) = ?
             `, [anoFiltro]);
 
             const [topClientes] = await pool.query(`
-                SELECT 
+                SELECT
                     cliente,
                     COUNT(*) as total_pedidos,
                     SUM(total) as valor_total
-                FROM pedidos_faturados 
+                FROM pedidos_faturados
                 WHERE YEAR(data_faturamento) = ?
                 GROUP BY cliente
                 ORDER BY valor_total DESC
@@ -10796,31 +12108,31 @@ module.exports = function createPCPRoutes(deps) {
             const path = require('path');
             const fs = require('fs');
             const dataPath = path.join(__dirname, '..', 'api', 'arvore-produto-data.json');
-            
+
             if (!fs.existsSync(dataPath)) {
                 return res.status(404).json({ success: false, message: 'Dados da árvore de produto não encontrados.' });
             }
-            
+
             const rawData = fs.readFileSync(dataPath, 'utf-8');
             const data = JSON.parse(rawData);
-            
+
             // Apply filters if provided
             const { categoria, search } = req.query;
             let products = data.products;
-            
+
             if (categoria && categoria !== 'todos') {
                 products = products.filter(p => p.categoria === categoria);
             }
-            
+
             if (search) {
                 const term = search.toLowerCase();
-                products = products.filter(p => 
-                    p.codigo.toLowerCase().includes(term) || 
+                products = products.filter(p =>
+                    p.codigo.toLowerCase().includes(term) ||
                     p.descricao.toLowerCase().includes(term) ||
                     (p.cores || '').toLowerCase().includes(term)
                 );
             }
-            
+
             res.json({
                 success: true,
                 parametros: data.parametros,
@@ -10840,14 +12152,14 @@ module.exports = function createPCPRoutes(deps) {
             const path = require('path');
             const fs = require('fs');
             const dataPath = path.join(__dirname, '..', 'api', 'arvore-produto-data.json');
-            
+
             if (!fs.existsSync(dataPath)) {
                 return res.status(404).json({ success: false, message: 'Arquivo de dados não encontrado.' });
             }
 
             const rawData = fs.readFileSync(dataPath, 'utf-8');
             const data = JSON.parse(rawData);
-            
+
             const { precos_kg, markup_pct, despesas } = req.body;
             if (precos_kg) data.parametros.precos_kg = precos_kg;
             if (markup_pct !== undefined) data.parametros.markup_pct = parseFloat(markup_pct);
@@ -10861,14 +12173,349 @@ module.exports = function createPCPRoutes(deps) {
             if (req.body.tipo_cliente !== undefined) data.parametros.tipo_cliente = req.body.tipo_cliente;
             if (req.body.is_representante !== undefined) data.parametros.is_representante = req.body.is_representante;
             if (req.body.frete_selecionado !== undefined) data.parametros.frete_selecionado = req.body.frete_selecionado;
-            
+
             fs.writeFileSync(dataPath, JSON.stringify(data, null, 2), 'utf-8');
             console.log('[PCP] Parâmetros de custo atualizados com sucesso');
-            
+
             res.json({ success: true, message: 'Parâmetros salvos com sucesso.', parametros: data.parametros });
         } catch (err) {
             console.error('[PCP] Erro ao salvar parâmetros:', err.message);
             res.status(500).json({ success: false, message: 'Erro ao salvar parâmetros.' });
+        }
+    });
+
+    // =====================================================
+    // ROTAS ADICIONADAS — Correção de botões quebrados
+    // =====================================================
+
+    // BUSCA GLOBAL — Usado pela barra de pesquisa do dashboard PCP
+    router.get('/search', async (req, res) => {
+        try {
+            const q = req.query.q || '';
+            const type = req.query.type || '';
+            const limit = parseInt(req.query.limit) || 20;
+
+            if (!q || q.length < 2) {
+                return res.json({ results: { ordens: [], materiais: [], produtos: [], pedidos: [] } });
+            }
+
+            const searchPattern = `%${q}%`;
+            const results = {};
+
+            // Buscar ordens
+            if (!type || type === 'ordens' || type === 'Ordem') {
+                try {
+                    const [ordens] = await pool.query(
+                        `SELECT id, codigo_produto, descricao_produto, cliente, status
+                         FROM ordens_producao
+                         WHERE codigo_produto LIKE ? OR descricao_produto LIKE ? OR cliente LIKE ? OR CAST(id AS CHAR) = ?
+                         ORDER BY id DESC LIMIT ?`,
+                        [searchPattern, searchPattern, searchPattern, q, limit]
+                    );
+                    results.ordens = ordens;
+                } catch (e) { results.ordens = []; }
+            }
+
+            // Buscar materiais
+            if (!type || type === 'materiais' || type === 'Material') {
+                try {
+                    const [materiais] = await pool.query(
+                        `SELECT id, codigo_material, descricao, quantidade_estoque
+                         FROM materiais
+                         WHERE codigo_material LIKE ? OR descricao LIKE ?
+                         ORDER BY descricao LIMIT ?`,
+                        [searchPattern, searchPattern, limit]
+                    );
+                    results.materiais = materiais;
+                } catch (e) { results.materiais = []; }
+            }
+
+            // Buscar produtos
+            if (!type || type === 'produtos' || type === 'Produto') {
+                try {
+                    const [produtos] = await pool.query(
+                        `SELECT id, codigo, nome AS descricao, estoque_atual AS quantidade_estoque
+                         FROM produtos
+                         WHERE codigo LIKE ? OR nome LIKE ? OR gtin LIKE ? OR sku LIKE ?
+                         ORDER BY nome LIMIT ?`,
+                        [searchPattern, searchPattern, searchPattern, searchPattern, limit]
+                    );
+                    results.produtos = produtos;
+                } catch (e) { results.produtos = []; }
+            }
+
+            // Buscar pedidos
+            if (!type || type === 'pedidos' || type === 'Pedido') {
+                try {
+                    const [pedidos] = await pool.query(
+                        `SELECT id, cliente, produto_id, quantidade, status
+                         FROM pedidos
+                         WHERE cliente LIKE ? OR CAST(id AS CHAR) = ? OR produto_id LIKE ?
+                         ORDER BY id DESC LIMIT ?`,
+                        [searchPattern, q, searchPattern, limit]
+                    );
+                    results.pedidos = pedidos;
+                } catch (e) { results.pedidos = []; }
+            }
+
+            res.json({ results });
+        } catch (error) {
+            console.error('[PCP/SEARCH] Erro:', error.message);
+            res.status(500).json({ results: { ordens: [], materiais: [], produtos: [], pedidos: [] } });
+        }
+    });
+
+    // EXPORT PDF — Produtos (gera HTML para impressão no navegador)
+    router.get('/produtos/export-pdf', async (req, res) => {
+        try {
+            const [produtos] = await pool.query(
+                `SELECT id, codigo, nome, sku, gtin, unidade_medida, estoque_atual, categoria, custo_unitario
+                 FROM produtos WHERE (ativo = 1 OR ativo IS NULL)
+                 ORDER BY nome`
+            );
+
+            const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Catálogo de Produtos</title>
+<style>
+body{font-family:Arial,sans-serif;margin:20px;color:#333}
+h1{text-align:center;color:#1e40af;margin-bottom:5px}
+.subtitle{text-align:center;color:#64748b;margin-bottom:20px;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#1e40af;color:#fff;padding:8px 6px;text-align:left}
+td{padding:6px;border-bottom:1px solid #e2e8f0}
+tr:nth-child(even){background:#f8fafc}
+.footer{text-align:center;margin-top:20px;font-size:11px;color:#94a3b8}
+@media print{body{margin:0}h1{font-size:18px}.no-print{display:none}}
+</style></head><body>
+<h1>Catálogo de Produtos — ALUFORCE</h1>
+<p class="subtitle">Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')} — ${produtos.length} produtos</p>
+<table><thead><tr><th>Código</th><th>Descrição</th><th>SKU</th><th>GTIN</th><th>Unidade</th><th>Estoque</th><th>Categoria</th><th>Custo Unit.</th></tr></thead>
+<tbody>${produtos.map(p => `<tr><td>${p.codigo || ''}</td><td>${p.nome || ''}</td><td>${p.sku || ''}</td><td>${p.gtin || ''}</td><td>${p.unidade_medida || ''}</td><td>${Number(p.estoque_atual || 0).toFixed(2)}</td><td>${p.categoria || ''}</td><td>R$ ${Number(p.custo_unitario || 0).toFixed(2)}</td></tr>`).join('')}
+</tbody></table>
+<p class="footer">ALUFORCE — Sistema PCP</p>
+</body></html>`;
+
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="catalogo_produtos_${new Date().toISOString().split('T')[0]}.html"`);
+            res.send(html);
+        } catch (error) {
+            console.error('[PCP/EXPORT-PDF] Erro:', error.message);
+            res.status(500).json({ message: 'Erro ao gerar catálogo' });
+        }
+    });
+
+    // EXPORT PDF — Materiais (gera HTML para impressão no navegador)
+    router.get('/materiais/export-pdf', async (req, res) => {
+        try {
+            const [materiais] = await pool.query(
+                `SELECT id, codigo_material, descricao, unidade_medida, quantidade_estoque, preco_unitario, fornecedor
+                 FROM materiais ORDER BY descricao`
+            );
+
+            const html = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>Catálogo de Materiais</title>
+<style>
+body{font-family:Arial,sans-serif;margin:20px;color:#333}
+h1{text-align:center;color:#1e40af;margin-bottom:5px}
+.subtitle{text-align:center;color:#64748b;margin-bottom:20px;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#1e40af;color:#fff;padding:8px 6px;text-align:left}
+td{padding:6px;border-bottom:1px solid #e2e8f0}
+tr:nth-child(even){background:#f8fafc}
+.footer{text-align:center;margin-top:20px;font-size:11px;color:#94a3b8}
+@media print{body{margin:0}h1{font-size:18px}}
+</style></head><body>
+<h1>Catálogo de Materiais — ALUFORCE</h1>
+<p class="subtitle">Gerado em ${new Date().toLocaleDateString('pt-BR')} — ${materiais.length} materiais</p>
+<table><thead><tr><th>Código</th><th>Descrição</th><th>Unidade</th><th>Estoque</th><th>Preço Unit.</th><th>Fornecedor</th></tr></thead>
+<tbody>${materiais.map(m => `<tr><td>${m.codigo_material || ''}</td><td>${m.descricao || ''}</td><td>${m.unidade_medida || ''}</td><td>${Number(m.quantidade_estoque || 0).toFixed(2)}</td><td>R$ ${Number(m.preco_unitario || 0).toFixed(2)}</td><td>${m.fornecedor || ''}</td></tr>`).join('')}
+</tbody></table>
+<p class="footer">ALUFORCE — Sistema PCP</p>
+</body></html>`;
+
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="catalogo_materiais_${new Date().toISOString().split('T')[0]}.html"`);
+            res.send(html);
+        } catch (error) {
+            console.error('[PCP/EXPORT-PDF-MAT] Erro:', error.message);
+            res.status(500).json({ message: 'Erro ao gerar catálogo de materiais' });
+        }
+    });
+
+    // RECEBIMENTOS — Registrar recebimento de material
+    router.post('/recebimentos', async (req, res) => {
+        try {
+            const { data, nome, numero_nf, fornecedor, material, observacao, responsavel } = req.body;
+
+            if (!data || !nome || !numero_nf || !fornecedor || !material) {
+                return res.status(400).json({ message: 'Campos obrigatórios: data, nome, numero_nf, fornecedor, material' });
+            }
+
+            // Verificar se tabela existe, criar se não
+            try {
+                await pool.query('SELECT 1 FROM recebimentos_compras LIMIT 0');
+            } catch (e) {
+                await pool.query(`
+                    CREATE TABLE IF NOT EXISTS recebimentos_compras (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        data DATE NOT NULL,
+                        nome VARCHAR(255) NOT NULL,
+                        numero_nf VARCHAR(100) NOT NULL,
+                        fornecedor VARCHAR(255) NOT NULL,
+                        material VARCHAR(255) NOT NULL,
+                        observacao TEXT,
+                        responsavel VARCHAR(255),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                `);
+            }
+
+            const [result] = await pool.query(
+                `INSERT INTO recebimentos_compras (data, nome, numero_nf, fornecedor, material, observacao, responsavel)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [data, nome, numero_nf, fornecedor, material, observacao || null, responsavel || null]
+            );
+
+            res.status(201).json({ success: true, message: 'Recebimento registrado com sucesso', id: result.insertId });
+        } catch (error) {
+            console.error('[PCP/RECEBIMENTOS] Erro:', error.message);
+            res.status(500).json({ message: 'Erro ao registrar recebimento' });
+        }
+    });
+
+    // EXTRUSÃO — Registrar dados de extrusão
+    router.post('/extrusao', async (req, res) => {
+        try {
+            const { data, lote, extrusora, descricao, secao, metragem, bobinas, lote_corda,
+                    lote_polimero, lote_corante, inspecao_visual, diametro, operador, observacoes } = req.body;
+
+            if (!data || !lote || !extrusora || !descricao || !metragem || !operador) {
+                return res.status(400).json({ message: 'Campos obrigatórios: data, lote, extrusora, descricao, metragem, operador' });
+            }
+
+            // Verificar/criar tabela
+            try {
+                await pool.query('SELECT 1 FROM extrusao_registros LIMIT 0');
+            } catch (e) {
+                await pool.query(`
+                    CREATE TABLE IF NOT EXISTS extrusao_registros (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        data DATE NOT NULL,
+                        lote VARCHAR(50) NOT NULL,
+                        extrusora VARCHAR(100) NOT NULL,
+                        descricao VARCHAR(255) NOT NULL,
+                        secao VARCHAR(100),
+                        metragem DECIMAL(12,2) NOT NULL,
+                        bobinas INT,
+                        lote_corda VARCHAR(100),
+                        lote_polimero VARCHAR(100),
+                        lote_corante VARCHAR(100),
+                        inspecao_visual VARCHAR(50),
+                        diametro DECIMAL(10,4),
+                        operador VARCHAR(255) NOT NULL,
+                        observacoes TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                `);
+            }
+
+            const [result] = await pool.query(
+                `INSERT INTO extrusao_registros
+                 (data, lote, extrusora, descricao, secao, metragem, bobinas, lote_corda, lote_polimero, lote_corante, inspecao_visual, diametro, operador, observacoes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [data, lote, extrusora, descricao, secao || null, metragem, bobinas || null,
+                 lote_corda || null, lote_polimero || null, lote_corante || null,
+                 inspecao_visual || null, diametro || null, operador, observacoes || null]
+            );
+
+            res.status(201).json({ success: true, message: 'Registro de extrusão salvo com sucesso', id: result.insertId });
+        } catch (error) {
+            console.error('[PCP/EXTRUSAO] Erro:', error.message);
+            res.status(500).json({ message: 'Erro ao salvar registro de extrusão' });
+        }
+    });
+
+    // NOTIFICAR ATIVIDADE — Push notification de ações de apontamento (início, pausa, finalização)
+    router.post('/notificar-atividade', async (req, res) => {
+        try {
+            const { tipo_atividade, nome_atividade, operador, acao, duracao } = req.body;
+
+            console.log(`[PCP/NOTIFICACAO] ${operador} ${acao} ${nome_atividade} (${tipo_atividade})${duracao ? ' — Duração: ' + duracao : ''}`);
+
+            // Emitir via WebSocket para todos os clientes PCP conectados
+            if (global.io) {
+                global.io.emit('pcp-atividade', {
+                    tipo: tipo_atividade,
+                    nome: nome_atividade,
+                    operador: operador || 'Operador',
+                    acao: acao,
+                    duracao: duracao || null,
+                    timestamp: new Date().toISOString()
+                });
+            }
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('[PCP/NOTIFICACAO] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao notificar' });
+        }
+    });
+
+    // APONTAMENTOS CHÃO DE FÁBRICA — Endpoint específico para salvar registros do chão de fábrica
+    router.post('/apontamentos/chao', async (req, res) => {
+        try {
+            const { tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos, pedido_numero, produto_descricao, observacoes } = req.body;
+            const usuario_id = req.user?.id;
+            const operador = req.user?.nome || 'Operador';
+
+            if (!tipo_atividade || !nome_atividade) {
+                return res.status(400).json({ success: false, message: 'tipo_atividade e nome_atividade são obrigatórios' });
+            }
+
+            const horaInicioFormatada = hora_inicio ? new Date(hora_inicio).toISOString().slice(0, 19).replace('T', ' ') : null;
+            const horaFimFormatada = hora_fim ? new Date(hora_fim).toISOString().slice(0, 19).replace('T', ' ') : null;
+
+            // Buscar pedido_id se pedido_numero fornecido
+            let pedidoId = null;
+            if (pedido_numero) {
+                try {
+                    const [pedidos] = await pool.query('SELECT id FROM pedidos WHERE id = ? OR numero = ? LIMIT 1', [pedido_numero, pedido_numero]);
+                    if (pedidos.length > 0) pedidoId = pedidos[0].id;
+                } catch (e) { /* pedido não encontrado — ok */ }
+            }
+
+            // Verificar colunas extras
+            let hasExtraColumns = false;
+            try {
+                await pool.query('SELECT pedido_id FROM apontamentos_producao LIMIT 0');
+                hasExtraColumns = true;
+            } catch (e) { /* sem colunas extras */ }
+
+            let result;
+            if (hasExtraColumns) {
+                [result] = await pool.query(
+                    `INSERT INTO apontamentos_producao
+                     (usuario_id, operador, tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos, pedido_id, produto_descricao, observacoes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [usuario_id, operador, tipo_atividade, nome_atividade,
+                     horaInicioFormatada, horaFimFormatada, duracao_segundos || 0,
+                     pedidoId, produto_descricao || null, observacoes || null]
+                );
+            } else {
+                [result] = await pool.query(
+                    `INSERT INTO apontamentos_producao
+                     (usuario_id, operador, tipo_atividade, nome_atividade, hora_inicio, hora_fim, duracao_segundos)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [usuario_id, operador, tipo_atividade, nome_atividade,
+                     horaInicioFormatada, horaFimFormatada, duracao_segundos || 0]
+                );
+            }
+
+            console.log('[PCP/APONTAMENTOS/CHAO] Registro salvo, id:', result.insertId);
+            res.json({ success: true, id: result.insertId });
+        } catch (error) {
+            console.error('[PCP/APONTAMENTOS/CHAO] Erro:', error.message);
+            res.status(500).json({ success: false, message: 'Erro ao salvar apontamento' });
         }
     });
 

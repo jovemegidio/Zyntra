@@ -1,4 +1,4 @@
-﻿// auth-unified.js - Sistema de autenticação unificado para todos os módulos ALUFORCE
+// auth-unified.js - Sistema de autenticação unificado para todos os módulos ALUFORCE
 // VERSÃO 7.2 - ISOLAMENTO POR ABA + VALIDAÇÃO VIA SERVIDOR
 // FIX v7.0: Resolve o problema de "espelhamento" onde o login de outro usuário em outra aba
 //      sobrescreve a sessão da aba atual via localStorage/cookie compartilhados.
@@ -291,7 +291,7 @@
                 
                 // 🔐 v6.0: Salvar no sessionStorage DESTA ABA como fonte primária
                 setTabUserData(userData);
-                
+
                 // Disparar evento de sucesso
                 window.dispatchEvent(new CustomEvent('authSuccess', { 
                     detail: { user: userData } 
@@ -373,6 +373,17 @@
             if (serverUser) {
                 debugLog('✅ Sessão válida confirmada pelo servidor - salvando nesta aba');
                 setTabUserData(serverUser);
+
+                // v7.3 FIX: Copiar token do localStorage para sessionStorage desta aba
+                // O servidor confirmou a sessao via cookie, entao o localStorage tem token valido
+                // Precisamos salvar em sessionStorage para que getAuthHeaders() funcione isolado
+                if (!getTabToken()) {
+                    var lsToken = localStorage.getItem('authToken') || localStorage.getItem('token');
+                    if (lsToken && lsToken !== 'null') {
+                        setTabToken(lsToken);
+                        debugLog('Token copiado do localStorage para esta aba (server-cookie validou)');
+                    }
+                }
                 
                 // Mostrar a página
                 document.body?.classList?.remove('auth-loading');

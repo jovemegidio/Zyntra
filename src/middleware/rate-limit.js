@@ -129,6 +129,12 @@ function createRateLimiter(categoryOrOptions, customOptions = {}) {
     return (req, res, next) => {
         const userId = req.user?.id || 'anonymous';
         const ip = req.ip || req.connection?.remoteAddress || '127.0.0.1';
+
+        // Bypass rate limit for localhost (testing/internal requests)
+        if (ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') {
+            return next();
+        }
+
         const key = `${category}:${ip}:${userId}`;
 
         const now = Date.now();

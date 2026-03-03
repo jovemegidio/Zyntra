@@ -54,7 +54,8 @@ async function abrirConfiguracao(tipo) {
         'tipos-servico': 'modal-tipos-servico',
         'contratos': 'modal-contratos',
         'sla': 'modal-sla',
-        'nfse': 'modal-nfse'
+        'nfse': 'modal-nfse',
+        'custos-precificacao': 'modal-custos-precificacao'
     };
 
     const modalId = modalMap[tipo];
@@ -233,6 +234,31 @@ async function abrirConfiguracao(tipo) {
             break;
         case 'venda-servicos':
             loadVendaServicosConfig();
+            break;
+        case 'venda-produtos':
+            loadVendaProdutosConfig();
+            break;
+        case 'familias-produtos':
+            loadFamiliasData();
+            break;
+        case 'caracteristicas-produtos':
+            loadCaracteristicasData();
+            break;
+        case 'tipos-entrega':
+            loadTiposEntregaData();
+            loadTransportadorasSelect();
+            break;
+        case 'info-frete':
+            loadInfoFreteData();
+            break;
+        case 'clientes-fornecedores':
+            loadClientesFornecedoresConfig();
+            break;
+        case 'financas':
+            loadFinancasConfig();
+            break;
+        case 'custos-precificacao':
+            loadCustosPrecificacaoData();
             break;
     }
 }
@@ -972,6 +998,166 @@ async function saveFinanceConfig() {
     }
 }
 
+/**
+ * Carrega configurações de clientes e fornecedores do banco
+ */
+async function loadClientesFornecedoresConfig() {
+    try {
+        const response = await fetch('/api/configuracoes/clientes-fornecedores');
+        if (response.ok) {
+            const config = await response.json();
+            
+            // Validações
+            if (config.validacoes) {
+                const obrigarCnpj = document.getElementById('obrigar-cnpj-cpf');
+                const obrigarEnd = document.getElementById('obrigar-endereco');
+                const obrigarEmail = document.getElementById('obrigar-email');
+                const validarUnic = document.getElementById('validar-unicidade');
+                
+                if (obrigarCnpj) obrigarCnpj.checked = config.validacoes.obrigar_cnpj_cpf || false;
+                if (obrigarEnd) obrigarEnd.checked = config.validacoes.obrigar_endereco || false;
+                if (obrigarEmail) obrigarEmail.checked = config.validacoes.obrigar_email || false;
+                if (validarUnic) validarUnic.checked = config.validacoes.validar_unicidade || false;
+            }
+            
+            // Crédito
+            if (config.credito) {
+                const bloquearNovos = document.getElementById('bloquear-novos');
+                const limitePadrao = document.getElementById('limite-credito-padrao');
+                
+                if (bloquearNovos) bloquearNovos.checked = config.credito.bloquear_novos || false;
+                if (limitePadrao) limitePadrao.value = config.credito.limite_padrao || '0';
+            }
+            
+            // Tags
+            if (config.tags) {
+                const tagsAuto = document.getElementById('tags-automaticas');
+                if (tagsAuto) tagsAuto.checked = config.tags.tags_automaticas || false;
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar configurações clientes/fornecedores:', error);
+    }
+}
+
+/**
+ * Carrega configurações de finanças do banco
+ */
+async function loadFinancasConfig() {
+    try {
+        const response = await fetch('/api/configuracoes/financas');
+        if (response.ok) {
+            const config = await response.json();
+            
+            const contasAtraso = document.getElementById('contas-atraso');
+            const emailRemessa = document.getElementById('email-remessa');
+            const jurosMes = document.getElementById('juros-mes');
+            const multaAtraso = document.getElementById('multa-atraso');
+            
+            if (contasAtraso) contasAtraso.value = config.contas_atraso || 'nao-mostrar';
+            if (emailRemessa) emailRemessa.value = config.email_remessa || '';
+            if (jurosMes) jurosMes.value = config.juros_mes || '1.0';
+            if (multaAtraso) multaAtraso.value = config.multa_atraso || '2.0';
+        }
+    } catch (error) {
+        console.error('Erro ao carregar configurações de finanças:', error);
+    }
+}
+
+/**
+ * Carrega configurações de custos e precificação do banco
+ */
+async function loadCustosPrecificacaoData() {
+    try {
+        const response = await fetch('/api/configuracoes/custos-precificacao', {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
+        });
+        if (response.ok) {
+            const config = await response.json();
+            
+            // Método e margens
+            const metodo = document.getElementById('config-metodo-precificacao');
+            if (metodo) metodo.value = config.metodo_precificacao || 'markup';
+            
+            const margem = document.getElementById('config-margem-padrao');
+            if (margem) margem.value = config.margem_padrao || 30;
+            
+            const precoVenda = document.getElementById('config-preco-venda-padrao');
+            if (precoVenda) precoVenda.value = config.preco_venda_padrao || 0;
+            
+            const custoUnit = document.getElementById('config-custo-unitario-padrao');
+            if (custoUnit) custoUnit.value = config.custo_unitario_padrao || 0;
+            
+            // Composição
+            const inclFrete = document.getElementById('config-incluir-frete');
+            if (inclFrete) inclFrete.value = config.incluir_frete || 'sim';
+            
+            const inclImpostos = document.getElementById('config-incluir-impostos');
+            if (inclImpostos) inclImpostos.value = config.incluir_impostos || 'nao';
+            
+            const maoObra = document.getElementById('config-custo-mao-obra');
+            if (maoObra) maoObra.value = config.custo_mao_obra || 15;
+            
+            const indiretos = document.getElementById('config-custos-indiretos');
+            if (indiretos) indiretos.value = config.custos_indiretos || 10;
+            
+            // Fiscal
+            const ncm = document.getElementById('config-ncm-padrao');
+            if (ncm) ncm.value = config.ncm_padrao || '';
+            
+            const icms = document.getElementById('config-icms-padrao');
+            if (icms) icms.value = config.icms_padrao || 0;
+            
+            const regime = document.getElementById('config-regime-tributario');
+            if (regime) regime.value = config.regime_tributario || 'simples';
+            
+            const uf = document.getElementById('config-uf-origem');
+            if (uf) uf.value = config.uf_origem || 'SP';
+            
+            // Arredondamento
+            const casas = document.getElementById('config-casas-decimais');
+            if (casas) casas.value = config.casas_decimais || 2;
+            
+            const arred = document.getElementById('config-arredondamento');
+            if (arred) arred.value = config.arredondamento || 'matematico';
+            
+            const moeda = document.getElementById('config-exibir-moeda');
+            if (moeda) moeda.checked = config.exibir_moeda !== false;
+            
+            const margemExib = document.getElementById('config-exibir-margem');
+            if (margemExib) margemExib.checked = config.exibir_margem !== false;
+            
+            // Alertas
+            const alertaMargem = document.getElementById('config-alerta-margem-min');
+            if (alertaMargem) alertaMargem.value = config.alerta_margem_min || 10;
+            
+            const alertaPreco = document.getElementById('config-alerta-preco-custo');
+            if (alertaPreco) alertaPreco.value = config.alerta_preco_custo || 'aviso';
+            
+            const notifEmail = document.getElementById('config-notif-email-custos');
+            if (notifEmail) notifEmail.checked = config.notif_email || false;
+            
+            const notifSistema = document.getElementById('config-notif-sistema-custos');
+            if (notifSistema) notifSistema.checked = config.notif_sistema !== false;
+            
+            // Recalcular se funções existirem
+            if (typeof calcularExemploCusto === 'function') calcularExemploCusto();
+            if (typeof calcularMargemConfig === 'function') calcularMargemConfig();
+        } else {
+            // Fallback: tentar carregar do localStorage
+            const localConfig = localStorage.getItem('config_custos_precificacao');
+            if (localConfig) {
+                const config = JSON.parse(localConfig);
+                const metodo = document.getElementById('config-metodo-precificacao');
+                if (metodo) metodo.value = config.metodo_precificacao || 'markup';
+                // Aplicar demais campos do localStorage
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao carregar configurações de custos/precificação:', error);
+    }
+}
+
 // =========================
 // CATEGORIAS
 // =========================
@@ -983,7 +1169,8 @@ async function loadCategoriasData() {
     try {
         const response = await fetch('/api/configuracoes/categorias');
         if (response.ok) {
-            const categorias = await response.json();
+            const result = await response.json();
+            const categorias = Array.isArray(result) ? result : (result.data || []);
             displayCategorias(categorias);
         }
     } catch (error) {
@@ -1161,7 +1348,8 @@ async function loadDepartamentosData() {
     try {
         const response = await fetch('/api/configuracoes/departamentos');
         if (response.ok) {
-            const departamentos = await response.json();
+            const result = await response.json();
+            const departamentos = Array.isArray(result) ? result : (result.data || []);
             displayDepartamentos(departamentos);
         }
     } catch (error) {
@@ -1892,7 +2080,10 @@ window.loadVendaProdutosConfig = loadVendaProdutosConfig;
 window.saveVendaServicosConfig = saveVendaServicosConfig;
 window.loadVendaServicosConfig = loadVendaServicosConfig;
 window.saveClientesFornecedoresConfig = saveClientesFornecedoresConfig;
+window.loadClientesFornecedoresConfig = loadClientesFornecedoresConfig;
 window.saveFinanceConfig = saveFinanceConfig;
+window.loadFinancasConfig = loadFinancasConfig;
+window.loadCustosPrecificacaoData = loadCustosPrecificacaoData;
 // Tipos de Entrega
 window.abrirModalTiposEntrega = abrirModalTiposEntrega;
 window.abrirFormTipoEntrega = abrirFormTipoEntrega;
@@ -2034,35 +2225,46 @@ function displayFamilias(familias) {
 
     if (!familias || familias.length === 0) {
         tbody.innerHTML = `<tr>
-            <td colspan="6" class="text-center" style="padding: 40px; color: #6b7280;">
-                <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 12px; display: block; color: #cbd5e1;"></i>
-                Nenhuma família cadastrada
+            <td colspan="5" style="text-align: center; padding: 50px 20px; color: #9ca3af;">
+                <i class="fas fa-boxes" style="font-size: 48px; margin-bottom: 16px; display: block; color: #d1d5db;"></i>
+                <p style="font-size: 16px; margin-bottom: 8px; color: #6b7280;">Nenhuma família cadastrada</p>
+                <p style="font-size: 13px;">Clique em <strong>+ Incluir</strong> para adicionar</p>
             </td>
         </tr>`;
         if (info) info.textContent = '0 registros';
         return;
     }
 
-    tbody.innerHTML = familias.map(f => `
-        <tr>
-            <td><input type="checkbox" class="familia-check" value="${f.id}"></td>
-            <td>${f.nome || ''}</td>
-            <td>${f.codigo || '-'}</td>
-            <td>${formatDate(f.created_at || f.inclusao)}</td>
-            <td>${formatDate(f.updated_at || f.ultima_alteracao)}</td>
-            <td class="config-actions">
-                <button class="config-btn-icon" onclick="editarFamilia(${f.id})" title="Editar">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="config-btn-icon" onclick="anexosFamilia(${f.id})" title="Anexos">
-                    <i class="fas fa-paperclip"></i>
-                </button>
-                <button class="config-btn-icon danger" onclick="excluirFamilia(${f.id})" title="Excluir">
-                    <i class="fas fa-trash"></i>
-                </button>
+    tbody.innerHTML = familias.map(f => {
+        const statusBadge = f.ativo === 0 || f.ativo === '0' || f.ativo === false
+            ? '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #fee2e2; color: #dc2626; border-radius: 20px; font-size: 11px; font-weight: 500;"><i class="fas fa-times-circle"></i> Inativo</span>'
+            : '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #dcfce7; color: #16a34a; border-radius: 20px; font-size: 11px; font-weight: 500;"><i class="fas fa-check-circle"></i> Ativo</span>';
+        
+        return `
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 12px; font-weight: 500; color: #1f2937;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #6c5ce7, #a29bfe); display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 600;">
+                        ${f.nome ? f.nome.charAt(0).toUpperCase() : 'F'}
+                    </div>
+                    <span>${f.nome || '-'}</span>
+                </div>
+            </td>
+            <td style="padding: 12px; color: #6b7280; font-size: 13px;">${f.descricao || '-'}</td>
+            <td style="padding: 12px; text-align: center;">${statusBadge}</td>
+            <td style="padding: 12px; color: #6b7280; font-size: 12px;">${formatDate(f.created_at || f.inclusao)}</td>
+            <td style="padding: 12px; text-align: center;">
+                <div style="display: flex; gap: 6px; justify-content: center;">
+                    <button onclick="editarFamilia(${f.id})" title="Editar" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #dbeafe; color: #2563eb; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-edit" style="font-size: 12px;"></i>
+                    </button>
+                    <button onclick="excluirFamilia(${f.id})" title="Excluir" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-trash" style="font-size: 12px;"></i>
+                    </button>
+                </div>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
     
     if (info) info.textContent = `${familias.length} registro(s)`;
 }
@@ -2281,10 +2483,14 @@ function displayCaracteristicas(caracteristicas) {
     }
 
     tbody.innerHTML = caracteristicas.map(c => `
-        <tr style="border-bottom: 1px solid #f1f5f9;">
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
             <td style="padding: 14px 16px; font-weight: 500; color: #374151;">${c.nome || ''}</td>
-            <td style="padding: 14px 16px; color: #6b7280;">${c.possui_versao || c.conteudos_possiveis || '-'}</td>
-            <td style="padding: 14px 16px; color: #6b7280; font-size: 13px;">${formatDate(c.updated_at || c.ultima_alteracao)}</td>
+            <td style="padding: 14px 16px; color: #6b7280; font-size: 13px;">${c.conteudos_possiveis || '-'}</td>
+            <td style="padding: 14px 16px;">
+                <span style="padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; background: #dbeafe; color: #1d4ed8;">
+                    ${c.visualizar_em === 'cadastro' ? 'Cadastro' : c.visualizar_em === 'pedido' ? 'Pedido' : c.visualizar_em === 'nenhum' ? 'Oculto' : 'Todos'}
+                </span>
+            </td>
             <td style="padding: 14px 16px;">
                 <span style="padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; ${c.preenchimento === 'obrigatorio' ? 'background: #fef3c7; color: #92400e;' : 'background: #ecfdf5; color: #065f46;'}">
                     ${c.preenchimento === 'obrigatorio' ? 'Obrigatório' : 'Opcional'}
@@ -2292,11 +2498,11 @@ function displayCaracteristicas(caracteristicas) {
             </td>
             <td style="padding: 14px 16px; text-align: center;">
                 <div style="display: flex; gap: 8px; justify-content: center;">
-                    <button class="config-btn-icon" onclick="editarCaracteristica(${c.id})" title="Editar" style="width: 32px; height: 32px; border-radius: 6px;">
-                        <i class="fas fa-edit"></i>
+                    <button onclick="editarCaracteristica(${c.id})" title="Editar" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #dbeafe; color: #2563eb; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-edit" style="font-size: 12px;"></i>
                     </button>
-                    <button class="config-btn-icon danger" onclick="excluirCaracteristica(${c.id})" title="Excluir" style="width: 32px; height: 32px; border-radius: 6px;">
-                        <i class="fas fa-trash"></i>
+                    <button onclick="excluirCaracteristica(${c.id})" title="Excluir" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-trash" style="font-size: 12px;"></i>
                     </button>
                 </div>
             </td>
@@ -2449,7 +2655,8 @@ async function loadVendedoresData() {
     try {
         const response = await fetch('/api/configuracoes/vendedores');
         if (response.ok) {
-            vendedoresCache = await response.json();
+            const result = await response.json();
+            vendedoresCache = Array.isArray(result) ? result : (result.data || []);
             displayVendedores(vendedoresCache);
         }
     } catch (error) {
@@ -2618,11 +2825,20 @@ let compradorEditandoId = null;
 function abrirFormComprador(id = null) {
     const form = document.getElementById('form-novo-comprador');
     const titulo = document.getElementById('form-comprador-titulo');
+    const fotoPreview = document.getElementById('comprador-foto-preview');
+    const fotoUrlInput = document.getElementById('comprador-foto-url');
     
     // Resetar formulário
     document.getElementById('form-comprador-config').reset();
     document.getElementById('comprador-id').value = '';
     compradorEditandoId = null;
+    
+    // Reset foto preview
+    if (fotoPreview) {
+        fotoPreview.innerHTML = '<i class="fas fa-camera" style="font-size: 18px; opacity: 0.9;"></i>';
+        fotoPreview.style.background = 'linear-gradient(135deg, #0984e3, #74b9ff)';
+    }
+    if (fotoUrlInput) fotoUrlInput.value = '';
     
     if (id) {
         // Modo edição
@@ -2638,6 +2854,12 @@ function abrirFormComprador(id = null) {
             document.getElementById('comprador-limite').value = comprador.limite_aprovacao ? formatMoney(comprador.limite_aprovacao) : '';
             document.getElementById('comprador-situacao').value = comprador.situacao || 'ativo';
             document.getElementById('comprador-observacoes').value = comprador.observacoes || '';
+            // Carregar foto se existir
+            if (comprador.foto_url && fotoPreview) {
+                fotoPreview.innerHTML = `<img src="${comprador.foto_url}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<i class=\'fas fa-camera\' style=\'font-size: 18px; opacity: 0.9;\'></i>'">`;
+                fotoPreview.style.background = '#f1f5f9';
+                if (fotoUrlInput) fotoUrlInput.value = comprador.foto_url;
+            }
         }
     } else {
         // Modo inclusão
@@ -2646,6 +2868,38 @@ function abrirFormComprador(id = null) {
     
     form.style.display = 'block';
     form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * Preview foto do comprador via file input
+ */
+function previewFotoComprador(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('comprador-foto-preview');
+            if (preview) {
+                preview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                preview.style.background = '#f1f5f9';
+            }
+            // Salvar como data URL para upload posterior
+            const urlInput = document.getElementById('comprador-foto-url');
+            if (urlInput) urlInput.value = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+/**
+ * Preview foto do comprador via URL
+ */
+function previewFotoCompradorUrl(url) {
+    const preview = document.getElementById('comprador-foto-preview');
+    if (!preview || !url) return;
+    if (url.startsWith('http') || url.startsWith('data:')) {
+        preview.innerHTML = `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.parentElement.innerHTML='<i class=\'fas fa-camera\' style=\'font-size: 18px; opacity: 0.9;\'></i>'">`;
+        preview.style.background = '#f1f5f9';
+    }
 }
 
 /**
@@ -2663,6 +2917,7 @@ function fecharFormComprador() {
 async function salvarCompradorConfig() {
     const id = document.getElementById('comprador-id').value;
     
+    const fotoUrl = document.getElementById('comprador-foto-url') ? document.getElementById('comprador-foto-url').value.trim() : '';
     const dados = {
         nome: document.getElementById('comprador-nome').value.trim(),
         email: document.getElementById('comprador-email').value.trim(),
@@ -2670,7 +2925,8 @@ async function salvarCompradorConfig() {
         departamento: document.getElementById('comprador-departamento').value.trim(),
         limite_aprovacao: parseFloat(document.getElementById('comprador-limite').value.replace(/\./g, '').replace(',', '.')) || 0,
         situacao: document.getElementById('comprador-situacao').value,
-        observacoes: document.getElementById('comprador-observacoes').value.trim()
+        observacoes: document.getElementById('comprador-observacoes').value.trim(),
+        foto_url: (fotoUrl && !fotoUrl.startsWith('data:')) ? fotoUrl : null
     };
     
     if (!dados.nome) {
@@ -2707,15 +2963,14 @@ async function salvarCompradorConfig() {
  * Carrega dados de compradores
  */
 async function loadCompradoresData() {
-    const tbody = document.getElementById('compradores-list');
+    const container = document.getElementById('compradores-list');
     const info = document.getElementById('compradores-info');
     
-    if (tbody) {
-        tbody.innerHTML = `<tr>
-            <td colspan="6" class="text-center" style="padding: 40px; color: #6c757d;">
-                <i class="fas fa-spinner fa-spin"></i> Carregando compradores...
-            </td>
-        </tr>`;
+    if (container) {
+        container.innerHTML = `<div class="config-loading">
+            <div class="config-spinner"></div>
+            <span class="config-loading-text">Carregando compradores...</span>
+        </div>`;
     }
     
     try {
@@ -2725,7 +2980,6 @@ async function loadCompradoresData() {
             compradoresCache = Array.isArray(compradores) ? compradores : (compradores.data || []);
             displayCompradores(compradoresCache);
         } else {
-            // Dados de exemplo se API não retornar
             compradoresCache = getCompradoresPadrao();
             displayCompradores(compradoresCache);
         }
@@ -2741,58 +2995,88 @@ async function loadCompradoresData() {
  */
 function getCompradoresPadrao() {
     return [
-        { id: 1, nome: 'Andréia Tavares', situacao: 'ativo', inclusao: '2025-12-30', ultima_alteracao: '2025-12-30', incluido_por: 'Antônio Egídio Neto' },
+        { id: 1, nome: 'Andréia Trovão', situacao: 'ativo', inclusao: '2025-12-30', ultima_alteracao: '2025-12-30', incluido_por: 'Antônio Egídio Neto' },
         { id: 2, nome: 'Guilherme Dantas', situacao: 'ativo', inclusao: '2025-12-30', ultima_alteracao: '2025-12-30', incluido_por: 'Antônio Egídio Neto' }
     ];
 }
 
 /**
- * Exibe compradores na tabela
+ * Exibe compradores em cards profissionais
  */
 function displayCompradores(compradores) {
-    const tbody = document.getElementById('compradores-list');
+    const container = document.getElementById('compradores-list');
     const info = document.getElementById('compradores-info');
     
-    if (!tbody) return;
+    if (!container) return;
 
     if (!compradores || compradores.length === 0) {
-        tbody.innerHTML = `<tr>
-            <td colspan="6" class="text-center" style="padding: 40px; color: #6b7280;">
-                <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 12px; display: block; color: #cbd5e1;"></i>
-                Nenhum comprador cadastrado
-            </td>
-        </tr>`;
+        container.innerHTML = `<div class="config-empty-state">
+            <i class="fas fa-users" style="display: block;"></i>
+            <h4>Nenhum comprador cadastrado</h4>
+            <p>Clique em "Novo Comprador" para adicionar o primeiro.</p>
+        </div>`;
         if (info) info.textContent = '0 registros';
         return;
     }
 
-    tbody.innerHTML = compradores.map(c => {
-        const statusClass = c.situacao === 'ativo' ? 'status-ativo' : 'status-inativo';
-        const statusIcon = c.situacao === 'ativo' ? 'fa-check-circle' : 'fa-times-circle';
-        const statusText = c.situacao === 'ativo' ? 'Ativo' : 'Inativo';
+    container.innerHTML = compradores.map(c => {
+        const isAtivo = c.situacao === 'ativo';
+        const statusColor = isAtivo ? '#10b981' : '#ef4444';
+        const statusBg = isAtivo ? '#ecfdf5' : '#fef2f2';
+        const statusText = isAtivo ? 'Ativo' : 'Inativo';
+        const statusIcon = isAtivo ? 'fa-check-circle' : 'fa-times-circle';
+        const iniciais = (c.nome || '?').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+        const inclusao = formatDate(c.inclusao || c.created_at);
+        const alteracao = formatDate(c.ultima_alteracao || c.updated_at);
+        const incluidoPor = c.incluido_por || c.criado_por || '-';
+        const fotoHtml = c.foto_url
+            ? `<img src="${c.foto_url}" alt="${c.nome}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid #e2e8f0;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+               <div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #0984e3, #74b9ff); display: none; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0;">${iniciais}</div>`
+            : `<div style="width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #0984e3, #74b9ff); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 8px rgba(9,132,227,0.2);">${iniciais}</div>`;
+        const subtitleParts = [];
+        if (c.departamento) subtitleParts.push(`<span style="font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-building" style="font-size: 10px; color: #94a3b8;"></i>${c.departamento}</span>`);
+        if (c.email) subtitleParts.push(`<span style="font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-envelope" style="font-size: 10px; color: #94a3b8;"></i>${c.email}</span>`);
+        if (c.telefone) subtitleParts.push(`<span style="font-size: 12px; color: #64748b; display: inline-flex; align-items: center; gap: 4px;"><i class="fas fa-phone" style="font-size: 10px; color: #94a3b8;"></i>${c.telefone}</span>`);
+        const subtitleRow = subtitleParts.length > 0 ? `<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 3px;">${subtitleParts.join('')}</div>` : '';
         
         return `
-            <tr>
-                <td><span class="status-badge ${statusClass}"><i class="fas ${statusIcon}"></i> ${statusText}</span></td>
-                <td>${c.nome || ''}</td>
-                <td>${formatDate(c.inclusao || c.created_at)}</td>
-                <td>${formatDate(c.ultima_alteracao || c.updated_at)}</td>
-                <td>${c.incluido_por || c.criado_por || '-'}</td>
-                <td class="config-actions">
-                    <button class="config-btn-icon" onclick="editarComprador(${c.id})" title="Editar">
-                        <i class="fas fa-edit"></i>
+            <div class="config-item-card" style="padding: 14px 16px; cursor: default; border-radius: 12px;">
+                <div style="flex-shrink: 0; position: relative;">
+                    ${fotoHtml}
+                    <span style="position: absolute; bottom: -1px; right: -1px; width: 14px; height: 14px; border-radius: 50%; background: ${statusColor}; border: 2px solid #fff; display: block;"></span>
+                </div>
+                <div style="min-width: 0; flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                        <h4 style="margin: 0; font-size: 14px; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${c.nome || ''}</h4>
+                        <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: ${statusBg}; color: ${statusColor}; flex-shrink: 0;">
+                            <i class="fas ${statusIcon}" style="font-size: 9px;"></i> ${statusText}
+                        </span>
+                    </div>
+                    ${subtitleRow}
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <span style="font-size: 11.5px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="fas fa-calendar-plus" style="font-size: 9px;"></i> ${inclusao}
+                        </span>
+                        <span style="font-size: 11.5px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="fas fa-clock" style="font-size: 9px;"></i> ${alteracao}
+                        </span>
+                        <span style="font-size: 11.5px; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px;">
+                            <i class="fas fa-user-edit" style="font-size: 9px;"></i> ${incluidoPor}
+                        </span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                    <button onclick="editarComprador(${c.id})" title="Editar" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all 0.15s ease;" onmouseover="this.style.borderColor='#0984e3';this.style.color='#0984e3';this.style.background='#eff6ff'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b';this.style.background='#fff'">
+                        <i class="fas fa-pen"></i>
                     </button>
-                    <button class="config-btn-icon" onclick="anexosComprador(${c.id})" title="Anexos">
-                        <i class="fas fa-paperclip"></i>
+                    <button onclick="toggleSituacaoComprador(${c.id}, '${c.situacao}')" title="${isAtivo ? 'Inativar' : 'Ativar'}" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all 0.15s ease;" onmouseover="this.style.borderColor='${isAtivo ? '#f59e0b' : '#10b981'}';this.style.color='${isAtivo ? '#f59e0b' : '#10b981'}';this.style.background='${isAtivo ? '#fffbeb' : '#ecfdf5'}'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b';this.style.background='#fff'">
+                        <i class="fas ${isAtivo ? 'fa-toggle-off' : 'fa-toggle-on'}"></i>
                     </button>
-                    <button class="config-btn-icon" onclick="toggleSituacaoComprador(${c.id}, '${c.situacao}')" title="${c.situacao === 'ativo' ? 'Inativar' : 'Ativar'}">
-                        <i class="fas fa-ban"></i>
+                    <button onclick="excluirComprador(${c.id})" title="Excluir" style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 13px; transition: all 0.15s ease;" onmouseover="this.style.borderColor='#ef4444';this.style.color='#ef4444';this.style.background='#fef2f2'" onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#64748b';this.style.background='#fff'">
+                        <i class="fas fa-trash-alt"></i>
                     </button>
-                    <button class="config-btn-icon danger" onclick="excluirComprador(${c.id})" title="Excluir">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </td>
-            </tr>
+                </div>
+            </div>
         `;
     }).join('');
     
@@ -2918,6 +3202,8 @@ window.anexosComprador = anexosComprador;
 window.toggleSituacaoComprador = toggleSituacaoComprador;
 window.inativarComprador = inativarComprador;
 window.excluirComprador = excluirComprador;
+window.previewFotoComprador = previewFotoComprador;
+window.previewFotoCompradorUrl = previewFotoCompradorUrl;
 
 /**
  * Formata data para exibição
@@ -2956,6 +3242,10 @@ function abrirModal(modalId) {
 function fecharModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
+        // Blur focused element before hiding to prevent aria-hidden focus warning
+        if (modal.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
         modal.classList.remove('active');
         modal.style.setProperty('display', 'none', 'important');
         modal.style.setProperty('visibility', 'hidden', 'important');
@@ -3018,19 +3308,29 @@ function displayCargos(cargos) {
         return;
     }
 
-    tbody.innerHTML = cargos.map(c => `
-        <tr data-id="${c.id}">
-            <td>${c.nome || ''}</td>
-            <td>${c.departamento || ''}</td>
-            <td><span class="config-badge config-badge-${getNivelClass(c.nivel)}">${c.nivel || 'Operacional'}</span></td>
-            <td>${c.cbo || ''}</td>
-            <td><span class="config-badge">${c.total_funcionarios || 0}</span></td>
-            <td class="config-actions">
-                <button class="config-btn-icon" onclick="editarCargo(${c.id})" title="Editar"><i class="fas fa-edit"></i></button>
-                <button class="config-btn-icon danger" onclick="excluirCargo(${c.id}, '${c.nome}')" title="Excluir"><i class="fas fa-trash"></i></button>
+    tbody.innerHTML = cargos.map(c => {
+        const nivelColors = {
+            'Executivo': { bg: '#f3e8ff', color: '#7c3aed' },
+            'Gerencial': { bg: '#dbeafe', color: '#2563eb' },
+            'Técnico': { bg: '#dcfce7', color: '#16a34a' },
+            'Operacional': { bg: '#f1f5f9', color: '#64748b' }
+        };
+        const nc = nivelColors[c.nivel] || nivelColors['Operacional'];
+        return `
+        <tr data-id="${c.id}" style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 12px; font-weight: 500; color: #1f2937;">${c.nome || ''}</td>
+            <td style="padding: 12px; color: #6b7280;">${c.departamento || ''}</td>
+            <td style="padding: 12px;"><span style="display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: ${nc.bg}; color: ${nc.color};">${c.nivel || 'Operacional'}</span></td>
+            <td style="padding: 12px; color: #6b7280; font-family: monospace;">${c.cbo || ''}</td>
+            <td style="padding: 12px;"><span style="display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 22px; padding: 0 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: #e0e7ff; color: #4f46e5;">${c.total_funcionarios || 0}</span></td>
+            <td style="padding: 12px;">
+                <div style="display: flex; gap: 4px; justify-content: center;">
+                    <button onclick="editarCargo(${c.id})" title="Editar" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #dbeafe; color: #2563eb; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#2563eb';this.style.color='white'" onmouseout="this.style.background='#dbeafe';this.style.color='#2563eb'"><i class="fas fa-edit" style="font-size: 12px;"></i></button>
+                    <button onclick="excluirCargo(${c.id}, '${(c.nome || '').replace(/'/g, "\\'")}'  )" title="Excluir" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#dc2626';this.style.color='white'" onmouseout="this.style.background='#fee2e2';this.style.color='#dc2626'"><i class="fas fa-trash" style="font-size: 12px;"></i></button>
+                </div>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function getNivelClass(nivel) {
@@ -3256,17 +3556,54 @@ async function loadFolhaPagamentoData() {
     try {
         const response = await fetch('/api/rh/configuracoes/folha-pagamento');
         if (response.ok) {
-            const data = await response.json();
+            const result = await response.json();
+            const data = result.data || result;
             if (data) {
-                // Preencher campos do formulário
-                const diaFechamento = document.querySelector('#modal-folha-pagamento select[name="dia_fechamento"]');
-                const diaPagamento = document.querySelector('#modal-folha-pagamento select[name="dia_pagamento"]');
-                if (diaFechamento) diaFechamento.value = data.dia_fechamento || '25';
-                if (diaPagamento) diaPagamento.value = data.dia_pagamento || '5';
+                const df = document.getElementById('folha-dia-fechamento');
+                const dp = document.getElementById('folha-dia-pagamento');
+                const inss = document.getElementById('folha-inss');
+                const fgts = document.getElementById('folha-fgts');
+                const vt = document.getElementById('folha-vt');
+                const vr = document.getElementById('folha-vr');
+                if (df) df.value = data.dia_fechamento || '25';
+                if (dp) dp.value = data.dia_pagamento || '5';
+                if (inss) inss.value = data.inss_patronal || '20';
+                if (fgts) fgts.value = data.fgts || '8';
+                if (vt) vt.value = data.vale_transporte || '6';
+                if (vr) vr.value = data.vale_refeicao || '20';
             }
         }
     } catch (error) {
         console.error('Erro ao carregar configurações de folha:', error);
+    }
+}
+
+async function saveFolhaPagamentoConfig() {
+    try {
+        const payload = {
+            dia_fechamento: document.getElementById('folha-dia-fechamento')?.value || '25',
+            dia_pagamento: document.getElementById('folha-dia-pagamento')?.value || '5',
+            inss_patronal: document.getElementById('folha-inss')?.value || '20',
+            fgts: document.getElementById('folha-fgts')?.value || '8',
+            vale_transporte: document.getElementById('folha-vt')?.value || '6',
+            vale_refeicao: document.getElementById('folha-vr')?.value || '20'
+        };
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/rh/configuracoes/folha-pagamento', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            if (typeof showNotification === 'function') showNotification('Configurações da folha salvas!', 'success');
+            else alert('Configurações salvas!');
+        } else {
+            throw new Error('Erro ao salvar');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar folha:', error);
+        if (typeof showNotification === 'function') showNotification('Erro ao salvar configurações', 'error');
+        else alert('Erro ao salvar configurações');
     }
 }
 
@@ -3277,13 +3614,69 @@ async function loadPontoEletronicoData() {
     try {
         const response = await fetch('/api/rh/configuracoes/ponto-eletronico');
         if (response.ok) {
-            const data = await response.json();
+            const result = await response.json();
+            const data = result.data || result;
             if (data) {
-                // Preencher campos do formulário
+                const ent = document.getElementById('ponto-entrada');
+                const sa = document.getElementById('ponto-saida-almoco');
+                const ra = document.getElementById('ponto-retorno-almoco');
+                const sai = document.getElementById('ponto-saida');
+                const tol = document.getElementById('ponto-tolerancia');
+                const he = document.getElementById('ponto-horas-extras');
+                const notif = document.getElementById('ponto-notificar');
+                if (ent) ent.value = data.entrada || '08:00';
+                if (sa) sa.value = data.saida_almoco || '12:00';
+                if (ra) ra.value = data.retorno_almoco || '13:00';
+                if (sai) sai.value = data.saida || '17:00';
+                if (tol) {
+                    tol.checked = data.tolerancia_atraso === 'true' || data.tolerancia_atraso === true;
+                    const slider = tol.nextElementSibling;
+                    if (slider) slider.style.backgroundColor = tol.checked ? '#10b981' : '#cbd5e1';
+                }
+                if (he) {
+                    he.checked = data.horas_extras_auto === 'true' || data.horas_extras_auto === true;
+                    const slider = he.nextElementSibling;
+                    if (slider) slider.style.backgroundColor = he.checked ? '#10b981' : '#cbd5e1';
+                }
+                if (notif) {
+                    notif.checked = data.notificar_gestores === 'true' || data.notificar_gestores === true;
+                    const slider = notif.nextElementSibling;
+                    if (slider) slider.style.backgroundColor = notif.checked ? '#10b981' : '#cbd5e1';
+                }
             }
         }
     } catch (error) {
         console.error('Erro ao carregar configurações de ponto:', error);
+    }
+}
+
+async function savePontoConfig() {
+    try {
+        const payload = {
+            entrada: document.getElementById('ponto-entrada')?.value || '08:00',
+            saida_almoco: document.getElementById('ponto-saida-almoco')?.value || '12:00',
+            retorno_almoco: document.getElementById('ponto-retorno-almoco')?.value || '13:00',
+            saida: document.getElementById('ponto-saida')?.value || '17:00',
+            tolerancia_atraso: document.getElementById('ponto-tolerancia')?.checked ? 'true' : 'false',
+            horas_extras_auto: document.getElementById('ponto-horas-extras')?.checked ? 'true' : 'false',
+            notificar_gestores: document.getElementById('ponto-notificar')?.checked ? 'true' : 'false'
+        };
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/rh/configuracoes/ponto-eletronico', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+            if (typeof showNotification === 'function') showNotification('Configurações do ponto salvas!', 'success');
+            else alert('Configurações salvas!');
+        } else {
+            throw new Error('Erro ao salvar');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar ponto:', error);
+        if (typeof showNotification === 'function') showNotification('Erro ao salvar configurações', 'error');
+        else alert('Erro ao salvar configurações');
     }
 }
 
@@ -4519,15 +4912,34 @@ function displayRegioesVenda(regioes) {
     const tbody = document.querySelector('#modal-regioes-venda tbody');
     if (!tbody) return;
 
+    if (!regioes || regioes.length === 0) {
+        tbody.innerHTML = `<tr>
+            <td colspan="5" style="text-align: center; padding: 50px 20px; color: #9ca3af;">
+                <i class="fas fa-map-marked-alt" style="font-size: 48px; margin-bottom: 16px; display: block; color: #d1d5db;"></i>
+                <p style="font-size: 16px; margin-bottom: 8px; color: #6b7280;">Nenhuma região cadastrada</p>
+                <p style="font-size: 13px;">Clique em <strong>+ Nova Região</strong> para adicionar</p>
+            </td>
+        </tr>`;
+        return;
+    }
+
     tbody.innerHTML = regioes.map(r => `
-        <tr>
-            <td>${r.nome || ''}</td>
-            <td>${r.estados || ''}</td>
-            <td>${r.vendedor_responsavel || ''}</td>
-            <td>${r.total_clientes || 0}</td>
-            <td class="config-actions">
-                <button class="config-btn-icon" onclick="editarRegiao(${r.id})" title="Editar"><i class="fas fa-edit"></i></button>
-                <button class="config-btn-icon danger" onclick="excluirRegiao(${r.id})" title="Excluir"><i class="fas fa-trash"></i></button>
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 12px 12px; font-weight: 500; color: #1f2937;">${r.nome || ''}</td>
+            <td style="padding: 12px 12px; color: #6b7280;">${r.estados || '-'}</td>
+            <td style="padding: 12px 12px; color: #6b7280;">${r.vendedor_responsavel || '-'}</td>
+            <td style="padding: 12px 12px; text-align: center;">
+                <span style="padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; background: #dbeafe; color: #1d4ed8;">${r.total_clientes || 0}</span>
+            </td>
+            <td style="padding: 12px 12px; text-align: center;">
+                <div style="display: flex; gap: 6px; justify-content: center;">
+                    <button onclick="editarRegiao(${r.id})" title="Editar" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #dbeafe; color: #2563eb; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-edit" style="font-size: 12px;"></i>
+                    </button>
+                    <button onclick="excluirRegiao(${r.id})" title="Excluir" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-trash" style="font-size: 12px;"></i>
+                    </button>
+                </div>
             </td>
         </tr>
     `).join('');
@@ -4583,18 +4995,39 @@ async function loadCondicoesPagamentoData() {
 }
 
 function displayCondicoesPagamento(condicoes) {
-    const tbody = document.querySelector('#modal-condicoes-pagamento tbody');
+    const tbody = document.querySelector('#condicoes-pagamento-tbody');
     if (!tbody) return;
 
+    if (!condicoes || condicoes.length === 0) {
+        tbody.innerHTML = `<tr>
+            <td colspan="5" style="text-align: center; padding: 50px 20px; color: #9ca3af;">
+                <i class="fas fa-handshake" style="font-size: 48px; margin-bottom: 16px; display: block; color: #d1d5db;"></i>
+                <p style="font-size: 16px; margin-bottom: 8px; color: #6b7280;">Nenhuma condição cadastrada</p>
+                <p style="font-size: 13px;">Clique em <strong>+ Nova Condição</strong> para adicionar</p>
+            </td>
+        </tr>`;
+        return;
+    }
+
     tbody.innerHTML = condicoes.map(c => `
-        <tr>
-            <td>${c.nome || ''}</td>
-            <td>${c.parcelas || 1}</td>
-            <td>${c.prazo || 0} dias</td>
-            <td>${c.acrescimo || 0}%</td>
-            <td class="config-actions">
-                <button class="config-btn-icon" onclick="editarCondicao(${c.id})" title="Editar"><i class="fas fa-edit"></i></button>
-                <button class="config-btn-icon danger" onclick="excluirCondicao(${c.id})" title="Excluir"><i class="fas fa-trash"></i></button>
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 12px 12px; font-weight: 500; color: #1f2937;">${c.nome || ''}</td>
+            <td style="padding: 12px 12px; text-align: center;">
+                <span style="padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; background: #f3e8ff; color: #7c3aed;">${c.parcelas || 1}x</span>
+            </td>
+            <td style="padding: 12px 12px; color: #6b7280;">${c.dias || c.prazo || 0} dias</td>
+            <td style="padding: 12px 12px; text-align: center;">
+                <span style="font-weight: 500; color: ${(c.acrescimo || 0) > 0 ? '#dc2626' : '#16a34a'};">${c.acrescimo || 0}%</span>
+            </td>
+            <td style="padding: 12px 12px; text-align: center;">
+                <div style="display: flex; gap: 6px; justify-content: center;">
+                    <button onclick="editarCondicao(${c.id})" title="Editar" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #dbeafe; color: #2563eb; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-edit" style="font-size: 12px;"></i>
+                    </button>
+                    <button onclick="excluirCondicao(${c.id})" title="Excluir" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-trash" style="font-size: 12px;"></i>
+                    </button>
+                </div>
             </td>
         </tr>
     `).join('');
@@ -5041,13 +5474,13 @@ function displayUnidadesMedida(unidades) {
         const tipoLabel = tipoLabels[u.tipo] || u.tipo || '-';
         
         return `
-            <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-                <td style="padding: 12px;">
+            <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s; cursor: pointer;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'" title="Duplo clique para editar">
+                <td style="padding: 12px;" ondblclick="editarUnidadeInline(${u.id}, 'sigla', '${(u.sigla || '').replace(/'/g, "\\'")}', this)">
                     <span style="display: inline-block; padding: 6px 12px; background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; border-radius: 6px; font-weight: 600; font-size: 13px;">
                         ${u.sigla || '-'}
                     </span>
                 </td>
-                <td style="padding: 12px;">
+                <td style="padding: 12px;" ondblclick="editarUnidadeInline(${u.id}, 'nome', '${(u.nome || '').replace(/'/g, "\\'")}', this)">
                     <span style="font-weight: 500; color: #1f2937;">${u.nome || '-'}</span>
                 </td>
                 <td style="padding: 12px;">
@@ -5076,8 +5509,65 @@ function displayUnidadesMedida(unidades) {
 /**
  * Editar unidade de medida
  */
-function editarUnidadeInline(id) {
-    abrirFormUnidade(id);
+/**
+ * Editar unidade - via botão (1 param) abre form, via duplo clique (4 params) edita inline
+ */
+function editarUnidadeInline(id, campo, valorAtual, element) {
+    // Se chamado sem campo (via botão), abre o formulário
+    if (!campo) {
+        abrirFormUnidade(id);
+        return;
+    }
+    
+    // Se chamado com campo (via double-click), edita inline
+    if (element.querySelector('input')) return;
+    
+    const originalHTML = element.innerHTML;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = valorAtual;
+    input.style.cssText = 'width: 100%; padding: 6px 8px; border: 2px solid #3b82f6; border-radius: 6px; font-size: 13px; outline: none;';
+    
+    element.innerHTML = '';
+    element.appendChild(input);
+    input.focus();
+    input.select();
+    
+    const salvar = async () => {
+        const novoValor = input.value.trim();
+        if (!novoValor || novoValor === valorAtual) {
+            element.innerHTML = originalHTML;
+            return;
+        }
+        
+        try {
+            const dados = {};
+            dados[campo] = campo === 'sigla' ? novoValor.toUpperCase() : novoValor;
+            
+            const response = await fetch(`/api/produtos/unidades-medida/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            });
+            
+            if (response.ok) {
+                showNotification('Unidade atualizada!', 'success');
+                loadUnidadesMedidaData();
+            } else {
+                element.innerHTML = originalHTML;
+                showNotification('Erro ao atualizar', 'error');
+            }
+        } catch (error) {
+            element.innerHTML = originalHTML;
+            showNotification('Erro ao atualizar', 'error');
+        }
+    };
+    
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') salvar();
+        if (e.key === 'Escape') element.innerHTML = originalHTML;
+    });
+    input.addEventListener('blur', salvar);
 }
 
 /**
@@ -5940,25 +6430,44 @@ function renderizarFuncionarios(lista = null) {
     tbody.innerHTML = paginados.map(f => {
         // Normalizar status para lowercase para comparação
         const statusLower = (f.status || 'ativo').toLowerCase();
-        const statusClass = statusLower === 'ativo' ? 'status-ativo' : 
-                           statusLower === 'inativo' ? 'status-inativo' : 
-                           statusLower === 'ferias' || statusLower === 'férias' ? 'status-ferias' : 'status-afastado';
+        const statusBg = statusLower === 'ativo' ? '#dcfce7' : 
+                        statusLower === 'inativo' || statusLower === 'demitido' ? '#fee2e2' : 
+                        statusLower === 'ferias' || statusLower === 'férias' ? '#fef3c7' : '#e0e7ff';
+        const statusColor = statusLower === 'ativo' ? '#16a34a' : 
+                           statusLower === 'inativo' || statusLower === 'demitido' ? '#dc2626' : 
+                           statusLower === 'ferias' || statusLower === 'férias' ? '#d97706' : '#4f46e5';
         const statusIcon = statusLower === 'ativo' ? 'check-circle' : 
-                          statusLower === 'inativo' ? 'times-circle' : 
+                          statusLower === 'inativo' || statusLower === 'demitido' ? 'times-circle' : 
                           statusLower === 'ferias' || statusLower === 'férias' ? 'umbrella-beach' : 'user-clock';
-        const statusLabel = f.status || 'Ativo';
+        const statusLabel = f.status ? f.status.charAt(0).toUpperCase() + f.status.slice(1) : 'Ativo';
+        
+        // CPF: tratar valores encriptados, hash, ou inválidos
+        const cpfRaw = f.cpf || '';
+        const cpfDisplay = cpfRaw && !cpfRaw.includes('ENCRYPTED') && !cpfRaw.startsWith('ENC:') && !cpfRaw.startsWith('$') && cpfRaw.length <= 14 ? cpfRaw : '';
         
         return `
-        <tr>
-            <td><span class="status-badge ${statusClass}"><i class="fas fa-${statusIcon}"></i> ${statusLabel}</span></td>
-            <td>${f.nome || ''}</td>
-            <td>${f.cargo || ''}</td>
-            <td>${f.departamento || ''}</td>
-            <td>${formatDate(f.data_admissao) || '-'}</td>
-            <td class="config-actions">
-                <button class="config-btn-icon" onclick="editarFuncionario(${f.id})" title="Editar"><i class="fas fa-edit"></i></button>
-                <button class="config-btn-icon" onclick="verDetalhesFuncionario(${f.id})" title="Ver detalhes"><i class="fas fa-eye"></i></button>
-                <button class="config-btn-icon danger" onclick="excluirFuncionario(${f.id})" title="Excluir"><i class="fas fa-trash"></i></button>
+        <tr style="border-bottom: 1px solid #f1f5f9; transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 12px;">
+                <span style="display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: ${statusBg}; color: ${statusColor};">
+                    <i class="fas fa-${statusIcon}" style="font-size: 10px;"></i> ${statusLabel}
+                </span>
+            </td>
+            <td style="padding: 12px; font-weight: 500; color: #1f2937;">${f.nome || ''}</td>
+            <td style="padding: 12px; color: #6b7280;">${f.cargo || ''}</td>
+            <td style="padding: 12px; color: #6b7280;">${f.departamento || ''}</td>
+            <td style="padding: 12px; color: #6b7280; font-size: 13px;">${formatDate(f.data_admissao) || '-'}</td>
+            <td style="padding: 12px;">
+                <div style="display: flex; gap: 4px; justify-content: center;">
+                    <button onclick="editarFuncionario(${f.id})" title="Editar" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #dbeafe; color: #2563eb; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#2563eb';this.style.color='white'" onmouseout="this.style.background='#dbeafe';this.style.color='#2563eb'">
+                        <i class="fas fa-edit" style="font-size: 12px;"></i>
+                    </button>
+                    <button onclick="verDetalhesFuncionario(${f.id})" title="Ver detalhes" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #e0e7ff; color: #4f46e5; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#4f46e5';this.style.color='white'" onmouseout="this.style.background='#e0e7ff';this.style.color='#4f46e5'">
+                        <i class="fas fa-eye" style="font-size: 12px;"></i>
+                    </button>
+                    <button onclick="excluirFuncionario(${f.id})" title="Excluir" style="width: 30px; height: 30px; border: none; border-radius: 6px; background: #fee2e2; color: #dc2626; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#dc2626';this.style.color='white'" onmouseout="this.style.background='#fee2e2';this.style.color='#dc2626'">
+                        <i class="fas fa-trash" style="font-size: 12px;"></i>
+                    </button>
+                </div>
             </td>
         </tr>`;
     }).join('');
@@ -5980,20 +6489,25 @@ function renderizarPaginacaoFuncionarios(total) {
         return;
     }
     
-    let html = '';
-    html += `<button class="config-btn-icon" onclick="funcionariosPagina = 1; renderizarFuncionarios()" ${funcionariosPagina === 1 ? 'disabled' : ''}><i class="fas fa-angle-double-left"></i></button>`;
-    html += `<button class="config-btn-icon" onclick="funcionariosPagina--; renderizarFuncionarios()" ${funcionariosPagina === 1 ? 'disabled' : ''}><i class="fas fa-angle-left"></i></button>`;
+    const pgBtnStyle = `min-width: 32px; height: 32px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; color: #475569; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; transition: all 0.2s;`;
+    const pgBtnActiveStyle = `min-width: 32px; height: 32px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; transition: all 0.2s;`;
+    const pgBtnDisabledStyle = `min-width: 32px; height: 32px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; color: #cbd5e1; cursor: not-allowed; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; transition: all 0.2s;`;
+    
+    let html = '<div style="display: flex; gap: 4px; align-items: center; justify-content: center; padding: 12px 0;">';
+    html += `<button style="${funcionariosPagina === 1 ? pgBtnDisabledStyle : pgBtnStyle}" onclick="funcionariosPagina = 1; renderizarFuncionarios()" ${funcionariosPagina === 1 ? 'disabled' : ''} onmouseover="if(!this.disabled){this.style.background='#f1f5f9';this.style.borderColor='#94a3b8'}" onmouseout="if(!this.disabled){this.style.background='white';this.style.borderColor='#e2e8f0'}"><i class="fas fa-angle-double-left" style="font-size: 12px;"></i></button>`;
+    html += `<button style="${funcionariosPagina === 1 ? pgBtnDisabledStyle : pgBtnStyle}" onclick="funcionariosPagina--; renderizarFuncionarios()" ${funcionariosPagina === 1 ? 'disabled' : ''} onmouseover="if(!this.disabled){this.style.background='#f1f5f9';this.style.borderColor='#94a3b8'}" onmouseout="if(!this.disabled){this.style.background='white';this.style.borderColor='#e2e8f0'}"><i class="fas fa-angle-left" style="font-size: 12px;"></i></button>`;
     
     for (let i = 1; i <= totalPaginas; i++) {
         if (i === 1 || i === totalPaginas || (i >= funcionariosPagina - 1 && i <= funcionariosPagina + 1)) {
-            html += `<button class="config-btn-icon ${i === funcionariosPagina ? 'active' : ''}" onclick="funcionariosPagina = ${i}; renderizarFuncionarios()">${i}</button>`;
+            html += `<button style="${i === funcionariosPagina ? pgBtnActiveStyle : pgBtnStyle}" onclick="funcionariosPagina = ${i}; renderizarFuncionarios()" ${i === funcionariosPagina ? '' : 'onmouseover="this.style.background=\'#f1f5f9\';this.style.borderColor=\'#94a3b8\'" onmouseout="this.style.background=\'white\';this.style.borderColor=\'#e2e8f0\'"'}>${i}</button>`;
         } else if (i === funcionariosPagina - 2 || i === funcionariosPagina + 2) {
-            html += `<span style="padding: 0 5px;">...</span>`;
+            html += `<span style="padding: 0 5px; color: #94a3b8;">...</span>`;
         }
     }
     
-    html += `<button class="config-btn-icon" onclick="funcionariosPagina++; renderizarFuncionarios()" ${funcionariosPagina === totalPaginas ? 'disabled' : ''}><i class="fas fa-angle-right"></i></button>`;
-    html += `<button class="config-btn-icon" onclick="funcionariosPagina = ${totalPaginas}; renderizarFuncionarios()" ${funcionariosPagina === totalPaginas ? 'disabled' : ''}><i class="fas fa-angle-double-right"></i></button>`;
+    html += `<button style="${funcionariosPagina === totalPaginas ? pgBtnDisabledStyle : pgBtnStyle}" onclick="funcionariosPagina++; renderizarFuncionarios()" ${funcionariosPagina === totalPaginas ? 'disabled' : ''} onmouseover="if(!this.disabled){this.style.background='#f1f5f9';this.style.borderColor='#94a3b8'}" onmouseout="if(!this.disabled){this.style.background='white';this.style.borderColor='#e2e8f0'}"><i class="fas fa-angle-right" style="font-size: 12px;"></i></button>`;
+    html += `<button style="${funcionariosPagina === totalPaginas ? pgBtnDisabledStyle : pgBtnStyle}" onclick="funcionariosPagina = ${totalPaginas}; renderizarFuncionarios()" ${funcionariosPagina === totalPaginas ? 'disabled' : ''} onmouseover="if(!this.disabled){this.style.background='#f1f5f9';this.style.borderColor='#94a3b8'}" onmouseout="if(!this.disabled){this.style.background='white';this.style.borderColor='#e2e8f0'}"><i class="fas fa-angle-double-right" style="font-size: 12px;"></i></button>`;
+    html += '</div>';
     
     container.innerHTML = html;
 }
@@ -6176,7 +6690,11 @@ function verDetalhesFuncionario(id) {
     // Preencher dados no modal
     document.getElementById('detalhe-func-nome').textContent = funcionario.nome || funcionario.nome_completo || '-';
     document.getElementById('detalhe-func-cargo-dept').textContent = `${funcionario.cargo || '-'} - ${funcionario.departamento || '-'}`;
-    document.getElementById('detalhe-func-cpf').textContent = funcionario.cpf || '-';
+    // CPF: tratar valores null, ENC: (criptografado irrecuperável), ENCRYPTED, ou hash bcrypt
+    const cpfVal = funcionario.cpf || '';
+    const isCpfValid = /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(cpfVal.trim());
+    const cpfClean = cpfVal.startsWith('ENC:') || cpfVal.includes('ENCRYPTED') || cpfVal.startsWith('$2') ? '' : cpfVal;
+    document.getElementById('detalhe-func-cpf').textContent = isCpfValid ? cpfVal : (cpfClean || 'Não informado');
     document.getElementById('detalhe-func-rg').textContent = funcionario.rg || '-';
     document.getElementById('detalhe-func-nascimento').textContent = formatDate(funcionario.data_nascimento) || '-';
     document.getElementById('detalhe-func-email').textContent = funcionario.email || '-';
@@ -6207,8 +6725,13 @@ function verDetalhesFuncionario(id) {
 }
 
 function abrirAbaDetalheFunc(aba) {
-    // Desativar todas as abas
-    document.querySelectorAll('#modal-detalhes-funcionario .config-tab').forEach(tab => tab.classList.remove('active'));
+    // Desativar todas as abas - reset visual
+    document.querySelectorAll('#modal-detalhes-funcionario .config-tab').forEach(tab => {
+        tab.classList.remove('active');
+        tab.style.color = '#64748b';
+        tab.style.fontWeight = '500';
+        tab.style.borderBottom = '2px solid transparent';
+    });
     document.querySelectorAll('#modal-detalhes-funcionario .config-tab-content').forEach(content => {
         content.classList.remove('active');
         content.style.display = 'none';
@@ -6218,7 +6741,12 @@ function abrirAbaDetalheFunc(aba) {
     const tabBtn = document.querySelector(`#modal-detalhes-funcionario .config-tab[data-tab="tab-${aba}-func"]`);
     const tabContent = document.getElementById(`tab-${aba}-func`);
     
-    if (tabBtn) tabBtn.classList.add('active');
+    if (tabBtn) {
+        tabBtn.classList.add('active');
+        tabBtn.style.color = '#2563eb';
+        tabBtn.style.fontWeight = '600';
+        tabBtn.style.borderBottom = '2px solid #2563eb';
+    }
     if (tabContent) {
         tabContent.classList.add('active');
         tabContent.style.display = 'block';
@@ -6668,28 +7196,33 @@ function exportarHistorico() {
 // Funções auxiliares para histórico
 function getBadgeClass(acao) {
     const classes = {
-        'criar': 'badge-criar',
-        'editar': 'badge-editar',
-        'excluir': 'badge-excluir',
-        'login': 'badge-login',
-        'config': 'badge-config',
-        'configurar': 'badge-config',
-        'perfil': 'badge-perfil'
+        'criar': 'badge-criar', 'create': 'badge-criar', 'insert': 'badge-criar',
+        'editar': 'badge-editar', 'edit': 'badge-editar', 'update': 'badge-editar', 'UPDATE': 'badge-editar',
+        'excluir': 'badge-excluir', 'delete': 'badge-excluir', 'DELETE': 'badge-excluir', 'remove': 'badge-excluir',
+        'login': 'badge-login', 'LOGIN': 'badge-login', 'logout': 'badge-login',
+        'config': 'badge-config', 'configurar': 'badge-config', 'SETTINGS': 'badge-config',
+        'perfil': 'badge-perfil', 'profile': 'badge-perfil',
+        'visualizar': 'badge-info', 'view': 'badge-info', 'GET': 'badge-info',
+        'exportar': 'badge-info', 'export': 'badge-info',
+        'importar': 'badge-criar', 'import': 'badge-criar'
     };
-    return classes[(acao || '').toLowerCase()] || 'badge-info';
+    return classes[(acao || '').toLowerCase()] || classes[(acao || '')] || 'badge-info';
 }
 
 function getBadgeIcon(acao) {
     const icons = {
-        'criar': 'plus',
-        'editar': 'edit',
-        'excluir': 'trash',
-        'login': 'sign-in-alt',
-        'config': 'cog',
-        'configurar': 'cog',
-        'perfil': 'user'
+        'criar': 'plus', 'create': 'plus', 'insert': 'plus',
+        'editar': 'edit', 'edit': 'edit', 'update': 'edit', 'UPDATE': 'edit',
+        'excluir': 'trash', 'delete': 'trash', 'DELETE': 'trash', 'remove': 'trash',
+        'login': 'sign-in-alt', 'LOGIN': 'sign-in-alt',
+        'logout': 'sign-out-alt',
+        'config': 'cog', 'configurar': 'cog', 'SETTINGS': 'cog',
+        'perfil': 'user', 'profile': 'user',
+        'visualizar': 'eye', 'view': 'eye', 'GET': 'eye',
+        'exportar': 'download', 'export': 'download',
+        'importar': 'upload', 'import': 'upload'
     };
-    return icons[(acao || '').toLowerCase()] || 'info';
+    return icons[(acao || '').toLowerCase()] || icons[(acao || '')] || 'info';
 }
 
 function getAvatarColor(modulo) {
@@ -6713,7 +7246,9 @@ function getAvatarClass(modulo) {
         'financeiro': 'avatar-purple',
         'rh': 'avatar-teal',
         'nfe': 'avatar-red',
-        'sistema': 'avatar-purple'
+        'logistica': 'avatar-orange',
+        'sistema': 'avatar-purple',
+        'principal': 'avatar-blue'
     };
     return classMap[(modulo || '').toLowerCase()] || 'avatar-blue';
 }
@@ -6788,7 +7323,9 @@ window.exportarHistorico = exportarHistorico;
 window.showToast = showToast;
 window.loadCargosData = loadCargosData;
 window.loadFolhaPagamentoData = loadFolhaPagamentoData;
+window.saveFolhaPagamentoConfig = saveFolhaPagamentoConfig;
 window.loadPontoEletronicoData = loadPontoEletronicoData;
+window.savePontoConfig = savePontoConfig;
 window.loadPlanoContasData = loadPlanoContasData;
 window.loadContasBancariasData = loadContasBancariasData;
 window.loadFormasPagamentoData = loadFormasPagamentoData;
@@ -7339,6 +7876,194 @@ window.salvarTabelaPrecoConfig = salvarTabelaPrecoConfig;
 window.salvarUnidadeConfig = salvarUnidadeConfig;
 
 // =========================
+// CUSTOS E PRECIFICAÇÃO (PCP) - Modal estilo PCP com abas
+// =========================
+
+/**
+ * Troca abas do modal Custos e Precificação (mesmo padrão do PCP trocarAbaRico)
+ */
+function trocarAbaCustos(nomeAba) {
+    // Remove active de todas as tabs
+    const tabs = document.querySelectorAll('#modal-custos-precificacao .modal-produto-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    
+    // Remove active de todos os conteúdos
+    const conteudos = document.querySelectorAll('#modal-custos-precificacao .modal-produto-tab-content');
+    conteudos.forEach(c => c.classList.remove('active'));
+    
+    // Ativa a tab clicada
+    const tabAtiva = document.querySelector(`#modal-custos-precificacao .modal-produto-tab[data-tab="${nomeAba}"]`);
+    if (tabAtiva) tabAtiva.classList.add('active');
+    
+    // Ativa o conteúdo correspondente
+    const conteudoAtivo = document.querySelector(`#modal-custos-precificacao .modal-produto-tab-content[data-tab-content="${nomeAba}"]`);
+    if (conteudoAtivo) conteudoAtivo.classList.add('active');
+}
+
+/**
+ * Calcula exemplo de preço com base na margem configurada
+ */
+function calcularExemploCusto() {
+    const margem = parseFloat(document.getElementById('config-margem-padrao')?.value) || 30;
+    const custoBase = 100;
+    let precoVenda = custoBase;
+    
+    const metodo = document.getElementById('config-metodo-precificacao')?.value || 'markup';
+    
+    if (metodo === 'margem') {
+        precoVenda = custoBase / (1 - margem / 100);
+    } else if (metodo === 'markup') {
+        precoVenda = custoBase * (1 + margem / 100);
+    } else {
+        precoVenda = custoBase / (1 - margem / 100);
+    }
+    
+    const el = document.getElementById('config-exemplo-calculo');
+    if (el) {
+        el.textContent = 'R$ ' + precoVenda.toFixed(2).replace('.', ',');
+    }
+}
+
+/**
+ * Calcula margem de lucro com base em preço e custo padrão
+ */
+function calcularMargemConfig() {
+    const preco = parseFloat(document.getElementById('config-preco-venda-padrao')?.value) || 0;
+    const custo = parseFloat(document.getElementById('config-custo-unitario-padrao')?.value) || 0;
+    
+    let margem = 0;
+    if (preco > 0 && custo > 0) {
+        margem = ((preco - custo) / preco) * 100;
+    }
+    
+    const el = document.getElementById('config-margem-lucro');
+    if (el) {
+        el.textContent = margem.toFixed(1) + '%';
+        el.style.color = margem < 10 ? '#dc2626' : margem < 20 ? '#f59e0b' : '#1e40af';
+    }
+}
+
+/**
+ * Restaura valores padrão do modal Custos e Precificação
+ */
+function resetarCustosConfig() {
+    if (!confirm('Restaurar todos os valores para o padrão?')) return;
+    
+    // Precificação
+    const metodo = document.getElementById('config-metodo-precificacao');
+    if (metodo) metodo.value = 'markup';
+    const margem = document.getElementById('config-margem-padrao');
+    if (margem) margem.value = '30';
+    const precoVenda = document.getElementById('config-preco-venda-padrao');
+    if (precoVenda) precoVenda.value = '0';
+    const custoUnit = document.getElementById('config-custo-unitario-padrao');
+    if (custoUnit) custoUnit.value = '0';
+    
+    // Composição
+    const frete = document.getElementById('config-incluir-frete');
+    if (frete) frete.value = 'sim';
+    const impostos = document.getElementById('config-incluir-impostos');
+    if (impostos) impostos.value = 'nao';
+    const maoObra = document.getElementById('config-custo-mao-obra');
+    if (maoObra) maoObra.value = '15';
+    const indiretos = document.getElementById('config-custos-indiretos');
+    if (indiretos) indiretos.value = '10';
+    
+    // Fiscal
+    const ncm = document.getElementById('config-ncm-padrao');
+    if (ncm) ncm.value = '';
+    const icms = document.getElementById('config-icms-padrao');
+    if (icms) icms.value = '';
+    const regime = document.getElementById('config-regime-tributario');
+    if (regime) regime.value = 'simples';
+    const uf = document.getElementById('config-uf-origem');
+    if (uf) uf.value = 'SP';
+    
+    // Arredondamento
+    const casas = document.getElementById('config-casas-decimais');
+    if (casas) casas.value = '2';
+    const arred = document.getElementById('config-arredondamento');
+    if (arred) arred.value = 'matematico';
+    const moeda = document.getElementById('config-exibir-moeda');
+    if (moeda) moeda.checked = true;
+    const margemExib = document.getElementById('config-exibir-margem');
+    if (margemExib) margemExib.checked = true;
+    
+    // Alertas
+    const alertaMargem = document.getElementById('config-alerta-margem-min');
+    if (alertaMargem) alertaMargem.value = '10';
+    const alertaPreco = document.getElementById('config-alerta-preco-custo');
+    if (alertaPreco) alertaPreco.value = 'aviso';
+    const notifEmail = document.getElementById('config-notif-email-custos');
+    if (notifEmail) notifEmail.checked = false;
+    const notifSistema = document.getElementById('config-notif-sistema-custos');
+    if (notifSistema) notifSistema.checked = true;
+    
+    // Recalcular
+    calcularExemploCusto();
+    calcularMargemConfig();
+    
+    showNotification('Valores restaurados para o padrão', 'info');
+}
+
+async function salvarCustosPrecificacao() {
+    const config = {
+        metodo_precificacao: document.getElementById('config-metodo-precificacao')?.value || 'markup',
+        margem_padrao: parseFloat(document.getElementById('config-margem-padrao')?.value) || 30,
+        preco_venda_padrao: parseFloat(document.getElementById('config-preco-venda-padrao')?.value) || 0,
+        custo_unitario_padrao: parseFloat(document.getElementById('config-custo-unitario-padrao')?.value) || 0,
+        incluir_frete: document.getElementById('config-incluir-frete')?.value || 'sim',
+        incluir_impostos: document.getElementById('config-incluir-impostos')?.value || 'nao',
+        custo_mao_obra: parseFloat(document.getElementById('config-custo-mao-obra')?.value) || 15,
+        custos_indiretos: parseFloat(document.getElementById('config-custos-indiretos')?.value) || 10,
+        casas_decimais: parseInt(document.getElementById('config-casas-decimais')?.value) || 2,
+        arredondamento: document.getElementById('config-arredondamento')?.value || 'matematico',
+        ncm_padrao: document.getElementById('config-ncm-padrao')?.value || '',
+        icms_padrao: parseFloat(document.getElementById('config-icms-padrao')?.value) || 0,
+        regime_tributario: document.getElementById('config-regime-tributario')?.value || 'simples',
+        uf_origem: document.getElementById('config-uf-origem')?.value || 'SP',
+        exibir_moeda: document.getElementById('config-exibir-moeda')?.checked ?? true,
+        exibir_margem: document.getElementById('config-exibir-margem')?.checked ?? true,
+        alerta_margem_min: parseFloat(document.getElementById('config-alerta-margem-min')?.value) || 10,
+        alerta_preco_custo: document.getElementById('config-alerta-preco-custo')?.value || 'aviso',
+        notif_email: document.getElementById('config-notif-email-custos')?.checked ?? false,
+        notif_sistema: document.getElementById('config-notif-sistema-custos')?.checked ?? true
+    };
+
+    try {
+        const response = await fetch('/api/configuracoes/custos-precificacao', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}`
+            },
+            body: JSON.stringify(config)
+        });
+
+        if (response.ok) {
+            showNotification('Configurações de custos e precificação salvas!', 'success');
+            if (typeof registrarAuditFrontend === 'function') {
+                registrarAuditFrontend('configurar', 'pcp', 'Atualizou configurações de custos e precificação');
+            }
+            fecharModal('modal-custos-precificacao');
+        } else {
+            throw new Error('Erro ao salvar');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar custos/precificação:', error);
+        showNotification('Configurações salvas localmente (API em implementação)', 'info');
+        localStorage.setItem('config_custos_precificacao', JSON.stringify(config));
+        fecharModal('modal-custos-precificacao');
+    }
+}
+
+window.trocarAbaCustos = trocarAbaCustos;
+window.calcularExemploCusto = calcularExemploCusto;
+window.calcularMargemConfig = calcularMargemConfig;
+window.resetarCustosConfig = resetarCustosConfig;
+window.salvarCustosPrecificacao = salvarCustosPrecificacao;
+
+// =========================
 // SOBRE OS LANÇAMENTOS
 // =========================
 
@@ -7400,3 +8125,225 @@ function abrirHistoricoAlteracoes(event) {
 // Exportar funções dos footer links
 window.abrirSobreLancamentos = abrirSobreLancamentos;
 window.abrirHistoricoAlteracoes = abrirHistoricoAlteracoes;
+
+// =========================
+// FUNÇÕES DE EDIÇÃO/EXCLUSÃO - REGIÕES E CONDIÇÕES
+// =========================
+
+/**
+ * Editar região de venda
+ */
+function editarRegiao(id) {
+    // Buscar dados da região na API e abrir modal de edição
+    fetch(`/api/vendas/regioes`)
+        .then(r => r.json())
+        .then(result => {
+            const regioes = result.data || result || [];
+            const regiao = regioes.find(r => r.id === id);
+            if (!regiao) return showNotification('Região não encontrada', 'error');
+            
+            // Abrir modal inline com dados preenchidos
+            const html = `
+                <div class="modal-overlay active" id="modal-editar-regiao-config" style="display: flex;">
+                    <div class="modal-content" style="max-width: 450px; border-radius: 12px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                            <h2><i class="fas fa-map-marker-alt"></i> Editar Região</h2>
+                            <button class="modal-close" onclick="fecharModalConfig('modal-editar-regiao-config')"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="modal-body" style="padding: 24px;">
+                            <input type="hidden" id="editar-regiao-id" value="${regiao.id}">
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Nome da Região *</label>
+                                <input type="text" id="editar-regiao-nome" value="${regiao.nome || ''}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Estados (UFs)</label>
+                                <input type="text" id="editar-regiao-estados" value="${regiao.estados || ''}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Descrição</label>
+                                <textarea id="editar-regiao-descricao" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; min-height: 80px; resize: vertical;">${regiao.descricao || ''}</textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="padding: 16px 24px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px;">
+                            <button type="button" onclick="fecharModalConfig('modal-editar-regiao-config')" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 8px; cursor: pointer;">Cancelar</button>
+                            <button type="button" style="background: #8b5cf6; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;" onclick="salvarEdicaoRegiao()">
+                                <i class="fas fa-save"></i> Salvar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            // Remover modal anterior se existir
+            const old = document.getElementById('modal-editar-regiao-config');
+            if (old) old.remove();
+            document.body.insertAdjacentHTML('beforeend', html);
+        })
+        .catch(err => {
+            console.error('Erro:', err);
+            showNotification('Erro ao carregar região', 'error');
+        });
+}
+
+/**
+ * Salva edição de região
+ */
+async function salvarEdicaoRegiao() {
+    const id = document.getElementById('editar-regiao-id').value;
+    const nome = document.getElementById('editar-regiao-nome').value.trim();
+    const estados = document.getElementById('editar-regiao-estados').value.trim();
+    const descricao = document.getElementById('editar-regiao-descricao').value.trim();
+    
+    if (!nome) return showNotification('Nome é obrigatório', 'error');
+    
+    try {
+        const response = await fetch(`/api/vendas/regioes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, estados, descricao })
+        });
+        if (response.ok) {
+            showNotification('Região atualizada com sucesso!', 'success');
+            fecharModalConfig('modal-editar-regiao-config');
+            loadRegioesVendaData();
+        } else {
+            throw new Error('Erro ao atualizar');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao atualizar região', 'error');
+    }
+}
+
+/**
+ * Excluir região de venda
+ */
+async function excluirRegiao(id) {
+    if (!confirm('Deseja realmente excluir esta região de venda?')) return;
+    
+    try {
+        const response = await fetch(`/api/vendas/regioes/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showNotification('Região excluída com sucesso!', 'success');
+            loadRegioesVendaData();
+        } else {
+            throw new Error('Erro ao excluir');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao excluir região', 'error');
+    }
+}
+
+/**
+ * Editar condição de pagamento
+ */
+function editarCondicao(id) {
+    fetch('/api/configuracoes/condicoes-pagamento')
+        .then(r => r.json())
+        .then(result => {
+            const condicoes = result.data || result || [];
+            const cond = condicoes.find(c => c.id === id);
+            if (!cond) return showNotification('Condição não encontrada', 'error');
+            
+            const html = `
+                <div class="modal-overlay active" id="modal-editar-condicao-config" style="display: flex;">
+                    <div class="modal-content" style="max-width: 450px; border-radius: 12px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                            <h2><i class="fas fa-handshake"></i> Editar Condição</h2>
+                            <button class="modal-close" onclick="fecharModalConfig('modal-editar-condicao-config')"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="modal-body" style="padding: 24px;">
+                            <input type="hidden" id="editar-condicao-id" value="${cond.id}">
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Nome *</label>
+                                <input type="text" id="editar-condicao-nome" value="${cond.nome || ''}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                            </div>
+                            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                                <div class="form-group" style="flex: 1;">
+                                    <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Prazo (dias)</label>
+                                    <input type="number" id="editar-condicao-dias" value="${cond.dias || 0}" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label style="font-size: 13px; font-weight: 500; color: #374151; display: block; margin-bottom: 6px;">Descrição</label>
+                                <textarea id="editar-condicao-descricao" style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; min-height: 80px; resize: vertical;">${cond.descricao || ''}</textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer" style="padding: 16px 24px; background: #f9fafb; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 12px;">
+                            <button type="button" onclick="fecharModalConfig('modal-editar-condicao-config')" style="padding: 10px 20px; border: 1px solid #d1d5db; background: white; border-radius: 8px; cursor: pointer;">Cancelar</button>
+                            <button type="button" style="background: #8b5cf6; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;" onclick="salvarEdicaoCondicao()">
+                                <i class="fas fa-save"></i> Salvar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            const old = document.getElementById('modal-editar-condicao-config');
+            if (old) old.remove();
+            document.body.insertAdjacentHTML('beforeend', html);
+        })
+        .catch(err => {
+            console.error('Erro:', err);
+            showNotification('Erro ao carregar condição', 'error');
+        });
+}
+
+/**
+ * Salva edição de condição
+ */
+async function salvarEdicaoCondicao() {
+    const id = document.getElementById('editar-condicao-id').value;
+    const nome = document.getElementById('editar-condicao-nome').value.trim();
+    const dias = parseInt(document.getElementById('editar-condicao-dias').value) || 0;
+    const descricao = document.getElementById('editar-condicao-descricao').value.trim();
+    
+    if (!nome) return showNotification('Nome é obrigatório', 'error');
+    
+    try {
+        const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, dias, descricao })
+        });
+        if (response.ok) {
+            showNotification('Condição atualizada com sucesso!', 'success');
+            fecharModalConfig('modal-editar-condicao-config');
+            loadCondicoesPagamentoData();
+        } else {
+            throw new Error('Erro ao atualizar');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao atualizar condição', 'error');
+    }
+}
+
+/**
+ * Excluir condição de pagamento
+ */
+async function excluirCondicao(id) {
+    if (!confirm('Deseja realmente excluir esta condição de pagamento?')) return;
+    
+    try {
+        const response = await fetch(`/api/configuracoes/condicoes-pagamento/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showNotification('Condição excluída com sucesso!', 'success');
+            loadCondicoesPagamentoData();
+        } else {
+            throw new Error('Erro ao excluir');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        showNotification('Erro ao excluir condição', 'error');
+    }
+}
+
+// Exportar novas funções
+window.editarRegiao = editarRegiao;
+window.excluirRegiao = excluirRegiao;
+window.salvarEdicaoRegiao = salvarEdicaoRegiao;
+window.editarCondicao = editarCondicao;
+window.excluirCondicao = excluirCondicao;
+window.salvarEdicaoCondicao = salvarEdicaoCondicao;
+window.editarUnidadeInline = editarUnidadeInline;

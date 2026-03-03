@@ -7,12 +7,10 @@
 const memoryCache = new Map();
 
 const CACHE_CONFIG = {
-    userSession: 300000,   // 5 minutos para sessão de usuário (aumentado)
-    dashboardKPIs: 60000,  // 1 minuto para KPIs (aumentado)
-    listagens: 300000,     // 5 minutos para listagens (aumentado)
-    produtos: 600000,      // 10 minutos para produtos (novo)
-    clientes: 600000,      // 10 minutos para clientes (novo)
-    default: 120000        // 2 minutos padrão (aumentado)
+    userSession: 60000,    // 1 minuto para sessão de usuário
+    dashboardKPIs: 30000,  // 30 segundos para KPIs
+    listagens: 120000,     // 2 minutos para listagens
+    default: 60000         // 1 minuto padrão
 };
 
 // Funções de cache

@@ -2,16 +2,30 @@
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1a2744">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: Gestão de Vendas</title>
     
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
+    <!-- CSP Fix -->
+    <script src="/js/csp-fix.js" defer></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     <style>
         :root {
             --sidebar-width: 48px;
@@ -1149,10 +1163,10 @@
         }
     </style>
     <script src="/js/anti-copy-protection.js" defer></script>
-    <link rel="stylesheet" href="/css/popup-confirmacao.css">
 
+    <!-- Verificação de Admin (Gestão de Vendas) -->
+    <script src="js/vendas-admin-check.js"></script>
 
-    
     <!-- Controle de Acesso por Permissões -->
     <script src="js/vendas-access-control.js?v=20260114" defer></script>
 
@@ -1167,14 +1181,11 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Mobile Overlay -->
-        <div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
-        
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
         
         <!-- Sidebar -->
-        <aside class="sidebar" id="mobile-sidebar" id="sidebar">
+        <aside class="sidebar" id="sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
                 <i class="fas fa-home"></i>
             </a>
@@ -1791,8 +1802,69 @@
             vendedorGroup.style.display = this.value === 'vendedor' ? 'block' : 'none';
         });
 
-        function exportarRelatorio() {
-            alert('Funcionalidade de exportação será implementada em breve.');
+        async function exportarRelatorio() {
+            try {
+                const agora = new Date();
+                const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString().split('T')[0];
+                const fimMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).toISOString().split('T')[0];
+                const periodoAtual = agora.toISOString().substring(0, 7);
+
+                const [pedidosRes, rankingRes] = await Promise.all([
+                    fetch(`/api/vendas/pedidos?data_inicio=${inicioMes}&data_fim=${fimMes}`, { credentials: 'include' }),
+                    fetch(`/api/vendas/metas/ranking?periodo=${periodoAtual}`, { credentials: 'include' }).catch(() => null)
+                ]);
+
+                const pedidos = pedidosRes.ok ? await pedidosRes.json() : [];
+                const rankingData = (rankingRes && rankingRes.ok) ? await rankingRes.json() : {};
+
+                // Construir CSV
+                const linhas = ['RELATÓRIO DASHBOARD VENDAS - ' + agora.toLocaleDateString('pt-BR')];
+                linhas.push('');
+
+                // Resumo geral
+                const faturados = pedidos.filter(p => p.status === 'faturado');
+                const faturamento = faturados.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
+                const ticketMedio = faturados.length > 0 ? faturamento / faturados.length : 0;
+                linhas.push('RESUMO DO MÊS');
+                linhas.push(`Total de Pedidos;${pedidos.length}`);
+                linhas.push(`Pedidos Faturados;${faturados.length}`);
+                linhas.push(`Faturamento Total;${faturamento.toFixed(2).replace('.', ',')}`);
+                linhas.push(`Ticket Médio;${ticketMedio.toFixed(2).replace('.', ',')}`);
+                linhas.push('');
+
+                // Ranking de vendedores
+                if (rankingData.ranking && rankingData.ranking.length > 0) {
+                    linhas.push('RANKING VENDEDORES');
+                    linhas.push('Posição;Vendedor;Valor Vendido;Meta;Status');
+                    rankingData.ranking.forEach((v, i) => {
+                        linhas.push(`${i + 1};${v.nome || v.name};${(parseFloat(v.valor_vendido || v.total_vendido || 0)).toFixed(2).replace('.', ',')};${(parseFloat(v.valor_meta || 0)).toFixed(2).replace('.', ',')};${v.status_meta || ''}`);
+                    });
+                    linhas.push('');
+                }
+
+                // Lista de pedidos
+                linhas.push('PEDIDOS DO MÊS');
+                linhas.push('ID;Cliente;Vendedor;Valor;Status;Data');
+                pedidos.forEach(p => {
+                    const data = p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '';
+                    linhas.push(`${p.id};${(p.nome_cliente || p.cliente || '').replace(/;/g, ',')};${(p.vendedor_nome || p.vendedor || '').replace(/;/g, ',')};${(parseFloat(p.valor) || 0).toFixed(2).replace('.', ',')};${p.status || ''};${data}`);
+                });
+
+                // Download CSV
+                const BOM = '\uFEFF';
+                const blob = new Blob([BOM + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `relatorio-vendas-${periodoAtual}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Erro ao exportar relatório:', error);
+                alert('Erro ao exportar relatório. Tente novamente.');
+            }
         }
 
         // ====================================
@@ -2638,15 +2710,20 @@
         // Toggle Sidebar Mobile
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('mobileOverlay');
+            const overlay = document.getElementById('sidebar-overlay');
             sidebar.classList.toggle('open');
-            overlay.classList.toggle('active');
+            if (overlay) overlay.classList.toggle('active');
         }
     </script>
     
-    <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
-    <script src="/js/popup-confirmacao.js" defer></script>
-    <script src="/js/auth-unified.js?v=20260131" defer></script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/confirm-modal.js?v=20260110"></script>
+    <!-- Performance Utilities -->
+    <script src="/js/performance-utils.js?v=20260213"></script>
+
+    <script src="/js/auth-unified.js?v=20260301"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
@@ -2654,6 +2731,7 @@
 
     <!-- Sidebar Click Animation -->
     <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="js/mobile-sidebar.js"></script>
     <script src="/_shared/accessibility-widget.js?v=20260226"></script>
 </body>
 </html>

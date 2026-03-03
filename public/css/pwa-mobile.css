@@ -1,0 +1,510 @@
+/* ============================================================
+   ALUFORCE PWA - Estilos Específicos para Mobile
+   Versão: 2.0.0
+   ============================================================ */
+
+/* ============================================================
+   1. VARIÁVEIS E ROOT
+   ============================================================ */
+:root {
+    /* Cores PWA */
+    --pwa-primary: #1a2744;
+    --pwa-primary-light: #2d4a7c;
+    --pwa-accent: #38bdf8;
+    --pwa-success: #10b981;
+    --pwa-danger: #ef4444;
+    --pwa-warning: #f59e0b;
+    
+    /* Safe Areas iOS */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-inset-left: env(safe-area-inset-left, 0px);
+    --safe-area-inset-right: env(safe-area-inset-right, 0px);
+}
+
+/* ============================================================
+   2. BODY - AJUSTES PARA PWA
+   ============================================================ */
+
+/* Prevenir overscroll bounce no iOS */
+html {
+    overflow: hidden;
+    height: 100%;
+}
+
+body {
+    height: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+
+/* Modo standalone (PWA instalado) */
+body.pwa-standalone {
+    padding-top: var(--safe-area-inset-top);
+    padding-bottom: var(--safe-area-inset-bottom);
+    padding-left: var(--safe-area-inset-left);
+    padding-right: var(--safe-area-inset-right);
+}
+
+/* Status bar iOS */
+@supports (padding-top: env(safe-area-inset-top)) {
+    body.pwa-standalone .header,
+    body.pwa-standalone .sidebar-header {
+        padding-top: calc(var(--safe-area-inset-top) + 10px);
+    }
+}
+
+/* ============================================================
+   3. TOUCH INTERACTIONS
+   ============================================================ */
+
+/* Desabilitar highlight de toque em elementos clicáveis */
+a, button, .clickable, [onclick], [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* Melhorar área de toque para botões */
+button, .btn, .button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+/* Touch feedback visual */
+.touch-feedback {
+    position: relative;
+    overflow: hidden;
+}
+
+.touch-feedback::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s ease, height 0.3s ease;
+}
+
+.touch-feedback:active::after {
+    width: 200%;
+    height: 200%;
+}
+
+/* ============================================================
+   4. PULL TO REFRESH INDICATOR
+   ============================================================ */
+.pull-to-refresh {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--pwa-primary);
+    color: white;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+    z-index: 9999;
+}
+
+.pull-to-refresh.active {
+    transform: translateY(0);
+}
+
+.pull-to-refresh .spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   5. BOTTOM NAVIGATION (OPCIONAL)
+   ============================================================ */
+.pwa-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(56px + var(--safe-area-inset-bottom));
+    padding-bottom: var(--safe-area-inset-bottom);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: white;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.pwa-bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 16px;
+    color: #64748b;
+    text-decoration: none;
+    font-size: 10px;
+    transition: color 0.2s;
+}
+
+.pwa-bottom-nav-item.active {
+    color: var(--pwa-primary);
+}
+
+.pwa-bottom-nav-item svg,
+.pwa-bottom-nav-item i {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+/* Ajustar conteúdo quando bottom nav está presente */
+body.has-bottom-nav {
+    padding-bottom: calc(56px + var(--safe-area-inset-bottom));
+}
+
+/* ============================================================
+   6. GESTURES
+   ============================================================ */
+
+/* Swipe indicators */
+.swipe-indicator {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+
+.swipe-indicator.left {
+    left: 0;
+}
+
+.swipe-indicator.right {
+    right: 0;
+}
+
+.swipe-indicator.visible {
+    opacity: 0.5;
+}
+
+/* ============================================================
+   7. LOADING STATES
+   ============================================================ */
+.pwa-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.pwa-loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid #e5e7eb;
+    border-top-color: var(--pwa-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.pwa-loading-text {
+    margin-top: 16px;
+    color: var(--pwa-primary);
+    font-size: 14px;
+}
+
+/* Skeleton loading */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+    border-radius: 4px;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================
+   8. SPLASH SCREEN
+   ============================================================ */
+.pwa-splash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--pwa-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    transition: opacity 0.5s ease;
+}
+
+.pwa-splash.hide {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pwa-splash-logo {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 24px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.pwa-splash-text {
+    color: white;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.pwa-splash-subtext {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+}
+
+/* ============================================================
+   9. DARK MODE SUPPORT
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+    .pwa-loading-overlay {
+        background: rgba(26, 39, 68, 0.95);
+    }
+    
+    .pwa-loading-text {
+        color: white;
+    }
+    
+    .pwa-bottom-nav {
+        background: #1e293b;
+        border-top: 1px solid #334155;
+    }
+    
+    .pwa-bottom-nav-item {
+        color: #94a3b8;
+    }
+    
+    .pwa-bottom-nav-item.active {
+        color: var(--pwa-accent);
+    }
+}
+
+/* ============================================================
+   10. LANDSCAPE ADJUSTMENTS
+   ============================================================ */
+@media (orientation: landscape) and (max-height: 500px) {
+    .pwa-bottom-nav {
+        height: calc(48px + var(--safe-area-inset-bottom));
+    }
+    
+    .pwa-bottom-nav-item {
+        flex-direction: row;
+        gap: 8px;
+    }
+    
+    .pwa-bottom-nav-item svg,
+    .pwa-bottom-nav-item i {
+        margin-bottom: 0;
+    }
+}
+
+/* ============================================================
+   11. INSTALL PROMPT IMPROVEMENTS
+   ============================================================ */
+.pwa-install-prompt {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    right: 20px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    z-index: 9999;
+    transform: translateY(150%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pwa-install-prompt.visible {
+    transform: translateY(0);
+}
+
+.pwa-install-prompt-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pwa-install-prompt-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+}
+
+.pwa-install-prompt-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.pwa-install-prompt-subtitle {
+    font-size: 12px;
+    color: #64748b;
+    margin: 0;
+}
+
+.pwa-install-prompt-description {
+    font-size: 14px;
+    color: #475569;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.pwa-install-prompt-buttons {
+    display: flex;
+    gap: 12px;
+}
+
+.pwa-install-prompt-btn {
+    flex: 1;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.pwa-install-prompt-btn.primary {
+    background: var(--pwa-primary);
+    color: white;
+}
+
+.pwa-install-prompt-btn.primary:hover {
+    background: var(--pwa-primary-light);
+}
+
+.pwa-install-prompt-btn.secondary {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.pwa-install-prompt-btn.secondary:hover {
+    background: #e2e8f0;
+}
+
+/* ============================================================
+   12. FORM ADJUSTMENTS FOR MOBILE
+   ============================================================ */
+input, textarea, select {
+    font-size: 16px !important; /* Previne zoom no iOS */
+}
+
+/* ============================================================
+   13. NOTCH HANDLING (iPhone X+)
+   ============================================================ */
+@supports (padding: max(0px)) {
+    .pwa-standalone .header {
+        padding-top: max(12px, env(safe-area-inset-top));
+    }
+    
+    .pwa-standalone .main-content {
+        padding-left: max(16px, env(safe-area-inset-left));
+        padding-right: max(16px, env(safe-area-inset-right));
+    }
+    
+    .pwa-standalone .footer,
+    .pwa-standalone .pwa-bottom-nav {
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+    }
+}
+
+/* ============================================================
+   14. ANIMATIONS
+   ============================================================ */
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.slide-up {
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.scale-in {
+    animation: scaleIn 0.2s ease;
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

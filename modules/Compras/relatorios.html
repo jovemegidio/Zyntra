@@ -1,28 +1,52 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Aluforce: Relatórios de Compras</title>
-    <link rel="icon" type="image/png" href="/images/favicon-aluforce.png">
-    <script src="/js/auth-unified.js?v=20260214" defer></script>
+
+    <!-- Sistema de Autenticação Unificado -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
+
+    <!-- Fontes -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260215">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260215">
-    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260201">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/js/csp-fix.js" defer></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- CSS Padrão Global -->
+    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260301">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260301">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     <style>
         .fa-duotone { font-family: "Font Awesome 6 Free" !important; font-weight: 900 !important; }
         /* Report cards grid */
-        .reports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
-        .report-card { background: #fff; border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: var(--space-5); cursor: pointer; transition: var(--transition-base); position: relative; overflow: hidden; }
-        .report-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-        .report-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-        .report-card .report-icon { width: 48px; height: 48px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #fff; margin-bottom: var(--space-3); }
-        .report-card h3 { font-size: 0.95rem; font-weight: 600; color: var(--gray-800); margin-bottom: 4px; }
-        .report-card p { font-size: 0.8rem; color: var(--gray-500); line-height: 1.4; }
-        .report-card .report-action { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--space-3); font-size: 0.75rem; font-weight: 600; color: var(--primary-500); }
+        .reports-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-bottom: 28px; }
+        .report-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4,0,0.2,1); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+        .report-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+        .report-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.1); border-color: transparent; }
+        .report-card .pdf-badge { position: absolute; top: 14px; right: 14px; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; font-size: 0.58rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.8px; line-height: 1; }
+        .report-card .report-card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+        .report-card .report-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; color: #fff; flex-shrink: 0; }
+        .report-card h3 { font-size: 0.92rem; font-weight: 700; color: #1e293b; line-height: 1.3; }
+        .report-card p { font-size: 0.78rem; color: #64748b; line-height: 1.5; flex: 1; margin: 0; }
+        .report-card .report-action { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 0.76rem; font-weight: 600; color: #dc2626; background: #fef2f2; padding: 7px 16px; border-radius: 8px; transition: all 0.2s ease; width: fit-content; }
+        .report-card:hover .report-action { background: #fee2e2; transform: translateX(2px); }
         .rc-pedidos::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
         .rc-pedidos .report-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); }
         .rc-fornecedores::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
@@ -56,7 +80,7 @@
     </script>
     <script src="/js/anti-copy-protection.js" defer></script>
     <!-- Chat Widget BOB AI -->
-    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+    <link rel="stylesheet" href="/chat/widget.css?v=20260301">
 </head>
 <body>
     <div class="app-container">
@@ -153,40 +177,58 @@
                 <!-- Report Cards -->
                 <div class="reports-grid">
                     <div class="report-card rc-pedidos" onclick="RelatoriosCompras.abrirModalRelatorio('pedidos')">
-                        <div class="report-icon"><i class="fas fa-shopping-cart"></i></div>
-                        <h3>Relatório de Pedidos</h3>
+                        <span class="pdf-badge">PDF</span>
+                        <div class="report-card-header">
+                            <div class="report-icon"><i class="fas fa-shopping-cart"></i></div>
+                            <h3>Relatório de Pedidos</h3>
+                        </div>
                         <p>Histórico completo de pedidos de compra com valores, fornecedores e status.</p>
-                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                        <span class="report-action"><i class="fas fa-file-pdf"></i> Exportar PDF</span>
                     </div>
                     <div class="report-card rc-fornecedores" onclick="RelatoriosCompras.abrirModalRelatorio('fornecedores')">
-                        <div class="report-icon"><i class="fas fa-users"></i></div>
-                        <h3>Relatório de Fornecedores</h3>
+                        <span class="pdf-badge">PDF</span>
+                        <div class="report-card-header">
+                            <div class="report-icon"><i class="fas fa-users"></i></div>
+                            <h3>Relatório de Fornecedores</h3>
+                        </div>
                         <p>Cadastro de fornecedores, avaliações, categorias e dados de contato.</p>
-                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                        <span class="report-action"><i class="fas fa-file-pdf"></i> Exportar PDF</span>
                     </div>
                     <div class="report-card rc-estoque" onclick="RelatoriosCompras.abrirModalRelatorio('estoque')">
-                        <div class="report-icon"><i class="fas fa-boxes"></i></div>
-                        <h3>Relatório de Estoque</h3>
+                        <span class="pdf-badge">PDF</span>
+                        <div class="report-card-header">
+                            <div class="report-icon"><i class="fas fa-boxes"></i></div>
+                            <h3>Relatório de Estoque</h3>
+                        </div>
                         <p>Posição de estoque, materiais críticos, custos e níveis de reposição.</p>
-                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                        <span class="report-action"><i class="fas fa-file-pdf"></i> Exportar PDF</span>
                     </div>
                     <div class="report-card rc-movimentacoes" onclick="RelatoriosCompras.abrirModalRelatorio('movimentacoes')">
-                        <div class="report-icon"><i class="fas fa-exchange-alt"></i></div>
-                        <h3>Movimentações</h3>
+                        <span class="pdf-badge">PDF</span>
+                        <div class="report-card-header">
+                            <div class="report-icon"><i class="fas fa-exchange-alt"></i></div>
+                            <h3>Movimentações</h3>
+                        </div>
                         <p>Entradas, saídas e ajustes de estoque por período com rastreabilidade.</p>
-                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                        <span class="report-action"><i class="fas fa-file-pdf"></i> Exportar PDF</span>
                     </div>
                     <div class="report-card rc-criticos" onclick="RelatoriosCompras.abrirModalRelatorio('criticos')">
-                        <div class="report-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        <h3>Materiais Críticos</h3>
+                        <span class="pdf-badge">PDF</span>
+                        <div class="report-card-header">
+                            <div class="report-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                            <h3>Materiais Críticos</h3>
+                        </div>
                         <p>Materiais abaixo do estoque mínimo que necessitam de reposição urgente.</p>
-                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                        <span class="report-action"><i class="fas fa-file-pdf"></i> Exportar PDF</span>
                     </div>
                     <div class="report-card rc-cotacoes" onclick="RelatoriosCompras.abrirModalRelatorio('cotacoes')">
-                        <div class="report-icon"><i class="fas fa-file-invoice-dollar"></i></div>
-                        <h3>Relatório de Cotações</h3>
+                        <span class="pdf-badge">PDF</span>
+                        <div class="report-card-header">
+                            <div class="report-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                            <h3>Relatório de Cotações</h3>
+                        </div>
                         <p>Análise comparativa de cotações, economia obtida e fornecedores selecionados.</p>
-                        <span class="report-action"><i class="fas fa-file-export"></i> Gerar Relatório</span>
+                        <span class="report-action"><i class="fas fa-file-pdf"></i> Exportar PDF</span>
                     </div>
                 </div>
 
@@ -348,24 +390,19 @@
                             <div class="form-group"><label>Data Início</label><input type="date" id="data-inicio"></div>
                             <div class="form-group"><label>Data Fim</label><input type="date" id="data-fim"></div>
                         </div>
-                        <div class="form-group" style="margin-top:var(--space-3);">
-                            <label>Formato de Exportação</label>
-                            <div style="display:flex; gap:var(--space-3); margin-top:var(--space-1);">
-                                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer;">
-                                    <input type="radio" name="formato" value="pdf" checked style="accent-color:var(--primary-500);"> <i class="fas fa-file-pdf" style="color:#ef4444;"></i> PDF
-                                </label>
-                                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer;">
-                                    <input type="radio" name="formato" value="xlsx" style="accent-color:var(--primary-500);"> <i class="fas fa-file-excel" style="color:#10b981;"></i> Excel
-                                </label>
-                                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem; cursor:pointer;">
-                                    <input type="radio" name="formato" value="csv" style="accent-color:var(--primary-500);"> <i class="fas fa-file-csv" style="color:#3b82f6;"></i> CSV
-                                </label>
+                        <div style="display:flex; align-items:center; gap:12px; margin-top:var(--space-3); padding:14px 18px; background:linear-gradient(135deg, #fef2f2, #fff1f2); border:1px solid #fecaca; border-radius:12px;">
+                            <div style="width:42px; height:42px; background:linear-gradient(135deg, #ef4444, #dc2626); border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                                <i class="fas fa-file-pdf" style="color:#fff; font-size:1.1rem;"></i>
+                            </div>
+                            <div>
+                                <div style="font-size:0.85rem; font-weight:600; color:#1e293b;">Exportação em PDF</div>
+                                <div style="font-size:0.75rem; color:#64748b;">Documento profissional pronto para impressão</div>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" onclick="RelatoriosCompras.fecharModal()">Cancelar</button>
-                        <button class="btn btn-primary" onclick="RelatoriosCompras.gerarRelatorio('${tipo}')"><i class="fas fa-download"></i> Gerar e Baixar</button>
+                        <button class="btn btn-primary" onclick="RelatoriosCompras.gerarRelatorio('${tipo}')"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
                     </div>
                 </div>
             </div>`;
@@ -393,66 +430,220 @@
             document.getElementById('modal-relatorio')?.remove();
         },
 
-        gerarRelatorio(tipo) {
-            const formato = document.querySelector('input[name="formato"]:checked')?.value || 'csv';
+        async gerarRelatorio(tipo) {
+            const dataInicio = document.getElementById('data-inicio')?.value || '';
+            const dataFim = document.getElementById('data-fim')?.value || '';
+            this.fecharModal();
             this.mostrarLoading();
-            setTimeout(() => {
-                try {
-                    if (formato === 'csv') this.exportarCSV(tipo);
-                    else if (formato === 'xlsx') this.exportarExcel(tipo);
-                    else this.exportarPDF(tipo);
-                    this.fecharModal();
-                    this.mostrarToast('Relatório gerado com sucesso!', 'success');
-                } catch (e) {
-                    this.mostrarToast('Erro ao gerar relatório: ' + e.message, 'error');
+            try {
+                await this.exportarPDF(tipo, dataInicio, dataFim);
+                this.mostrarToast('Relatório PDF gerado com sucesso!', 'success');
+            } catch(e) {
+                console.error('Erro ao gerar PDF:', e);
+                this.mostrarToast('Erro ao gerar relatório: ' + e.message, 'error');
+            }
+            this.esconderLoading();
+        },
+
+        async fetchReportData(tipo) {
+            const headers = this.getAuthHeaders();
+            try {
+                switch(tipo) {
+                    case 'pedidos': {
+                        const r = await fetch('/api/compras/pedidos', { headers });
+                        if (r.ok) { const d = await r.json(); return d.pedidos || d.data || d || []; }
+                        break;
+                    }
+                    case 'fornecedores': {
+                        const r = await fetch('/api/compras/fornecedores', { headers });
+                        if (r.ok) { const d = await r.json(); return d.fornecedores || d.data || d || []; }
+                        break;
+                    }
+                    case 'estoque': {
+                        const r = await fetch('/api/pcp/materias-primas', { headers });
+                        if (r.ok) { const d = await r.json(); return d.materiais || d.data || d || []; }
+                        break;
+                    }
+                    case 'movimentacoes': {
+                        const r = await fetch('/api/estoque/movimentacoes', { headers });
+                        if (r.ok) { const d = await r.json(); return d.movimentacoes || d.data || d || []; }
+                        const r2 = await fetch('/api/pcp/materias-primas', { headers });
+                        if (r2.ok) { const d = await r2.json(); return d.materiais || d.data || d || []; }
+                        break;
+                    }
+                    case 'criticos': {
+                        const r = await fetch('/api/pcp/materias-primas', { headers });
+                        if (r.ok) {
+                            const d = await r.json();
+                            const materiais = d.materiais || d.data || d || [];
+                            return materiais.filter(m => {
+                                const atual = m.estoque_atual || m.quantidade || m.quantidade_estoque || 0;
+                                const min = m.estoque_minimo || m.minimo || 0;
+                                return min > 0 && atual <= min;
+                            });
+                        }
+                        break;
+                    }
+                    case 'cotacoes': {
+                        const r = await fetch('/api/compras/cotacoes', { headers });
+                        if (r.ok) { const d = await r.json(); return d.cotacoes || d.data || d || []; }
+                        break;
+                    }
                 }
-                this.esconderLoading();
-            }, 500);
+            } catch(e) { console.log('Erro fetch relatório:', e); }
+            return [];
         },
 
-        exportarCSV(tipo) {
-            const bom = '\uFEFF';
-            let csv = bom;
-            const config = this.getConfigRelatorio(tipo);
-            csv += config.titulo + '\n';
-            csv += 'Gerado em: ' + new Date().toLocaleString('pt-BR') + '\n\n';
-            csv += 'Dados disponíveis para exportação no servidor\n';
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            this.downloadBlob(blob, `relatorio-${tipo}-${new Date().toISOString().split('T')[0]}.csv`);
+        formatReportData(tipo, dados) {
+            const arr = Array.isArray(dados) ? dados : [];
+            let headers = [], rows = [], resumo = {};
+            switch(tipo) {
+                case 'pedidos':
+                    headers = ['Nº', 'Fornecedor', 'Data', 'Valor Total', 'Status'];
+                    resumo = { 'Total de Pedidos': arr.length, 'Valor Total': this.formatarMoeda(arr.reduce((s,p) => s + (parseFloat(p.valor_total)||0), 0)), 'Aprovados': arr.filter(p => p.status==='aprovado').length, 'Pendentes': arr.filter(p => p.status==='pendente').length };
+                    rows = arr.map(p => `<tr><td class="font-bold">${p.numero||p.id||'-'}</td><td>${p.fornecedor||p.fornecedor_nome||'-'}</td><td>${this.formatarData(p.data_pedido||p.created_at)}</td><td class="text-right font-bold">${this.formatarMoeda(p.valor_total)}</td><td><span class="badge badge-${this.getBadgeClass(p.status)}">${this.formatarStatus(p.status)}</span></td></tr>`);
+                    break;
+                case 'fornecedores':
+                    headers = ['Nome / Razão Social', 'CNPJ/CPF', 'Telefone', 'Email', 'Categoria', 'Status'];
+                    resumo = { 'Total Fornecedores': arr.length, 'Ativos': arr.filter(f => f.ativo!==0 && f.status!=='inativo').length };
+                    rows = arr.map(f => `<tr><td class="font-bold">${f.nome||f.razao_social||'-'}</td><td>${f.cnpj||f.cpf||'-'}</td><td>${f.telefone||'-'}</td><td>${f.email||'-'}</td><td>${f.categoria||'-'}</td><td><span class="badge badge-${f.ativo!==0?'success':'secondary'}">${f.ativo!==0?'Ativo':'Inativo'}</span></td></tr>`);
+                    break;
+                case 'estoque':
+                    headers = ['Código', 'Material', 'Tipo', 'Unidade', 'Qtd. Atual', 'Mínimo', 'Custo Unit.', 'Status'];
+                    const totalEst = arr.reduce((s,m) => s + parseFloat(m.quantidade_estoque||m.estoque_atual||m.quantidade||0), 0);
+                    const totalCusto = arr.reduce((s,m) => s + (parseFloat(m.custo_unitario||0) * parseFloat(m.quantidade_estoque||m.estoque_atual||m.quantidade||0)), 0);
+                    resumo = { 'Total Materiais': arr.length, 'Qtd. Total Estoque': Math.round(totalEst), 'Valor em Estoque': this.formatarMoeda(totalCusto), 'Abaixo do Mínimo': arr.filter(m => (m.quantidade_estoque||m.estoque_atual||m.quantidade||0) <= (m.estoque_minimo||m.minimo||0) && (m.estoque_minimo||m.minimo||0) > 0).length };
+                    rows = arr.map(m => { const a = m.quantidade_estoque||m.estoque_atual||m.quantidade||0; const mn = m.estoque_minimo||m.minimo||0; const cr = mn>0 && a<=mn; return `<tr><td class="font-bold">${m.codigo_material||m.codigo||'-'}</td><td>${m.descricao||m.nome||'-'}</td><td>${m.tipo||'-'}</td><td class="text-center">${m.unidade_medida||m.unidade||'-'}</td><td class="text-right font-bold" style="${cr?'color:#dc2626;':''}">${a}</td><td class="text-right">${mn}</td><td class="text-right">${this.formatarMoeda(m.custo_unitario)}</td><td><span class="badge badge-${cr?'danger':'success'}">${cr?'Crítico':'Normal'}</span></td></tr>`; });
+                    break;
+                case 'movimentacoes':
+                    headers = ['Data', 'Material', 'Tipo', 'Quantidade', 'Responsável', 'Observação'];
+                    resumo = { 'Total Movimentações': arr.length, 'Entradas': arr.filter(m => m.tipo==='entrada').length, 'Saídas': arr.filter(m => m.tipo==='saida').length };
+                    rows = arr.map(m => `<tr><td>${this.formatarData(m.data||m.created_at)}</td><td class="font-bold">${m.material||m.descricao||'-'}</td><td><span class="badge badge-${m.tipo==='entrada'?'success':'warning'}">${m.tipo==='entrada'?'Entrada':'Saída'}</span></td><td class="text-right font-bold">${m.quantidade||0}</td><td>${m.responsavel||m.usuario||'-'}</td><td>${m.observacao||'-'}</td></tr>`);
+                    break;
+                case 'criticos':
+                    headers = ['Código', 'Material', 'Qtd. Atual', 'Estoque Mínimo', 'Diferença', 'Criticidade'];
+                    resumo = { 'Materiais Críticos': arr.length, 'Necessitam Reposição Urgente': arr.length };
+                    rows = arr.map(m => { const a = m.estoque_atual||m.quantidade||m.quantidade_estoque||0; const mn = m.estoque_minimo||m.minimo||0; const diff = a - mn; const pct = mn>0?(a/mn*100):0; return `<tr><td class="font-bold">${m.codigo_material||m.codigo||'-'}</td><td>${m.descricao||m.nome||'-'}</td><td class="text-right font-bold" style="color:#dc2626;">${a}</td><td class="text-right">${mn}</td><td class="text-right font-bold" style="color:#dc2626;">${diff}</td><td><span class="badge badge-${pct<=25?'danger':'warning'}">${pct<=25?'Urgente':'Atenção'}</span></td></tr>`; });
+                    break;
+                case 'cotacoes':
+                    headers = ['Nº', 'Título / Descrição', 'Fornecedor', 'Valor', 'Data', 'Status'];
+                    resumo = { 'Total Cotações': arr.length, 'Valor Total': this.formatarMoeda(arr.reduce((s,c) => s + (parseFloat(c.valor_total||c.valor||0)), 0)) };
+                    rows = arr.map(c => `<tr><td class="font-bold">${c.numero||c.id||'-'}</td><td>${c.titulo||c.descricao||'-'}</td><td>${c.fornecedor||c.fornecedor_nome||'-'}</td><td class="text-right font-bold">${this.formatarMoeda(c.valor_total||c.valor)}</td><td>${this.formatarData(c.data||c.created_at)}</td><td><span class="badge badge-${this.getBadgeClass(c.status)}">${this.formatarStatus(c.status)}</span></td></tr>`);
+                    break;
+            }
+            return { headers, rows, resumo };
         },
 
-        exportarExcel(tipo) {
-            const config = this.getConfigRelatorio(tipo);
-            let html = '<html><head><meta charset="UTF-8"></head><body>';
-            html += '<h2>' + config.titulo + '</h2>';
-            html += '<p>Gerado em: ' + new Date().toLocaleString('pt-BR') + '</p>';
-            html += '<table border="1"><tr><th>Dados disponíveis para exportação no servidor</th></tr></table>';
-            html += '</body></html>';
-            const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-            this.downloadBlob(blob, `relatorio-${tipo}-${new Date().toISOString().split('T')[0]}.xls`);
+        getBadgeClass(status) {
+            const map = { pendente:'warning', aprovado:'success', recebido:'success', cancelado:'danger', parcial:'info', aberto:'info', fechado:'secondary', concluido:'success', ativo:'success' };
+            return map[status] || 'secondary';
         },
 
-        exportarPDF(tipo) {
+        gerarResumoPDF(resumo) {
+            const entries = Object.entries(resumo);
+            if (!entries.length) return '';
+            return '<div class="summary-row">' + entries.map(([label, value]) => '<div class="summary-card"><div class="s-value">' + value + '</div><div class="s-label">' + label + '</div></div>').join('') + '</div>';
+        },
+
+        async exportarPDF(tipo, dataInicio, dataFim) {
             const config = this.getConfigRelatorio(tipo);
+            const dados = await this.fetchReportData(tipo);
+            const { headers, rows, resumo } = this.formatReportData(tipo, dados);
             const win = window.open('', '_blank');
-            win.document.write(`
-                <html><head><title>${config.titulo}</title>
-                <style>body { font-family: Arial, sans-serif; padding: 40px; } h1 { color: #1e1e1e; } p { color: #666; }</style>
-                </head><body>
-                <h1>${config.titulo}</h1>
-                <p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
-                <p>ALUFORCE — Módulo de Compras</p>
-                <hr>
-                <p>Dados do relatório serão exibidos aqui.</p>
-                <script>window.print();<\/script>
-</body></html>`);
-        },
-
-        downloadBlob(blob, filename) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = filename; a.click();
-            URL.revokeObjectURL(url);
+            if (!win) { throw new Error('Pop-up bloqueado. Permita pop-ups para gerar o PDF.'); }
+            const agora = new Date();
+            const dataEmissao = agora.toLocaleDateString('pt-BR');
+            const horaEmissao = agora.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+            const periodoTexto = dataInicio && dataFim ? 'Período: ' + new Date(dataInicio+'T12:00:00').toLocaleDateString('pt-BR') + ' a ' + new Date(dataFim+'T12:00:00').toLocaleDateString('pt-BR') : '';
+            win.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${config.titulo} - ALUFORCE</title>
+<style>
+@page { margin: 12mm 15mm; size: A4 landscape; }
+@media print { body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .print-bar { display: none !important; } }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: #1e293b; font-size: 11px; line-height: 1.5; background: #fff; padding: 30px 40px; }
+.print-bar { position: sticky; top: 0; z-index: 100; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: center; gap: 12px; }
+.print-bar button { border: none; padding: 10px 28px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+.print-bar .btn-print { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; }
+.print-bar .btn-print:hover { background: linear-gradient(135deg, #1d4ed8, #1e40af); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+.print-bar .btn-close { background: #f1f5f9; color: #475569; }
+.print-bar .btn-close:hover { background: #e2e8f0; }
+.rpt-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 3px solid #2563eb; margin-bottom: 22px; }
+.brand { display: flex; flex-direction: column; }
+.brand-name { font-size: 24px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; }
+.brand-sub { font-size: 11px; color: #64748b; font-weight: 400; margin-top: 3px; }
+.rpt-meta { text-align: right; }
+.rpt-meta .doc-tag { font-size: 9px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 4px 12px; border-radius: 6px; display: inline-block; margin-bottom: 8px; letter-spacing: 1px; text-transform: uppercase; }
+.rpt-meta .meta-line { font-size: 10px; color: #64748b; margin-top: 3px; }
+.rpt-title { margin-bottom: 20px; }
+.rpt-title h1 { font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.rpt-title .subtitle { font-size: 11px; color: #64748b; }
+.summary-row { display: flex; gap: 14px; margin-bottom: 22px; }
+.summary-card { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; }
+.summary-card .s-value { font-size: 20px; font-weight: 700; color: #1e293b; }
+.summary-card .s-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-top: 3px; }
+.data-section { margin-bottom: 22px; }
+.data-section h2 { font-size: 12px; font-weight: 700; color: #1e293b; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+.data-section h2::before { content: ''; width: 4px; height: 16px; background: #2563eb; border-radius: 2px; }
+table { width: 100%; border-collapse: collapse; border-radius: 8px; overflow: hidden; }
+thead th { background: #1e293b; color: #fff; padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+tbody td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-size: 10.5px; }
+tbody tr:nth-child(even) { background: #f8fafc; }
+tbody tr:hover { background: #f1f5f9; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.font-bold { font-weight: 600; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 9px; font-weight: 600; }
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-danger { background: #fee2e2; color: #991b1b; }
+.badge-info { background: #dbeafe; color: #1e40af; }
+.badge-secondary { background: #f1f5f9; color: #475569; }
+.rpt-footer { margin-top: 28px; padding-top: 14px; border-top: 2px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+.rpt-footer span { font-size: 9px; color: #94a3b8; }
+.confidential { font-size: 8px; color: #cbd5e1; text-align: center; margin-top: 10px; letter-spacing: 1px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="print-bar">
+    <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+    <button class="btn-close" onclick="window.close()">✕ Fechar</button>
+</div>
+<div class="rpt-header">
+    <div class="brand">
+        <div class="brand-name">ALUFORCE</div>
+        <div class="brand-sub">Zyntra — Módulo de Compras</div>
+    </div>
+    <div class="rpt-meta">
+        <div class="doc-tag">Relatório</div>
+        <div class="meta-line">Emitido em: ${dataEmissao} às ${horaEmissao}</div>
+        ${periodoTexto ? '<div class="meta-line">' + periodoTexto + '</div>' : ''}
+    </div>
+</div>
+<div class="rpt-title">
+    <h1>${config.titulo}</h1>
+    <div class="subtitle">${config.descricao}</div>
+</div>
+${this.gerarResumoPDF(resumo)}
+<div class="data-section">
+    <h2>Dados do Relatório</h2>
+    <table>
+        <thead><tr>${headers.map(h => '<th>' + h + '</th>').join('')}</tr></thead>
+        <tbody>${rows.length ? rows.join('') : '<tr><td colspan="' + headers.length + '" style="text-align:center; padding:24px; color:#94a3b8; font-style:italic;">Nenhum dado encontrado para o período selecionado</td></tr>'}</tbody>
+    </table>
+    <div style="text-align:right; margin-top:8px; font-size:10px; color:#94a3b8;">${rows.length} registro(s) encontrado(s)</div>
+</div>
+<div class="rpt-footer">
+    <span>ALUFORCE — Sistema Integrado de Gestão Empresarial</span>
+    <span>Documento gerado automaticamente pelo Zyntra ERP</span>
+</div>
+<div class="confidential">Documento Confidencial — Uso Interno</div>
+</body>
+</html>`);
+            win.document.close();
         },
 
         mostrarLoading() {
@@ -480,12 +671,21 @@
     document.addEventListener('DOMContentLoaded', () => RelatoriosCompras.init());
     </script>
 
-    <script src="notifications.js"></script>
-    <script src="/js/popup-confirmacao.js"></script>
-    <script src="/modules/Compras/compras-user-loader.js?v=20260214"></script>
-    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Module Scripts -->
+    <script src="/modules/Compras/js/compras-utils.js?v=20260301"></script>
+    <script src="/modules/Compras/notifications.js?v=20260301"></script>
+    <script src="/js/popup-confirmacao.js?v=20260301"></script>
+    <script src="/modules/Compras/compras-user-loader.js?v=20260301"></script>
+
+    <!-- Shared Utilities -->
+    <script src="/js/mobile-auto-enhance.js?v=20260301" defer></script>
+    <script src="/_shared/confirm-dialog.js?v=20260301"></script>
+
     <!-- Chat Widget BOB AI -->
-    <script src="/chat/widget.js?v=20260218" defer></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <script src="/chat/widget.js?v=20260301" defer></script>
+
+    <!-- Enterprise Shared -->
+    <script src="/js/sidebar-click-animation.js?v=20260301"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260301"></script>
 </body>
 </html>

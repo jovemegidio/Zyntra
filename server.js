@@ -931,29 +931,70 @@ app.get('/favicon.ico', (req, res) => {
 });
 
 // ========================================
-// ⚡ ENTERPRISE: Auto-inject do ConfirmDialog profissional em todas as páginas HTML
-// Intercepta res.sendFile para injetar confirm-dialog.js antes de </body>
+// ⚡ ENTERPRISE: Auto-inject de scripts globais em todas as páginas HTML
+// Intercepta res.sendFile para injetar confirm-dialog.js + offline-sync + pwa antes de </body>
+// Isso garante que TODAS as 60+ páginas do sistema tenham suporte offline
 // ========================================
-const CONFIRM_DIALOG_TAG = '\n<!-- ALUFORCE: Confirm Dialog Profissional v2.0 -->\n<script src="/_shared/confirm-dialog.js?v=20260217"></script>\n';
+const GLOBAL_INJECT_SCRIPTS = [
+    '\n<!-- ALUFORCE: Confirm Dialog Profissional v2.0 -->',
+    '<script src="/_shared/confirm-dialog.js?v=20260301"></script>',
+    '<!-- ALUFORCE: Offline Sync Manager v4.0 - Sistema completo offline -->',
+    '<script src="/js/offline-sync-manager.js?v=20260301"></script>',
+    '<!-- ALUFORCE: Report Viewer v1.0 - Relatorios inline -->',
+    '<script src="/js/report-viewer.js?v=20260301"></script>',
+    '<!-- ALUFORCE: PWA Manager v3.0 -->',
+    '<script src="/js/pwa-manager.js?v=20260301"></script>\n'
+].join('\n');
+
+// Paginas que NAO devem receber offline-sync (login precisa de rede)
+const SKIP_OFFLINE_INJECT = ['login.html', 'forgot-password.html', 'reset-password.html', 'register.html'];
+
 app.use((req, res, next) => {
     const _origSendFile = res.sendFile.bind(res);
     res.sendFile = function (filePath, opts, cb) {
         if (typeof filePath === 'string' && filePath.endsWith('.html')) {
             fs.readFile(filePath, 'utf8', (err, html) => {
                 if (err || !html) return _origSendFile(filePath, opts, cb);
-                // Não injetar se já inclui confirm-dialog.js
-                if (html.includes('confirm-dialog.js')) {
-                    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-                    return res.send(html);
-                }
-                // Injetar antes de </body> ou </html>
-                if (html.includes('</body>')) {
-                    html = html.replace('</body>', CONFIRM_DIALOG_TAG + '</body>');
-                } else if (html.includes('</html>')) {
-                    html = html.replace('</html>', CONFIRM_DIALOG_TAG + '</html>');
+
+                const fileName = path.basename(filePath);
+                const isLoginPage = SKIP_OFFLINE_INJECT.includes(fileName);
+
+                // Montar scripts a injetar
+                let injectTag = '';
+                if (isLoginPage) {
+                    // Login: só confirm-dialog, sem offline
+                    if (!html.includes('confirm-dialog.js')) {
+                        injectTag = '\n<script src="/_shared/confirm-dialog.js?v=20260301"></script>\n';
+                    }
                 } else {
-                    html += CONFIRM_DIALOG_TAG;
+                    // Todas as outras páginas: inject completo (confirm + offline + report-viewer + pwa)
+                    if (!html.includes('offline-sync-manager.js')) {
+                        injectTag = GLOBAL_INJECT_SCRIPTS;
+                    } else if (!html.includes('report-viewer.js')) {
+                        // Já tem offline-sync mas falta report-viewer
+                        injectTag = '\n<script src="/js/report-viewer.js?v=20260301"></script>\n';
+                        if (!html.includes('confirm-dialog.js')) {
+                            injectTag = '\n<script src="/_shared/confirm-dialog.js?v=20260301"></script>' + injectTag;
+                        }
+                    } else if (!html.includes('confirm-dialog.js')) {
+                        injectTag = '\n<script src="/_shared/confirm-dialog.js?v=20260301"></script>\n';
+                    }
                 }
+
+                if (injectTag) {
+                    // IMPORTANTE: Usar lastIndexOf para injetar antes do ÚLTIMO </body>
+                    // (o primeiro pode estar dentro de um template literal JS)
+                    const bodyIdx = html.lastIndexOf('</body>');
+                    const htmlIdx = html.lastIndexOf('</html>');
+                    if (bodyIdx !== -1) {
+                        html = html.substring(0, bodyIdx) + injectTag + html.substring(bodyIdx);
+                    } else if (htmlIdx !== -1) {
+                        html = html.substring(0, htmlIdx) + injectTag + html.substring(htmlIdx);
+                    } else {
+                        html += injectTag;
+                    }
+                }
+
                 res.setHeader('Content-Type', 'text/html; charset=utf-8');
                 res.send(html);
             });
@@ -1191,6 +1232,83 @@ app.use('/uploads', express.static(path.join(__dirname, 'modules', 'Vendas', 'pu
 }));
 // /Sistema/Vendas removido - use rotas autenticadas /Vendas/*
 
+// ========================================
+// ⚡ HTML INTERCEPTOR: Capturar TODOS os .html de módulos via sendFile
+// Isso garante que o middleware de inject funcione para express.static também
+// ========================================
+app.get('/PCP/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'PCP', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next(); // Deixar express.static tentar
+    }
+});
+app.get('/modules/PCP/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'PCP', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+app.get('/NFe/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'NFe', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+app.get('/e-Nf-e/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'NFe', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+app.get('/Financeiro/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'Financeiro', 'public', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+app.get('/Compras/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'Compras', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+app.get('/RecursosHumanos/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'RH', 'public', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+app.get('/RH/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', 'RH', 'public', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+app.get('/modules/*.html', (req, res, next) => {
+    const htmlPath = path.join(__dirname, 'modules', req.params[0] + '.html');
+    if (fs.existsSync(htmlPath)) {
+        res.sendFile(htmlPath);
+    } else {
+        next();
+    }
+});
+
 // Rotas estáticas do PCP - Cache desabilitado para TODOS os tipos de arquivo
 app.use('/PCP', express.static(path.join(__dirname, 'modules', 'PCP'), {
     etag: false,
@@ -1329,42 +1447,52 @@ app.get('/api/usuarios/foto/:email', async (req, res) => {
     try {
         const email = decodeURIComponent(req.params.email).toLowerCase();
 
-        // Busca a foto do usuário no banco
-        const [usuarios] = await pool.query(
-            'SELECT foto, avatar, nome, apelido FROM usuarios WHERE LOWER(email) = ?',
-            [email]
-        );
-
-        if (usuarios.length > 0 && (usuarios[0].foto || usuarios[0].avatar)) {
-            return res.json({
-                success: true,
-                foto: usuarios[0].foto || usuarios[0].avatar,
-                nome: usuarios[0].nome,
-                apelido: usuarios[0].apelido || null
-            });
+        // Buscar dados do usuário na tabela usuarios
+        let nome = null, apelido = null, foto = null;
+        try {
+            const [usuarios] = await pool.query(
+                'SELECT foto, avatar, nome, apelido FROM usuarios WHERE LOWER(email) = ?',
+                [email]
+            );
+            if (usuarios.length > 0) {
+                nome = usuarios[0].nome;
+                apelido = usuarios[0].apelido;
+                // Priorizar foto real (não SVG), depois avatar
+                let fotoUsuario = usuarios[0].foto || null;
+                if (!fotoUsuario || fotoUsuario.endsWith('.svg')) {
+                    fotoUsuario = usuarios[0].avatar || null;
+                }
+                // Ignorar SVGs de avatar genérico
+                if (fotoUsuario && !fotoUsuario.endsWith('.svg')) {
+                    foto = fotoUsuario;
+                }
+            }
+        } catch (e) {
+            console.warn('Erro ao buscar foto em usuarios:', e.message);
         }
 
-        // Retornar dados mesmo sem foto (para apelido/nome)
-        if (usuarios.length > 0) {
-            return res.json({
-                success: true,
-                foto: null,
-                nome: usuarios[0].nome,
-                apelido: usuarios[0].apelido || null
-            });
+        // Sempre tentar buscar foto na tabela funcionarios (tem foto_perfil_url)
+        if (!foto) {
+            try {
+                const [funcionarios] = await pool.query(
+                    'SELECT foto_perfil_url, foto_thumb_url, nome_completo FROM funcionarios WHERE LOWER(email) = ? LIMIT 1',
+                    [email]
+                );
+                if (funcionarios.length > 0) {
+                    foto = funcionarios[0].foto_perfil_url || funcionarios[0].foto_thumb_url || null;
+                    if (!nome) nome = funcionarios[0].nome_completo;
+                }
+            } catch (e) {
+                console.warn('Erro ao buscar foto em funcionarios:', e.message);
+            }
         }
 
-        // Se não encontrou no usuarios, tenta buscar em funcionarios pelo email
-        const [funcionarios] = await pool.query(
-            'SELECT foto_perfil_url, nome_completo FROM funcionarios WHERE LOWER(email) = ?',
-            [email]
-        );
-
-        if (funcionarios.length > 0) {
+        if (nome || foto) {
             return res.json({
                 success: true,
-                foto: funcionarios[0].foto_perfil_url || null,
-                nome: funcionarios[0].nome_completo
+                foto: foto,
+                nome: nome,
+                apelido: apelido || null
             });
         }
 
@@ -2461,13 +2589,29 @@ const authorizeAdminOrComercial = (req, res, next) => {
     return res.status(403).json({ message: 'Acesso negado. Requer privilégios de administrador ou comercial.' });
 };
 
-// ACL: Controle de acesso detalhado por nível de usuário (Exemplo para Financeiro)
+// ACL: Controle de acesso detalhado por nível de usuário
+// FIX: req.user.permissions nunca é populado no JWT. Consultar permissoes_acoes no DB.
 function authorizeACL(permission) {
-    return (req, res, next) => {
-        if (req.user?.permissions?.includes(permission) || req.user?.role === 'admin') {
-            return next();
+    return async (req, res, next) => {
+        try {
+            // Admin sempre tem acesso total
+            if (req.user?.role === 'admin') return next();
+
+            // Verificar permissão na tabela permissoes_acoes
+            const [rows] = await pool.query(
+                'SELECT acao FROM permissoes_acoes WHERE usuario_id = ? AND acao = ? AND permitido = 1',
+                [req.user?.id, permission]
+            );
+            if (rows.length > 0) return next();
+
+            // Fallback: verificar permissões financeiro (pode incluir permissões gerais)
+            if (req.user?.permissions?.includes(permission)) return next();
+
+            return res.status(403).json({ message: 'Acesso negado. Permissão insuficiente.' });
+        } catch (err) {
+            console.error('[ACL] Erro ao verificar permissão:', err.message);
+            return res.status(403).json({ message: 'Acesso negado. Permissão insuficiente.' });
         }
-        return res.status(403).json({ message: 'Acesso negado. Permissão insuficiente.' });
     };
 }
 
@@ -2572,6 +2716,136 @@ registerAllRoutes(app, {
 });
 console.log('[SERVER]  All modular routes registered');
 
+// =================================================================
+// AUDIT LOG API — Unified endpoint for Histórico de Alterações
+// Reads from all 3 audit tables: auditoria_logs, audit_logs, audit_log
+// =================================================================
+app.get('/api/audit-log', authenticateToken, authorizeAdmin, async (req, res) => {
+    try {
+        const limite = Math.min(parseInt(req.query.limite) || 500, 2000);
+        const allLogs = [];
+
+        // 1. auditoria_logs (main server)
+        try {
+            const [rows] = await pool.query(
+                `SELECT id, usuario_id, acao, modulo, descricao, ip_address AS ip, user_agent, created_at AS data
+                 FROM auditoria_logs ORDER BY created_at DESC LIMIT ?`, [limite]
+            );
+            rows.forEach(r => {
+                allLogs.push({
+                    id: 'main-' + r.id,
+                    usuario: r.usuario_id ? ('Usuário #' + r.usuario_id) : 'Sistema',
+                    acao: r.acao || 'info',
+                    modulo: r.modulo || 'sistema',
+                    descricao: r.descricao || 'Ação registrada',
+                    ip: r.ip || '',
+                    data: r.data,
+                    fonte: 'principal'
+                });
+            });
+        } catch (e) { console.log('[AUDIT-API] auditoria_logs skip:', e.message); }
+
+        // 2. audit_logs (Vendas module)
+        try {
+            const vendasPool = require('mysql2/promise').createPool({
+                host: process.env.DB_HOST || 'localhost',
+                port: parseInt(process.env.DB_PORT) || 3306,
+                user: process.env.DB_USER || 'aluforce',
+                password: process.env.DB_PASSWORD || '',
+                database: process.env.VENDAS_DB_NAME || 'aluforce_vendas',
+                connectionLimit: 2
+            });
+            const [rows] = await vendasPool.query(
+                `SELECT al.id, al.user_id, al.action, al.resource_type, al.resource_id, al.meta, al.created_at,
+                        COALESCE(u.nome, CONCAT('Usuário #', al.user_id)) AS usuario_nome
+                 FROM audit_logs al LEFT JOIN usuarios u ON al.user_id = u.id
+                 ORDER BY al.created_at DESC LIMIT ?`, [limite]
+            );
+            rows.forEach(r => {
+                let meta = {};
+                try { meta = r.meta ? JSON.parse(r.meta) : {}; } catch {}
+                allLogs.push({
+                    id: 'vendas-' + r.id,
+                    usuario: r.usuario_nome || 'Sistema',
+                    acao: r.action || 'info',
+                    modulo: 'vendas',
+                    descricao: `${r.action || ''} ${r.resource_type || ''} ${r.resource_id ? '#' + r.resource_id : ''}`.trim() || 'Ação registrada',
+                    ip: meta.ip || '',
+                    data: r.created_at,
+                    fonte: 'vendas'
+                });
+            });
+            await vendasPool.end();
+        } catch (e) { console.log('[AUDIT-API] audit_logs (vendas) skip:', e.message); }
+
+        // 3. audit_log (PCP module)
+        try {
+            const [rows] = await pool.query(
+                `SELECT id, user_id, action, entity_type, entity_id, details, user_name, created_at
+                 FROM audit_log ORDER BY created_at DESC LIMIT ?`, [limite]
+            );
+            rows.forEach(r => {
+                allLogs.push({
+                    id: 'pcp-' + r.id,
+                    usuario: r.user_name || ('Usuário #' + r.user_id),
+                    acao: r.action || 'info',
+                    modulo: 'pcp',
+                    descricao: `${r.action || ''} ${r.entity_type || ''} ${r.entity_id ? '#' + r.entity_id : ''} ${r.details || ''}`.trim() || 'Ação registrada',
+                    ip: '',
+                    data: r.created_at,
+                    fonte: 'pcp'
+                });
+            });
+        } catch (e) { console.log('[AUDIT-API] audit_log (pcp) skip:', e.message); }
+
+        // Sort all by date descending and limit
+        allLogs.sort((a, b) => new Date(b.data) - new Date(a.data));
+        const finalLogs = allLogs.slice(0, limite);
+
+        // Enrich with user names from usuarios table
+        try {
+            const [usuarios] = await pool.query('SELECT id, nome FROM usuarios');
+            const userMap = {};
+            usuarios.forEach(u => { userMap[u.id] = u.nome; });
+            finalLogs.forEach(log => {
+                const match = log.usuario.match(/^Usuário #(\d+)$/);
+                if (match && userMap[parseInt(match[1])]) {
+                    log.usuario = userMap[parseInt(match[1])];
+                }
+            });
+        } catch (e) { /* skip */ }
+
+        res.json({ logs: finalLogs, total: finalLogs.length });
+    } catch (error) {
+        console.error('[AUDIT-API] Erro:', error);
+        res.status(500).json({ error: 'Erro ao carregar histórico', logs: [] });
+    }
+});
+
+// POST /api/audit-log — register frontend actions
+app.post('/api/audit-log', authenticateToken, async (req, res) => {
+    try {
+        const { usuario, acao, modulo, descricao } = req.body;
+        const ip = req.ip || req.headers['x-forwarded-for'] || '';
+        const userAgent = req.headers['user-agent'] || '';
+        const userId = req.user?.id || req.user?.userId || null;
+
+        await writeAuditLog({
+            userId,
+            action: acao,
+            module: modulo,
+            description: descricao || `${usuario}: ${acao} em ${modulo}`,
+            ip,
+            userAgent
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('[AUDIT-API] POST erro:', error);
+        res.status(500).json({ error: 'Erro ao registrar' });
+    }
+});
+
 // Endpoint de status/health (deve ficar ANTES do 404 e error handlers)
 app.get('/status', async (req, res) => {
     const info = {
@@ -2607,8 +2881,13 @@ app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'Rota não encontrada', path: req.path });
     }
-    // All others: generic 404
-    res.status(404).send('<!DOCTYPE html><html><head><title>404</title></head><body style="font-family:sans-serif;text-align:center;padding:60px"><h1>404</h1><p>Página não encontrada</p><a href="/">Voltar ao início</a></body></html>');
+    // All others: serve branded 404 page
+    const page404 = path.join(__dirname, 'public', '404.html');
+    res.status(404).sendFile(page404, (err) => {
+        if (err) {
+            res.status(404).send('<h1>404 — Página não encontrada</h1><p><a href="/dashboard">Voltar ao Dashboard</a></p>');
+        }
+    });
 });
 
 // Middleware para tratamento de erros (deve ser o último middleware)
@@ -3214,6 +3493,29 @@ try {
     console.log('💬 Chat BOB AI: Handler Socket.IO inicializado');
 } catch (chatErr) {
     console.error('⚠️  Erro ao carregar Chat handler:', chatErr.message);
+}
+
+// ============================================================
+// CHAT CORPORATIVO (Teams) - Socket.IO Handler + Migração
+// ============================================================
+try {
+    const { setupChatTeamsSocket } = require('./routes/chat-routes');
+    setupChatTeamsSocket(io, pool);
+    console.log('💬 Chat Teams: Socket.IO namespace /chat-teams inicializado');
+} catch (chatTeamsErr) {
+    console.error('⚠️  Erro ao carregar Chat Teams handler:', chatTeamsErr.message);
+}
+
+// Chat Teams — Migração automática das tabelas
+try {
+    const { createChatTables } = require('./database/migrations/chat-tables');
+    createChatTables(pool).then(() => {
+        console.log('💬 Chat Teams: Tabelas MySQL verificadas/criadas');
+    }).catch(migErr => {
+        console.warn('⚠️  Chat Tables migration:', migErr.message);
+    });
+} catch (chatMigErr) {
+    console.warn('⚠️  Chat Tables migration load error:', chatMigErr.message);
 }
 
 

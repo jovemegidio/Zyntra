@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <!-- Script de diagnóstico - Captura erros de carregamento -->
+    <script>
+    window.onerror = function(msg, url, line, col, error) {
+        console.error('ERRO GLOBAL:', msg, 'em', url, 'linha', line);
+        if (document.body) {
+            document.body.innerHTML = '<div style="padding:20px;font-family:sans-serif;"><h1>Erro de Carregamento</h1><p>' + msg + '</p><p>Arquivo: ' + url + '</p><p>Linha: ' + line + '</p><a href="javascript:location.reload()">Recarregar</a></div>';
+        }
+        return false;
+    };
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e40af">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ALUFORCE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="ALUFORCE">
+    <meta name="msapplication-TileColor" content="#1e40af">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="description" content="Sistema de Gestão Empresarial ALUFORCE - ERP Completo">
+
+    <title>ALUFORCE ERP | Painel de Controle</title>
+
+    <!-- Favicon e ícones -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Fonts - Inter para UI moderna -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- CSS do Sistema Original (mantém funcionalidades) -->
+    <link rel="stylesheet" href="/css/modal-fix-critical.css?v=20260129">
+    <link rel="stylesheet" href="/css/notifications-fix.css?v=20260129">
+    
+    <!-- NOVO CSS ERP Profissional -->
+    <link rel="stylesheet" href="/css/erp-dashboard.css?v=20260129">
+
+    <!-- Critical CSS inline -->
+    <style>
+        :root {
+            --primary-50: #eff6ff;
+            --primary-100: #dbeafe;
+            --primary-200: #bfdbfe;
+            --primary-300: #93c5fd;
+            --primary-400: #60a5fa;
+            --primary-500: #3b82f6;
+            --primary-600: #2563eb;
+            --primary-700: #1d4ed8;
+            --primary-800: #1e40af;
+            --primary-900: #1e3a8a;
+            
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+            
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #06b6d4;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        html { font-size: 16px; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            color: var(--gray-800);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Loading */
+        .page-loading { opacity: 0; }
+        .page-loaded { opacity: 1; transition: opacity 0.3s; }
+        
+        #initial-loader {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, var(--primary-800), var(--primary-900));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            gap: 24px;
+        }
+        #initial-loader.hide { opacity: 0; visibility: hidden; transition: all 0.4s; }
+        
+        .loader-logo {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: white;
+            letter-spacing: -1px;
+        }
+        .loader-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Modais ocultos por padrão */
+        #preferences-modal:not(.active),
+        #profile-modal:not([aria-hidden="false"]),
+        #modal-configuracoes:not(.active),
+        .modal-overlay:not(.active) {
+            display: none !important;
+            visibility: hidden !important;
+        }
+    </style>
+
+    <!-- Scripts de autenticação -->
+    <script>
+    // Fechar modais ao carregar
+    (function() {
+        function closeAllModals() {
+            var modals = document.querySelectorAll('[id*="modal"]:not(.active)');
+            modals.forEach(function(modal) {
+                modal.style.display = 'none';
+                modal.setAttribute('aria-hidden', 'true');
+            });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', closeAllModals);
+        } else {
+            closeAllModals();
+        }
+        setTimeout(closeAllModals, 100);
+        setTimeout(closeAllModals, 500);
+    })();
+
+    // Autenticação
+    document.addEventListener('DOMContentLoaded', async function() {
+        const dashboard = document.getElementById('dashboard-area');
+        const initialLoader = document.getElementById('initial-loader');
+
+        try {
+            const resp = await fetch('/api/me', { credentials: 'include' });
+            if (!resp.ok) throw new Error('Não autenticado');
+            const user = await resp.json();
+
+            if (dashboard) dashboard.style.display = 'block';
+
+            if (initialLoader) {
+                initialLoader.classList.add('hide');
+                setTimeout(() => initialLoader.remove(), 400);
+            }
+            document.body.classList.remove('page-loading');
+            document.body.classList.add('page-loaded');
+
+            localStorage.setItem('userData', JSON.stringify(user));
+            if (typeof updateUserUI === 'function') updateUserUI(user);
+            if (typeof applyModulePermissions === 'function') applyModulePermissions(user);
+        } catch (e) {
+            console.log('🔒 Não autenticado - redirecionando para login...');
+            localStorage.removeItem('userData');
+            window.location.href = '/login.html';
+        }
+    });
+
+    // Update UI
+    function updateUserUI(user) {
+        if (!user) return;
+        
+        const fullName = user.nome || user.nome_completo || user.email || 'Usuário';
+        const firstName = fullName.split(' ')[0];
+        const displayName = user.apelido || firstName;
+
+        const greetingName = document.getElementById('greeting-name');
+        if (greetingName) greetingName.textContent = displayName;
+
+        const userName = document.querySelector('.user-name');
+        if (userName) userName.textContent = displayName;
+
+        const userRole = document.querySelector('.user-role');
+        if (userRole) userRole.textContent = user.cargo || user.departamento || 'Colaborador';
+
+        const userAvatar = document.querySelector('.user-avatar');
+        if (userAvatar) {
+            const initials = firstName.substring(0, 2).toUpperCase();
+            if (user.avatar && user.avatar !== '/avatars/default.webp') {
+                userAvatar.innerHTML = `<img src="${user.avatar}" alt="${firstName}" onerror="this.parentElement.textContent='${initials}'">`;
+            } else {
+                userAvatar.textContent = initials;
+            }
+        }
+
+        // Atualizar saudação baseada na hora
+        updateGreeting();
+    }
+
+    function updateGreeting() {
+        const hour = new Date().getHours();
+        const greetingText = document.getElementById('greeting-text');
+        if (greetingText) {
+            if (hour >= 5 && hour < 12) {
+                greetingText.textContent = 'Bom dia,';
+            } else if (hour >= 12 && hour < 18) {
+                greetingText.textContent = 'Boa tarde,';
+            } else {
+                greetingText.textContent = 'Boa noite,';
+            }
+        }
+    }
+
+    // Permissões de módulos
+    function applyModulePermissions(user) {
+        if (!user) return;
+
+        const emailPermissions = {
+            'ti@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'andreia@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'douglas@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'rh@aluforce.ind.br': ['rh'],
+            'clemerson@aluforce.ind.br': ['pcp', 'vendas', 'rh'],
+            'eldir@aluforce.ind.br': ['financeiro'],
+            'hellen@aluforce.ind.br': ['financeiro'],
+            'thiago@aluforce.ind.br': ['nfe'],
+            'guilherme@aluforce.ind.br': ['compras'],
+            'marcia@aluforce.ind.br': ['vendas'],
+            'fabiano@aluforce.ind.br': ['vendas'],
+            'renata@aluforce.ind.br': ['vendas'],
+            'augusto@aluforce.ind.br': ['vendas']
+        };
+
+        let allowedAreas = user.areas || [];
+        if (typeof allowedAreas === 'string') {
+            try { allowedAreas = JSON.parse(allowedAreas); } catch(e) { allowedAreas = []; }
+        }
+        if (!Array.isArray(allowedAreas)) allowedAreas = [];
+        allowedAreas = allowedAreas.map(a => String(a).toLowerCase());
+
+        const userEmail = (user.email || '').toLowerCase();
+        if (allowedAreas.length === 0 && emailPermissions[userEmail]) {
+            allowedAreas = emailPermissions[userEmail];
+        }
+
+        const isAdmin = user.is_admin === 1 || user.is_admin === true || user.role === 'admin';
+
+        if (isAdmin) {
+            document.querySelectorAll('.module-card').forEach(card => {
+                card.style.display = '';
+            });
+            return;
+        }
+
+        const modules = {
+            'compras': '.module-card[data-area="compras"]',
+            'vendas': '.module-card[data-area="vendas"]',
+            'nfe': '.module-card[data-area="nfe"]',
+            'pcp': '.module-card[data-area="pcp"]',
+            'financeiro': '.module-card[data-area="financeiro"]',
+            'rh': '.module-card[data-area="rh"]'
+        };
+
+        for (const [area, selector] of Object.entries(modules)) {
+            const card = document.querySelector(selector);
+            if (card) {
+                card.style.display = allowedAreas.includes(area) ? '' : 'none';
+            }
+        }
+    }
+
+    // Navegação RH
+    function navegarRH(event) {
+        event.preventDefault();
+        try {
+            const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+            const isAdmin = userData.is_admin === 1 || userData.is_admin === true;
+            const isRH = (userData.email || '').toLowerCase() === 'rh@aluforce.ind.br';
+            
+            if (isAdmin || isRH) {
+                window.location.href = '/RecursosHumanos/areaadm.html';
+            } else {
+                window.location.href = '/RecursosHumanos/funcionario.html';
+            }
+        } catch (e) {
+            window.location.href = '/RecursosHumanos/funcionario.html';
+        }
+    }
+    </script>
+</head>
+<body class="page-loading">
+    <!-- Loader -->
+    <div id="initial-loader">
+        <div class="loader-logo">ALUFORCE</div>
+        <div class="loader-spinner"></div>
+    </div>
+
+    <!-- Dashboard Principal -->
+    <div id="dashboard-area" class="erp-dashboard" style="display: none;">
+        <!-- Header -->
+        <header class="erp-header">
+            <div class="header-left">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <span class="logo-text">ALUFORCE</span>
+                    <span class="logo-badge">ERP</span>
+                </div>
+            </div>
+            
+            <div class="header-center">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Buscar módulos, clientes, pedidos...">
+                    <kbd>Ctrl+K</kbd>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <button class="header-btn" id="notificationBtn" title="Notificações">
+                    <i class="fas fa-bell"></i>
+                    <span class="badge">3</span>
+                </button>
+                <button class="header-btn" id="settingsBtn" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div class="user-menu">
+                    <div class="user-avatar">TI</div>
+                    <div class="user-info">
+                        <span class="user-name">Administrador</span>
+                        <span class="user-role">TI</span>
+                    </div>
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="erp-main">
+            <!-- Welcome Section -->
+            <section class="welcome-section">
+                <div class="welcome-content">
+                    <div class="welcome-text">
+                        <h1><span id="greeting-text">Bom dia,</span> <span id="greeting-name">Administrador</span>!</h1>
+                        <p class="welcome-subtitle">Gerencie sua empresa de forma inteligente e eficiente.</p>
+                    </div>
+                    <div class="welcome-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon success">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-value">98%</span>
+                                <span class="stat-label">Sistema Online</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon info">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="currentTime">--:--</span>
+                                <span class="stat-label" id="currentDate">-- de --</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Módulos ERP -->
+            <section class="modules-section">
+                <div class="section-header">
+                    <h2>Módulos do Sistema</h2>
+                    <p>Selecione um módulo para começar</p>
+                </div>
+                
+                <div class="modules-grid">
+                    <!-- Compras -->
+                    <a href="/modules/Compras/index.html" class="module-card" data-area="compras">
+                        <div class="module-icon" style="--module-color: #8b5cf6;">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <div class="module-content">
+                            <h3 class="module-title">Compras</h3>
+                            <p class="module-desc">Gestão de pedidos e fornecedores</p>
+                        </div>
+                        <div class="module-arrow">
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </a>
+
+                    <!-- Vendas -->
+                    <a href="/Vendas/index.html" class="module-card" data-area="vendas">
+                        <div class="module-icon" style="--module-color: #10b981;">
+                            <i class="fas fa-store"></i>
+                        </div>
+                        <div class="module-content">
+                            <h3 class="module-title">Vendas</h3>
+                            <p class="module-desc">Orçamentos e pedidos de venda</p>
+                        </div>
+                        <div class="module-arrow">
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </a>
+
+                    <!-- NF-e & Logística -->
+                    <a href="/modules/NFe/index.html" class="module-card" data-area="nfe">
+                        <div class="module-icon" style="--module-color: #f59e0b;">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <div class="module-content">
+                            <h3 class="module-title">NF-e & Logística</h3>
+                            <p class="module-desc">Notas fiscais e expedição</p>
+                        </div>
+                        <div class="module-arrow">
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </a>
+
+                    <!-- PCP -->
+                    <a href="/modules/PCP/index.html" class="module-card" data-area="pcp">
+                        <div class="module-icon" style="--module-color: #3b82f6;">
+                            <i class="fas fa-industry"></i>
+                        </div>
+                        <div class="module-content">
+                            <h3 class="module-title">PCP</h3>
+                            <p class="module-desc">Planejamento e controle de produção</p>
+                        </div>
+                        <div class="module-arrow">
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </a>
+
+                    <!-- Financeiro -->
+                    <a href="/modules/Financeiro/index.html" class="module-card" data-area="financeiro">
+                        <div class="module-icon" style="--module-color: #06b6d4;">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="module-content">
+                            <h3 class="module-title">Financeiro</h3>
+                            <p class="module-desc">Contas a pagar e receber</p>
+                        </div>
+                        <div class="module-arrow">
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </a>
+
+                    <!-- Recursos Humanos -->
+                    <a href="#" class="module-card" data-area="rh" onclick="navegarRH(event)">
+                        <div class="module-icon" style="--module-color: #ec4899;">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="module-content">
+                            <h3 class="module-title">Recursos Humanos</h3>
+                            <p class="module-desc">Gestão de colaboradores</p>
+                        </div>
+                        <div class="module-arrow">
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </a>
+                </div>
+            </section>
+
+            <!-- Quick Info Section -->
+            <section class="quick-info-section">
+                <div class="info-card">
+                    <div class="info-header">
+                        <h3><i class="fas fa-chart-line"></i> Resumo Rápido</h3>
+                    </div>
+                    <div class="info-stats">
+                        <div class="info-stat">
+                            <span class="info-stat-value">24</span>
+                            <span class="info-stat-label">Pedidos Hoje</span>
+                        </div>
+                        <div class="info-stat">
+                            <span class="info-stat-value">R$ 45k</span>
+                            <span class="info-stat-label">Faturamento</span>
+                        </div>
+                        <div class="info-stat">
+                            <span class="info-stat-value">7</span>
+                            <span class="info-stat-label">Novos Clientes</span>
+                        </div>
+                        <div class="info-stat">
+                            <span class="info-stat-value">98%</span>
+                            <span class="info-stat-label">Entregas no Prazo</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <div class="info-header">
+                        <h3><i class="fas fa-bell"></i> Alertas</h3>
+                        <span class="alert-badge">3</span>
+                    </div>
+                    <div class="alert-list">
+                        <div class="alert-item warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <span>5 faturas vencem hoje</span>
+                        </div>
+                        <div class="alert-item info">
+                            <i class="fas fa-box"></i>
+                            <span>Estoque baixo: 3 itens</span>
+                        </div>
+                        <div class="alert-item success">
+                            <i class="fas fa-check"></i>
+                            <span>Backup realizado com sucesso</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="erp-footer">
+            <div class="footer-content">
+                <span>© 2026 ALUFORCE - Sistema de Gestão Empresarial</span>
+                <span class="footer-version">v2.0.0</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts do Sistema -->
+    <script src="/js/auth-unified.js" defer></script>
+    <script src="/js/permissions.js" defer></script>
+    <script src="/js/header-controls.js" defer></script>
+    <script src="/js/notifications-manager.js" defer></script>
+    <script src="/js/config-modals.js" defer></script>
+
+    <!-- Script de atualização de hora -->
+    <script>
+    function updateDateTime() {
+        const now = new Date();
+        const timeEl = document.getElementById('currentTime');
+        const dateEl = document.getElementById('currentDate');
+        
+        if (timeEl) {
+            timeEl.textContent = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+        if (dateEl) {
+            dateEl.textContent = now.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' });
+        }
+    }
+    
+    setInterval(updateDateTime, 1000);
+    document.addEventListener('DOMContentLoaded', updateDateTime);
+    </script>
+</body>
+</html>

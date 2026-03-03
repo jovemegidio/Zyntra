@@ -1,8 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: Controle de Ponto</title>
     
@@ -317,6 +318,7 @@
 
     <!-- Tooltips Profissionais -->
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
     <script src="/js/tooltips-professional.js?v=20260209"></script>
     <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
     <!-- Chat Widget BOB AI -->
@@ -523,9 +525,10 @@
 
         async function carregarUsuarioLogado() {
             try {
-                const response = await fetch('/api/me', { credentials: 'include' });
+                const response = await fetch('/api/me', { credentials: 'include', headers: getAuthHeaders() });
                 if (response.ok) {
                     const user = await response.json();
+                    currentUserId = user.id || user.funcionario_id;
                     const userName = user.nome || user.apelido || 'Usuário';
                     let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : getAvatarFromEmail(user.email, userName);
                     const userNameEl = document.getElementById('user-name');
@@ -558,16 +561,55 @@
             document.getElementById('data-atual').textContent = `${diaSemana}, ${dia} de ${mes} de ${ano}`;
         }
 
+        // Helper: Obtém headers de autenticação
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
+        let currentUserId = null;
+
         let batidaAtual = 1;
-        function baterPonto() {
+        async function baterPonto() {
             const agora = new Date();
             const hora = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+            const dataHoje = agora.toISOString().split('T')[0]; // YYYY-MM-DD
             
             const batidaCards = ['batida-1', 'batida-2', 'batida-3', 'batida-4'];
             const horaIds = ['hora-entrada', 'hora-almoco-saida', 'hora-almoco-retorno', 'hora-saida'];
             const labels = ['Entrada', 'Saída Almoço', 'Retorno Almoço', 'Saída'];
+            const tipos = ['entrada', 'saida_almoco', 'retorno_almoco', 'saida'];
             
             if (batidaAtual <= 4) {
+                // Primeiro, enviar para a API
+                try {
+                    const response = await fetch('/api/rh/ponto/marcacoes', {
+                        method: 'POST',
+                        headers: getAuthHeaders(),
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            funcionario_id: currentUserId,
+                            data: dataHoje,
+                            hora: hora + ':00',
+                            tipo: tipos[batidaAtual - 1],
+                            observacao: `Batida de ponto via sistema - ${labels[batidaAtual - 1]}`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json().catch(() => ({}));
+                        console.error('Erro ao registrar ponto:', err);
+                        // Continuar com a atualização visual mesmo se a API falhar,
+                        // mas informar o usuário
+                        alert(`⚠️ ${labels[batidaAtual - 1]} registrada localmente às ${hora}, mas houve erro ao salvar no servidor. Tente novamente ou contate o RH.`);
+                    }
+                } catch (fetchError) {
+                    console.error('Erro de rede ao bater ponto:', fetchError);
+                }
+
                 const card = document.getElementById(batidaCards[batidaAtual - 1]);
                 card.classList.add('registrada');
                 document.getElementById(horaIds[batidaAtual - 1]).textContent = hora;
@@ -587,7 +629,7 @@
                     statusEl.className = 'status-ponto';
                 }
                 
-                alert(`âœ… ${labels[batidaAtual - 1]} registrada às ${hora}`);
+                alert(`✅ ${labels[batidaAtual - 1]} registrada às ${hora}`);
                 batidaAtual++;
             }
             
@@ -605,11 +647,12 @@
         });
     </script>
     <script src="/js/chat-suporte-widgets.js?v=20251217"></script>
-    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
     <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
         <!-- Chat Widget BOB AI -->
     <script src="/chat/widget.js?v=20260218" defer></script>
     <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
 </body>
 </html>
 

@@ -1,20 +1,33 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1a2744">
+    <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Aluforce: Relatórios de Vendas</title>
     
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
     
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    
+    <!-- CSP Fix -->
+    <script src="/js/csp-fix.js" defer></script>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -900,7 +913,7 @@
 
         <!-- Sidebar -->
         <aside class="sidebar" id="mobile-sidebar">
-            <a href="/dashboard" class="sidebar-logo" title="Painel Principal">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
                 <i class="fas fa-home"></i>
             </a>
             <nav class="sidebar-nav">
@@ -979,19 +992,13 @@
                             <i class="fas fa-chart-bar"></i>
                         </div>
                         <div class="page-title-text">
-                            <h1>Relatórios de Vendas</h1>
+                            <h1>Central de Relatórios</h1>
                             <p>Análises e métricas de desempenho comercial</p>
                         </div>
                     </div>
                     <div class="page-actions">
-                        <button class="btn btn-secondary" onclick="imprimirRelatorio()">
-                            <i class="fas fa-print"></i> Imprimir
-                        </button>
-                        <button class="btn btn-success" onclick="exportarExcel()" style="background:#10b981;">
-                            <i class="fas fa-file-excel"></i> Excel
-                        </button>
                         <button class="btn btn-primary" onclick="exportarPDF()">
-                            <i class="fas fa-file-pdf"></i> PDF
+                            <i class="fas fa-file-pdf"></i> Exportar PDF
                         </button>
                     </div>
                 </div>
@@ -1019,52 +1026,48 @@
 
                 <!-- Stats Grid -->
                 <div class="stats-grid">
-                    <div class="stat-card orange">
-                        <div class="stat-header">
-                            <div class="stat-icon orange"><i class="fas fa-dollar-sign"></i></div>
-                            <button class="stat-menu"><i class="fas fa-ellipsis-v"></i></button>
-                        </div>
-                        <div class="stat-label">Faturamento Total</div>
-                        <div class="stat-value" id="faturamentoTotal">R$ 0,00</div>
-                        <div class="stat-footer">
-                            <div class="stat-change up" id="faturamentoChange"><i class="fas fa-arrow-up"></i> 0%</div>
-                            <div class="stat-period">vs período anterior</div>
-                        </div>
-                    </div>
                     <div class="stat-card blue">
                         <div class="stat-header">
-                            <div class="stat-icon blue"><i class="fas fa-shopping-cart"></i></div>
-                            <button class="stat-menu"><i class="fas fa-ellipsis-v"></i></button>
+                            <div class="stat-icon blue"><i class="fas fa-clipboard-list"></i></div>
                         </div>
-                        <div class="stat-label">Total de Vendas</div>
-                        <div class="stat-value" id="totalVendas">0</div>
+                        <div class="stat-label">Total de Pedidos</div>
+                        <div class="stat-value" id="totalPedidos"><span class="skeleton-loading">--</span></div>
                         <div class="stat-footer">
-                            <div class="stat-change up" id="vendasChange"><i class="fas fa-arrow-up"></i> 0%</div>
+                            <div class="stat-change up" id="pedidosChange"><i class="fas fa-arrow-up"></i> 0%</div>
                             <div class="stat-period">vs período anterior</div>
                         </div>
                     </div>
                     <div class="stat-card green">
                         <div class="stat-header">
-                            <div class="stat-icon green"><i class="fas fa-receipt"></i></div>
-                            <button class="stat-menu"><i class="fas fa-ellipsis-v"></i></button>
+                            <div class="stat-icon green"><i class="fas fa-dollar-sign"></i></div>
                         </div>
-                        <div class="stat-label">Ticket Médio</div>
-                        <div class="stat-value" id="ticketMedio">R$ 0,00</div>
+                        <div class="stat-label">Faturamento Total</div>
+                        <div class="stat-value" id="faturamentoTotal"><span class="skeleton-loading">--</span></div>
                         <div class="stat-footer">
-                            <div class="stat-change up" id="ticketChange"><i class="fas fa-arrow-up"></i> 0%</div>
+                            <div class="stat-change up" id="faturamentoChange"><i class="fas fa-arrow-up"></i> 0%</div>
                             <div class="stat-period">vs período anterior</div>
                         </div>
                     </div>
                     <div class="stat-card purple">
                         <div class="stat-header">
-                            <div class="stat-icon purple"><i class="fas fa-percentage"></i></div>
-                            <button class="stat-menu"><i class="fas fa-ellipsis-v"></i></button>
+                            <div class="stat-icon purple"><i class="fas fa-receipt"></i></div>
                         </div>
-                        <div class="stat-label">Taxa de Conversão</div>
-                        <div class="stat-value" id="taxaConversao">0%</div>
+                        <div class="stat-label">Ticket Médio</div>
+                        <div class="stat-value" id="ticketMedio"><span class="skeleton-loading">--</span></div>
                         <div class="stat-footer">
-                            <div class="stat-change up" id="conversaoChange"><i class="fas fa-arrow-up"></i> 0%</div>
+                            <div class="stat-change up" id="ticketChange"><i class="fas fa-arrow-up"></i> 0%</div>
                             <div class="stat-period">vs período anterior</div>
+                        </div>
+                    </div>
+                    <div class="stat-card orange">
+                        <div class="stat-header">
+                            <div class="stat-icon orange"><i class="fas fa-users"></i></div>
+                        </div>
+                        <div class="stat-label">Vendedores Ativos</div>
+                        <div class="stat-value" id="vendedoresAtivos"><span class="skeleton-loading">--</span></div>
+                        <div class="stat-footer">
+                            <div class="stat-change up" id="vendedoresChange"><i class="fas fa-arrow-up"></i> --</div>
+                            <div class="stat-period">no período</div>
                         </div>
                     </div>
                 </div>
@@ -1186,7 +1189,7 @@
                     <div class="report-card" onclick="abrirModalRelatorio('comissoes')">
                         <div class="report-icon green"><i class="fas fa-coins"></i></div>
                         <h4>Relatório de Comissões</h4>
-                        <p>Comissões por vendedor • Taxa fixa 1%</p>
+                        <p>Comissões por vendedor • Power 2% • Multiplex 1%</p>
                         <span class="report-arrow"><i class="fas fa-arrow-right"></i></span>
                     </div>
                     <div class="report-card" onclick="abrirModalRelatorio('clientes')">
@@ -1321,20 +1324,36 @@
                             </select>
                         </div>
                         <div class="form-group-omie" style="margin-top:14px;">
-                            <label>Taxa de Comissão</label>
-                            <div class="commission-display-omie">
-                                <div class="commission-badge-omie">
-                                    <i class="fas fa-percent"></i>
-                                    <span>1%</span>
+                            <label>Taxas de Comissão por Categoria</label>
+                            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+                                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;">
+                                    <div style="background:#1e40af;color:#fff;padding:4px 10px;border-radius:6px;font-weight:700;font-size:13px;">2%</div>
+                                    <div>
+                                        <div style="font-weight:600;font-size:12px;color:#1e293b;">Cabos de Potência (Power)</div>
+                                        <div style="font-size:10px;color:#64748b;">NBR 7285/7286 • 0,6/1KV • Cabos de potência</div>
+                                    </div>
                                 </div>
-                                <span class="commission-note-omie">Taxa fixa institucional</span>
+                                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
+                                    <div style="background:#166534;color:#fff;padding:4px 10px;border-radius:6px;font-weight:700;font-size:13px;">1%</div>
+                                    <div>
+                                        <div style="font-weight:600;font-size:12px;color:#1e293b;">Cabos Multiplexados</div>
+                                        <div style="font-size:10px;color:#64748b;">Triplex • Duplex • Quadruplex • Neutro isolado</div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fefce8;border-radius:8px;border:1px solid #fde68a;">
+                                    <div style="background:#92400e;color:#fff;padding:4px 10px;border-radius:6px;font-weight:700;font-size:13px;">1%</div>
+                                    <div>
+                                        <div style="font-weight:600;font-size:12px;color:#1e293b;">Outros Produtos</div>
+                                        <div style="font-size:10px;color:#64748b;">Demais produtos do catálogo</div>
+                                    </div>
+                                </div>
                             </div>
-                            <input type="hidden" id="modalComPercentual" value="1">
+                            <input type="hidden" id="modalComPercentual" value="categorizado">
                         </div>
                     </div>
                     <div class="rel-preview-hint">
                         <i class="fas fa-info-circle"></i>
-                        <span>As comissões são calculadas sobre o valor faturado dos pedidos no período.</span>
+                        <span>As comissões são calculadas por item vendido com percentuais diferenciados por categoria de produto.</span>
                     </div>
                 </div>
                 <div class="modal-sidebar-actions">
@@ -2035,7 +2054,6 @@
                     params.append('data_fim', document.getElementById('modalComDataFim').value);
                     const vendedor = document.getElementById('modalComVendedor').value;
                     if (vendedor) params.append('vendedor_id', vendedor);
-                    params.append('percentual_comissao', document.getElementById('modalComPercentual').value);
                     url = `/api/vendas/relatorios/comissoes/pdf?${params}`;
                     
                 } else if (tipo === 'clientes') {
@@ -2154,7 +2172,6 @@
                     params.append('data_fim', document.getElementById('modalComDataFim').value);
                     const vendedor = document.getElementById('modalComVendedor').value;
                     if (vendedor) params.append('vendedor_id', vendedor);
-                    params.append('percentual_comissao', document.getElementById('modalComPercentual').value);
                     url = `/api/vendas/relatorios/comissoes/pdf?${params}`;
                 } else if (tipo === 'clientes') {
                     const cliente = document.getElementById('modalCliCliente').value;
@@ -2427,71 +2444,126 @@
             console.log('📊 Iniciando carregamento de dados...', { dataInicio, dataFim, vendedor });
 
             // Mostrar loading nos cards
-            const statsElements = ['faturamentoTotal', 'totalVendas', 'ticketMedio', 'taxaConversao'];
+            const statsElements = ['totalPedidos', 'faturamentoTotal', 'ticketMedio', 'vendedoresAtivos'];
             statsElements.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.innerHTML = '<span class="skeleton-loading">Carregando...</span>';
             });
 
+            // Calcular período em dias para as APIs
+            const diffTime = Math.abs(new Date(dataFim) - new Date(dataInicio));
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 30;
+
             try {
-                // Autenticação via cookie httpOnly - não precisa verificar localStorage
-                // OTIMIZADO: Uma única chamada de API para todos os dados
-                const params = new URLSearchParams({ dataInicio, dataFim });
-                if (vendedor) params.append('vendedor', vendedor);
-                
-                console.log('📡 Chamando API:', `/api/vendas/relatorio/completo?${params}`);
+                console.log('📡 Carregando dados de múltiplas APIs...');
                 console.time('Carregamento Relatório');
-                
-                const res = await fetchAutenticado(`/api/vendas/relatorio/completo?${params}`);
+
+                // Executar todas as chamadas em paralelo
+                const [adminRes, vendedoresRes, topVendRes, topProdRes, monthlyRes] = await Promise.allSettled([
+                    fetchAutenticado(`/api/vendas/dashboard/admin?período=${diffDays}`),
+                    fetchAutenticado('/api/vendas/vendedores'),
+                    fetchAutenticado(`/api/vendas/dashboard/top-vendedores?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=10`),
+                    fetchAutenticado(`/api/vendas/dashboard/top-produtos?data_inicio=${dataInicio}&data_fim=${dataFim}&limit=10`),
+                    fetchAutenticado('/api/vendas/dashboard/monthly?months=6')
+                ]);
+
                 console.timeEnd('Carregamento Relatório');
-                console.log('📡 Status da resposta:', res.status);
-                
-                // Se não autorizado, mostrar mensagem
-                if (res.status === 401 || res.status === 403) {
-                    console.warn('⚠️ Não autorizado para acessar relatórios');
-                    mostrarEstadoVazio('Sessão expirada. Faça login novamente para visualizar os relatórios.');
-                    return;
-                }
-                
-                if (res.ok) {
-                    const dados = await res.json();
-                    console.log('✅ Dados do relatório recebidos:', dados);
-                    
-                    // Atualizar estatísticas
-                    atualizarEstatisticas(dados.estatisticas || {});
-                    
-                    // Atualizar gráfico de vendas (Evolução mensal)
-                    if (dados.evolucaoMensal && dados.evolucaoMensal.labels && dados.evolucaoMensal.labels.length > 0) {
-                        renderizarGraficoVendas({
-                            labels: dados.evolucaoMensal.labels,
-                            valores: dados.evolucaoMensal.valores
-                        });
-                    } else {
-                        renderizarGraficoVendas({ labels: [], valores: [] });
-                    }
-                    
-                    // Atualizar gráfico de categorias (conversão por status)
-                    if (dados.conversaoStatus && dados.conversaoStatus.length > 0) {
-                        renderizarGraficoCategorias({
-                            labels: dados.conversaoStatus.map(c => c.status || 'Sem Status'),
-                            valores: dados.conversaoStatus.map(c => c.quantidade)
-                        });
-                    } else {
-                        renderizarGraficoCategorias({ labels: [], valores: [] });
-                    }
-                    
-                    // Atualizar tabelas (sempre chamar para remover spinner)
-                    renderizarTopVendedores(dados.topVendedores || []);
-                    renderizarTopProdutos(dados.topProdutos || []);
-                    
-                    // Atualizar mapa do Brasil com filtros atuais
-                    await carregarMapaBrasil();
+
+                // ---- ESTATÍSTICAS (dashboard/admin) ----
+                let statsData = null;
+                let vendedoresCount = 0;
+                if (adminRes.status === 'fulfilled' && adminRes.value.ok) {
+                    statsData = await adminRes.value.json();
+                    console.log('✅ Dashboard admin dados:', statsData);
                 } else {
-                    console.error('❌ API retornou erro:', res.status);
-                    const errorText = await res.text();
-                    console.error('❌ Detalhes:', errorText);
-                    throw new Error('Falha ao carregar relatório: ' + res.status);
+                    // Fallback: tentar dashboard-stats
+                    console.warn('⚠️ dashboard/admin falhou, tentando fallback...');
+                    try {
+                        const fallback = await fetchAutenticado('/api/vendas/dashboard-stats');
+                        if (fallback.ok) {
+                            const fb = await fallback.json();
+                            statsData = {
+                                metricas: {
+                                    total_pedidos: (fb.pedidosPendentes || 0) + (fb.orçamentosAberto || 0),
+                                    valor_faturado: fb.totalFaturadoMes || 0,
+                                    ticket_medio: 0
+                                },
+                                taxaConversao: 0
+                            };
+                        }
+                    } catch(e) { console.warn('Fallback stats falhou:', e); }
                 }
+
+                // ---- CONTAGEM VENDEDORES ----
+                if (vendedoresRes.status === 'fulfilled' && vendedoresRes.value.ok) {
+                    const vendedoresList = await vendedoresRes.value.json();
+                    const arr = vendedoresList.vendedores || vendedoresList || [];
+                    vendedoresCount = Array.isArray(arr) ? arr.length : 0;
+                    console.log('✅ Vendedores carregados:', vendedoresCount);
+                }
+
+                // Atualizar estatísticas
+                if (statsData) {
+                    const metricas = statsData.metricas || {};
+                    atualizarEstatisticas({
+                        totalPedidos: metricas.total_pedidos || 0,
+                        faturamento: metricas.valor_faturado || 0,
+                        ticketMedio: metricas.ticket_medio || 0,
+                        vendedoresAtivos: vendedoresCount
+                    });
+                } else {
+                    atualizarEstatisticas({ totalPedidos: 0, faturamento: 0, ticketMedio: 0, vendedoresAtivos: vendedoresCount });
+                }
+
+                // ---- GRÁFICO EVOLUÇÃO (monthly) ----
+                if (monthlyRes.status === 'fulfilled' && monthlyRes.value.ok) {
+                    const monthlyData = await monthlyRes.value.json();
+                    console.log('✅ Evolução mensal:', monthlyData);
+                    renderizarGraficoVendas({
+                        labels: monthlyData.labels || [],
+                        valores: monthlyData.values || []
+                    });
+                } else {
+                    renderizarGraficoVendas({ labels: [], valores: [] });
+                }
+
+                // ---- GRÁFICO CATEGORIAS (conversão por status) ----
+                if (statsData && statsData.conversaoPorStatus && statsData.conversaoPorStatus.length > 0) {
+                    const statusLabels = { 'faturado': 'Faturado', 'orçamento': 'Orçamento', 'analise': 'Em Análise', 'aprovado': 'Aprovado', 'cancelado': 'Cancelado', 'recibo': 'Recibo' };
+                    renderizarGraficoCategorias({
+                        labels: statsData.conversaoPorStatus.map(s => statusLabels[s.status] || s.status),
+                        valores: statsData.conversaoPorStatus.map(s => s.quantidade)
+                    });
+                } else {
+                    renderizarGraficoCategorias({ labels: [], valores: [] });
+                }
+
+                // ---- TOP VENDEDORES ----
+                if (topVendRes.status === 'fulfilled' && topVendRes.value.ok) {
+                    const topVend = await topVendRes.value.json();
+                    console.log('✅ Top vendedores:', topVend);
+                    // Use topVendedores from admin dashboard if available (has more data)
+                    const vendedoresRank = statsData?.topVendedores || topVend || [];
+                    renderizarTopVendedores(vendedoresRank);
+                } else if (statsData?.topVendedores) {
+                    renderizarTopVendedores(statsData.topVendedores);
+                } else {
+                    renderizarTopVendedores([]);
+                }
+
+                // ---- TOP PRODUTOS ----
+                if (topProdRes.status === 'fulfilled' && topProdRes.value.ok) {
+                    const topProd = await topProdRes.value.json();
+                    console.log('✅ Top produtos:', topProd);
+                    renderizarTopProdutos(topProd);
+                } else {
+                    renderizarTopProdutos([]);
+                }
+
+                // ---- MAPA ----
+                await carregarMapaBrasil();
+
+                console.log('✅ Carregamento completo!');
 
             } catch (error) {
                 console.error('❌ Erro ao carregar dados:', error);
@@ -2519,10 +2591,10 @@
                     // Extrair métricas do retorno
                     const metricas = data.metricas || {};
                     const stats = {
+                        totalPedidos: metricas.total_pedidos || 0,
                         faturamento: metricas.valor_faturado || 0,
-                        totalVendas: metricas.total_pedidos || 0,
                         ticketMedio: metricas.ticket_medio || 0,
-                        taxaConversao: data.taxaConversao || 0
+                        vendedoresAtivos: 0
                     };
                     atualizarEstatisticas(stats);
                 } else {
@@ -2532,10 +2604,10 @@
                         const statsData = await statsRes.json();
                         console.log('Dashboard Stats dados:', statsData);
                         atualizarEstatisticas({
+                            totalPedidos: (statsData.pedidosPendentes || 0) + (statsData.orçamentosAberto || 0),
                             faturamento: statsData.totalFaturadoMes || 0,
-                            totalVendas: (statsData.pedidosPendentes || 0) + (statsData.orçamentosAberto || 0),
                             ticketMedio: 0,
-                            taxaConversao: 0
+                            vendedoresAtivos: 0
                         });
                     }
                 }
@@ -2548,7 +2620,7 @@
             console.log('📊 Exibindo estado vazio:', mensagem);
             
             // Zerar estatísticas
-            atualizarEstatisticas({ faturamento: 0, totalVendas: 0, ticketMedio: 0, taxaConversao: 0 });
+            atualizarEstatisticas({ totalPedidos: 0, faturamento: 0, ticketMedio: 0, vendedoresAtivos: 0 });
             
             // Gráficos vazios
             renderizarGraficoVendas({ labels: [], valores: [] });
@@ -2582,10 +2654,15 @@
                 }).format(valor || 0);
             };
 
-            document.getElementById('faturamentoTotal').textContent = formatarMoeda(stats.faturamento || 0);
-            document.getElementById('totalVendas').textContent = stats.totalVendas || 0;
-            document.getElementById('ticketMedio').textContent = formatarMoeda(stats.ticketMedio || 0);
-            document.getElementById('taxaConversao').textContent = `${stats.taxaConversao || 0}%`;
+            const elPedidos = document.getElementById('totalPedidos');
+            const elFat = document.getElementById('faturamentoTotal');
+            const elTicket = document.getElementById('ticketMedio');
+            const elVend = document.getElementById('vendedoresAtivos');
+
+            if (elPedidos) elPedidos.textContent = stats.totalPedidos || 0;
+            if (elFat) elFat.textContent = formatarMoeda(stats.faturamento || 0);
+            if (elTicket) elTicket.textContent = formatarMoeda(stats.ticketMedio || 0);
+            if (elVend) elVend.textContent = stats.vendedoresAtivos || 0;
         }
 
         async function carregarGraficoVendas(dataInicio, dataFim, vendedor) {
@@ -2937,9 +3014,9 @@
             
             // Pegar dados dos stats pelos IDs reais
             const totalVendas = document.getElementById('faturamentoTotal')?.textContent || 'R$ 0,00';
-            const totalPedidos = document.getElementById('totalVendas')?.textContent || '0';
+            const totalPedidos = document.getElementById('totalPedidos')?.textContent || '0';
             const ticketMedio = document.getElementById('ticketMedio')?.textContent || 'R$ 0,00';
-            const conversao = document.getElementById('taxaConversao')?.textContent || '0%';
+            const vendedoresAtivos = document.getElementById('vendedoresAtivos')?.textContent || '0';
             
             const dataInicio = document.getElementById('filterDataInicio')?.value || '';
             const dataFim = document.getElementById('filterDataFim')?.value || '';
@@ -3062,8 +3139,8 @@
                                     <div class="kpi-label">Ticket Médio</div>
                                 </div>
                                 <div class="kpi-card purple">
-                                    <div class="kpi-value">${conversao}</div>
-                                    <div class="kpi-label">Taxa de Conversão</div>
+                                    <div class="kpi-value">${vendedoresAtivos}</div>
+                                    <div class="kpi-label">Vendedores Ativos</div>
                                 </div>
                             </div>
                             
@@ -3150,9 +3227,9 @@
             
             // Pegar dados reais dos stats pelos IDs
             const totalVendas = document.getElementById('faturamentoTotal')?.textContent || 'R$ 0,00';
-            const totalPedidos = document.getElementById('totalVendas')?.textContent || '0';
+            const totalPedidos = document.getElementById('totalPedidos')?.textContent || '0';
             const ticketMedio = document.getElementById('ticketMedio')?.textContent || 'R$ 0,00';
-            const conversao = document.getElementById('taxaConversao')?.textContent || '0%';
+            const vendedoresAtivos = document.getElementById('vendedoresAtivos')?.textContent || '0';
             
             const dataInicio = document.getElementById('filterDataInicio')?.value || '';
             const dataFim = document.getElementById('filterDataFim')?.value || '';
@@ -3230,8 +3307,8 @@
   <Row ss:Height="26">
    <Cell ss:StyleID="kpiLabel"><Data ss:Type="String">Ticket Médio</Data></Cell>
    <Cell ss:StyleID="kpiValor"><Data ss:Type="String">${escXml(ticketMedio)}</Data></Cell>
-   <Cell ss:StyleID="kpiLabel"><Data ss:Type="String">Taxa Conversão</Data></Cell>
-   <Cell ss:StyleID="kpiValor"><Data ss:Type="String">${escXml(conversao)}</Data></Cell>
+   <Cell ss:StyleID="kpiLabel"><Data ss:Type="String">Vendedores Ativos</Data></Cell>
+   <Cell ss:StyleID="kpiValor"><Data ss:Type="String">${escXml(vendedoresAtivos)}</Data></Cell>
   </Row>
   <Row ss:Height="10"></Row>
 `;
@@ -3835,7 +3912,14 @@ function getCorIntensidade(intensidade) {
             return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
         }    </script>
 
-    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/confirm-modal.js?v=20260110"></script>
+    <!-- Performance Utilities -->
+    <script src="/js/performance-utils.js?v=20260213"></script>
+
+    <script src="/js/auth-unified.js?v=20260301"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
@@ -3843,6 +3927,7 @@ function getCorIntensidade(intensidade) {
 
     <!-- Sidebar Click Animation -->
     <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="js/mobile-sidebar.js"></script>
     <script src="/_shared/accessibility-widget.js?v=20260226"></script>
 </body>
 </html>

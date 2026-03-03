@@ -1,0 +1,92 @@
+<!-- Modal de Confirmação Profissional -->
+<div id="popupConfirm" class="popup-confirm-overlay" style="display:none;">
+  <div class="popup-confirm-modal">
+    <div class="popup-confirm-icon">
+      <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    <div class="popup-confirm-title" id="popupConfirmTitle">Confirmação</div>
+    <div class="popup-confirm-message" id="popupConfirmMessage">Deseja realmente executar esta ação?</div>
+    <div class="popup-confirm-actions">
+      <button class="btn btn-outline" id="popupConfirmCancel">Cancelar</button>
+      <button class="btn btn-danger" id="popupConfirmOk">Sim, Excluir</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.popup-confirm-overlay {
+  position: fixed;
+  z-index: 99999;
+  left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(30, 41, 59, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s;
+}
+.popup-confirm-modal {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  padding: 32px 28px 22px 28px;
+  min-width: 340px;
+  max-width: 95vw;
+  text-align: center;
+  position: relative;
+  animation: popupScale 0.18s;
+}
+.popup-confirm-icon {
+  color: #ef4444;
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+.popup-confirm-title {
+  font-weight: 700;
+  font-size: 1.18rem;
+  margin-bottom: 8px;
+  color: #1e293b;
+}
+.popup-confirm-message {
+  color: #64748b;
+  font-size: 1rem;
+  margin-bottom: 22px;
+}
+.popup-confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+.btn-danger {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.btn-danger:hover { background: #dc2626; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popupScale { from { transform: scale(0.95); } to { transform: scale(1); } }
+</style>
+<script>
+// Função global para abrir o popup de confirmação
+function showPopupConfirm({title, message, onConfirm, onCancel}) {
+  document.getElementById('popupConfirmTitle').innerText = title || 'Confirmação';
+  document.getElementById('popupConfirmMessage').innerText = message || 'Deseja realmente executar esta ação?';
+  document.getElementById('popupConfirm').style.display = 'flex';
+  // Remove listeners antigos
+  const okBtn = document.getElementById('popupConfirmOk');
+  const cancelBtn = document.getElementById('popupConfirmCancel');
+  okBtn.onclick = function() {
+    document.getElementById('popupConfirm').style.display = 'none';
+    if (onConfirm) onConfirm();
+  };
+  cancelBtn.onclick = function() {
+    document.getElementById('popupConfirm').style.display = 'none';
+    if (onCancel) onCancel();
+  };
+}
+</script>

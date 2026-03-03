@@ -1,256 +1,59 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Aluforce: Emitir NFe</title>
+
+    <!-- Sistema de Autenticação Unificado — DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
+
+    <!-- Fonte Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
-    <script src="/js/auth-unified.js?v=20260204"></script>
-    <script src="/js/csp-fix.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- CSP Fix - Converter onclick inline para addEventListener -->
+    <script src="/js/csp-fix.js" defer></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- Design System — Faturamento Layout -->
+    <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260301">
+
+    <!-- Global Header & Sidebar — Padrão Institucional -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260301">
+
+    <!-- Performance: Skeleton Loaders -->
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
+
+    <!-- Popup Confirmação -->
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
+
+    <!-- Anti-Copy Protection -->
+    <script src="/js/anti-copy-protection.js" defer></script>
+
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260301">
     <style>
-        :root {
-            --fat-primary: #10b981;
-            --fat-secondary: #059669;
-            --bg-page: #f9fafb;
-            --bg-card: #ffffff;
-            --border-color: #e5e7eb;
-            --text-primary: #111827;
-            --text-secondary: #6b7280;
-            --text-muted: #9ca3af;
-            --radius: 10px;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html { height: 100%; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg-page); color: var(--text-primary); height: 100%; min-height: 100vh; }
-
-        .page-content {
-            padding: 24px;
-            max-width: 1600px;
-            width: 100%;
-            margin: 0 auto;
-            flex: 1;
-            min-height: 0;
-        }
-
-        /* ── Steps Indicator ── */
-        .steps {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 28px;
-            flex-wrap: wrap;
-        }
-        .step {
-            flex: 1;
-            min-width: 180px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-left: 4px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 14px 18px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            box-shadow: var(--shadow-sm);
-            transition: all 0.25s ease;
-        }
-        .step.active {
-            border-left-color: var(--fat-primary);
-            background: #f0fdf4;
-        }
-        .step.completed {
-            border-left-color: var(--fat-secondary);
-        }
-        .step-number {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--border-color);
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 13px;
-            flex-shrink: 0;
-        }
-        .step.active .step-number {
-            background: var(--fat-primary);
-            color: #fff;
-        }
-        .step.completed .step-number {
-            background: var(--fat-secondary);
-            color: #fff;
-        }
-        .step-info { display: flex; flex-direction: column; }
-        .step-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-        .step-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-
-        /* ── Alert ── */
-        .alert-container {
-            margin-bottom: 20px;
-        }
-        .alert {
-            padding: 12px 18px;
-            border-radius: var(--radius);
-            font-size: 13px;
-            font-weight: 500;
-            display: none;
-            align-items: center;
-            gap: 10px;
-            animation: alertIn 0.3s ease;
-        }
-        .alert.show { display: flex; }
-        .alert-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-        .alert-danger { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-        .alert-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
-        @keyframes alertIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* ── Form Sections ── */
-        .form-section {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 24px;
-            margin-bottom: 20px;
-            box-shadow: var(--shadow-sm);
-        }
-        .form-section-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .form-section-title i {
-            color: var(--fat-primary);
-            font-size: 14px;
-        }
-        .form-subsection-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin: 20px 0 14px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        .form-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-        .form-group label {
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
-        }
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            padding: 9px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 13px;
-            font-family: 'Inter', sans-serif;
-            color: var(--text-primary);
-            background: #fff;
-            transition: border-color 0.2s;
-            outline: none;
-        }
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            border-color: var(--fat-primary);
-            box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
-        }
-
-        /* ── Itens Table ── */
-        .itens-section { overflow-x: auto; }
-        .itens-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-        .itens-table thead th {
-            background: #f9fafb;
-            padding: 10px 12px;
-            text-align: left;
-            font-weight: 600;
-            font-size: 11px;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 2px solid var(--border-color);
-            white-space: nowrap;
-        }
-        .itens-table tbody td {
-            padding: 8px 10px;
-            border-bottom: 1px solid var(--border-color);
-            vertical-align: middle;
-        }
-        .itens-table tbody td input {
-            width: 100%;
-            padding: 7px 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 12px;
-            font-family: 'Inter', sans-serif;
-            outline: none;
-        }
-        .itens-table tbody td input:focus {
-            border-color: var(--fat-primary);
-        }
-        .itens-table .col-acoes { text-align: center; width: 60px; }
-
-        /* ── Totais ── */
-        .totais {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-            margin-top: 20px;
-            padding: 20px;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: var(--radius);
-        }
-        .total-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .total-item label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        .total-item span {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--fat-secondary);
-        }
-
-        /* ── Preview ── */
+        /* Page-specific: XML preview dark code block */
         .preview-area {
             background: #1e293b;
             color: #e2e8f0;
             padding: 20px;
-            border-radius: var(--radius);
+            border-radius: 10px;
             overflow-x: auto;
             font-size: 12px;
             font-family: 'Courier New', monospace;
@@ -258,60 +61,243 @@
             max-height: 500px;
             overflow-y: auto;
         }
-
-        /* ── Resultado ── */
+        /* Page-specific: Resultado success */
         .resultado-content {
             padding: 20px;
             text-align: center;
         }
         .resultado-content .success-icon {
             font-size: 48px;
-            color: var(--fat-primary);
+            color: #10b981;
             margin-bottom: 16px;
         }
 
-        /* ── Buttons ── */
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
+        /* ===== Wizard Stepper Fix ===== */
+        .wizard-steps {
+            background: #fff !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 14px !important;
+            padding: 16px 24px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03) !important;
+        }
+        .wizard-number {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 13px;
-            font-weight: 600;
-            font-family: 'Inter', sans-serif;
-            cursor: pointer;
-            display: inline-flex;
+            font-weight: 700;
+            background: #f1f5f9;
+            color: #94a3b8;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        .wizard-step.active .wizard-number {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        .wizard-step.completed .wizard-number {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        .wizard-title { font-size: 13px; font-weight: 600; color: #334155; }
+        .wizard-desc { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+        .wizard-step.active .wizard-title { color: #2563eb; }
+        .wizard-step.active .wizard-desc { color: #60a5fa; }
+        .wizard-step.completed .wizard-title { color: #059669; }
+        .wizard-step.completed .wizard-desc { color: #34d399; }
+        .wizard-separator {
+            width: 32px !important;
+            height: 2px !important;
+            background: linear-gradient(90deg, #e2e8f0, #cbd5e1) !important;
+            border-radius: 2px !important;
+            margin: 0 4px !important;
+        }
+
+        /* ===== Section Card Headers ===== */
+        #section-dados .card-header,
+        #section-itens .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            background: #fff;
+        }
+        #section-dados .card-header i,
+        #section-itens .card-header i {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+        #section-dados .card-header i {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            color: #2563eb;
+        }
+        #section-itens .card-header i {
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            color: #16a34a;
+        }
+        #section-dados .card-header .card-title,
+        #section-itens .card-header .card-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        /* ===== Destinatário section title ===== */
+        #section-dados h4 {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            color: #475569 !important;
+            margin: 24px 0 16px !important;
+            padding: 10px 14px !important;
+            border-bottom: none !important;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            display: flex;
             align-items: center;
             gap: 8px;
+        }
+        #section-dados h4 i {
+            width: auto !important;
+            height: auto !important;
+            background: none !important;
+            color: #64748b !important;
+            font-size: 13px !important;
+        }
+
+        /* ===== Items Table Inputs ===== */
+        .data-table input[type="text"],
+        .data-table input[type="number"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            color: #1e293b;
+            background: #fff;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+        .data-table input[type="text"]:focus,
+        .data-table input[type="number"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            background: #fefefe;
+        }
+        .data-table input[type="text"]::placeholder,
+        .data-table input[type="number"]::placeholder {
+            color: #cbd5e1;
+            font-weight: 400;
+        }
+        .data-table td { vertical-align: middle; }
+
+        /* ===== Totals Cards ===== */
+        #section-itens .stats-grid {
+            gap: 12px !important;
+        }
+        #section-itens .stat-card {
+            background: #fff !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            padding: 16px 20px !important;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        #section-itens .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+        }
+        #section-itens .stat-card:nth-child(1)::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        #section-itens .stat-card:nth-child(2)::before { background: linear-gradient(90deg, #f97316, #fb923c); }
+        #section-itens .stat-card:nth-child(3)::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        #section-itens .stat-card:nth-child(4)::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        #section-itens .stat-label {
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            color: #64748b !important;
+            margin-bottom: 6px !important;
+        }
+        #section-itens .stat-value {
+            font-size: 1.3rem !important;
+            font-weight: 800 !important;
+            color: #0f172a !important;
+        }
+
+        /* ===== Remove Item Button ===== */
+        .data-table .btn-danger {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+        }
+        .data-table .btn-danger:hover {
+            background: #dc2626;
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(220, 38, 38, 0.25);
+        }
+
+        /* ===== Add Item Button ===== */
+        #section-itens .btn-secondary.btn-sm {
+            background: #f0fdf4 !important;
+            color: #16a34a !important;
+            border: 1px solid #bbf7d0 !important;
+            font-weight: 600;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
             transition: all 0.2s ease;
         }
-        .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
-        .btn:active { transform: translateY(0); }
-        .btn-primary { background: var(--fat-primary); color: #fff; }
-        .btn-primary:hover { background: var(--fat-secondary); }
-        .btn-secondary { background: #f3f4f6; color: var(--text-primary); border: 1px solid var(--border-color); }
-        .btn-secondary:hover { background: #e5e7eb; }
-        .btn-success { background: #059669; color: #fff; }
-        .btn-success:hover { background: #047857; }
-        .btn-danger { background: #ef4444; color: #fff; }
-        .btn-danger:hover { background: #dc2626; }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
-
-        .actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 24px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
+        #section-itens .btn-secondary.btn-sm:hover {
+            background: #16a34a !important;
+            color: #fff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(22, 163, 106, 0.25);
         }
 
-        /* ── Responsive ── */
-        @media (max-width: 768px) {
-            .page-content { padding: 16px; }
-            .steps { flex-direction: column; }
-            .form-row { grid-template-columns: 1fr; }
-            .actions { justify-content: stretch; }
-            .actions .btn { flex: 1; justify-content: center; }
+        /* ===== Cards General ===== */
+        #section-dados,
+        #section-itens {
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 16px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03) !important;
+            overflow: hidden;
+            background: #fff;
+            margin-bottom: 20px;
         }
+
+        /* ===== Alert Fix ===== */
+        .alert-container { margin-bottom: 16px; }
+        .alert { display: none; }
+        .alert.show { display: flex; }
     </style>
 </head>
 <body>
@@ -369,33 +355,36 @@
         <div class="page-content">
 
                 <!-- Steps Indicator -->
-                <div class="steps">
-                    <div class="step active" id="step-1">
-                        <div class="step-number">1</div>
-                        <div class="step-info">
-                            <span class="step-title">Dados da NFe</span>
-                            <span class="step-desc">Informações gerais e destinatário</span>
+                <div class="wizard-steps">
+                    <div class="wizard-step active" id="step-1">
+                        <div class="wizard-number">1</div>
+                        <div>
+                            <div class="wizard-title">Dados da NFe</div>
+                            <div class="wizard-desc">Informações gerais e destinatário</div>
                         </div>
                     </div>
-                    <div class="step" id="step-2">
-                        <div class="step-number">2</div>
-                        <div class="step-info">
-                            <span class="step-title">Itens</span>
-                            <span class="step-desc">Produtos e serviços</span>
+                    <div class="wizard-separator"></div>
+                    <div class="wizard-step" id="step-2">
+                        <div class="wizard-number">2</div>
+                        <div>
+                            <div class="wizard-title">Itens</div>
+                            <div class="wizard-desc">Produtos e serviços</div>
                         </div>
                     </div>
-                    <div class="step" id="step-3">
-                        <div class="step-number">3</div>
-                        <div class="step-info">
-                            <span class="step-title">Preview</span>
-                            <span class="step-desc">Visualizar XML gerado</span>
+                    <div class="wizard-separator"></div>
+                    <div class="wizard-step" id="step-3">
+                        <div class="wizard-number">3</div>
+                        <div>
+                            <div class="wizard-title">Preview</div>
+                            <div class="wizard-desc">Visualizar XML gerado</div>
                         </div>
                     </div>
-                    <div class="step" id="step-4">
-                        <div class="step-number">4</div>
-                        <div class="step-info">
-                            <span class="step-title">Emitir</span>
-                            <span class="step-desc">Enviar para SEFAZ</span>
+                    <div class="wizard-separator"></div>
+                    <div class="wizard-step" id="step-4">
+                        <div class="wizard-number">4</div>
+                        <div>
+                            <div class="wizard-title">Emitir</div>
+                            <div class="wizard-desc">Enviar para SEFAZ</div>
                         </div>
                     </div>
                 </div>
@@ -412,188 +401,208 @@
                 <form id="nfeForm" onsubmit="return false;">
 
                     <!-- Section 1: Dados Gerais -->
-                    <div class="form-section" id="section-dados">
-                        <div class="form-section-title"><i class="fas fa-file-alt"></i> Dados Gerais</div>
-
-                        <div class="form-row">
-                            <div class="form-group" style="grid-column: span 2;">
-                                <label for="naturezaOperacao">Natureza da Operação</label>
-                                <input type="text" id="naturezaOperacao" name="naturezaOperacao" value="Venda de mercadoria" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="tipoOperacao">Tipo de Operação</label>
-                                <select id="tipoOperacao" name="tipoOperacao" required>
-                                    <option value="1">Saída</option>
-                                    <option value="0">Entrada</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="dataEmissao">Data de Emissão</label>
-                                <input type="datetime-local" id="dataEmissao" name="dataEmissao" required>
-                            </div>
+                    <div class="card" id="section-dados">
+                        <div class="card-header">
+                            <i class="fas fa-file-alt"></i>
+                            <span class="card-title">Dados Gerais</span>
                         </div>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label for="naturezaOperacao">Natureza da Operação</label>
+                                    <input type="text" class="form-control" id="naturezaOperacao" name="naturezaOperacao" value="Venda de mercadoria" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="tipoOperacao">Tipo de Operação</label>
+                                    <select class="form-control" id="tipoOperacao" name="tipoOperacao" required>
+                                        <option value="1">Saída</option>
+                                        <option value="0">Entrada</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="dataEmissao">Data de Emissão</label>
+                                    <input type="datetime-local" class="form-control" id="dataEmissao" name="dataEmissao" required>
+                                </div>
+                            </div>
 
-                        <!-- Destinatário -->
-                        <div class="form-subsection-title"><i class="fas fa-user"></i> Destinatário</div>
+                            <!-- Destinatário -->
+                            <h4 style="font-size:13px;font-weight:600;color:#6b7280;margin:20px 0 14px;padding-bottom:8px;border-bottom:1px solid #e5e7eb;">
+                                <i class="fas fa-user"></i> Destinatário
+                            </h4>
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="tipoDocDestinatario">Tipo de Documento</label>
-                                <select id="tipoDocDestinatario" name="tipoDocDestinatario">
-                                    <option value="CNPJ">CNPJ</option>
-                                    <option value="CPF">CPF</option>
-                                </select>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="tipoDocDestinatario">Tipo de Documento</label>
+                                    <select class="form-control" id="tipoDocDestinatario" name="tipoDocDestinatario">
+                                        <option value="CNPJ">CNPJ</option>
+                                        <option value="CPF">CPF</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="destinatarioDoc">Documento</label>
+                                    <input type="text" class="form-control" id="destinatarioDoc" name="destinatarioDoc" placeholder="00.000.000/0000-00" required>
+                                </div>
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label for="destinatarioNome">Razão Social / Nome</label>
+                                    <input type="text" class="form-control" id="destinatarioNome" name="destinatarioNome" required>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="destinatarioDoc">Documento</label>
-                                <input type="text" id="destinatarioDoc" name="destinatarioDoc" placeholder="00.000.000/0000-00" required>
-                            </div>
-                            <div class="form-group" style="grid-column: span 2;">
-                                <label for="destinatarioNome">Razão Social / Nome</label>
-                                <input type="text" id="destinatarioNome" name="destinatarioNome" required>
-                            </div>
-                        </div>
 
-                        <div class="form-row">
-                            <div class="form-group" style="grid-column: span 2;">
-                                <label for="destinatarioEndereco">Endereço (Logradouro)</label>
-                                <input type="text" id="destinatarioEndereco" name="destinatarioEndereco" required>
+                            <div class="form-row">
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label for="destinatarioEndereco">Endereço (Logradouro)</label>
+                                    <input type="text" class="form-control" id="destinatarioEndereco" name="destinatarioEndereco" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="destinatarioNumero">Número</label>
+                                    <input type="text" class="form-control" id="destinatarioNumero" name="destinatarioNumero" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="destinatarioComplemento">Complemento</label>
+                                    <input type="text" class="form-control" id="destinatarioComplemento" name="destinatarioComplemento">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="destinatarioNumero">Número</label>
-                                <input type="text" id="destinatarioNumero" name="destinatarioNumero" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="destinatarioComplemento">Complemento</label>
-                                <input type="text" id="destinatarioComplemento" name="destinatarioComplemento">
-                            </div>
-                        </div>
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="destinatarioBairro">Bairro</label>
-                                <input type="text" id="destinatarioBairro" name="destinatarioBairro" required>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="destinatarioBairro">Bairro</label>
+                                    <input type="text" class="form-control" id="destinatarioBairro" name="destinatarioBairro" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="destinatarioMunicipio">Município</label>
+                                    <input type="text" class="form-control" id="destinatarioMunicipio" name="destinatarioMunicipio" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="destinatarioCodigoMunicipio">Código IBGE Município</label>
+                                    <input type="text" class="form-control" id="destinatarioCodigoMunicipio" name="destinatarioCodigoMunicipio" placeholder="0000000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="destinatarioUF">UF</label>
+                                    <select class="form-control" id="destinatarioUF" name="destinatarioUF" required>
+                                        <option value="">Selecione</option>
+                                        <option value="AC">AC</option>
+                                        <option value="AL">AL</option>
+                                        <option value="AP">AP</option>
+                                        <option value="AM">AM</option>
+                                        <option value="BA">BA</option>
+                                        <option value="CE">CE</option>
+                                        <option value="DF">DF</option>
+                                        <option value="ES">ES</option>
+                                        <option value="GO">GO</option>
+                                        <option value="MA">MA</option>
+                                        <option value="MT">MT</option>
+                                        <option value="MS">MS</option>
+                                        <option value="MG">MG</option>
+                                        <option value="PA">PA</option>
+                                        <option value="PB">PB</option>
+                                        <option value="PR">PR</option>
+                                        <option value="PE">PE</option>
+                                        <option value="PI">PI</option>
+                                        <option value="RJ">RJ</option>
+                                        <option value="RN">RN</option>
+                                        <option value="RS">RS</option>
+                                        <option value="RO">RO</option>
+                                        <option value="RR">RR</option>
+                                        <option value="SC">SC</option>
+                                        <option value="SP">SP</option>
+                                        <option value="SE">SE</option>
+                                        <option value="TO">TO</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label for="destinatarioMunicipio">Município</label>
-                                <input type="text" id="destinatarioMunicipio" name="destinatarioMunicipio" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="destinatarioCodigoMunicipio">Código IBGE Município</label>
-                                <input type="text" id="destinatarioCodigoMunicipio" name="destinatarioCodigoMunicipio" placeholder="0000000">
-                            </div>
-                            <div class="form-group">
-                                <label for="destinatarioUF">UF</label>
-                                <select id="destinatarioUF" name="destinatarioUF" required>
-                                    <option value="">Selecione</option>
-                                    <option value="AC">AC</option>
-                                    <option value="AL">AL</option>
-                                    <option value="AP">AP</option>
-                                    <option value="AM">AM</option>
-                                    <option value="BA">BA</option>
-                                    <option value="CE">CE</option>
-                                    <option value="DF">DF</option>
-                                    <option value="ES">ES</option>
-                                    <option value="GO">GO</option>
-                                    <option value="MA">MA</option>
-                                    <option value="MT">MT</option>
-                                    <option value="MS">MS</option>
-                                    <option value="MG">MG</option>
-                                    <option value="PA">PA</option>
-                                    <option value="PB">PB</option>
-                                    <option value="PR">PR</option>
-                                    <option value="PE">PE</option>
-                                    <option value="PI">PI</option>
-                                    <option value="RJ">RJ</option>
-                                    <option value="RN">RN</option>
-                                    <option value="RS">RS</option>
-                                    <option value="RO">RO</option>
-                                    <option value="RR">RR</option>
-                                    <option value="SC">SC</option>
-                                    <option value="SP">SP</option>
-                                    <option value="SE">SE</option>
-                                    <option value="TO">TO</option>
-                                </select>
-                            </div>
-                        </div>
 
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="destinatarioCEP">CEP</label>
-                                <input type="text" id="destinatarioCEP" name="destinatarioCEP" placeholder="00000-000" required>
-                            </div>
-                            <div class="form-group" style="grid-column: span 2;">
-                                <label for="destinatarioEmail">E-mail</label>
-                                <input type="email" id="destinatarioEmail" name="destinatarioEmail" placeholder="email@exemplo.com.br">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="destinatarioCEP">CEP</label>
+                                    <input type="text" class="form-control" id="destinatarioCEP" name="destinatarioCEP" placeholder="00000-000" required>
+                                </div>
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <label for="destinatarioEmail">E-mail</label>
+                                    <input type="email" class="form-control" id="destinatarioEmail" name="destinatarioEmail" placeholder="email@exemplo.com.br">
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Section 2: Itens da NFe -->
-                    <div class="form-section" id="section-itens">
-                        <div class="form-section-title"><i class="fas fa-boxes-stacked"></i> Itens da NFe</div>
-
-                        <div class="itens-section">
-                            <table class="itens-table">
-                                <thead>
-                                    <tr>
-                                        <th>Código</th>
-                                        <th>Descrição</th>
-                                        <th>NCM</th>
-                                        <th>CFOP</th>
-                                        <th>Unid.</th>
-                                        <th>Qtd</th>
-                                        <th>Valor Unit.</th>
-                                        <th>Total</th>
-                                        <th class="col-acoes">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="itensTableBody">
-                                </tbody>
-                            </table>
+                    <div class="card" id="section-itens">
+                        <div class="card-header">
+                            <i class="fas fa-cubes"></i>
+                            <span class="card-title">Itens da NFe</span>
                         </div>
+                        <div class="card-body">
+                            <div style="overflow-x:auto;">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Descrição</th>
+                                            <th>NCM</th>
+                                            <th>CFOP</th>
+                                            <th>Unid.</th>
+                                            <th>Qtd</th>
+                                            <th>Valor Unit.</th>
+                                            <th>Total</th>
+                                            <th style="text-align:center;width:60px;">Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="itensTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        <div style="margin-top:14px;">
-                            <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarItem()">
-                                <i class="fas fa-plus"></i> Adicionar Item
-                            </button>
-                        </div>
+                            <div style="margin-top:14px;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarItem()">
+                                    <i class="fas fa-plus"></i> Adicionar Item
+                                </button>
+                            </div>
 
-                        <!-- Totais -->
-                        <div class="totais">
-                            <div class="total-item">
-                                <label>Total Produtos</label>
-                                <span id="totalProdutos">R$ 0,00</span>
-                            </div>
-                            <div class="total-item">
-                                <label>Total Desconto</label>
-                                <span id="totalDesconto">R$ 0,00</span>
-                            </div>
-                            <div class="total-item">
-                                <label>Total Frete</label>
-                                <span id="totalFrete">R$ 0,00</span>
-                            </div>
-                            <div class="total-item">
-                                <label>Valor Total NFe</label>
-                                <span id="valorTotalNFe">R$ 0,00</span>
+                            <!-- Totais -->
+                            <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-top:20px;">
+                                <div class="stat-card">
+                                    <div class="stat-label">Total Produtos</div>
+                                    <div class="stat-value" id="totalProdutos">R$ 0,00</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Total Desconto</div>
+                                    <div class="stat-value" id="totalDesconto">R$ 0,00</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Total Frete</div>
+                                    <div class="stat-value" id="totalFrete">R$ 0,00</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-label">Valor Total NFe</div>
+                                    <div class="stat-value" id="valorTotalNFe">R$ 0,00</div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Section 3: Preview XML (hidden) -->
-                    <div class="form-section" id="section-preview" style="display:none;">
-                        <div class="form-section-title"><i class="fas fa-code"></i> Preview XML</div>
-                        <pre class="preview-area" id="xmlPreview">Clique em "Gerar Preview" para visualizar o XML.</pre>
+                    <div class="card" id="section-preview" style="display:none;">
+                        <div class="card-header">
+                            <i class="fas fa-code"></i>
+                            <span class="card-title">Preview XML</span>
+                        </div>
+                        <div class="card-body">
+                            <pre class="preview-area" id="xmlPreview">Clique em "Gerar Preview" para visualizar o XML.</pre>
+                        </div>
                     </div>
 
                     <!-- Section 4: Resultado (hidden) -->
-                    <div class="form-section" id="section-resultado" style="display:none;">
-                        <div class="form-section-title"><i class="fas fa-check-circle"></i> Resultado</div>
-                        <div class="resultado-content" id="resultadoContent"></div>
+                    <div class="card" id="section-resultado" style="display:none;">
+                        <div class="card-header">
+                            <i class="fas fa-check-circle"></i>
+                            <span class="card-title">Resultado</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="resultado-content" id="resultadoContent"></div>
+                        </div>
                     </div>
 
                     <!-- Actions -->
-                    <div class="actions">
+                    <div class="actions" style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap;justify-content:flex-end;">
                         <button type="button" class="btn btn-secondary" onclick="gerarPreview()">
                             <i class="fas fa-eye"></i> Gerar Preview
                         </button>
@@ -731,7 +740,7 @@
                     <td><input type="number" value="${item.quantidade}" onchange="atualizarItem(${index},'quantidade',this.value)" min="0" step="0.01" style="width:80px;"></td>
                     <td><input type="number" value="${item.valorUnitario}" onchange="atualizarItem(${index},'valorUnitario',this.value)" min="0" step="0.01" style="width:110px;"></td>
                     <td style="font-weight:600;white-space:nowrap;">R$ ${item.total.toFixed(2)}</td>
-                    <td class="col-acoes">
+                    <td style="text-align:center;width:60px;">
                         <button type="button" class="btn btn-danger btn-sm" onclick="removerItem(${index})" title="Remover item">
                             <i class="fas fa-trash-alt"></i>
                         </button>
@@ -908,10 +917,10 @@
                     document.getElementById('section-resultado').style.display = 'block';
                     document.getElementById('resultadoContent').innerHTML = `
                         <div class="success-icon"><i class="fas fa-check-circle"></i></div>
-                        <h3 style="margin-bottom:8px;color:var(--fat-secondary);">NFe Emitida com Sucesso!</h3>
-                        <p style="color:var(--text-secondary);margin-bottom:12px;">Chave de acesso:</p>
+                        <h3 style="margin-bottom:8px;color:#059669;">NFe Emitida com Sucesso!</h3>
+                        <p style="color:#6b7280;margin-bottom:12px;">Chave de acesso:</p>
                         <p style="font-family:monospace;font-size:14px;font-weight:600;word-break:break-all;">${result.chave || result.chaveAcesso || '—'}</p>
-                        <p style="margin-top:8px;color:var(--text-muted);font-size:12px;">Protocolo: ${result.protocolo || result.nProtocolo || '—'}</p>
+                        <p style="margin-top:8px;color:#9ca3af;font-size:12px;">Protocolo: ${result.protocolo || result.nProtocolo || '—'}</p>
                         <div style="margin-top:20px;">
                             <a href="consultar.html" class="btn btn-primary"><i class="fas fa-search"></i> Consultar NFe</a>
                             <button type="button" class="btn btn-secondary" onclick="location.reload()" style="margin-left:8px;">
@@ -1013,14 +1022,19 @@
     </script>
 
     <!-- External scripts -->
-    <script src="/js/notification-manager.js"></script>
-    <script src="../_shared/connection-monitor.js"></script>
-    <script src="/js/popup-confirmacao.js"></script>
-    <script src="/js/auth-unified.js?v=20260131c"></script><!-- Chat Widget REMOVIDO --><!-- 
-    <script src="/chat/widget.js?v=20260218"></script> -->
+    <script src="/js/notification-manager.js?v=20260301"></script>
+    <script src="/_shared/connection-monitor.js?v=20260301"></script>
+    <script src="/js/popup-confirmacao.js?v=20260301"></script>
 
-    <!-- Sidebar Click Animation -->
-    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <!-- Utilitários Compartilhados -->
+    <script src="/_shared/confirm-dialog.js?v=20260301"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260301" defer></script>
+
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260301" defer></script>
+
+    <!-- Enterprise Shared -->
+    <script src="/js/sidebar-click-animation.js?v=20260301"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260301"></script>
 </body>
 </html>

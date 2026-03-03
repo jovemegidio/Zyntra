@@ -51,32 +51,37 @@
                 return;
             }
 
-
-            // Lista de e-mails de consultoria que também podem ver o botão
-            const consultoriaEmails = [
-                'mauricio@lumiereassessoria.com.br',
-                'jamerson@lumiereassessoria.com.br',
-                'diego.lucena@lumiereassessoria.com.br'
-            ];
-
-            // Lista de e-mails admins fixos
+            // Lista de e-mails admins fixos (apenas funcionários internos)
             const adminEmails = [
                 'douglas@aluforce.ind.br',
                 'andreia@aluforce.ind.br',
                 'fernando@aluforce.ind.br',
-                'ti@aluforce.ind.br'
+                'fernando.kofugi@aluforce.ind.br',
+                'ti@aluforce.ind.br',
+                'adm@aluforce.ind.br',
+                'antonio@aluforce.ind.br'
             ];
 
-            const email = (this.currentUser.email || '').toLowerCase();
-            const isConsultoria = consultoriaEmails.includes(email);
-            const isAdminEmail = adminEmails.includes(email);
-            const isAdmin = this.currentUser.is_admin === 1 || 
-                           this.currentUser.is_admin === '1' || 
-                           this.currentUser.role === 'admin' ||
-                           isConsultoria ||
-                           isAdminEmail;
+            // Usar email do login (localStorage) em vez do /api/me
+            // porque /api/me retorna funcionarios com IDs diferentes
+            let loginEmail = '';
+            try {
+                const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+                loginEmail = (userData.email || '').toLowerCase();
+            } catch(e) {}
+            const email = loginEmail || (this.currentUser.email || '').toLowerCase();
 
-            console.log('[AdminPermissions] User is admin:', isAdmin);
+            // Consultoria (Lumière) NÃO deve ter acesso admin
+            const isConsultoria = email.includes('lumiere');
+            const isAdminEmail = adminEmails.includes(email);
+            const isAdmin = !isConsultoria && (
+                           isAdminEmail ||
+                           this.currentUser.is_admin === 1 || 
+                           this.currentUser.is_admin === '1' || 
+                           this.currentUser.role === 'admin'
+                           );
+
+            console.log('[AdminPermissions] User is admin:', isAdmin, 'isConsultoria:', isConsultoria, 'email:', email);
 
             // Find all elements with data-admin-only attribute
             const adminOnlyElements = document.querySelectorAll('[data-admin-only="true"]');

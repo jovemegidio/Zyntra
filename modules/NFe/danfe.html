@@ -1,53 +1,55 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <link rel="icon" type="image/png" href="/images/aluforce-icon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Aluforce: Gerar DANFE</title>
+
+    <!-- Sistema de Autenticação Unificado — DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
+
+    <!-- Fonte Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- CSP Fix - Converter onclick inline para addEventListener -->
+    <script src="/js/csp-fix.js" defer></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- Design System — Faturamento Layout -->
+    <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260301">
+
+    <!-- Global Header & Sidebar — Padrão Institucional -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260301">
+
+    <!-- Performance: Skeleton Loaders -->
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
+
+    <!-- Popup Confirmação -->
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
+
+    <!-- Anti-Copy Protection -->
+    <script src="/js/anti-copy-protection.js" defer></script>
+
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260301">
     <style>
         /* ============================================
-           VARIÁVEIS CSS — FATURAMENTO (DANFE)
-           ============================================ */
-        :root {
-            --fat-primary: #10b981;
-            --fat-secondary: #059669;
-            --fat-accent: #047857;
-            --success-green: #22c55e;
-            --warning-yellow: #eab308;
-            --danger-red: #ef4444;
-            --info-blue: #3b82f6;
-            --text-primary: #111827;
-            --text-secondary: #6b7280;
-            --border-color: #e5e7eb;
-            --bg-page: #f9fafb;
-            --bg-card: #ffffff;
-        }
-
-        /* ============================================
-           RESET E BASE
-           ============================================ */
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { font-size: 16px; scroll-behavior: smooth; height: 100%; }
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-page);
-            color: var(--text-primary);
-            line-height: 1.5;
-            height: 100%;
-            min-height: 100vh;
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden;
-        }
-
-        /* ============================================
-           ALERT
+           PAGE-SPECIFIC: ALERT CONTAINER
            ============================================ */
         .alert-container {
             position: fixed;
@@ -71,130 +73,25 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             animation: alertSlideIn 0.3s ease;
         }
-        .alert-item.success { background: var(--success-green); }
-        .alert-item.error { background: var(--danger-red); }
-        .alert-item.warning { background: var(--warning-yellow); color: #111827; }
-        .alert-item.info { background: var(--info-blue); }
+        .alert-item.success { background: #22c55e; }
+        .alert-item.error { background: #ef4444; }
+        .alert-item.warning { background: #eab308; color: #111827; }
+        .alert-item.info { background: #3b82f6; }
         @keyframes alertSlideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
         }
 
         /* ============================================
-           PAGE CONTENT
+           PAGE-SPECIFIC: HIDDEN SECTION
            ============================================ */
-        .page-content {
-            flex: 1;
+        .hidden-section {
+            display: none;
         }
 
         /* ============================================
-           CARDS
+           PAGE-SPECIFIC: FORM ACTIONS
            ============================================ */
-        .card {
-            background: var(--bg-card);
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            margin-bottom: 20px;
-        }
-        .card-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .card-title i {
-            color: var(--fat-primary);
-            font-size: 16px;
-        }
-
-        /* ============================================
-           FORM GRID
-           ============================================ */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 14px;
-        }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .form-group label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #374151;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        .form-group input,
-        .form-group select {
-            height: 36px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            padding: 0 10px;
-            font-size: 13px;
-            font-family: inherit;
-            color: var(--text-primary);
-            background: #fff;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            outline: none;
-        }
-        .form-group input:focus,
-        .form-group select:focus {
-            border-color: var(--fat-primary);
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-        }
-
-        /* ============================================
-           BUTTONS
-           ============================================ */
-        .btn {
-            height: 36px;
-            padding: 0 16px;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 500;
-            font-family: inherit;
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-        .btn-primary {
-            background: var(--fat-primary);
-            color: #fff;
-        }
-        .btn-primary:hover {
-            background: var(--fat-secondary);
-            box-shadow: 0 2px 8px rgba(16,185,129,0.3);
-        }
-        .btn-secondary {
-            background: #e5e7eb;
-            color: #374151;
-        }
-        .btn-secondary:hover {
-            background: #d1d5db;
-        }
-        .btn-whatsapp {
-            background: #25D366;
-            color: #fff;
-        }
-        .btn-whatsapp:hover {
-            background: #1da851;
-            box-shadow: 0 2px 8px rgba(37,211,102,0.3);
-        }
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
         .form-actions {
             display: flex;
             gap: 10px;
@@ -203,24 +100,7 @@
         }
 
         /* ============================================
-           SECTION TITLE
-           ============================================ */
-        .section-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .section-title i {
-            color: var(--fat-primary);
-            font-size: 16px;
-        }
-
-        /* ============================================
-           FORMATO GRID (SELECTION CARDS)
+           PAGE-SPECIFIC: FORMATO GRID (SELECTION CARDS)
            ============================================ */
         .formato-grid {
             display: grid;
@@ -228,7 +108,7 @@
             gap: 16px;
         }
         .formato-card {
-            background: var(--bg-card);
+            background: #fff;
             border: 2px solid #e5e7eb;
             border-radius: 8px;
             padding: 24px;
@@ -237,16 +117,16 @@
             transition: all 0.2s;
         }
         .formato-card:hover {
-            border-color: var(--fat-primary);
+            border-color: var(--primary-500, #10b981);
             box-shadow: 0 4px 12px rgba(16,185,129,0.12);
         }
         .formato-card.selected {
-            border-color: var(--fat-primary);
+            border-color: var(--primary-500, #10b981);
             background: #f0fdf4;
         }
         .formato-card i {
             font-size: 28px;
-            color: var(--fat-primary);
+            color: var(--primary-500, #10b981);
             margin-bottom: 8px;
             display: block;
         }
@@ -263,7 +143,20 @@
         }
 
         /* ============================================
-           DANFE PREVIEW
+           PAGE-SPECIFIC: BTN WHATSAPP
+           ============================================ */
+        .btn-whatsapp {
+            background: #25D366;
+            color: #fff;
+            border-color: #25D366;
+        }
+        .btn-whatsapp:hover {
+            background: #1da851;
+            box-shadow: 0 2px 8px rgba(37,211,102,0.3);
+        }
+
+        /* ============================================
+           PAGE-SPECIFIC: DANFE PREVIEW
            ============================================ */
         .danfe-preview {
             background: #fff;
@@ -447,14 +340,10 @@
             flex-wrap: wrap;
         }
 
-        .hidden-section {
-            display: none;
-        }
-
         .danfe-empty {
             text-align: center;
             padding: 40px 20px;
-            color: var(--text-secondary);
+            color: #6b7280;
             font-size: 13px;
         }
         .danfe-empty i {
@@ -485,9 +374,6 @@
             }
             .danfe-header-right {
                 border-bottom: none;
-            }
-            .form-grid {
-                grid-template-columns: 1fr;
             }
             .preview-actions {
                 flex-direction: column;
@@ -529,8 +415,6 @@
             }
         }
     </style>
-    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
-    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
 </head>
 <body>
     <div class="app-container">
@@ -591,150 +475,161 @@
 
                     <!-- CARD: BUSCAR NOTA FISCAL -->
                     <div class="card">
-                        <div class="card-title"><i class="fas fa-search"></i> Buscar Nota Fiscal</div>
-                        <div class="form-grid">
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label for="chaveAcesso">Chave de Acesso</label>
-                                <input type="text" id="chaveAcesso" placeholder="Informe a chave de acesso (44 dígitos)" maxlength="44">
-                            </div>
-                            <div class="form-group">
-                                <label for="numeroNFe">Número da NFe</label>
-                                <input type="text" id="numeroNFe" placeholder="Número">
-                            </div>
-                            <div class="form-group">
-                                <label for="serieNFe">Série</label>
-                                <input type="text" id="serieNFe" placeholder="Série">
-                            </div>
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-search"></i> Buscar Nota Fiscal</h3>
                         </div>
-                        <div class="form-actions">
-                            <button class="btn btn-primary" onclick="buscarNFe()" id="btnBuscar"><i class="fas fa-search"></i> Buscar NFe</button>
-                            <button class="btn btn-secondary" onclick="limparBusca()"><i class="fas fa-eraser"></i> Limpar</button>
+                        <div class="card-body">
+                            <div class="form-row">
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label for="chaveAcesso">Chave de Acesso</label>
+                                    <input type="text" id="chaveAcesso" class="form-control" placeholder="Informe a chave de acesso (44 dígitos)" maxlength="44">
+                                </div>
+                                <div class="form-group">
+                                    <label for="numeroNFe">Número da NFe</label>
+                                    <input type="text" id="numeroNFe" class="form-control" placeholder="Número">
+                                </div>
+                                <div class="form-group">
+                                    <label for="serieNFe">Série</label>
+                                    <input type="text" id="serieNFe" class="form-control" placeholder="Série">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button class="btn btn-primary" onclick="buscarNFe()" id="btnBuscar"><i class="fas fa-search"></i> Buscar NFe</button>
+                                <button class="btn btn-secondary" onclick="limparBusca()"><i class="fas fa-eraser"></i> Limpar</button>
+                            </div>
                         </div>
                     </div>
 
                     <!-- SECTION: FORMATO DE IMPRESSÃO -->
                     <div class="card hidden-section" id="formatoSection">
-                        <div class="section-title"><i class="fas fa-print"></i> Formato de Impressão</div>
-                        <div class="formato-grid">
-                            <div class="formato-card selected" onclick="selecionarFormato('retrato', this)" data-formato="retrato">
-                                <i class="fas fa-file-alt"></i>
-                                <h4>DANFE Retrato</h4>
-                                <p>Formato padrão A4 retrato</p>
-                            </div>
-                            <div class="formato-card" onclick="selecionarFormato('paisagem', this)" data-formato="paisagem">
-                                <i class="fas fa-file"></i>
-                                <h4>DANFE Paisagem</h4>
-                                <p>Formato A4 paisagem</p>
-                            </div>
-                            <div class="formato-card" onclick="selecionarFormato('simplificado', this)" data-formato="simplificado">
-                                <i class="fas fa-file-contract"></i>
-                                <h4>DANFE Simplificado</h4>
-                                <p>Versão resumida</p>
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-print"></i> Formato de Impressão</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="formato-grid">
+                                <div class="formato-card selected" onclick="selecionarFormato('retrato', this)" data-formato="retrato">
+                                    <i class="fas fa-file-alt"></i>
+                                    <h4>DANFE Retrato</h4>
+                                    <p>Formato padrão A4 retrato</p>
+                                </div>
+                                <div class="formato-card" onclick="selecionarFormato('paisagem', this)" data-formato="paisagem">
+                                    <i class="fas fa-file"></i>
+                                    <h4>DANFE Paisagem</h4>
+                                    <p>Formato A4 paisagem</p>
+                                </div>
+                                <div class="formato-card" onclick="selecionarFormato('simplificado', this)" data-formato="simplificado">
+                                    <i class="fas fa-file-contract"></i>
+                                    <h4>DANFE Simplificado</h4>
+                                    <p>Versão resumida</p>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- SECTION: PREVIEW DO DANFE -->
                     <div class="card hidden-section" id="previewSection">
-                        <div class="section-title"><i class="fas fa-eye"></i> Preview do DANFE</div>
-
-                        <div class="danfe-preview" id="danfe-preview">
-                            <!-- DANFE HEADER -->
-                            <div class="danfe-header">
-                                <div class="danfe-header-left">
-                                    <div class="empresa-nome" id="danfeEmpresa">—</div>
-                                    <div class="empresa-cnpj" id="danfeCNPJ">CNPJ: —</div>
-                                    <div class="empresa-endereco" id="danfeEndereco">—</div>
-                                </div>
-                                <div class="danfe-header-center">
-                                    <div class="danfe-title">DANFE</div>
-                                    <div class="danfe-subtitle">Documento Auxiliar da Nota Fiscal Eletrônica</div>
-                                    <div class="danfe-tipo">0 - ENTRADA &nbsp;/&nbsp; 1 - SAÍDA</div>
-                                </div>
-                                <div class="danfe-header-right">
-                                    <div class="nfe-numero" id="danfeNumero">Nº —</div>
-                                    <div class="nfe-serie" id="danfeSerie">Série —</div>
-                                </div>
-                            </div>
-
-                            <!-- CHAVE DE ACESSO -->
-                            <div class="danfe-chave-section">
-                                <div class="danfe-chave-label">Chave de Acesso</div>
-                                <div class="danfe-chave-value" id="danfeChave">— — — — — — — — — — —</div>
-                            </div>
-
-                            <!-- NATUREZA / PROTOCOLO -->
-                            <div class="danfe-section-grid cols-2">
-                                <div class="danfe-field">
-                                    <div class="danfe-label">Natureza da Operação</div>
-                                    <div class="danfe-value" id="danfeNatureza">—</div>
-                                </div>
-                                <div class="danfe-field">
-                                    <div class="danfe-label">Protocolo de Autorização</div>
-                                    <div class="danfe-value" id="danfeProtocolo">—</div>
-                                </div>
-                            </div>
-
-                            <!-- DESTINATÁRIO -->
-                            <div class="danfe-section" style="margin-top:-1px;">
-                                <div class="danfe-label" style="margin-bottom:4px;font-weight:600;font-size:10px;color:#000;">DESTINATÁRIO / REMETENTE</div>
-                            </div>
-                            <div class="danfe-section-grid cols-3">
-                                <div class="danfe-field" style="grid-column: 1 / 3;">
-                                    <div class="danfe-label">Nome / Razão Social</div>
-                                    <div class="danfe-value" id="danfeDestinatario">—</div>
-                                </div>
-                                <div class="danfe-field">
-                                    <div class="danfe-label">CNPJ/CPF</div>
-                                    <div class="danfe-value" id="danfeDocDest">—</div>
-                                </div>
-                            </div>
-                            <div class="danfe-section-grid cols-2" style="margin-top:-1px;">
-                                <div class="danfe-field" style="grid-column: 1 / -1;">
-                                    <div class="danfe-label">Endereço</div>
-                                    <div class="danfe-value" id="danfeEnderecoDest">—</div>
-                                </div>
-                            </div>
-
-                            <!-- ITENS -->
-                            <div class="danfe-section" style="margin-top:8px;">
-                                <div class="danfe-label" style="font-weight:600;font-size:10px;color:#000;">DADOS DOS PRODUTOS / SERVIÇOS</div>
-                            </div>
-                            <table class="danfe-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:50%;">Descrição</th>
-                                        <th style="width:12%;" class="text-right">Qtd</th>
-                                        <th style="width:19%;" class="text-right">Valor Unit.</th>
-                                        <th style="width:19%;" class="text-right">Valor Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="danfeItensBody">
-                                    <tr>
-                                        <td colspan="4" style="text-align:center;color:#999;padding:20px;">Nenhum item carregado</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-
-                            <!-- TOTAIS -->
-                            <div class="danfe-totais">
-                                <div class="danfe-total-item">
-                                    <div class="danfe-label">Total dos Produtos</div>
-                                    <div class="danfe-value" id="danfeTotalProdutos">R$ 0,00</div>
-                                </div>
-                                <div class="danfe-total-item">
-                                    <div class="danfe-label">Valor Total da NFe</div>
-                                    <div class="danfe-value" id="danfeTotalNFe">R$ 0,00</div>
-                                </div>
-                            </div>
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-eye"></i> Preview do DANFE</h3>
                         </div>
+                        <div class="card-body">
+                            <div class="danfe-preview" id="danfe-preview">
+                                <!-- DANFE HEADER -->
+                                <div class="danfe-header">
+                                    <div class="danfe-header-left">
+                                        <div class="empresa-nome" id="danfeEmpresa">—</div>
+                                        <div class="empresa-cnpj" id="danfeCNPJ">CNPJ: —</div>
+                                        <div class="empresa-endereco" id="danfeEndereco">—</div>
+                                    </div>
+                                    <div class="danfe-header-center">
+                                        <div class="danfe-title">DANFE</div>
+                                        <div class="danfe-subtitle">Documento Auxiliar da Nota Fiscal Eletrônica</div>
+                                        <div class="danfe-tipo">0 - ENTRADA &nbsp;/&nbsp; 1 - SAÍDA</div>
+                                    </div>
+                                    <div class="danfe-header-right">
+                                        <div class="nfe-numero" id="danfeNumero">Nº —</div>
+                                        <div class="nfe-serie" id="danfeSerie">Série —</div>
+                                    </div>
+                                </div>
 
-                        <!-- PREVIEW ACTIONS -->
-                        <div class="preview-actions">
-                            <button class="btn btn-primary" onclick="gerarPDF()"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
-                            <button class="btn btn-primary" onclick="imprimir()"><i class="fas fa-print"></i> Imprimir</button>
-                            <button class="btn btn-secondary" onclick="enviarEmail()"><i class="fas fa-envelope"></i> Enviar por Email</button>
-                            <button class="btn btn-whatsapp" onclick="enviarWhatsApp()"><i class="fab fa-whatsapp"></i> Enviar WhatsApp</button>
+                                <!-- CHAVE DE ACESSO -->
+                                <div class="danfe-chave-section">
+                                    <div class="danfe-chave-label">Chave de Acesso</div>
+                                    <div class="danfe-chave-value" id="danfeChave">— — — — — — — — — — —</div>
+                                </div>
+
+                                <!-- NATUREZA / PROTOCOLO -->
+                                <div class="danfe-section-grid cols-2">
+                                    <div class="danfe-field">
+                                        <div class="danfe-label">Natureza da Operação</div>
+                                        <div class="danfe-value" id="danfeNatureza">—</div>
+                                    </div>
+                                    <div class="danfe-field">
+                                        <div class="danfe-label">Protocolo de Autorização</div>
+                                        <div class="danfe-value" id="danfeProtocolo">—</div>
+                                    </div>
+                                </div>
+
+                                <!-- DESTINATÁRIO -->
+                                <div class="danfe-section" style="margin-top:-1px;">
+                                    <div class="danfe-label" style="margin-bottom:4px;font-weight:600;font-size:10px;color:#000;">DESTINATÁRIO / REMETENTE</div>
+                                </div>
+                                <div class="danfe-section-grid cols-3">
+                                    <div class="danfe-field" style="grid-column: 1 / 3;">
+                                        <div class="danfe-label">Nome / Razão Social</div>
+                                        <div class="danfe-value" id="danfeDestinatario">—</div>
+                                    </div>
+                                    <div class="danfe-field">
+                                        <div class="danfe-label">CNPJ/CPF</div>
+                                        <div class="danfe-value" id="danfeDocDest">—</div>
+                                    </div>
+                                </div>
+                                <div class="danfe-section-grid cols-2" style="margin-top:-1px;">
+                                    <div class="danfe-field" style="grid-column: 1 / -1;">
+                                        <div class="danfe-label">Endereço</div>
+                                        <div class="danfe-value" id="danfeEnderecoDest">—</div>
+                                    </div>
+                                </div>
+
+                                <!-- ITENS -->
+                                <div class="danfe-section" style="margin-top:8px;">
+                                    <div class="danfe-label" style="font-weight:600;font-size:10px;color:#000;">DADOS DOS PRODUTOS / SERVIÇOS</div>
+                                </div>
+                                <table class="danfe-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:50%;">Descrição</th>
+                                            <th style="width:12%;" class="text-right">Qtd</th>
+                                            <th style="width:19%;" class="text-right">Valor Unit.</th>
+                                            <th style="width:19%;" class="text-right">Valor Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="danfeItensBody">
+                                        <tr>
+                                            <td colspan="4" style="text-align:center;color:#999;padding:20px;">Nenhum item carregado</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                <!-- TOTAIS -->
+                                <div class="danfe-totais">
+                                    <div class="danfe-total-item">
+                                        <div class="danfe-label">Total dos Produtos</div>
+                                        <div class="danfe-value" id="danfeTotalProdutos">R$ 0,00</div>
+                                    </div>
+                                    <div class="danfe-total-item">
+                                        <div class="danfe-label">Valor Total da NFe</div>
+                                        <div class="danfe-value" id="danfeTotalNFe">R$ 0,00</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- PREVIEW ACTIONS -->
+                            <div class="preview-actions">
+                                <button class="btn btn-primary" onclick="gerarPDF()"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                                <button class="btn btn-primary" onclick="imprimir()"><i class="fas fa-print"></i> Imprimir</button>
+                                <button class="btn btn-secondary" onclick="enviarEmail()"><i class="fas fa-envelope"></i> Enviar por Email</button>
+                                <button class="btn btn-whatsapp" onclick="enviarWhatsApp()"><i class="fab fa-whatsapp"></i> Enviar WhatsApp</button>
+                            </div>
                         </div>
                     </div>
 
@@ -1147,15 +1042,20 @@
         });
     </script>
 
-    <script src="/js/notification-manager.js" defer></script>
-    <script src="../_shared/connection-monitor.js" defer></script>
-    <script src="/js/popup-confirmacao.js" defer></script>
-    <script src="/js/auth-unified.js?v=20260131c" defer></script>
-    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
-    <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <!-- Sistema de Notificações Global -->
+    <script src="/js/notification-manager.js?v=20260301"></script>
+    <script src="/_shared/connection-monitor.js?v=20260301"></script>
+    <script src="/js/popup-confirmacao.js?v=20260301"></script>
 
-    <!-- Sidebar Click Animation -->
-    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <!-- Utilitários Compartilhados -->
+    <script src="/_shared/confirm-dialog.js?v=20260301"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260301" defer></script>
+
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260301" defer></script>
+
+    <!-- Enterprise Shared -->
+    <script src="/js/sidebar-click-animation.js?v=20260301"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260301"></script>
 </body>
 </html>

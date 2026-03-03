@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>ALUFORCE - Controle de Ponto</title>
+    
+    <link rel="icon" href="/Favicon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --sidebar-width: 56px;
+            --header-height: 48px;
+            --primary-orange: #f97316;
+            --primary-rose: #e11d48;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+            --primary-purple: #667eea;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-rose);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-rose); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #e11d48, #be185d);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area { flex: 1; overflow-y: auto; padding: 24px; background: #ffffff; }
+
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .page-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .page-title i { color: var(--primary-purple); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* RELOGIO */
+        .relogio-container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+            border: 1px solid #f1f5f9;
+        }
+
+        .relogio {
+            font-size: 72px;
+            font-weight: 700;
+            color: var(--primary-purple);
+            margin-bottom: 10px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .data-atual {
+            font-size: 18px;
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+
+        .status-ponto {
+            font-size: 18px;
+            color: #64748b;
+            margin-bottom: 30px;
+            padding: 12px 24px;
+            background: #f8fafc;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .status-ponto.trabalhando { background: rgba(16, 185, 129, 0.1); color: #10b981; font-weight: 600; }
+        .status-ponto.intervalo { background: rgba(249, 115, 22, 0.1); color: #f97316; font-weight: 600; }
+
+        .batidas-hoje {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin: 30px 0;
+        }
+
+        .batida-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .batida-card.registrada {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+        }
+
+        .batida-card i { font-size: 24px; margin-bottom: 8px; }
+        .batida-label { font-size: 12px; opacity: 0.8; margin-bottom: 4px; }
+        .batida-hora { font-size: 20px; font-weight: 700; font-family: 'Courier New', monospace; }
+
+        .btn-bater-ponto {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 20px 50px;
+            font-size: 18px;
+            font-weight: 600;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+            transition: all 0.3s;
+        }
+
+        .btn-bater-ponto:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(16, 185, 129, 0.4); }
+        .btn-bater-ponto:disabled { background: #cbd5e1; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        /* RESUMO MENSAL */
+        .resumo-mensal {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .resumo-card {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+        }
+
+        .resumo-card .icone {
+            width: 50px; height: 50px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; margin-bottom: 16px;
+        }
+
+        .resumo-card.horas .icone { background: rgba(102, 126, 234, 0.1); color: var(--primary-purple); }
+        .resumo-card.faltas .icone { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+        .resumo-card.extras .icone { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .resumo-card.atrasos .icone { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .resumo-card .valor { font-size: 2rem; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+        .resumo-card .label { font-size: 0.875rem; color: #64748b; }
+
+        /* TABELA ESPELHO */
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title { font-size: 1rem; font-weight: 600; color: #1e293b; margin: 0; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: var(--primary-purple); }
+        .card-body { padding: 24px; }
+
+        .filtros-espelho {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filtros-espelho input, .filtros-espelho select {
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .table-ponto {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table-ponto th {
+            background: #f8fafc;
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .table-ponto td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.875rem;
+            color: #334155;
+        }
+
+        .table-ponto tr:hover { background: #f8fafc; }
+
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+        .badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .badge-warning { background: rgba(249, 115, 22, 0.1); color: #f97316; }
+        .badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        @media (max-width: 1024px) {
+            .batidas-hoje { grid-template-columns: repeat(2, 1fr); }
+            .resumo-mensal { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 600px) {
+            .batidas-hoje { grid-template-columns: 1fr; }
+            .resumo-mensal { grid-template-columns: 1fr; }
+            .relogio { font-size: 48px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <a href="/" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
+                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
+                <a href="ponto.html" class="sidebar-btn active" title="Ponto"><i class="fas fa-clock"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal Funcionário"><i class="fas fa-user"></i></a>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <div class="header-brand">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE">
+                        <span>|</span>
+                        <span>CONTROLE DE PONTO</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span>Seja Bem Vindo, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initial">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <div class="page-header">
+                    <div>
+                        <h1 class="page-title"><i class="fas fa-clock"></i> Controle de Ponto</h1>
+                        <p class="page-subtitle">Registre suas entradas e saídas</p>
+                    </div>
+                </div>
+
+                <!-- Relógio e Batida -->
+                <div class="relogio-container">
+                    <div class="relogio" id="relogio">00:00:00</div>
+                    <div class="data-atual" id="data-atual">Segunda-feira, 17 de Dezembro de 2025</div>
+                    
+                    <div class="status-ponto" id="status-ponto">Aguardando entrada</div>
+
+                    <div class="batidas-hoje">
+                        <div class="batida-card registrada" id="batida-1">
+                            <i class="fas fa-sign-in-alt"></i>
+                            <div class="batida-label">Entrada</div>
+                            <div class="batida-hora" id="hora-entrada">08:00</div>
+                        </div>
+                        <div class="batida-card" id="batida-2">
+                            <i class="fas fa-utensils"></i>
+                            <div class="batida-label">Saída Almoço</div>
+                            <div class="batida-hora" id="hora-almoco-saida">--:--</div>
+                        </div>
+                        <div class="batida-card" id="batida-3">
+                            <i class="fas fa-utensils"></i>
+                            <div class="batida-label">Retorno Almoço</div>
+                            <div class="batida-hora" id="hora-almoco-retorno">--:--</div>
+                        </div>
+                        <div class="batida-card" id="batida-4">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <div class="batida-label">Saída</div>
+                            <div class="batida-hora" id="hora-saida">--:--</div>
+                        </div>
+                    </div>
+
+                    <button class="btn-bater-ponto" onclick="baterPonto()">
+                        <i class="fas fa-fingerprint"></i> Bater Ponto
+                    </button>
+                </div>
+
+                <!-- Resumo Mensal -->
+                <div class="resumo-mensal">
+                    <div class="resumo-card horas">
+                        <div class="icone"><i class="fas fa-clock"></i></div>
+                        <div class="valor" id="horas-trabalhadas">176h</div>
+                        <div class="label">Horas Trabalhadas</div>
+                    </div>
+                    <div class="resumo-card faltas">
+                        <div class="icone"><i class="fas fa-calendar-times"></i></div>
+                        <div class="valor" id="faltas">0</div>
+                        <div class="label">Faltas</div>
+                    </div>
+                    <div class="resumo-card extras">
+                        <div class="icone"><i class="fas fa-plus-circle"></i></div>
+                        <div class="valor" id="horas-extras">8h</div>
+                        <div class="label">Horas Extras</div>
+                    </div>
+                    <div class="resumo-card atrasos">
+                        <div class="icone"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="valor" id="atrasos">2</div>
+                        <div class="label">Atrasos</div>
+                    </div>
+                </div>
+
+                <!-- Espelho de Ponto -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-table"></i> Espelho de Ponto</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="filtros-espelho">
+                            <select id="filtro-mes">
+                                <option value="12">Dezembro 2025</option>
+                                <option value="11">Novembro 2025</option>
+                                <option value="10">Outubro 2025</option>
+                            </select>
+                            <input type="text" placeholder="Buscar por data..." id="busca-ponto">
+                        </div>
+
+                        <table class="table-ponto">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Entrada</th>
+                                    <th>Saída Almoço</th>
+                                    <th>Retorno</th>
+                                    <th>Saída</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>17/12/2025</strong></td>
+                                    <td>08:00</td>
+                                    <td>12:00</td>
+                                    <td>13:00</td>
+                                    <td>17:30</td>
+                                    <td>8h 30min</td>
+                                    <td><span class="badge badge-success">OK</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>16/12/2025</strong></td>
+                                    <td>08:15</td>
+                                    <td>12:00</td>
+                                    <td>13:00</td>
+                                    <td>18:00</td>
+                                    <td>8h 45min</td>
+                                    <td><span class="badge badge-warning">Atraso</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>15/12/2025</strong></td>
+                                    <td>08:00</td>
+                                    <td>12:00</td>
+                                    <td>13:00</td>
+                                    <td>17:00</td>
+                                    <td>8h 00min</td>
+                                    <td><span class="badge badge-success">OK</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>14/12/2025</strong></td>
+                                    <td>--:--</td>
+                                    <td>--:--</td>
+                                    <td>--:--</td>
+                                    <td>--:--</td>
+                                    <td>0h 00min</td>
+                                    <td><span class="badge badge-danger">Falta</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const avatarNameMap = { 'clemerson': '/avatars/Clemerson.webp', 'isabela': '/avatars/Isabela.webp', 'thaina': '/avatars/Thaina.webp', 'thiago': '/avatars/Thiago.webp', 'nicolas': '/avatars/NicolasDaniel.webp', 'rh': '/avatars/Rh.webp', 'admin': '/avatars/admin.webp', 'ti': '/avatars/TI.webp', 'antonio': '/avatars/Antonio.webp', 'andreia': '/avatars/Andreia.webp', 'guilherme': '/avatars/Guilherme.webp' };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) { const firstName = nome.split(' ')[0].toLowerCase(); if (avatarNameMap[firstName]) return avatarNameMap[firstName]; }
+            return null;
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    const userName = user.nome || user.apelido || 'Usuário';
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : getAvatarFromEmail(user.email, userName);
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = userName.split(' ')[0];
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    if (userAvatar && userPhotoEl) { userPhotoEl.src = userAvatar; userPhotoEl.classList.add('visible'); userPhotoEl.style.display = 'block'; if (userInitialEl) userInitialEl.style.display = 'none'; }
+                    else if (userInitialEl) { userInitialEl.textContent = userName.charAt(0).toUpperCase(); userInitialEl.style.display = 'flex'; if (userPhotoEl) userPhotoEl.style.display = 'none'; }
+                }
+            } catch (error) { console.error('Erro ao carregar usuário:', error); }
+        }
+
+        // Relógio em tempo real
+        function atualizarRelogio() {
+            const agora = new Date();
+            const horas = String(agora.getHours()).padStart(2, '0');
+            const minutos = String(agora.getMinutes()).padStart(2, '0');
+            const segundos = String(agora.getSeconds()).padStart(2, '0');
+            document.getElementById('relogio').textContent = `${horas}:${minutos}:${segundos}`;
+        }
+
+        function atualizarData() {
+            const agora = new Date();
+            const diasSemana = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+            const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const diaSemana = diasSemana[agora.getDay()];
+            const dia = agora.getDate();
+            const mes = meses[agora.getMonth()];
+            const ano = agora.getFullYear();
+            document.getElementById('data-atual').textContent = `${diaSemana}, ${dia} de ${mes} de ${ano}`;
+        }
+
+        let batidaAtual = 1;
+        function baterPonto() {
+            const agora = new Date();
+            const hora = `${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}`;
+            
+            const batidaCards = ['batida-1', 'batida-2', 'batida-3', 'batida-4'];
+            const horaIds = ['hora-entrada', 'hora-almoco-saida', 'hora-almoco-retorno', 'hora-saida'];
+            const labels = ['Entrada', 'Saída Almoço', 'Retorno Almoço', 'Saída'];
+            
+            if (batidaAtual <= 4) {
+                const card = document.getElementById(batidaCards[batidaAtual - 1]);
+                card.classList.add('registrada');
+                document.getElementById(horaIds[batidaAtual - 1]).textContent = hora;
+                
+                const statusEl = document.getElementById('status-ponto');
+                if (batidaAtual === 1) {
+                    statusEl.textContent = 'Trabalhando';
+                    statusEl.className = 'status-ponto trabalhando';
+                } else if (batidaAtual === 2) {
+                    statusEl.textContent = 'Intervalo de Almoço';
+                    statusEl.className = 'status-ponto intervalo';
+                } else if (batidaAtual === 3) {
+                    statusEl.textContent = 'Trabalhando';
+                    statusEl.className = 'status-ponto trabalhando';
+                } else {
+                    statusEl.textContent = 'Expediente Encerrado';
+                    statusEl.className = 'status-ponto';
+                }
+                
+                alert(`✅ ${labels[batidaAtual - 1]} registrada às ${hora}`);
+                batidaAtual++;
+            }
+            
+            if (batidaAtual > 4) {
+                document.querySelector('.btn-bater-ponto').disabled = true;
+                document.querySelector('.btn-bater-ponto').innerHTML = '<i class="fas fa-check"></i> Ponto Completo';
+            }
+        }
+
+        setInterval(atualizarRelogio, 1000);
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            atualizarRelogio();
+            atualizarData();
+        });
+    </script>
+    <script src="/js/chat-suporte-widgets.js?v=20251217"></script>
+</body>
+</html>

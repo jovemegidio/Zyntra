@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aluforce: Redefinir Senha</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #1565c0 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            width: 100%;
+            max-width: 450px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .user-info {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-info i {
+            font-size: 2rem;
+            color: #1a237e;
+        }
+
+        .user-info .info {
+            flex: 1;
+        }
+
+        .user-info .name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .user-info .email {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .title {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.5rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper i.icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            font-size: 1.1rem;
+        }
+
+        .input-wrapper .toggle-password {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 1rem;
+        }
+
+        .input-wrapper .toggle-password:hover {
+            color: #1a237e;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 15px 50px 15px 50px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            background: #f9f9f9;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #1a237e;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+        }
+
+        .password-strength {
+            margin-top: 10px;
+        }
+
+        .strength-bar {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .strength-bar .fill {
+            height: 100%;
+            width: 0;
+            transition: all 0.3s;
+        }
+
+        .strength-bar .fill.weak { width: 33%; background: #f44336; }
+        .strength-bar .fill.medium { width: 66%; background: #ff9800; }
+        .strength-bar .fill.strong { width: 100%; background: #4caf50; }
+
+        .strength-text {
+            font-size: 0.8rem;
+            margin-top: 5px;
+            color: #666;
+        }
+
+        .requirements {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+
+        .requirements p {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .requirements ul {
+            list-style: none;
+            font-size: 0.85rem;
+        }
+
+        .requirements li {
+            padding: 3px 0;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .requirements li.valid {
+            color: #4caf50;
+        }
+
+        .requirements li i {
+            font-size: 0.8rem;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(26, 35, 126, 0.4);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-submit.loading i {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+        }
+
+        .alert.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+        }
+
+        .alert.warning {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffcc80;
+        }
+
+        .alert i {
+            font-size: 1.2rem;
+        }
+
+        .alert.show {
+            display: flex;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .success-container {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .success-container.show {
+            display: block;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .success-container i {
+            font-size: 5rem;
+            color: #4caf50;
+            margin-bottom: 20px;
+        }
+
+        .success-container h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .success-container p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .btn-login {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(26, 35, 126, 0.4);
+        }
+
+        .expired-container {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .expired-container.show {
+            display: block;
+        }
+
+        .expired-container i {
+            font-size: 5rem;
+            color: #f44336;
+            margin-bottom: 20px;
+        }
+
+        .expired-container h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .expired-container p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+
+        .btn-retry {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-retry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(26, 35, 126, 0.4);
+        }
+
+        .loading-container {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading-container i {
+            font-size: 3rem;
+            color: #1a237e;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading-container p {
+            margin-top: 15px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ALUFORCE</h1>
+            <p>Sistema ERP</p>
+        </div>
+        
+        <div class="content">
+            <!-- Loading -->
+            <div id="loadingContainer" class="loading-container">
+                <i class="fas fa-spinner"></i>
+                <p>Verificando link...</p>
+            </div>
+
+            <!-- Formulário -->
+            <div id="formContainer" style="display: none;">
+                <h2 class="title">Criar Nova Senha</h2>
+                <p class="subtitle">Digite sua nova senha abaixo</p>
+
+                <div id="userInfo" class="user-info" style="display: none;">
+                    <i class="fas fa-user-circle"></i>
+                    <div class="info">
+                        <div class="name" id="userName"></div>
+                        <div class="email" id="userEmail"></div>
+                    </div>
+                </div>
+
+                <div id="alert" class="alert">
+                    <i></i>
+                    <span id="alertMessage"></span>
+                </div>
+
+                <form id="redefinirForm">
+                    <div class="form-group">
+                        <label for="novaSenha">Nova Senha</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock icon"></i>
+                            <input 
+                                type="password" 
+                                id="novaSenha" 
+                                name="novaSenha" 
+                                placeholder="Digite sua nova senha"
+                                required
+                                minlength="6"
+                            >
+                            <button type="button" class="toggle-password" onclick="togglePassword('novaSenha')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="password-strength">
+                            <div class="strength-bar">
+                                <div class="fill" id="strengthFill"></div>
+                            </div>
+                            <div class="strength-text" id="strengthText"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmarSenha">Confirmar Senha</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock icon"></i>
+                            <input 
+                                type="password" 
+                                id="confirmarSenha" 
+                                name="confirmarSenha" 
+                                placeholder="Confirme sua nova senha"
+                                required
+                                minlength="6"
+                            >
+                            <button type="button" class="toggle-password" onclick="togglePassword('confirmarSenha')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="requirements">
+                        <p><strong>Requisitos da senha:</strong></p>
+                        <ul>
+                            <li id="reqLength"><i class="fas fa-circle"></i> Mínimo de 6 caracteres</li>
+                            <li id="reqMatch"><i class="fas fa-circle"></i> As senhas devem ser iguais</li>
+                        </ul>
+                    </div>
+
+                    <button type="submit" class="btn-submit" id="btnSubmit" disabled>
+                        <i class="fas fa-save"></i>
+                        <span>Salvar Nova Senha</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Sucesso -->
+            <div id="successContainer" class="success-container">
+                <i class="fas fa-check-circle"></i>
+                <h3>Senha Alterada com Sucesso!</h3>
+                <p>
+                    Sua senha foi redefinida. Agora você pode fazer login com sua nova senha.
+                </p>
+                <a href="/login.html" class="btn-login">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Ir para o Login
+                </a>
+            </div>
+
+            <!-- Token expirado -->
+            <div id="expiredContainer" class="expired-container">
+                <i class="fas fa-clock"></i>
+                <h3>Link Expirado</h3>
+                <p>
+                    Este link de redefinição de senha expirou ou já foi utilizado.
+                    <br>
+                    Solicite um novo link para redefinir sua senha.
+                </p>
+                <a href="/esqueci-senha.html" class="btn-retry">
+                    <i class="fas fa-redo"></i>
+                    Solicitar Novo Link
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let token = null;
+
+        // Elementos
+        const loadingContainer = document.getElementById('loadingContainer');
+        const formContainer = document.getElementById('formContainer');
+        const successContainer = document.getElementById('successContainer');
+        const expiredContainer = document.getElementById('expiredContainer');
+        const form = document.getElementById('redefinirForm');
+        const btnSubmit = document.getElementById('btnSubmit');
+        const alert = document.getElementById('alert');
+        const alertMessage = document.getElementById('alertMessage');
+        const novaSenhaInput = document.getElementById('novaSenha');
+        const confirmarSenhaInput = document.getElementById('confirmarSenha');
+
+        // Pegar token da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        token = urlParams.get('token');
+
+        // Verificar token ao carregar
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!token) {
+                showExpired();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/auth/verificar-token/${token}`);
+                const data = await response.json();
+
+                if (data.valid) {
+                    showForm(data.nome, data.email);
+                } else {
+                    showExpired();
+                }
+            } catch (error) {
+                console.error('Erro ao verificar token:', error);
+                showExpired();
+            }
+        });
+
+        function showForm(nome, email) {
+            loadingContainer.style.display = 'none';
+            formContainer.style.display = 'block';
+            
+            if (nome) {
+                document.getElementById('userInfo').style.display = 'flex';
+                document.getElementById('userName').textContent = nome;
+                document.getElementById('userEmail').textContent = email;
+            }
+        }
+
+        function showExpired() {
+            loadingContainer.style.display = 'none';
+            expiredContainer.classList.add('show');
+        }
+
+        function showSuccess() {
+            formContainer.style.display = 'none';
+            successContainer.classList.add('show');
+        }
+
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = input.parentElement.querySelector('.toggle-password i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+
+        function checkPasswordStrength(password) {
+            const fill = document.getElementById('strengthFill');
+            const text = document.getElementById('strengthText');
+            
+            if (password.length === 0) {
+                fill.className = 'fill';
+                text.textContent = '';
+                return;
+            }
+
+            let strength = 0;
+            if (password.length >= 6) strength++;
+            if (password.length >= 8) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+            if (strength <= 2) {
+                fill.className = 'fill weak';
+                text.textContent = 'Fraca';
+                text.style.color = '#f44336';
+            } else if (strength <= 3) {
+                fill.className = 'fill medium';
+                text.textContent = 'Média';
+                text.style.color = '#ff9800';
+            } else {
+                fill.className = 'fill strong';
+                text.textContent = 'Forte';
+                text.style.color = '#4caf50';
+            }
+        }
+
+        function validateForm() {
+            const senha = novaSenhaInput.value;
+            const confirmar = confirmarSenhaInput.value;
+            
+            const reqLength = document.getElementById('reqLength');
+            const reqMatch = document.getElementById('reqMatch');
+            
+            const lengthValid = senha.length >= 6;
+            const matchValid = senha === confirmar && senha.length > 0;
+            
+            reqLength.className = lengthValid ? 'valid' : '';
+            reqLength.querySelector('i').className = lengthValid ? 'fas fa-check' : 'fas fa-circle';
+            
+            reqMatch.className = matchValid ? 'valid' : '';
+            reqMatch.querySelector('i').className = matchValid ? 'fas fa-check' : 'fas fa-circle';
+            
+            btnSubmit.disabled = !(lengthValid && matchValid);
+        }
+
+        novaSenhaInput.addEventListener('input', () => {
+            checkPasswordStrength(novaSenhaInput.value);
+            validateForm();
+        });
+
+        confirmarSenhaInput.addEventListener('input', validateForm);
+
+        function showAlert(message, type) {
+            alert.className = `alert ${type} show`;
+            alert.querySelector('i').className = type === 'success' ? 'fas fa-check-circle' : 
+                                                   type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-exclamation-triangle';
+            alertMessage.textContent = message;
+        }
+
+        function setLoading(loading) {
+            if (loading) {
+                btnSubmit.disabled = true;
+                btnSubmit.classList.add('loading');
+                btnSubmit.innerHTML = '<i class="fas fa-spinner"></i><span>Salvando...</span>';
+            } else {
+                btnSubmit.disabled = false;
+                btnSubmit.classList.remove('loading');
+                btnSubmit.innerHTML = '<i class="fas fa-save"></i><span>Salvar Nova Senha</span>';
+                validateForm();
+            }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const novaSenha = novaSenhaInput.value;
+            const confirmarSenha = confirmarSenhaInput.value;
+
+            if (novaSenha !== confirmarSenha) {
+                showAlert('As senhas não conferem.', 'error');
+                return;
+            }
+
+            if (novaSenha.length < 6) {
+                showAlert('A senha deve ter no mínimo 6 caracteres.', 'error');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const response = await fetch('/api/auth/redefinir-senha', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        token: token,
+                        nova_senha: novaSenha
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess();
+                } else {
+                    showAlert(data.message || 'Erro ao redefinir senha.', 'error');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showAlert('Erro de conexão. Tente novamente.', 'error');
+            } finally {
+                setLoading(false);
+            }
+        });
+    </script>
+<script src="/_shared/accessibility-widget.js"></script>
+</body>
+</html>

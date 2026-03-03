@@ -1,0 +1,855 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ALUFORCE">
+    <title>ALUFORCE ERP | Painel de Controle</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Critical CSS - Modal Fix -->
+    <link rel="stylesheet" href="/css/modal-fix-critical.css?v=20260129">
+    <link rel="stylesheet" href="/css/notifications-fix.css?v=20260129">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --slate-50: #f8fafc;
+            --slate-100: #f1f5f9;
+            --slate-200: #e2e8f0;
+            --slate-500: #64748b;
+            --slate-600: #475569;
+            --slate-700: #334155;
+            --slate-900: #0f172a;
+            --blue-50: #eff6ff;
+            --blue-600: #2563eb;
+            --emerald-50: #ecfdf5;
+            --emerald-500: #10b981;
+            --emerald-600: #059669;
+            --orange-50: #fff7ed;
+            --orange-600: #ea580c;
+            --indigo-50: #eef2ff;
+            --indigo-600: #4f46e5;
+            --rose-50: #fff1f2;
+            --rose-600: #e11d48;
+        }
+        
+        html, body {
+            height: 100%;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--slate-50);
+            color: var(--slate-900);
+            overflow-x: hidden;
+        }
+        
+        /* Animated Gradient Background */
+        .animated-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 25%, #dbeafe 50%, #fce7f3 75%, #f8fafc 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        /* Header */
+        .main-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--slate-200);
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .header-content {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header-logo {
+            font-family: 'Manrope', sans-serif;
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--slate-900);
+            letter-spacing: -0.5px;
+        }
+        
+        .header-logo img {
+            height: 32px;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .header-icon-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--slate-600);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .header-icon-btn:hover {
+            background: var(--slate-100);
+            color: var(--slate-900);
+            transform: scale(1.05);
+        }
+        
+        .notification-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            background: var(--emerald-500);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+        }
+        
+        .header-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--slate-200);
+            margin: 0 8px;
+        }
+        
+        .user-profile-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 12px 6px 6px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .user-profile-header:hover {
+            background: var(--slate-100);
+        }
+        
+        .user-avatar-header {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--slate-900) 0%, var(--slate-700) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        
+        .user-name {
+            font-weight: 500;
+            font-size: 14px;
+            color: var(--slate-900);
+        }
+        
+        /* User Dropdown */
+        .user-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 280px;
+            background: white;
+            border: 1px solid var(--slate-200);
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            z-index: 1000;
+        }
+        
+        .user-dropdown-menu.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .dropdown-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+        }
+        
+        .dropdown-avatar {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--slate-900) 0%, var(--slate-700) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        
+        .dropdown-info { flex: 1; }
+        .dropdown-user-name { display: block; font-weight: 600; font-size: 15px; color: var(--slate-900); }
+        .dropdown-user-email { display: block; font-size: 13px; color: var(--slate-500); }
+        
+        .dropdown-divider {
+            border: none;
+            height: 1px;
+            background: var(--slate-200);
+            margin: 0;
+        }
+        
+        .dropdown-options { padding: 8px; }
+        
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            color: var(--slate-600);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .dropdown-item:hover {
+            background: var(--slate-100);
+            color: var(--slate-900);
+        }
+        
+        .dropdown-item i { width: 18px; text-align: center; }
+        
+        .logout-item { color: var(--rose-600); }
+        .logout-item:hover { background: var(--rose-50); color: var(--rose-600); }
+        
+        /* Main Content */
+        .main-content {
+            min-height: 100vh;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 100px 24px 60px;
+            position: relative;
+            z-index: 10;
+        }
+        
+        /* Greeting Section */
+        .greeting-section {
+            margin-bottom: 48px;
+            animation: fadeInDown 0.5s ease;
+        }
+        
+        .greeting-date {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .greeting-date-text {
+            font-size: 14px;
+            color: var(--slate-500);
+        }
+        
+        .greeting-time {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--slate-500);
+        }
+        
+        .greeting-title {
+            font-family: 'Manrope', sans-serif;
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 700;
+            color: var(--slate-900);
+            margin-bottom: 8px;
+            letter-spacing: -1px;
+        }
+        
+        .greeting-quote {
+            font-size: 18px;
+            color: var(--slate-500);
+        }
+        
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Modules Grid */
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-bottom: 48px;
+            animation: fadeInUp 0.5s ease 0.2s both;
+        }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .module-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--slate-200);
+            border-radius: 16px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-decoration: none;
+            display: block;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .module-card::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 18px;
+            padding: 2px;
+            background: linear-gradient(135deg, transparent, var(--glow-color, rgba(59,130,246,0.4)), transparent);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .module-card:hover::before { opacity: 1; }
+        
+        .module-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1), 0 0 30px var(--glow-color, rgba(59,130,246,0.2));
+        }
+        
+        .module-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 16px;
+            transition: transform 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .module-card:hover .module-icon { transform: scale(1.1); }
+        
+        .module-title {
+            font-family: 'Manrope', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--slate-900);
+            margin-bottom: 4px;
+        }
+        
+        .module-desc {
+            font-size: 14px;
+            color: var(--slate-500);
+        }
+        
+        /* Module Colors */
+        .module-card.compras { --glow-color: rgba(37, 99, 235, 0.4); }
+        .module-card.compras .module-icon { background: var(--blue-50); color: var(--blue-600); }
+        
+        .module-card.vendas { --glow-color: rgba(16, 185, 129, 0.4); }
+        .module-card.vendas .module-icon { background: var(--emerald-50); color: var(--emerald-600); }
+        
+        .module-card.nfe { --glow-color: rgba(234, 88, 12, 0.4); }
+        .module-card.nfe .module-icon { background: var(--orange-50); color: var(--orange-600); }
+        
+        .module-card.pcp { --glow-color: rgba(71, 85, 105, 0.4); }
+        .module-card.pcp .module-icon { background: var(--slate-100); color: var(--slate-600); }
+        
+        .module-card.financeiro { --glow-color: rgba(79, 70, 229, 0.4); }
+        .module-card.financeiro .module-icon { background: var(--indigo-50); color: var(--indigo-600); }
+        
+        .module-card.rh { --glow-color: rgba(225, 29, 72, 0.4); }
+        .module-card.rh .module-icon { background: var(--rose-50); color: var(--rose-600); }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            animation: fadeInUp 0.5s ease 0.4s both;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--slate-200);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: var(--slate-500);
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-family: 'Manrope', sans-serif;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--slate-900);
+        }
+        
+        .stat-change {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--emerald-600);
+        }
+        
+        .stat-change.negative { color: var(--rose-600); }
+        
+        /* Search Container */
+        .header-search-wrapper { position: relative; }
+        
+        .header-search-container {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: 320px;
+            background: white;
+            border: 1px solid var(--slate-200);
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            z-index: 1000;
+        }
+        
+        .header-search-container.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .header-search-container input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--slate-200);
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .header-search-container input:focus {
+            border-color: var(--blue-600);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content { padding: 0 16px; }
+            .main-content { padding: 80px 16px 40px; }
+            .user-name { display: none; }
+            .greeting-title { font-size: 28px; }
+            .modules-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
+            .module-card { padding: 20px; }
+            .module-icon { width: 48px; height: 48px; font-size: 20px; }
+            .module-title { font-size: 16px; }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+        
+        @media (max-width: 480px) {
+            .modules-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="animated-gradient"></div>
+    
+    <header class="main-header">
+        <div class="header-content">
+            <div class="header-logo">
+                <img src="/images/Logo Monocromatico - Preto - Aluforce.png" alt="ALUFORCE" onerror="this.parentElement.textContent='ALUFORCE'">
+            </div>
+            
+            <div class="header-right">
+                <div class="header-search-wrapper">
+                    <button class="header-icon-btn" id="search-btn" title="Buscar">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <div id="header-search-container" class="header-search-container">
+                        <input type="search" id="header-search-input" placeholder="O que você deseja pesquisar?" autocomplete="off">
+                        <div id="header-search-results" class="header-search-results"></div>
+                    </div>
+                </div>
+                
+                <button class="header-icon-btn" id="settings-btn" title="Configurações" data-admin-only="true" style="display:none;">
+                    <i class="fas fa-cog"></i>
+                </button>
+                
+                <button class="header-icon-btn" id="notifications-btn" title="Notificações">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-dot" id="notification-count"></span>
+                </button>
+                
+                <button class="header-icon-btn" id="help-btn" title="Ajuda">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+                
+                <div class="header-divider"></div>
+                
+                <div class="user-profile-header" id="user-profile">
+                    <div class="user-avatar-header" id="user-avatar">U</div>
+                    <span class="user-name" id="user-name-display">Usuário</span>
+                    
+                    <div class="user-dropdown-menu" id="user-dropdown">
+                        <div class="dropdown-header">
+                            <div class="dropdown-avatar" id="dropdown-avatar">U</div>
+                            <div class="dropdown-info">
+                                <span class="dropdown-user-name" id="dropdown-user-name">Usuário</span>
+                                <span class="dropdown-user-email" id="dropdown-user-email">usuario@aluforce.ind.br</span>
+                            </div>
+                        </div>
+                        <hr class="dropdown-divider">
+                        <div class="dropdown-options">
+                            <div class="dropdown-item" id="profile-option">
+                                <i class="fas fa-user"></i>
+                                <span>Meu Perfil</span>
+                            </div>
+                            <div class="dropdown-item" id="preferences-option">
+                                <i class="fas fa-sliders-h"></i>
+                                <span>Preferências</span>
+                            </div>
+                            <div class="dropdown-item" id="admin-users-option" data-admin-only style="display: none;">
+                                <i class="fas fa-users-cog"></i>
+                                <span>Gerenciar Usuários</span>
+                            </div>
+                            <div class="dropdown-item" id="settings-option" data-admin-only="true" style="display: none;">
+                                <i class="fas fa-cog"></i>
+                                <span>Configurações</span>
+                            </div>
+                            <hr class="dropdown-divider">
+                            <div class="dropdown-item logout-item" id="logout-option">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Sair</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <main class="main-content">
+        <section class="greeting-section">
+            <div class="greeting-date">
+                <span class="greeting-date-text" id="current-date"></span>
+                <div class="greeting-time">
+                    <i class="fas fa-clock"></i>
+                    <span id="current-time"></span>
+                </div>
+            </div>
+            <h1 class="greeting-title">Olá, <span id="greeting-name">Usuário</span></h1>
+            <p class="greeting-quote">Grandes conquistas exigem grandes esforços.</p>
+        </section>
+        
+        <section class="modules-grid">
+            <a href="/modules/Compras/index.html" class="module-card compras" data-area="compras">
+                <div class="module-icon">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+                <div class="module-title">Compras</div>
+                <div class="module-desc">Gestão de pedidos e fornecedores</div>
+            </a>
+            
+            <a href="/Vendas/index_utf8.html" class="module-card vendas" data-area="vendas">
+                <div class="module-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="module-title">Vendas</div>
+                <div class="module-desc">Pedidos de venda e faturamento</div>
+            </a>
+            
+            <a href="/modules/NFe/index.html" class="module-card nfe" data-area="nfe">
+                <div class="module-icon">
+                    <i class="fas fa-truck"></i>
+                </div>
+                <div class="module-title">NF-e & Logística</div>
+                <div class="module-desc">Emissão de notas e rastreio</div>
+            </a>
+            
+            <a href="/modules/PCP/index.html" class="module-card pcp" data-area="pcp">
+                <div class="module-icon">
+                    <i class="fas fa-industry"></i>
+                </div>
+                <div class="module-title">PCP</div>
+                <div class="module-desc">Planejamento e controle de produção</div>
+            </a>
+            
+            <a href="/modules/Financeiro/index.html" class="module-card financeiro" data-area="financeiro">
+                <div class="module-icon">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="module-title">Financeiro</div>
+                <div class="module-desc">Contas a pagar e receber</div>
+            </a>
+            
+            <a href="#" class="module-card rh" data-area="rh" id="rh-module-card" onclick="navegarRH(event)">
+                <div class="module-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="module-title">Recursos Humanos</div>
+                <div class="module-desc">Gestão de colaboradores</div>
+            </a>
+        </section>
+        
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Pedidos Hoje</div>
+                <div class="stat-value" id="stat-pedidos">--</div>
+                <div class="stat-change">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>+12% vs ontem</span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Faturamento Mensal</div>
+                <div class="stat-value" id="stat-faturamento">R$ --</div>
+                <div class="stat-change">
+                    <i class="fas fa-arrow-up"></i>
+                    <span>+8% vs mês passado</span>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Tarefas Pendentes</div>
+                <div class="stat-value" id="stat-tarefas">--</div>
+                <div class="stat-change" style="color: var(--slate-500);">
+                    <span>3 para hoje</span>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <!-- Scripts do sistema original -->
+    <script src="/js/header-controls.js?v=20260129"></script>
+    <script src="/js/admin-permissions.js"></script>
+    <script src="/js/notification-manager.js"></script>
+    
+    <!-- Carregar modais -->
+    <script>
+        fetch('/config-modals.html')
+            .then(response => response.text())
+            .then(html => {
+                const container = document.createElement('div');
+                container.id = 'config-modals-container';
+                container.innerHTML = html;
+                document.body.appendChild(container);
+            })
+            .catch(err => console.log('Modais não carregados:', err));
+    </script>
+    
+    <script>
+        // Atualizar data e hora
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit' };
+            
+            document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR', dateOptions);
+            document.getElementById('current-time').textContent = now.toLocaleTimeString('pt-BR', timeOptions);
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+        
+        // Carregar dados do usuário
+        document.addEventListener('DOMContentLoaded', function() {
+            const user = JSON.parse(localStorage.getItem('aluforce_user') || sessionStorage.getItem('aluforce_user') || '{}');
+            
+            if (user.nome) {
+                const firstName = user.nome.split(' ')[0];
+                const initial = firstName.charAt(0).toUpperCase();
+                
+                document.getElementById('greeting-name').textContent = firstName;
+                document.getElementById('user-name-display').textContent = firstName;
+                document.getElementById('user-avatar').textContent = initial;
+                document.getElementById('dropdown-avatar').textContent = initial;
+                document.getElementById('dropdown-user-name').textContent = user.nome;
+                document.getElementById('dropdown-user-email').textContent = user.email || 'usuario@aluforce.ind.br';
+                
+                // Mostrar opções de admin
+                if (user.role === 'admin' || user.isAdmin) {
+                    document.querySelectorAll('[data-admin-only]').forEach(el => el.style.display = '');
+                }
+            }
+        });
+        
+        // Toggle dropdown do usuário
+        document.getElementById('user-profile').addEventListener('click', function(e) {
+            e.stopPropagation();
+            document.getElementById('user-dropdown').classList.toggle('active');
+        });
+        
+        document.addEventListener('click', function() {
+            document.getElementById('user-dropdown').classList.remove('active');
+        });
+        
+        // Toggle pesquisa
+        document.getElementById('search-btn').addEventListener('click', function(e) {
+            e.stopPropagation();
+            const container = document.getElementById('header-search-container');
+            container.classList.toggle('active');
+            if (container.classList.contains('active')) {
+                document.getElementById('header-search-input').focus();
+            }
+        });
+        
+        // Logout
+        document.getElementById('logout-option').addEventListener('click', function() {
+            localStorage.removeItem('aluforce_user');
+            localStorage.removeItem('aluforce_token');
+            sessionStorage.removeItem('aluforce_user');
+            sessionStorage.removeItem('aluforce_token');
+            window.location.href = '/login.html';
+        });
+        
+        // Navegação RH
+        function navegarRH(event) {
+            event.preventDefault();
+            const user = JSON.parse(localStorage.getItem('aluforce_user') || sessionStorage.getItem('aluforce_user') || '{}');
+            if (user.role === 'admin' || user.isAdmin) {
+                window.location.href = '/modules/RH/dashboard-admin.html';
+            } else {
+                window.location.href = '/modules/RH/index.html';
+            }
+        }
+        
+        // Animação de contagem para stats
+        function animateCounter(element, target, prefix = '', suffix = '') {
+            let current = 0;
+            const duration = 1500;
+            const steps = 60;
+            const increment = target / steps;
+            
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    element.textContent = prefix + target + suffix;
+                    clearInterval(timer);
+                } else {
+                    element.textContent = prefix + Math.floor(current) + suffix;
+                }
+            }, duration / steps);
+        }
+        
+        // Carregar estatísticas (pode ser conectado à API)
+        setTimeout(() => {
+            animateCounter(document.getElementById('stat-pedidos'), 24);
+            animateCounter(document.getElementById('stat-faturamento'), 184, 'R$ ', 'K');
+            animateCounter(document.getElementById('stat-tarefas'), 7);
+        }, 500);
+        
+        // Verificar permissões de módulos
+        document.querySelectorAll('.module-card').forEach(card => {
+            const area = card.dataset.area;
+            // Aqui pode adicionar lógica de permissões baseada no usuário
+        });
+        
+        // Admin users option
+        document.getElementById('admin-users-option')?.addEventListener('click', function() {
+            window.location.href = '/admin/usuarios.html';
+        });
+        
+        // Profile option
+        document.getElementById('profile-option')?.addEventListener('click', function() {
+            // Abrir modal de perfil ou redirecionar
+            console.log('Abrir perfil');
+        });
+        
+        // Preferences option
+        document.getElementById('preferences-option')?.addEventListener('click', function() {
+            // Abrir modal de preferências
+            console.log('Abrir preferências');
+        });
+    </script>
+    
+    <!-- Scripts adicionais do sistema -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260129"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/modal-fix-global.js?v=20260129"></script>
+<script src="/_shared/user-profile-loader.js"></script>
+</body>
+</html>
+

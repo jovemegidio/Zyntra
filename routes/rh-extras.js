@@ -107,10 +107,10 @@ router.get('/notificacoes', authenticateToken, async (req, res) => {
 });
 
 /**
- * PUT /api/rh/notificacoes/:id/ler
+ * PUT /api/rh/notificacoes/:id/ler (ou /lida — alias)
  * Marcar notificação como lida
  */
-router.put('/notificacoes/:id/ler', authenticateToken, async (req, res) => {
+const marcarNotificacaoLidaHandler = async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -125,7 +125,9 @@ router.put('/notificacoes/:id/ler', authenticateToken, async (req, res) => {
         console.error('Erro ao marcar notificação como lida:', error);
         res.status(500).json({ success: false, message: error.message });
     }
-});
+};
+router.put('/notificacoes/:id/ler', authenticateToken, marcarNotificacaoLidaHandler);
+router.put('/notificacoes/:id/lida', authenticateToken, marcarNotificacaoLidaHandler);
 
 /**
  * PUT /api/rh/notificacoes/ler-todas

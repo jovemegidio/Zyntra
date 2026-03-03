@@ -1,0 +1,2557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <!-- Script de diagnóstico - Captura erros de carregamento -->
+    <script>
+    window.onerror = function(msg, url, line, col, error) {
+        console.error('ERRO GLOBAL:', msg, 'em', url, 'linha', line);
+        // Se der erro, mostrar mensagem em vez de tela branca
+        if (document.body) {
+            document.body.innerHTML = '<div style="padding:20px;font-family:sans-serif;"><h1>Erro de Carregamento</h1><p>' + msg + '</p><p>Arquivo: ' + url + '</p><p>Linha: ' + line + '</p><a href="javascript:location.reload()">Recarregar</a></div>';
+        }
+        return false;
+    };
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1a2744">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ALUFORCE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="ALUFORCE">
+    <meta name="msapplication-TileColor" content="#1a2744">
+    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="description" content="Sistema de Gestão Empresarial ALUFORCE - Compras, Vendas, NFe, PCP, Financeiro e RH">
+    
+    <title>Aluforce: Painel de Controle</title>
+    
+    <!-- CRÍTICO: Ocultar modais - DEVE SER O PRIMEIRO CSS -->
+    <link rel="stylesheet" href="/css/modal-fix-critical.css?v=20260121-v2">
+    
+    <!-- Correção urgente - esconder painel de notificações -->
+    <link rel="stylesheet" href="/css/notifications-fix.css?v=20260109-v2">
+    
+    <!-- Favicon e ícones -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- CSS PWA Mobile -->
+    <link rel="stylesheet" href="/css/pwa-mobile.css">
+    
+    <!-- CSS Animações Fluidas e Performance -->
+    <link rel="stylesheet" href="/css/fluid-animations.css?v=20260111">
+    
+    <!-- CSS Otimizações de Performance -->
+    <link rel="stylesheet" href="/css/performance-optimizations.css?v=20260111">
+    
+    <!-- Tooltips Profissionais - Sistema Unificado -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260127">
+    
+    <!-- Preconnect para recursos externos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Prefetch de scripts (carregamento em segundo plano, sem aviso de preload) -->
+    <link rel="prefetch" href="/js/aluforce-turbo.js?v=20260117" as="script">
+    <link rel="prefetch" href="/js/aluforce-data-manager.js?v=20260117" as="script">
+    
+    <!-- Fonte Poppins para Flat Design (com display=swap para não bloquear render) -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- SCRIPT CRÍTICO: Fechar todos os modais imediatamente ao carregar -->
+    <script>
+        // Executar IMEDIATAMENTE para fechar modais antes do render
+        (function() {
+            // Função para fechar todos os modais
+            function closeAllModals() {
+                var modals = document.querySelectorAll('#preferences-modal, #modal-configuracoes, .settings-modal, .modal-config, .modal-overlay, [id*="modal"]');
+                modals.forEach(function(modal) {
+                    modal.classList.remove('active');
+                    modal.style.display = 'none';
+                    modal.style.visibility = 'hidden';
+                    modal.style.opacity = '0';
+                    modal.setAttribute('aria-hidden', 'true');
+                });
+                document.body.style.overflow = '';
+            }
+            
+            // Executar imediatamente
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', closeAllModals);
+            } else {
+                closeAllModals();
+            }
+            
+            // Executar novamente após pequeno delay para garantir
+            setTimeout(closeAllModals, 100);
+            setTimeout(closeAllModals, 500);
+        })();
+    </script>
+    
+    <!-- Critical CSS inline para evitar FOUC -->
+    <style>
+        /* CRÍTICO: Ocultar modais por padrão - EXCETO quando tiver classe active */
+        #preferences-modal:not(.active),
+        #modal-configuracoes:not(.active),
+        .settings-modal:not(.active),
+        .config-detail-modal:not(.active),
+        .modal-overlay:not(.active),
+        .preferences-modal:not(.active) {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+        
+        /* Mostrar quando tiver classe active explícita */
+        #preferences-modal.active,
+        #modal-configuracoes.active,
+        .settings-modal.active,
+        .modal-config.active,
+        .modal-overlay.active {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 10000 !important;
+        }
+        
+        /* Z-index maior para modais detalhados de configuração - acima do modal principal */
+        div.config-detail-modal.active {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 100010 !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+            justify-content: center !important;
+            align-items: center !important;
+        }
+        
+        /* Garantir que o conteúdo interno do modal seja visível */
+        div.config-detail-modal.active .config-detail-card,
+        div.config-detail-modal.active .config-detail-modal-content {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            flex-direction: column;
+            background: #fff;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        /* Ocultar conteúdo até carregar para evitar flash - COM FALLBACK */
+        .page-loading { 
+            opacity: 0; 
+            /* Fallback: mostrar após animação se JS falhar */
+            animation: showPageFallback 0.1s ease 3s forwards;
+        }
+        @keyframes showPageFallback {
+            to { opacity: 1; }
+        }
+        .page-loaded { opacity: 1; transition: opacity 0.3s ease; animation: none; }
+        
+        /* Skeleton loading state */
+        .skeleton-loading { pointer-events: none; }
+        .content-loaded { animation: contentFadeIn 0.3s ease forwards; }
+        @keyframes contentFadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Loading overlay inicial */
+        #initial-loader {
+            position: fixed;
+            inset: 0;
+            background: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        #initial-loader.hide {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .loader-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e5e7eb;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* ===========================================
+           MOBILE CARDS - CRÍTICO - QUADRADO CENTRALIZADO
+           =========================================== */
+        @media screen and (max-width: 768px) {
+            .modules-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 12px !important;
+            }
+            .module-card,
+            a.module-card,
+            .modules-grid .module-card,
+            .modules-grid a.module-card {
+                aspect-ratio: 1 / 1 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: center !important;
+                align-items: center !important;
+                text-align: center !important;
+                min-height: 140px !important;
+                padding: 20px 16px !important;
+            }
+            .module-card .module-icon,
+            a.module-card .module-icon {
+                margin: 0 auto 12px auto !important;
+            }
+            .module-card .module-text,
+            a.module-card .module-text {
+                align-items: center !important;
+                text-align: center !important;
+                width: 100% !important;
+            }
+            .module-card .module-title,
+            .module-card .module-desc,
+            a.module-card .module-title,
+            a.module-card .module-desc {
+                text-align: center !important;
+                width: 100% !important;
+            }
+        }
+    </style>
+    
+    <script>
+    // Função para configurar avatar
+    function setupAvatar(firstName, email, avatarElement, userAvatarUrl) {
+        if (!avatarElement) return;
+        
+        // Se tiver avatar salvo no banco, usar ele diretamente
+        if (userAvatarUrl && userAvatarUrl !== '/avatars/default.webp') {
+            avatarElement.innerHTML = `<img src="${userAvatarUrl}" alt="${firstName || 'Avatar'}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" onerror="this.parentElement.textContent='${(firstName || 'U').substring(0,1).toUpperCase()}'">`;
+            return;
+        }
+        
+        // Tenta usar a primeira letra do nome como fallback
+        var initials = firstName ? firstName.substring(0, 1).toUpperCase() : 'U';
+        avatarElement.textContent = initials;
+        
+        // Determinar nome do arquivo do avatar baseado no email ou nome
+        let avatarFileName = '';
+        
+        // Mapeamento especial para nomes de arquivo de avatar baseado no email
+        if (email) {
+            const emailUser = email.split('@')[0].toLowerCase();
+            const emailAvatarMap = {
+                'ti': 'TI',
+                'tialuforce': 'TI',
+                'antonio': 'Antonio',
+                'clemerson': 'Clemerson',
+                'isabela': 'Isabela',
+                'thaina': 'Thaina',
+                'thiago': 'Thiago',
+                'nicolas': 'NicolasDaniel',
+                'nicolasdaniel': 'NicolasDaniel',
+                'admin': 'admin',
+                'joao': 'joao',
+                'maria': 'maria',
+                'rh': 'Rh',
+                'andreia': 'Andreia',
+                'guilherme': 'Guilherme',
+                'clemerson.silva': 'Clemerson',
+                'thaina.souza': 'Thaina'
+            };
+            
+            avatarFileName = emailAvatarMap[emailUser] || firstName;
+        } else {
+            avatarFileName = firstName;
+        }
+        
+        const avatarFormats = ['webp', 'svg', 'jpg', 'png'];
+        let formatIndex = 0;
+        
+        function tryNextFormat() {
+            if (formatIndex >= avatarFormats.length) {
+                return;
+            }
+            
+            const format = avatarFormats[formatIndex];
+            const avatarPath = `/avatars/${avatarFileName}.${format}`;
+            
+            const img = new Image();
+            img.onload = function() {
+                avatarElement.innerHTML = `<img src="${avatarPath}" alt="${firstName}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            };
+            img.onerror = function() {
+                formatIndex++;
+                tryNextFormat();
+            };
+            img.src = avatarPath;
+        }
+        
+        tryNextFormat();
+    }
+    
+    // Função para configurar dropdown do usuário
+    function setupUserDropdown(firstName, email) {
+        var dropdownName = document.querySelector('.dropdown-user-name');
+        var dropdownEmail = document.querySelector('.dropdown-user-email');
+        
+        if (dropdownName) dropdownName.textContent = firstName || 'Usuário';
+        if (dropdownEmail) dropdownEmail.textContent = email || '';
+    }
+    
+    // Função para navegar ao módulo RH baseado no tipo de usuário
+    function navegarRH(event) {
+        event.preventDefault();
+        
+        // Verificar se é admin ou RH
+        try {
+            const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+            const userEmail = userData.email || userData.login || '';
+            
+            const isAdmin = userData.is_admin === 1 || 
+                           userData.is_admin === true || 
+                           userData.is_admin === '1' ||
+                           userData.admin === 1 ||
+                           userData.admin === true ||
+                           userData.role === 'admin' ||
+                           userData.role === 'administrador';
+            
+            // RH sempre vai para área administrativa
+            const isRH = userEmail === 'rh@aluforce.ind.br' || userEmail === 'rh';
+            
+            if (isAdmin || isRH) {
+                // Admin e RH vão para área administrativa
+                window.location.href = '/RecursosHumanos/areaadm.html';
+            } else {
+                // Usuário comum vai para área de funcionários
+                window.location.href = '/RecursosHumanos/funcionario.html';
+            }
+        } catch (e) {
+            console.error('Erro ao verificar permissões RH:', e);
+            // Fallback: envia para funcionários
+            window.location.href = '/RecursosHumanos/funcionario.html';
+        }
+    }
+
+    // Verificação de autenticação obrigatória via cookie
+    document.addEventListener('DOMContentLoaded', async function() {
+        const dashboard = document.getElementById('dashboard-area');
+        const initialLoader = document.getElementById('initial-loader');
+        
+        try {
+            const resp = await fetch('/api/me', { credentials: 'include' });
+            if (!resp.ok) throw new Error('Não autenticado');
+            const user = await resp.json();
+            
+            // Mostrar dashboard
+            if (dashboard) dashboard.style.display = 'block';
+            
+            // Esconder loader e marcar página como carregada
+            if (initialLoader) {
+                initialLoader.classList.add('hide');
+                setTimeout(() => initialLoader.remove(), 300);
+            }
+            document.body.classList.remove('page-loading');
+            document.body.classList.add('page-loaded');
+            
+            // Salva dados do usuário localmente para personalização
+            localStorage.setItem('userData', JSON.stringify(user));
+            // Update UI immediately with authenticated user
+            if (typeof updateUserUI === 'function') updateUserUI(user);
+        } catch (e) {
+            // Redirecionar para a tela de login se não autenticado
+            console.log('🔒 Não autenticado - redirecionando para login...');
+            localStorage.removeItem('userData');
+            localStorage.removeItem('authToken');
+            sessionStorage.removeItem('userData');
+            sessionStorage.removeItem('authToken');
+            window.location.href = '/login.html';
+        }
+    });
+
+    // Update UI function to apply user data to greeting, avatar and dropdown
+    function updateUserUI(user) {
+        try {
+            if (!user) return;
+            
+            // IMPORTANTE: NÍO fazer merge com dados antigos para evitar dados de outro usuário
+            // Usar diretamente os dados frescos da API
+            const mergedUser = user;
+            
+            // Save fresh data to localStorage
+            localStorage.setItem('userData', JSON.stringify(mergedUser));
+            
+            // Extract name - try multiple fields
+            const fullName = mergedUser.nome || mergedUser.nome_completo || mergedUser.email || 'Usuário';
+            const firstName = fullName.split(' ')[0] || 'Usuário';
+            const displayName = mergedUser.apelido || firstName;
+            
+            // Update greeting premium (usa apelido se disponível)
+            const greetingName = document.getElementById('greeting-name');
+            if (greetingName) greetingName.textContent = displayName;
+            
+            // Inicializar saudação premium
+            if (typeof initPremiumGreeting === 'function') initPremiumGreeting();
+            
+            // Update user name in header
+            const userName = document.querySelector('.user-name');
+            if (userName) userName.textContent = displayName;
+            
+            // Setup avatar (header e dropdown) - passar avatar/foto do banco
+            const userAvatar = document.querySelector('.user-avatar-header');
+            const dropdownAvatar = document.querySelector('.dropdown-avatar');
+            const userAvatarUrl = mergedUser.avatar || mergedUser.foto;
+            
+            if (userAvatar) setupAvatar(firstName, mergedUser.email, userAvatar, userAvatarUrl);
+            if (dropdownAvatar) setupAvatar(firstName, mergedUser.email, dropdownAvatar, userAvatarUrl);
+            
+            // Setup dropdown
+            setupUserDropdown(firstName, mergedUser.email || '');
+            
+            // Aplicar permissões de acesso aos módulos
+            applyModulePermissions(mergedUser);
+        } catch (err) { 
+            console.error('updateUserUI error', err); 
+        }
+    }
+    
+    // Função para aplicar permissões aos módulos
+    function applyModulePermissions(user) {
+        if (!user) {
+            console.log('⚠️ Nenhum usuário fornecido para applyModulePermissions');
+            return;
+        }
+        
+        console.log('🔐 DEBUG - Dados do usuário:', user);
+        
+        // Permissões por email (fallback quando não há areas no banco)
+        const emailPermissions = {
+            // ACESSO TOTAL (TI/Admin)
+            'ti@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'andreia@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'douglas@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            // RECURSOS HUMANOS - APENAS RH
+            'rh@aluforce.ind.br': ['rh'],
+            'recursos humanos@aluforce.ind.br': ['rh'],
+            'recursoshumanos@aluforce.ind.br': ['rh'],
+            // SETORES ESPECÍFICOS
+            'clemerson.silva@aluforce.ind.br': ['pcp', 'vendas', 'rh'],
+            'clemerson@aluforce.ind.br': ['pcp', 'vendas', 'rh'],
+            'clemerson.leandro@aluforce.ind.br': ['pcp', 'vendas', 'rh'],
+            'eldir@aluforce.ind.br': ['financeiro'],
+            'hellen@aluforce.ind.br': ['financeiro'],
+            'thiago@aluforce.ind.br': ['nfe'],
+            'guilherme@aluforce.ind.br': ['compras'],
+            'marcia@aluforce.ind.br': ['vendas'],
+            'fabiano@aluforce.ind.br': ['vendas'],
+            'fabiano.marques@aluforce.ind.br': ['vendas', 'rh'],
+            'fabiola@aluforce.ind.br': ['vendas'],
+            'renata@aluforce.ind.br': ['vendas'],
+            'augusto@aluforce.ind.br': ['vendas'],
+            // PRODUÇÃO - PCP e RH (funcionários)
+            'ana.nascimento@aluforce.ind.br': ['pcp', 'rh'],
+            'ana.paula@aluforce.ind.br': ['pcp', 'rh'],
+            'ana@aluforce.ind.br': ['pcp', 'rh'],
+            'anapaula@aluforce.ind.br': ['pcp', 'rh'],
+            'bruno.freitas@aluforce.ind.br': ['pcp', 'rh'],
+            'christian.santos@aluforce.ind.br': ['pcp', 'rh'],
+            'clayton.costa@aluforce.ind.br': ['pcp', 'rh'],
+            'leonardo.freitas@aluforce.ind.br': ['pcp', 'rh'],
+            'ramon.lima@aluforce.ind.br': ['pcp', 'rh'],
+            'robson.goncalves@aluforce.ind.br': ['pcp', 'rh'],
+            'ronaldo.santana@aluforce.ind.br': ['pcp', 'rh'],
+            'thiago.scarcella@aluforce.ind.br': ['nfe', 'vendas', 'rh'],
+            'willian.silva@aluforce.ind.br': ['pcp', 'rh']
+        };
+        
+        // Mapear áreas permitidas - prioriza dados da API (areas vem do banco)
+        let allowedAreas = user.areas || user.permissoes || [];
+        
+        // Se areas for string JSON, parse
+        if (typeof allowedAreas === 'string') {
+            try {
+                allowedAreas = JSON.parse(allowedAreas);
+            } catch (e) {
+                console.error('Erro ao parsear areas:', e);
+                allowedAreas = [];
+            }
+        }
+        
+        // Garantir que é array
+        if (!Array.isArray(allowedAreas)) {
+            if (typeof allowedAreas === 'object' && allowedAreas !== null) {
+                allowedAreas = Object.values(allowedAreas);
+            } else {
+                allowedAreas = [];
+            }
+        }
+        
+        // Normalizar áreas para minúsculas
+        allowedAreas = allowedAreas.map(area => String(area).toLowerCase().trim());
+        
+        // FALLBACK: Se não tem areas no banco, usar permissões por email
+        const userEmail = (user.email || '').toLowerCase().trim();
+        if (allowedAreas.length === 0 && emailPermissions[userEmail]) {
+            allowedAreas = emailPermissions[userEmail];
+            console.log('🔐 Usando permissões por email para:', userEmail);
+        }
+        
+        // OVERRIDE: Para usuários de produção, SEMPRE usar permissões por email
+        // (mesmo que tenham areas no banco, garantir acesso a PCP e RH)
+        if (emailPermissions[userEmail]) {
+            const emailPerms = emailPermissions[userEmail];
+            // Adicionar permissões do email que não estão na lista atual
+            emailPerms.forEach(perm => {
+                if (!allowedAreas.includes(perm.toLowerCase())) {
+                    allowedAreas.push(perm.toLowerCase());
+                    console.log('🔐 Adicionando permissão por email:', perm);
+                }
+            });
+        }
+        
+        // Verificação aprimorada de admin (múltiplos campos possíveis)
+        const isAdmin = user.is_admin === 1 || 
+                       user.is_admin === true || 
+                       user.is_admin === '1' ||
+                       user.admin === 1 ||
+                       user.admin === true ||
+                       user.role === 'admin' ||
+                       user.role === 'administrador';
+        
+        console.log('🔐 DEBUG - Email:', userEmail);
+        console.log('🔐 DEBUG - Áreas permitidas:', allowedAreas);
+        console.log('🔐 DEBUG - É admin?', isAdmin);
+        
+        // Mostrar/ocultar opção de gerenciar usuários baseado em admin
+        const adminUsersOption = document.getElementById('admin-users-option');
+        if (adminUsersOption) {
+            adminUsersOption.style.display = isAdmin ? '' : 'none';
+        }
+        
+        // Se for admin, permite tudo
+        if (isAdmin) {
+            console.log('✅ Usuário é administrador - acesso total liberado');
+            // Mostrar todos os cards
+            document.querySelectorAll('.module-card').forEach(card => {
+                card.style.display = '';
+                card.style.opacity = '1';
+            });
+            return;
+        }
+        
+        // Lista de todos os módulos possíveis
+        const allModules = {
+            'compras': '.compras-card',
+            'nfe': '.nfe-card',
+            'vendas': '.vendas-card',
+            'pcp': '.pcp-card',
+            'financeiro': '.financeiro-card',
+            'rh': '.rh-card',
+            'ti': '.ti-card'
+        };
+        
+        // Ocultar módulos não permitidos
+        let visibleCount = 0;
+        let hiddenCount = 0;
+        for (const [area, selector] of Object.entries(allModules)) {
+            const moduleCard = document.querySelector(selector);
+            if (moduleCard) {
+                const hasAccess = allowedAreas.includes(area.toLowerCase());
+                console.log(`🔐 Módulo ${area}: ${hasAccess ? '✅ PERMITIDO' : '❌ BLOQUEADO'}`);
+                
+                if (hasAccess) {
+                    moduleCard.style.display = '';
+                    moduleCard.style.opacity = '1';
+                    moduleCard.style.visibility = 'visible';
+                    visibleCount++;
+                } else {
+                    moduleCard.style.display = 'none';
+                    moduleCard.style.visibility = 'hidden';
+                    hiddenCount++;
+                }
+            }
+        }
+        
+        // Centralizar o grid quando há menos módulos visíveis
+        const modulesGrid = document.querySelector('.modules-grid');
+        const modulesContainer = document.querySelector('.modules-container');
+        
+        // Garantir que módulos ocultos não ocupem espaço - REMOVER do DOM
+        document.querySelectorAll('.module-card').forEach(card => {
+            if (card.style.display === 'none') {
+                card.setAttribute('data-hidden', 'true');
+                card.style.cssText = 'display: none !important; position: absolute !important; width: 0 !important; height: 0 !important; overflow: hidden !important; padding: 0 !important; margin: 0 !important; border: none !important; visibility: hidden !important;';
+            } else {
+                card.removeAttribute('data-hidden');
+            }
+        });
+        
+        if (modulesGrid && visibleCount > 0) {
+            // Adicionar classe para centralização
+            modulesGrid.classList.add('few-modules');
+            
+            // Verificar tamanho da tela
+            const isMobile = window.innerWidth <= 768;
+            const isTablet = window.innerWidth <= 1200 && window.innerWidth > 768;
+            
+            // Determinar número de colunas baseado na quantidade de cards visíveis
+            let columns = 3; // Default para desktop
+            let maxWidth = '850px';
+            
+            if (isMobile) {
+                columns = visibleCount === 1 ? 1 : 2;
+                maxWidth = visibleCount === 1 ? '280px' : '100%';
+            } else if (isTablet) {
+                columns = visibleCount === 1 ? 1 : 2;
+                maxWidth = visibleCount === 1 ? '280px' : '600px';
+            } else {
+                // Desktop
+                if (visibleCount === 1) {
+                    columns = 1;
+                    maxWidth = '280px';
+                } else if (visibleCount === 2) {
+                    columns = 2;
+                    maxWidth = '580px';
+                } else {
+                    columns = 3;
+                    maxWidth = '850px';
+                }
+            }
+            
+            if (isMobile) {
+                modulesGrid.style.cssText = `
+                    display: grid !important; 
+                    grid-template-columns: repeat(${columns}, 1fr) !important;
+                    gap: 10px !important;
+                    width: 100% !important;
+                    max-width: ${maxWidth} !important;
+                    margin: 0 auto !important;
+                    padding: 0 !important;
+                    box-sizing: border-box !important;
+                `;
+                
+                if (modulesContainer) {
+                    modulesContainer.style.cssText = `
+                        display: flex !important; 
+                        justify-content: center !important;
+                        width: 100% !important;
+                        padding: 16px 12px !important;
+                        box-sizing: border-box !important;
+                    `;
+                }
+            } else if (isTablet) {
+                modulesGrid.style.cssText = `
+                    display: grid !important; 
+                    grid-template-columns: repeat(${columns}, 1fr) !important;
+                    gap: 14px !important;
+                    width: 100% !important;
+                    max-width: ${maxWidth} !important;
+                    margin: 0 auto !important;
+                    padding: 0 !important;
+                `;
+                
+                if (modulesContainer) {
+                    modulesContainer.style.cssText = `
+                        display: flex !important; 
+                        justify-content: center !important; 
+                        width: 100% !important;
+                        padding: 20px !important;
+                    `;
+                }
+            } else {
+                // Desktop
+                modulesGrid.style.cssText = `
+                    display: grid !important; 
+                    grid-template-columns: repeat(${columns}, 1fr) !important;
+                    gap: 16px !important;
+                    width: 100% !important;
+                    max-width: ${maxWidth} !important;
+                    margin: 0 auto !important;
+                    padding: 0 !important;
+                `;
+                
+                if (modulesContainer) {
+                    modulesContainer.style.cssText = `
+                        display: flex !important; 
+                        justify-content: center !important; 
+                        align-items: center !important; 
+                        width: 100% !important;
+                        padding: 20px 24px !important;
+                    `;
+                }
+            }
+        }
+        
+        console.log(`?? Permissões aplicadas: ${visibleCount} visíveis, ${hiddenCount} ocultos`);
+    }
+    </script>
+    <!-- Favicon -->
+    
+    
+    
+    
+    
+    <!-- CSS Crítico - Carrega primeiro -->
+    <link rel="stylesheet" href="/css/style.css?v=20260125-search">
+    <link rel="stylesheet" href="/css/flat-design.css?v=20260117-center2">
+    <link rel="stylesheet" href="/css/cards-solid.css?v=20260117-center2">
+    <link rel="stylesheet" href="/css/backgrounds.css?v=20260117-center2">
+    <link rel="stylesheet" href="/css/greeting-premium.css?v=20260117-center2">
+    
+    <!-- Dashboard Visual Improvements v3 - Melhorias visuais 75% -->
+    <link rel="stylesheet" href="/css/dashboard-visual-v3.css?v=20260125">
+    
+    <!-- Font Awesome - Carregamento Crítico para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous">
+    
+    <!-- CSS Secundário - Carregamento Diferido -->
+    <link rel="stylesheet" href="/css/modal-configuracoes-v2.css?v=20260125">
+    <link rel="stylesheet" href="/css/config-modals.css?v=2025010320">
+    <link rel="stylesheet" href="/css/config-modals-professional.css?v=20260121-fix">
+    <link rel="stylesheet" href="/css/notifications-panel.css?v=20260121-fix">
+    <link rel="stylesheet" href="/css/profile-modal-modern.css?v=20260121-fix" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="/css/omie-settings.css?v=20260121-fix" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="/css/preferences-modal.css?v=20260121-fix" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="/css/preferences-modal-v3.css?v=20260121-fix" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="/css/kpis-executivo.css?v=20260121-fix" media="print" onload="this.media='all'">
+    
+    <!-- CSS Responsivo - Ajustes de proporção de tela -->
+    <link rel="stylesheet" href="/css/responsive-fix.css?v=20260125">
+    
+    <!-- JavaScript Essencial -->
+    <script src="/js/auth-unified.js" defer></script>
+    <script src="/js/permissions.js" defer></script>
+    <script src="/js/permissions-api.js" defer></script>
+    <script src="/js/background-manager.js" defer></script>
+    <!-- <script src="/js/offline-sync-manager.js" defer></script> --> <!-- PWA/OFFLINE DESABILITADO -->
+    
+    <!-- JavaScript Não-Crítico - Carregamento Diferido -->
+    <script src="/js/profile-manager.js" defer></script>
+    <script src="/js/admin-permissions.js" defer></script>
+    <script src="/js/omie-settings.js" defer></script>
+    <script src="/js/preferences-manager.js" defer></script>
+    <script src="/js/company-settings.js" defer></script>
+    <script src="/js/header-controls.js?v=20260125" defer></script>
+    <script src="/js/profile-modal.js" defer></script>
+    <script src="/js/confirm-modal.js" defer></script>
+    <script src="/js/notifications-manager.js" defer></script>
+    <script src="/js/config-modals.js" defer></script>
+    <script src="/js/greeting-premium.js?v=2025121601" defer></script>
+    <script src="/js/kpis-executivo.js?v=2025121901" defer></script>
+    <script src="/js/anti-copy-protection.js"></script>
+    
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <link rel="stylesheet" href="/css/modal-fix-global.css?v=20260110">
+    
+    <!-- Cards Override -->
+    <link rel="stylesheet" href="/css/cards-solid.css?v=20260117-final2">
+    <link rel="stylesheet" href="/css/cards-text-center.css?v=20260117-vert">
+    
+    <!-- Dashboard Enhanced - KPIs e UX Aprimorada -->
+    <link rel="stylesheet" href="/css/dashboard-enhanced.css?v=20260118">
+    
+    <!-- CSS CRÍTICO INLINE - Fallback caso CSS externo não carregue -->
+    <style>
+        /* =================================================
+           CRÍTICO: Esconder modais ESPECÍFICOS por padrão
+           Este CSS tem a MAIOR prioridade (inline + !important)
+           ================================================= */
+        #preferences-modal:not(.active),
+        #profile-modal:not([aria-hidden="false"]),
+        #modal-configuracoes:not(.active),
+        #config-modal-container:not(.active),
+        #omie-settings-modal:not(.active),
+        .profile-modal:not(.main-dashboard):not(.main-content):not([aria-hidden="false"]),
+        .config-modal:not(.active),
+        .modal-overlay:not(.active) {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            z-index: -1 !important;
+        }
+        
+        /* Mostrar APENAS quando explicitamente ativo */
+        .profile-modal[aria-hidden="false"],
+        #profile-modal[aria-hidden="false"],
+        #preferences-modal[aria-hidden="false"],
+        #preferences-modal.active,
+        #modal-configuracoes.active,
+        .settings-modal[aria-hidden="false"],
+        .settings-modal.active,
+        .modal-config.active,
+        .modal-overlay.active {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 10000 !important;
+        }
+        
+        /* Loader */
+        #initial-loader { position: fixed; inset: 0; background: #f0f2f5; display: flex; align-items: center; justify-content: center; z-index: 99999; }
+        #initial-loader.hide { display: none; }
+        .loader-spinner { width: 40px; height: 40px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Básico para evitar FOUC */
+        body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif; background: #f0f2f5; margin: 0; padding: 0; }
+    </style>
+</head>
+<body class="page-loading">
+    <!-- SCRIPT CRÍTICO: Garante visibilidade da página e fecha modais -->
+    <script>
+    (function() {
+        'use strict';
+        
+        // FALLBACK CRÍTICO: Garantir que a página fique visível após 2 segundos
+        // Isso evita tela em branco se algum script falhar
+        setTimeout(function() {
+            document.body.classList.remove('page-loading');
+            document.body.classList.add('page-loaded');
+            document.body.style.opacity = '1';
+            // Esconder loader
+            var loader = document.getElementById('initial-loader');
+            if (loader) loader.style.display = 'none';
+        }, 2000);
+        
+        // Fallback mais rápido quando DOM estiver pronto
+        function showPageFallback() {
+            setTimeout(function() {
+                if (document.body.classList.contains('page-loading')) {
+                    document.body.classList.remove('page-loading');
+                    document.body.classList.add('page-loaded');
+                    document.body.style.opacity = '1';
+                    var loader = document.getElementById('initial-loader');
+                    if (loader) loader.style.display = 'none';
+                }
+            }, 1000);
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showPageFallback);
+        } else {
+            showPageFallback();
+        }
+        
+        // Função que fecha todos os modais - SELETORES ESPECÍFICOS
+        function forceCloseAllModals() {
+            // Lista específica de modais - NÁO usar seletores genéricos que podem afetar o conteúdo
+            var modalIds = ['preferences-modal', 'profile-modal', 'modal-configuracoes', 'omie-settings-modal', 'config-modal-container'];
+            modalIds.forEach(function(id) {
+                var modal = document.getElementById(id);
+                if (modal && !modal.classList.contains('active') && modal.getAttribute('aria-hidden') !== 'false') {
+                    modal.style.cssText = 'display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; z-index:-1 !important;';
+                    modal.setAttribute('aria-hidden', 'true');
+                    modal.classList.remove('active', 'show', 'open');
+                }
+            });
+            // Fechar overlays de modal que não estão ativos
+            document.querySelectorAll('.modal-overlay:not(.active)').forEach(function(overlay) {
+                if (!overlay.style.display || overlay.style.display === 'none' || !overlay.style.display.includes('flex')) {
+                    overlay.style.cssText = 'display:none !important;';
+                }
+            });
+        }
+        
+        // Executar imediatamente
+        forceCloseAllModals();
+        
+        // Executar quando DOM estiver pronto
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', forceCloseAllModals);
+        }
+        
+        // Executar com delays para pegar carregamentos tardios de CSS
+        setTimeout(forceCloseAllModals, 100);
+        setTimeout(forceCloseAllModals, 300);
+        setTimeout(forceCloseAllModals, 500);
+        setTimeout(forceCloseAllModals, 1000);
+        
+        // Expor função globalmente para debug
+        window.forceCloseAllModals = forceCloseAllModals;
+    })();
+    </script>
+    
+    <!-- Loader inicial para transição suave -->
+    <div id="initial-loader">
+        <div class="loader-spinner"></div>
+    </div>
+    
+    <div id="notification-area" style="position:fixed;top:20px;right:20px;z-index:1000;max-width:320px;"></div>
+    
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="profile-modal" aria-hidden="true" style="display:none !important;">
+        <div class="profile-modal-card">
+            <div class="profile-modal-header">
+                <h3>Meu Perfil</h3>
+                <button id="profile-modal-close" class="profile-modal-close" aria-label="Fechar">&times;</button>
+            </div>
+            <form id="profile-form" class="profile-modal-body">
+                <!-- Avatar Section -->
+                <div class="profile-avatar-section">
+                    <div class="profile-avatar-wrapper">
+                        <div class="profile-avatar-preview" onclick="document.getElementById('profile-avatar-input').click()">
+                            <img id="profile-avatar-img" src="/avatars/default.webp" alt="Avatar" onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="profile-avatar-fallback" style="display:none;">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="profile-avatar-overlay">
+                                <i class="fas fa-camera"></i>
+                                <span>Alterar</span>
+                            </div>
+                        </div>
+                        <input type="file" id="profile-avatar-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display: none;">
+                        <button type="button" id="profile-avatar-btn" class="btn-avatar-upload">
+                            <i class="fas fa-camera"></i> Escolher Foto
+                        </button>
+                        <div class="profile-avatar-info">
+                            <small>JPG, PNG, GIF ou WEBP (Máx: 2MB)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Personal Info Section -->
+                <div class="profile-section">
+                    <h4 class="profile-section-title">
+                        <i class="fas fa-user-circle"></i> Informações Pessoais
+                    </h4>
+                    <div class="profile-row">
+                        <div class="profile-col">
+                            <label>E-mail <span class="required">*</span></label>
+                            <input id="profile-email" type="email" readonly />
+                        </div>
+                        <div class="profile-col">
+                            <label>Nome Completo <span class="required">*</span></label>
+                            <input id="profile-nome" type="text" required placeholder="Seu nome completo" />
+                        </div>
+                    </div>
+                    <div class="profile-row">
+                        <div class="profile-col">
+                            <label>Apelido</label>
+                            <input id="profile-apelido" type="text" placeholder="Como gosta de ser chamado" />
+                        </div>
+                        <div class="profile-col">
+                            <label>Telefone</label>
+                            <input id="profile-telefone" type="tel" placeholder="(00) 00000-0000" />
+                        </div>
+                    </div>
+                    <div class="profile-row">
+                        <div class="profile-col">
+                            <label>Data de Nascimento</label>
+                            <input id="profile-data-nascimento" type="date" />
+                        </div>
+                        <div class="profile-col">
+                            <label>Departamento</label>
+                            <input id="profile-departamento" type="text" readonly placeholder="Seu departamento" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Info Section -->
+                <div class="profile-section">
+                    <h4 class="profile-section-title">
+                        <i class="fas fa-info-circle"></i> Informações Adicionais
+                    </h4>
+                    <div class="profile-row">
+                        <div class="profile-col full">
+                            <label>Bio / Notas</label>
+                            <textarea id="profile-bio" rows="3" placeholder="Conte um pouco sobre você, suas habilidades e experiências..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Section -->
+                <div class="profile-section">
+                    <h4 class="profile-section-title">
+                        <i class="fas fa-shield-alt"></i> Segurança
+                    </h4>
+                    <div class="profile-row">
+                        <div class="profile-col full">
+                            <button type="button" id="profile-change-password" class="btn-secondary btn-security">
+                                <i class="fas fa-key"></i> Alterar Senha
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <button type="button" id="profile-cancel" class="btn-ghost">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="button" id="profile-save" class="btn-primary">
+                        <i class="fas fa-check"></i> Salvar Alterações
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Preferences Modal (Para todos os usuários) -->
+    <div id="preferences-modal" class="settings-modal" aria-hidden="true" style="display:none !important; visibility:hidden !important; opacity:0 !important; pointer-events:none !important; z-index:-1 !important;">
+        <div class="settings-modal-card preferences-modal">
+            <div class="settings-modal-header">
+                <div class="pref-search-wrapper">
+                    <span class="pref-search-icon"><i class="fas fa-cog"></i></span>
+                    <input type="text" class="pref-search-input" placeholder="Buscar configuração..." id="pref-search">
+                </div>
+                <button id="preferences-modal-close" class="settings-modal-close" aria-label="Fechar">&times;</button>
+            </div>
+            <div class="settings-modal-body">
+                <!-- Aparência -->
+                <div class="settings-section">
+                    <h4 class="settings-section-title">
+                        <i class="fas fa-palette"></i> Aparência
+                    </h4>
+                    <div class="settings-items-container">
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Modo Escuro</div>
+                                <div class="settings-item-description">Alterna entre tema claro e escuro</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setting-dark-mode">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Tamanho da Fonte</div>
+                                <div class="settings-item-description">Ajuste o tamanho do texto do sistema</div>
+                            </div>
+                            <select class="settings-select" id="setting-font-size">
+                                <option value="small">Pequeno (90%)</option>
+                                <option value="medium" selected>Médio (100%)</option>
+                                <option value="large">Grande (110%)</option>
+                                <option value="xlarge">Extra Grande (120%)</option>
+                            </select>
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Contraste Automático</div>
+                                <div class="settings-item-description">Ajusta texto/ícones conforme o fundo</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setting-auto-contrast" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notificações -->
+                <div class="settings-section">
+                    <h4 class="settings-section-title">
+                        <i class="fas fa-bell"></i> Notificações
+                    </h4>
+                    <div class="settings-items-container">
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Notificações Desktop</div>
+                                <div class="settings-item-description">Receba alertas na área de trabalho</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setting-desktop-notifications" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Som de Notificação</div>
+                                <div class="settings-item-description">Reproduzir som ao receber notificações</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setting-notification-sound" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sistema -->
+                <div class="settings-section">
+                    <h4 class="settings-section-title">
+                        <i class="fas fa-cog"></i> Sistema
+                    </h4>
+                    <div class="settings-items-container">
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Idioma</div>
+                                <div class="settings-item-description">Selecione o idioma do sistema</div>
+                            </div>
+                            <select class="settings-select" id="setting-language">
+                                <option value="pt-BR" selected>Português (Brasil)</option>
+                                <option value="en-US">English (US)</option>
+                                <option value="es-ES">Español</option>
+                            </select>
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Atualização Automática</div>
+                                <div class="settings-item-description">Verificar atualizações automaticamente</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setting-auto-update" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance -->
+                <div class="settings-section">
+                    <h4 class="settings-section-title">
+                        <i class="fas fa-tachometer-alt"></i> Performance
+                    </h4>
+                    <div class="settings-items-container">
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Animações</div>
+                                <div class="settings-item-description">Habilitar animações e transições</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setting-animations" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="settings-item">
+                            <div class="settings-item-info">
+                                <div class="settings-item-label">Cache Local</div>
+                                <div class="settings-item-description">Armazenar dados localmente para melhor desempenho</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="setting-cache" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ações (Hidden - Auto save) -->
+                <div class="preferences-actions">
+                    <button id="preferences-save" class="btn-primary">
+                        <i class="fas fa-save"></i> Salvar Preferências
+                    </button>
+                    <button id="preferences-reset" class="btn-secondary">
+                        <i class="fas fa-undo"></i> Restaurar Padrões
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Dashboard Area (hidden until login) -->
+    <div id="dashboard-area" class="dashboard-area" style="display:none;">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="logo-section">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" class="header-logo">
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="header-icons">
+                        <!-- Indicadores do Dia removidos -->
+                        <div class="header-search-wrapper">
+                            <button class="header-icon-btn" title="Buscar" id="search-btn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                            <div id="header-search-container" class="header-search-container" aria-hidden="true">
+                                <input id="header-search-input" type="search" placeholder="O que você deseja pesquisar?" autocomplete="off" />
+                                <div id="header-search-results" class="header-search-results" aria-live="polite"></div>
+                            </div>
+                        </div>
+                        <button class="header-icon-btn" title="Configurações" id="settings-btn" data-admin-only="true" style="display:none;">
+                            <i class="fas fa-cog"></i>
+                        </button>
+                        <button class="header-icon-btn notification-btn" title="Notificações" id="notifications-btn" style="position: relative;">
+                            <i class="fas fa-bell"></i>
+                            <span class="notification-dot" id="notification-count">0</span>
+                        </button>
+                        <button class="header-icon-btn" title="Ajuda" id="help-btn">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                        <div class="user-profile-header" id="user-profile">
+                            <span class="user-name">Usuário</span>
+                            <div class="user-avatar-header">U</div>
+                            <!-- Menu Dropdown do Usuário -->
+                            <div class="user-dropdown-menu" id="user-dropdown">
+                                <div class="dropdown-header">
+                                    <div class="dropdown-avatar">U</div>
+                                    <div class="dropdown-info">
+                                        <span class="dropdown-user-name">Usuário</span>
+                                        <span class="dropdown-user-email">usuario@aluforce.ind.br</span>
+                                    </div>
+                                </div>
+                                <hr class="dropdown-divider">
+                                <div class="dropdown-options">
+                                    <div class="dropdown-item" id="profile-option">
+                                        <i class="fas fa-user"></i>
+                                        <span>Meu Perfil</span>
+                                    </div>
+                                    <div class="dropdown-item" id="preferences-option">
+                                        <i class="fas fa-sliders-h"></i>
+                                        <span>Preferências</span>
+                                    </div>
+                                    <!-- Administração de Usuários - Apenas Admin -->
+                                    <div class="dropdown-item" id="admin-users-option" data-admin-only style="display: none;" onclick="window.location.href='/admin/usuarios.html'">
+                                        <i class="fas fa-users-cog"></i>
+                                        <span>Gerenciar Usuários</span>
+                                    </div>
+                                    <div class="dropdown-item" id="settings-option" data-admin-only="true" style="display: none;">
+                                        <i class="fas fa-cog"></i>
+                                        <span>Configurações</span>
+                                    </div>
+                                    <div class="dropdown-item" id="help-option" style="display: none;">
+                                        <i class="fas fa-question-circle"></i>
+                                        <span>Ajuda</span>
+                                    </div>
+                                    <hr class="dropdown-divider">
+                                    <div class="dropdown-item logout-item" id="logout-option">
+                                        <i class="fas fa-sign-out-alt"></i>
+                                        <span>Sair</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-dashboard">
+            <!-- Greeting Section - Premium Enhanced -->
+            <div class="greeting-section-premium">
+                <div class="greeting-date-badge">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span id="current-date">Carregando...</span>
+                </div>
+                <div class="greeting-main">
+                    <span class="greeting-time-label" id="greeting-time-label">Bom dia</span>
+                    <h1 class="greeting-title-premium" id="greeting-name">Usuário</h1>
+                </div>
+                <p class="greeting-subtitle-premium" id="greeting-message">Pronto para mais um dia produtivo?</p>
+                <div class="greeting-stats">
+                    <div class="greeting-stat-item">
+                        <i class="fas fa-clock"></i>
+                        <span id="current-time">--:--</span>
+                    </div>
+                    <div class="greeting-stat-divider"></div>
+                    <div class="greeting-stat-item">
+                        <i class="fas fa-building"></i>
+                        <span>Aluforce</span>
+                    </div>
+                    <div class="greeting-stat-divider"></div>
+                    <div class="greeting-stat-item" id="greeting-session-info">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Sessão Segura</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs, Alertas e Ações serão inseridos via JS (dashboard-enhanced.js) -->
+
+            <!-- Modules Grid -->
+            <div class="modules-container">
+                <div class="modules-grid">
+                <a href="/modules/Compras/index.html" class="module-card compras-card" data-area="compras" title="Clique para ver sua Gestão de pedidos e fornecedores">
+                    <div class="module-icon">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="module-text">
+                        <span class="module-title">Compras</span>
+                        <span class="module-desc">Gestão de pedidos e fornecedores</span>
+                    </div>
+                </a>
+                <a href="/Vendas/index_utf8.html" class="module-card vendas-card" data-area="vendas" title="Orçamentos e pedidos de venda">
+                    <div class="module-icon">
+                        <i class="fas fa-store"></i>
+                    </div>
+                    <div class="module-text">
+                        <span class="module-title">Vendas</span>
+                        <span class="module-desc">Orçamentos e pedidos de venda</span>
+                    </div>
+                </a>
+                <a href="/modules/NFe/index.html" class="module-card nfe-card" data-area="nfe" title="Notas fiscais e expedição">
+                    <div class="module-icon">
+                        <i class="fas fa-file-invoice"></i>
+                    </div>
+                    <div class="module-text">
+                        <span class="module-title">NF-e & Logística</span>
+                        <span class="module-desc">Notas fiscais e expedição</span>
+                    </div>
+                </a>
+                <a href="/modules/PCP/index.html" class="module-card pcp-card" data-area="pcp" title="Gestão da produção industrial">
+                    <div class="module-icon">
+                        <i class="fas fa-industry"></i>
+                    </div>
+                    <div class="module-text">
+                        <span class="module-title">Planejamento e Controle de Produção</span>
+                        <span class="module-desc">Gestão da produção industrial</span>
+                    </div>
+                </a>
+                    
+                <a href="/modules/Financeiro/index.html" class="module-card financeiro-card" data-area="financeiro" title="Contas a pagar e receber">
+                    <div class="module-icon">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="module-text">
+                        <span class="module-title">Financeiro</span>
+                        <span class="module-desc">Contas a pagar e receber</span>
+                    </div>
+                </a>
+                    
+                <a href="#" class="module-card rh-card" data-area="rh" id="rh-module-card" onclick="navegarRH(event)" title="Gestão de colaboradores">
+                    <div class="module-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="module-text">
+                        <span class="module-title">Recursos Humanos</span>
+                        <span class="module-desc">Gestão de colaboradores</span>
+                    </div>
+                </a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts externos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- Scripts do sistema -->
+    <script src="/js/background-manager.js"></script>
+    <script src="/js/header-controls.js?v=20260125"></script>
+    <script src="/js/admin-permissions.js"></script>
+    <script src="/js/notification-manager.js"></script>
+    
+    <!-- Carregar modais de forma assíncrona -->
+    <script>
+        // Flag para indicar que os modais foram carregados
+        window.configModalsReady = false;
+        
+        // Função para garantir que modais carregados começam ocultos
+        function ensureModalsHidden(container) {
+            if (!container) return;
+            container.querySelectorAll('.config-detail-modal').forEach(modal => {
+                modal.style.display = 'none';
+                modal.classList.remove('active');
+                modal.setAttribute('aria-hidden', 'true');
+            });
+        }
+        
+        // Carregar modais base
+        fetch('/config-modals.html')
+        .then(response => {
+            if (!response.ok) throw new Error('Erro ao carregar config-modals.html');
+            return response.text();
+        })
+        .then(html => {
+            const container = document.createElement('div');
+            container.id = 'config-modals-container';
+            container.innerHTML = html;
+            
+            // Garantir que todos os modais estão ocultos antes de adicionar ao DOM
+            ensureModalsHidden(container);
+            
+            document.body.appendChild(container);
+            console.log('? Modais de configuração carregados');
+            
+            // Inicializar CompanySettings se disponível
+            if (typeof CompanySettings !== 'undefined') {
+                CompanySettings.init();
+                console.log('? CompanySettings inicializado');
+            }
+            
+            window.configModalsReady = true;
+        })
+        .catch(err => console.error('? Erro ao carregar modais:', err));
+
+        // Carregar modais estendidos
+        fetch('/config-modals-extended.html')
+        .then(response => {
+            if (!response.ok) throw new Error('Erro ao carregar config-modals-extended.html');
+            return response.text();
+        })
+        .then(html => {
+            const container = document.createElement('div');
+            container.id = 'config-modals-extended-container';
+            container.innerHTML = html;
+            
+            // Garantir que todos os modais estão ocultos antes de adicionar ao DOM
+            ensureModalsHidden(container);
+            
+            document.body.appendChild(container);
+            console.log('? Modais estendidos carregados');
+        })
+        .catch(err => console.error('? Erro ao carregar modais estendidos:', err));
+    </script>
+
+    <!-- Modal de Configurações do Sistema -->
+    <div id="modal-configuracoes" class="modal-config" style="display:none;" aria-hidden="true">
+        <div class="modal-config-content">
+            <!-- Header do Modal -->
+            <div class="modal-config-header">
+                <div class="modal-config-brand">
+                    <img src="/images/Logo Monocromatico - Azul - Aluforce.webp" alt="Aluforce" class="modal-config-logo" onerror="this.style.display='none'">
+                    <span class="modal-config-title">Configurações do Sistema</span>
+                </div>
+                <div class="modal-config-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Buscar configuração..." id="config-search-input">
+                    <button type="button" class="search-clear-btn" onclick="limparBuscaConfig()" title="Limpar busca">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <button type="button" class="modal-config-close modal-config-tooltip" data-tooltip="Fechar (ESC)" id="btn-fechar-config" title="Fechar (ESC)" aria-label="Fechar modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Abas de navegação -->
+            <div class="modal-config-tabs">
+                <button class="modal-config-tab active" data-tab="principais">Principais</button>
+                <button class="modal-config-tab" data-tab="recursos-humanos">Recursos Humanos</button>
+                <button class="modal-config-tab" data-tab="financas">Finanças</button>
+                <button class="modal-config-tab" data-tab="clientes-fornecedores">Clientes e Fornecedores</button>
+                <button class="modal-config-tab" data-tab="venda-produtos">Venda de Produtos</button>
+                <button class="modal-config-tab" data-tab="venda-servicos">Venda de Serviços</button>
+            </div>
+
+            <!-- Conteúdo das Abas -->
+            <div class="modal-config-body">
+                <!-- Aba Principais -->
+                <div class="modal-config-tab-content active" id="tab-principais">
+                    <div class="modal-config-grid">
+                        <div class="modal-config-card" onclick="abrirConfiguracao('empresa')" tabindex="0">
+                            <div class="modal-config-card-icon blue">
+                                <i class="fas fa-building"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Dados da Minha Empresa</h3>
+                                <p class="modal-config-card-subtitle">Informações cadastrais e dados fiscais</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('categorias')" tabindex="0">
+                            <div class="modal-config-card-icon blue">
+                                <i class="fas fa-folder"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Categorias</h3>
+                                <p class="modal-config-card-subtitle">Organize produtos e serviços por categoria</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('departamentos')" tabindex="0">
+                            <div class="modal-config-card-icon blue">
+                                <i class="fas fa-sitemap"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Departamentos</h3>
+                                <p class="modal-config-card-subtitle">Estrutura organizacional da empresa</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('projetos')" tabindex="0">
+                            <div class="modal-config-card-icon blue">
+                                <i class="fas fa-project-diagram"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Projetos</h3>
+                                <p class="modal-config-card-subtitle">Gestão e acompanhamento de projetos</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('certificado-digital')" tabindex="0">
+                            <div class="modal-config-card-icon red">
+                                <i class="fas fa-certificate"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Certificado Digital (Modelo A1)</h3>
+                                <p class="modal-config-card-subtitle">Upload e validação do certificado</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('importacao-nfe')" tabindex="0">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-file-invoice"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Importação da NF-e do Fornecedor</h3>
+                                <p class="modal-config-card-subtitle">Configurações de importação automática</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Recursos Humanos -->
+                <div class="modal-config-tab-content" id="tab-recursos-humanos">
+                    <div class="modal-config-grid">
+                        <div class="modal-config-card" onclick="abrirConfiguracao('funcionarios')">
+                            <div class="modal-config-card-icon green">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Gestão de Funcionários</h3>
+                                <p class="modal-config-card-subtitle">Cadastro e gerenciamento de colaboradores</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('cargos')">
+                            <div class="modal-config-card-icon green">
+                                <i class="fas fa-id-badge"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Cargos e Funções</h3>
+                                <p class="modal-config-card-subtitle">Definir hierarquia organizacional</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('folha-pagamento')">
+                            <div class="modal-config-card-icon green">
+                                <i class="fas fa-money-check-alt"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Folha de Pagamento</h3>
+                                <p class="modal-config-card-subtitle">Configurações de salários e benefícios</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('ponto-eletronico')">
+                            <div class="modal-config-card-icon green">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Ponto Eletrônico</h3>
+                                <p class="modal-config-card-subtitle">Controle de jornada de trabalho</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Finanças -->
+                <div class="modal-config-tab-content" id="tab-financas">
+                    <div class="modal-config-grid">
+                        <div class="modal-config-card" onclick="abrirConfiguracao('financas')">
+                            <div class="modal-config-card-icon orange">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Configurações Gerais</h3>
+                                <p class="modal-config-card-subtitle">Juros, multas e cobrança</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('plano-contas')">
+                            <div class="modal-config-card-icon orange">
+                                <i class="fas fa-list-alt"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Plano de Contas</h3>
+                                <p class="modal-config-card-subtitle">Estrutura contábil da empresa</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('contas-bancarias')">
+                            <div class="modal-config-card-icon orange">
+                                <i class="fas fa-university"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Contas Bancárias</h3>
+                                <p class="modal-config-card-subtitle">Gestão de contas e conciliação</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('formas-pagamento')">
+                            <div class="modal-config-card-icon orange">
+                                <i class="fas fa-credit-card"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Formas de Pagamento</h3>
+                                <p class="modal-config-card-subtitle">Configurar métodos de pagamento</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('impostos')">
+                            <div class="modal-config-card-icon orange">
+                                <i class="fas fa-percent"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Configuração de Impostos</h3>
+                                <p class="modal-config-card-subtitle">Alíquotas e regimes tributários</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Clientes e Fornecedores -->
+                <div class="modal-config-tab-content" id="tab-clientes-fornecedores">
+                    <div class="modal-config-grid">
+                        <div class="modal-config-card" onclick="abrirConfiguracao('clientes-fornecedores')">
+                            <div class="modal-config-card-icon purple">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Configurações Gerais</h3>
+                                <p class="modal-config-card-subtitle">Validações, crédito e tags</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('regioes-venda')">
+                            <div class="modal-config-card-icon purple">
+                                <i class="fas fa-map-marked-alt"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Regiões de Venda</h3>
+                                <p class="modal-config-card-subtitle">Territórios e áreas de atuação</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('condicoes-pagamento')">
+                            <div class="modal-config-card-icon purple">
+                                <i class="fas fa-handshake"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Condições de Pagamento</h3>
+                                <p class="modal-config-card-subtitle">Prazos e condições comerciais</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('compradores')">
+                            <div class="modal-config-card-icon purple">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Compradores</h3>
+                                <p class="modal-config-card-subtitle">Equipe de compras e suprimentos</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Venda de Produtos -->
+                <div class="modal-config-tab-content" id="tab-venda-produtos">
+                    <div class="modal-config-grid">
+                        <div class="modal-config-card" onclick="abrirConfiguracao('venda-produtos')">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Configurações Gerais</h3>
+                                <p class="modal-config-card-subtitle">Etapas, preços e estoque</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('familias-produtos')">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Famílias de Produtos</h3>
+                                <p class="modal-config-card-subtitle">Organização por categorias</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('caracteristicas-produtos')">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-tags"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Características de Produtos</h3>
+                                <p class="modal-config-card-subtitle">Atributos e especificações</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('vendedores')">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Vendedores</h3>
+                                <p class="modal-config-card-subtitle">Equipe de vendas e comissões</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('tabelas-preco')">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Tabelas de Preço</h3>
+                                <p class="modal-config-card-subtitle">Precificação e descontos</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('unidades-medida')">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-ruler"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Unidades de Medida</h3>
+                                <p class="modal-config-card-subtitle">Conversões e padrões</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('ncm')">
+                            <div class="modal-config-card-icon teal">
+                                <i class="fas fa-barcode"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Códigos NCM</h3>
+                                <p class="modal-config-card-subtitle">Nomenclatura Comum do Mercosul</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aba Venda de Serviços -->
+                <div class="modal-config-tab-content" id="tab-venda-servicos">
+                    <div class="modal-config-grid">
+                        <div class="modal-config-card" onclick="abrirConfiguracao('venda-servicos')">
+                            <div class="modal-config-card-icon red">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Configurações Gerais</h3>
+                                <p class="modal-config-card-subtitle">Etapas de OS e numeração</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('tipos-servico')">
+                            <div class="modal-config-card-icon red">
+                                <i class="fas fa-concierge-bell"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Tipos de Serviço</h3>
+                                <p class="modal-config-card-subtitle">Categorias de serviços prestados</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('contratos')">
+                            <div class="modal-config-card-icon red">
+                                <i class="fas fa-file-contract"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>Modelos de Contrato</h3>
+                                <p class="modal-config-card-subtitle">Templates e cláusulas padrão</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('sla')">
+                            <div class="modal-config-card-icon red">
+                                <i class="fas fa-stopwatch"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>SLA de Atendimento</h3>
+                                <p class="modal-config-card-subtitle">Níveis de serviço acordados</p>
+                            </div>
+                        </div>
+
+                        <div class="modal-config-card" onclick="abrirConfiguracao('nfse')">
+                            <div class="modal-config-card-icon red">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </div>
+                            <div class="modal-config-card-content">
+                                <h3>NFS-e</h3>
+                                <p class="modal-config-card-subtitle">Nota Fiscal de Serviços Eletrônica</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer do Modal -->
+            <div class="modal-config-footer">
+                <a href="#" class="modal-config-footer-link" onclick="abrirSobreLancamentos(event)">
+                    <i class="fas fa-info-circle"></i>
+                    Sobre os Lançamentos
+                </a>
+                <a href="#" class="modal-config-footer-link" onclick="abrirHistoricoAlteracoes(event)">
+                    <i class="fas fa-history"></i>
+                    Histórico de alterações
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Funções do Modal de Configurações - Premium Version
+        function abrirModalConfig() {
+            console.log('🔧 Abrindo modal de configurações...');
+            const modal = document.getElementById('modal-configuracoes');
+            console.log('Modal encontrado:', modal);
+            
+            if (modal) {
+                // Remover estilos inline primeiro
+                modal.removeAttribute('style');
+                
+                // Adiciona classe active
+                modal.classList.add('active');
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+                
+                // Força reflow para aplicar transição
+                void modal.offsetWidth;
+                
+                console.log('✅ Modal ativado');
+                
+                // Inicializa tabs
+                if (typeof initModalConfigTabs === 'function') {
+                    initModalConfigTabs();
+                }
+                
+                // Focus no primeiro elemento interativo
+                setTimeout(() => {
+                    const firstTab = modal.querySelector('.modal-config-tab');
+                    if (firstTab) {
+                        firstTab.focus();
+                    }
+                }, 100);
+
+                // Adiciona classe para animação de entrada dos cards
+                setTimeout(() => {
+                    const cards = modal.querySelectorAll('.modal-config-card');
+                    cards.forEach((card, index) => {
+                        setTimeout(() => {
+                            card.style.animation = 'slideInCard 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards';
+                            card.style.opacity = '1';
+                        }, index * 50);
+                    });
+                }, 200);
+            } else {
+                console.error('❌ Modal não encontrado! ID: modal-configuracoes');
+                alert('Erro: Modal de configurações não encontrado');
+            }
+        }
+
+        // Adiciona estilos de animação para cards
+        const cardAnimStyle = document.createElement('style');
+        cardAnimStyle.textContent = `
+            .modal-config-card {
+                opacity: 0;
+            }
+            
+            .modal-config.active .modal-config-card {
+                opacity: 1;
+            }
+
+            @keyframes slideInCard {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+        `;
+        document.head.appendChild(cardAnimStyle);
+
+        // Função global para fechar o modal de configurações
+        window.fecharModalConfig = function() {
+            console.log('🔧 fecharModalConfig executado');
+            const modal = document.getElementById('modal-configuracoes');
+            if (modal) {
+                console.log('✓ Modal encontrado, fechando...');
+                // Adiciona animação de saída
+                const content = modal.querySelector('.modal-config-content');
+                if (content) {
+                    content.style.animation = 'slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                }
+                
+                setTimeout(() => {
+                    modal.classList.remove('active');
+                    modal.setAttribute('aria-hidden', 'true');
+                    document.body.style.overflow = '';
+                    if (content) {
+                        content.style.animation = '';
+                    }
+                    console.log('✅ Modal fechado');
+                }, 280);
+            } else {
+                console.log('❌ Modal não encontrado');
+            }
+        }
+        
+        // Função para abrir modal Meu Perfil
+        window.abrirModalPerfil = function() {
+            console.log('🔧 abrirModalPerfil executado');
+            const modal = document.getElementById('profile-modal');
+            if (modal) {
+                // Remove estilos inline que bloqueiam exibição
+                modal.style.cssText = 'display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important;';
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+                console.log('✅ Modal Perfil aberto');
+                
+                // Carregar dados do usuário no formulário
+                carregarDadosPerfil();
+            } else {
+                console.log('❌ Modal Perfil não encontrado');
+            }
+        }
+        
+        // Função para fechar modal Meu Perfil
+        window.fecharModalPerfil = function() {
+            const modal = document.getElementById('profile-modal');
+            if (modal) {
+                modal.style.cssText = 'display: none !important;';
+                modal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                console.log('✅ Modal Perfil fechado');
+            }
+        }
+        
+        // Carregar dados do perfil do usuário
+        async function carregarDadosPerfil() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Preencher campos do formulário
+                    document.getElementById('profile-email').value = user.email || '';
+                    document.getElementById('profile-nome').value = user.nome || '';
+                    document.getElementById('profile-apelido').value = user.apelido || '';
+                    document.getElementById('profile-telefone').value = user.telefone || '';
+                    document.getElementById('profile-departamento').value = user.departamento || '';
+                    document.getElementById('profile-data-nascimento').value = user.data_nascimento || '';
+                    document.getElementById('profile-bio').value = user.bio || '';
+                    
+                    // Carregar avatar
+                    const avatarImg = document.getElementById('profile-avatar-img');
+                    if (avatarImg && user.foto_perfil_url) {
+                        avatarImg.src = user.foto_perfil_url;
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar dados do perfil:', error);
+            }
+        }
+        
+        // Função para abrir modal Preferências
+        window.abrirModalPreferencias = function() {
+            console.log('🔧 abrirModalPreferencias executado');
+            const modal = document.getElementById('preferences-modal');
+            if (modal) {
+                // Remove estilos inline que bloqueiam exibição
+                modal.style.cssText = 'display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important;';
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+                console.log('✅ Modal Preferências aberto');
+                
+                // Carregar preferências salvas
+                carregarPreferencias();
+            } else {
+                console.log('❌ Modal Preferências não encontrado');
+            }
+        }
+        
+        // Função para fechar modal Preferências
+        window.fecharModalPreferencias = function() {
+            const modal = document.getElementById('preferences-modal');
+            if (modal) {
+                modal.style.cssText = 'display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; z-index: -1 !important;';
+                modal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                console.log('✅ Modal Preferências fechado');
+            }
+        }
+        
+        // Carregar preferências salvas
+        function carregarPreferencias() {
+            // Dark mode
+            const darkMode = document.getElementById('setting-dark-mode');
+            if (darkMode) darkMode.checked = localStorage.getItem('darkMode') === 'true';
+            
+            // Font size
+            const fontSize = document.getElementById('setting-font-size');
+            if (fontSize) fontSize.value = localStorage.getItem('fontSize') || 'medium';
+            
+            // Desktop notifications
+            const desktopNotif = document.getElementById('setting-desktop-notifications');
+            if (desktopNotif) desktopNotif.checked = localStorage.getItem('desktopNotifications') !== 'false';
+            
+            // Sound notifications
+            const soundNotif = document.getElementById('setting-notification-sound');
+            if (soundNotif) soundNotif.checked = localStorage.getItem('notificationSound') !== 'false';
+        }
+
+        function initModalConfigTabs() {
+            const tabs = document.querySelectorAll('.modal-config-tab');
+            const tabContents = document.querySelectorAll('.modal-config-tab-content');
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+
+                    // Remove active de todas as tabs
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+
+                    // Adiciona active na tab clicada com delay suave
+                    this.classList.add('active');
+                    
+                    setTimeout(() => {
+                        const targetContent = document.getElementById('tab-' + targetTab);
+                        if (targetContent) {
+                            targetContent.classList.add('active');
+                        }
+                    }, 50);
+                });
+
+                // Adiciona suporte para navegação por teclado
+                tab.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.click();
+                    }
+                });
+            });
+
+            // Adiciona suporte para swipe em mobile
+            let touchStartX = 0;
+            let touchEndX = 0;
+            const tabsContainer = document.querySelector('.modal-config-tabs');
+            
+            if (tabsContainer) {
+                tabsContainer.addEventListener('touchstart', function(e) {
+                    touchStartX = e.changedTouches[0].screenX;
+                }, { passive: true });
+
+                tabsContainer.addEventListener('touchend', function(e) {
+                    touchEndX = e.changedTouches[0].screenX;
+                    handleSwipe();
+                }, { passive: true });
+            }
+
+            function handleSwipe() {
+                const swipeThreshold = 50;
+                const activeTab = document.querySelector('.modal-config-tab.active');
+                
+                if (!activeTab) return;
+                
+                if (touchEndX < touchStartX - swipeThreshold) {
+                    // Swipe left - próxima tab
+                    const nextTab = activeTab.nextElementSibling;
+                    if (nextTab && nextTab.classList.contains('modal-config-tab')) {
+                        nextTab.click();
+                    }
+                }
+                
+                if (touchEndX > touchStartX + swipeThreshold) {
+                    // Swipe right - tab anterior
+                    const prevTab = activeTab.previousElementSibling;
+                    if (prevTab && prevTab.classList.contains('modal-config-tab')) {
+                        prevTab.click();
+                    }
+                }
+            }
+        }
+
+        // Adiciona animação keyframe para saída
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideDown {
+                from {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateY(40px) scale(0.96);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // ============================================
+        // EVENT LISTENERS - CSP Compliant
+        // ============================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Botão de Configurações no header
+            const settingsBtn = document.getElementById('settings-btn');
+            if (settingsBtn) {
+                settingsBtn.addEventListener('click', function() {
+                    abrirModalConfig();
+                });
+                console.log('✅ Event listener do botão de configurações adicionado');
+            }
+            
+            // Opção de Configurações no dropdown do usuário
+            const settingsOption = document.getElementById('settings-option');
+            if (settingsOption) {
+                settingsOption.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Fecha o dropdown
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) dropdown.classList.remove('show');
+                    // Abre o modal
+                    abrirModalConfig();
+                });
+                console.log('✅ Event listener da opção de configurações no dropdown adicionado');
+            }
+            
+            // Opção Meu Perfil no dropdown
+            const profileOption = document.getElementById('profile-option');
+            if (profileOption) {
+                profileOption.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Fecha o dropdown
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) dropdown.classList.remove('show');
+                    // Abre o modal de perfil
+                    abrirModalPerfil();
+                });
+                console.log('✅ Event listener da opção Meu Perfil adicionado');
+            }
+            
+            // Opção Preferências no dropdown
+            const preferencesOption = document.getElementById('preferences-option');
+            if (preferencesOption) {
+                preferencesOption.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Fecha o dropdown
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) dropdown.classList.remove('show');
+                    // Abre o modal de preferências
+                    abrirModalPreferencias();
+                });
+                console.log('✅ Event listener da opção Preferências adicionado');
+            }
+            
+            // Botão de Fechar Modal de Configurações - usar event delegation no documento
+            document.addEventListener('click', function(e) {
+                const btnFechar = e.target.closest('#btn-fechar-config');
+                if (btnFechar) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔧 Botão fechar clicado');
+                    fecharModalConfig();
+                }
+                
+                // Botões de fechar modal de Perfil
+                const profileClose = e.target.closest('#profile-modal-close, #profile-cancel');
+                if (profileClose) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fecharModalPerfil();
+                }
+                
+                // Botões de fechar modal de Preferências
+                const preferencesClose = e.target.closest('#preferences-modal-close');
+                if (preferencesClose) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fecharModalPreferencias();
+                }
+            }, true); // Capture phase para garantir que captura o evento
+            
+            // Clicar fora dos modais de Perfil e Preferências para fechar
+            const profileModal = document.getElementById('profile-modal');
+            if (profileModal) {
+                profileModal.addEventListener('click', function(e) {
+                    if (e.target === profileModal) {
+                        fecharModalPerfil();
+                    }
+                });
+            }
+            
+            const preferencesModal = document.getElementById('preferences-modal');
+            if (preferencesModal) {
+                preferencesModal.addEventListener('click', function(e) {
+                    if (e.target === preferencesModal) {
+                        fecharModalPreferencias();
+                    }
+                });
+            }
+            
+            // Botão de Ajuda
+            const helpBtn = document.getElementById('help-btn');
+            if (helpBtn) {
+                helpBtn.addEventListener('click', function() {
+                    window.location.href = '/ajuda/index.html';
+                });
+            }
+            
+            // Fechar modal ao clicar fora
+            const modalConfig = document.getElementById('modal-configuracoes');
+            if (modalConfig) {
+                modalConfig.addEventListener('click', function(e) {
+                    if (e.target === modalConfig) {
+                        fecharModalConfig();
+                    }
+                });
+            }
+            
+            // Fechar com ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const modalConfig = document.getElementById('modal-configuracoes');
+                    if (modalConfig && modalConfig.classList.contains('active')) {
+                        fecharModalConfig();
+                    }
+                }
+            });
+            
+            // Event delegation para cards de configuração
+            // Isso funciona mesmo com onclick no HTML (captura antes do CSP bloquear)
+            document.addEventListener('click', function(e) {
+                const card = e.target.closest('.modal-config-card');
+                if (card) {
+                    // Extrai o tipo do onclick attribute
+                    const onclickAttr = card.getAttribute('onclick');
+                    if (onclickAttr) {
+                        const match = onclickAttr.match(/abrirConfiguracao\(['"]([^'"]+)['"]\)/);
+                        if (match && match[1]) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('?? Card clicado via delegation:', match[1]);
+                            if (typeof abrirConfiguracao === 'function') {
+                                abrirConfiguracao(match[1]);
+                            }
+                        }
+                    }
+                }
+            }, true); // Capture phase
+        });
+
+        // Função abrirConfiguracao agora está em /js/config-modals.js
+        // Mantida aqui apenas para referência/fallback
+        if (typeof window.abrirConfiguracao !== 'function') {
+            window.abrirConfiguracao = function(tipo) {
+                console.log('Abrindo configuração:', tipo);
+                alert('Configuração "' + tipo + '" será implementada em breve!');
+            };
+        }
+
+        function abrirSobreLancamentos(event) {
+            event.preventDefault();
+            const modal = document.getElementById('modal-sobre-lancamentos');
+            if (modal) {
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function abrirHistoricoAlteracoes(event) {
+            event.preventDefault();
+            const modal = document.getElementById('modal-historico-alteracoes');
+            if (modal) {
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+                carregarHistoricoAlteracoes();
+            }
+        }
+        
+        // Função para carregar histórico do servidor
+        async function carregarHistoricoAlteracoes() {
+            try {
+                const response = await fetch('/api/audit-log?limite=50');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.logs) {
+                        renderizarHistorico(data.logs);
+                    }
+                }
+            } catch (error) {
+                console.log('Usando dados de exemplo do histórico');
+            }
+        }
+        
+        function renderizarHistorico(logs) {
+            const container = document.getElementById('historico-container');
+            if (!container || !logs.length) return;
+            
+            container.innerHTML = logs.map(log => {
+                const initials = (log.usuario || 'US').substring(0, 2).toUpperCase();
+                const badgeClass = getBadgeClass(log.acao);
+                
+                return `
+                    <div class="historico-item">
+                        <div class="historico-avatar" style="background: ${getAvatarGradient(log.usuario)}">${initials}</div>
+                        <div class="historico-content">
+                            <div class="historico-header">
+                                <span class="historico-usuario">${log.usuario || 'Usuário'}</span>
+                                <span class="historico-badge ${badgeClass}"><i class="${getActionIcon(log.acao)}"></i> ${log.acao}</span>
+                                <span class="historico-modulo">${log.modulo || 'Sistema'}</span>
+                            </div>
+                            <p class="historico-descricao">${log.descricao || ''}</p>
+                            <div class="historico-detalhes">
+                                <span class="historico-time"><i class="fas fa-clock"></i> ${formatarDataHora(log.data)}</span>
+                                <span class="historico-ip"><i class="fas fa-globe"></i> ${log.ip || '-'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function getBadgeClass(acao) {
+            const classes = {
+                'Criou': 'badge-criar',
+                'Editou': 'badge-editar',
+                'Excluiu': 'badge-excluir',
+                'Login': 'badge-login',
+                'Configurou': 'badge-config',
+                'Perfil': 'badge-perfil'
+            };
+            return classes[acao] || 'badge-editar';
+        }
+        
+        function getActionIcon(acao) {
+            const icons = {
+                'Criou': 'fas fa-plus',
+                'Editou': 'fas fa-edit',
+                'Excluiu': 'fas fa-trash',
+                'Login': 'fas fa-sign-in-alt',
+                'Configurou': 'fas fa-cog',
+                'Perfil': 'fas fa-user'
+            };
+            return icons[acao] || 'fas fa-edit';
+        }
+        
+        function getAvatarGradient(nome) {
+            const colors = [
+                'linear-gradient(135deg, #3498db, #2980b9)',
+                'linear-gradient(135deg, #e74c3c, #c0392b)',
+                'linear-gradient(135deg, #2ecc71, #27ae60)',
+                'linear-gradient(135deg, #f39c12, #e67e22)',
+                'linear-gradient(135deg, #9b59b6, #8e44ad)',
+                'linear-gradient(135deg, #1abc9c, #16a085)'
+            ];
+            const index = (nome || '').length % colors.length;
+            return colors[index];
+        }
+        
+        function formatarDataHora(data) {
+            if (!data) return '-';
+            const d = new Date(data);
+            return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+        }
+        
+        function filtrarHistorico() {
+            // Implementar filtros
+            carregarHistoricoAlteracoes();
+        }
+        
+        function exportarHistorico() {
+            alert('Exportando histórico para Excel...');
+        }
+        
+        // Funções auxiliares para tree view
+        function toggleTreeItem(header) {
+            const children = header.parentElement.querySelector('.tree-children');
+            const toggle = header.querySelector('.tree-toggle');
+            
+            if (children) {
+                const isVisible = children.style.display !== 'none';
+                children.style.display = isVisible ? 'none' : 'block';
+                toggle.classList.toggle('expanded', !isVisible);
+            }
+        }
+        
+        function expandirTodos() {
+            document.querySelectorAll('.tree-children').forEach(el => el.style.display = 'block');
+            document.querySelectorAll('.tree-toggle').forEach(el => el.classList.add('expanded'));
+        }
+        
+        function recolherTodos() {
+            document.querySelectorAll('.tree-children').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.tree-toggle').forEach(el => el.classList.remove('expanded'));
+        }
+        
+        // Função global para fechar modais
+        function fecharModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Funcionalidade de Busca
+        function initConfigSearch() {
+            const searchInput = document.getElementById('config-search-input');
+            if (!searchInput) return;
+
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase().trim();
+                const allCards = document.querySelectorAll('.modal-config-card');
+                let hasResults = false;
+
+                allCards.forEach(card => {
+                    const title = card.querySelector('h3')?.textContent.toLowerCase() || '';
+                    const subtitle = card.querySelector('.modal-config-card-subtitle')?.textContent.toLowerCase() || '';
+                    const matches = title.includes(searchTerm) || subtitle.includes(searchTerm);
+
+                    if (searchTerm === '' || matches) {
+                        card.style.display = 'flex';
+                        hasResults = true;
+                        
+                        // Destaca o termo encontrado
+                        if (searchTerm && matches) {
+                            card.style.animation = 'highlightCard 0.5s ease';
+                        }
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+
+                // Mostra mensagem se não houver resultados
+                const tabContents = document.querySelectorAll('.modal-config-tab-content.active');
+                tabContents.forEach(content => {
+                    let emptyState = content.querySelector('.modal-config-empty-search');
+                    
+                    if (!hasResults && searchTerm) {
+                        if (!emptyState) {
+                            emptyState = document.createElement('div');
+                            emptyState.className = 'modal-config-empty-search';
+                            emptyState.innerHTML = `
+                                <div class="modal-config-empty">
+                                    <i class="fas fa-search modal-config-empty-icon"></i>
+                                    <h4 class="modal-config-empty-title">Nenhum resultado encontrado</h4>
+                                    <p class="modal-config-empty-text">Tente buscar com outros termos ou navegue pelas abas</p>
+                                </div>
+                            `;
+                            content.appendChild(emptyState);
+                        }
+                        emptyState.style.display = 'block';
+                    } else if (emptyState) {
+                        emptyState.style.display = 'none';
+                    }
+                });
+            });
+
+            // Limpa busca ao trocar de aba
+            const tabs = document.querySelectorAll('.modal-config-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    searchInput.value = '';
+                    const allCards = document.querySelectorAll('.modal-config-card');
+                    allCards.forEach(card => {
+                        card.style.display = 'flex';
+                    });
+                    const emptyStates = document.querySelectorAll('.modal-config-empty-search');
+                    emptyStates.forEach(state => state.style.display = 'none');
+                });
+            });
+        }
+
+        // Função para limpar busca de configurações
+        function limparBuscaConfig() {
+            const searchInput = document.getElementById('config-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.dispatchEvent(new Event('input'));
+                searchInput.focus();
+            }
+        }
+
+        // Adiciona animação de destaque
+        const highlightStyle = document.createElement('style');
+        highlightStyle.textContent = `
+            @keyframes highlightCard {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.02); }
+            }
+        `;
+        document.head.appendChild(highlightStyle);
+
+        // Fechar modal ao clicar fora
+        document.addEventListener('click', function(e) {
+            const modal = document.getElementById('modal-configuracoes');
+            if (modal && e.target === modal) {
+                fecharModalConfig();
+            }
+        });
+
+        // Fechar modal com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                fecharModalConfig();
+            }
+        });
+
+        // Inicializa busca quando o modal abre
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('modal-configuracoes');
+            if (modal) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.attributeName === 'class') {
+                            if (modal.classList.contains('active')) {
+                                initConfigSearch();
+                            }
+                        }
+                    });
+                });
+                observer.observe(modal, { attributes: true });
+            }
+        });
+    </script>
+
+    <!-- Chat Widget Bob AI -->
+    
+    <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+    
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/modal-fix-global.js?v=20260110"></script>
+    <script src="/js/unsaved-changes.js?v=20260108"></script>
+    <script src="/js/modal-integration.js?v=20260108"></script>
+
+    <!-- Scripts de Performance e UI Fluida -->
+    <script src="/js/aluforce-optimizer.js?v=20260111"></script>
+    <script src="/js/aluforce-fluid-ui.js?v=20260111"></script>
+    
+    <!-- Sistema Turbo de Performance (Cache + Prefetch + Navegação Rápida) -->
+    <script src="/js/aluforce-turbo.js?v=20260117"></script>
+    <script src="/js/aluforce-data-manager.js?v=20260117"></script>
+    
+    <!-- Dashboard Enhanced - KPIs, Alertas e Métricas -->
+    <script src="/js/dashboard-enhanced.js?v=20260118-3"></script>
+</body>
+</html>

@@ -120,7 +120,7 @@ router.post('/login', async (req, res) => {
         return res.status(400).json({ message: 'Dados de login inválidos' });
     }
 
-    let { email, password } = req.body;
+    let { email, password, trustedDeviceToken } = req.body;
     try {
         if (isDevMode) console.log('[AUTH/LOGIN] Tentativa de login para:', email);
 
@@ -320,24 +320,53 @@ router.post('/login', async (req, res) => {
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             `);
 
-            // 🔍 Verificar se o dispositivo já é confiável (cookie)
+            // 🔍 Verificar se o dispositivo já é confiável (cookie OU body param)
             const trustedDeviceCookie = req.cookies && req.cookies['trusted_device_2fa'];
-            if (trustedDeviceCookie) {
+            const trustedDeviceBody = trustedDeviceToken; // Backup via localStorage
+            const trustedTokenToCheck = trustedDeviceCookie || trustedDeviceBody || null;
+            
+            console.log(`[AUTH/2FA] 🔍 Verificando dispositivo confiável para ${user.email}:`);
+            console.log(`[AUTH/2FA]   - Cookie trusted_device_2fa: ${trustedDeviceCookie ? trustedDeviceCookie.substring(0, 8) + '...' : 'AUSENTE'}`);
+            console.log(`[AUTH/2FA]   - Body trustedDeviceToken: ${trustedDeviceBody ? trustedDeviceBody.substring(0, 8) + '...' : 'AUSENTE'}`);
+            
+            if (trustedTokenToCheck) {
                 // Limpar dispositivos expirados
                 await safeQuery('DELETE FROM auth_trusted_devices WHERE expira_em < NOW()');
 
                 const [trustedRows] = await safeQuery(
                     'SELECT * FROM auth_trusted_devices WHERE device_token = ? AND usuario_id = ? AND expira_em > NOW()',
-                    [trustedDeviceCookie, user.id]
+                    [trustedTokenToCheck, user.id]
                 );
 
+                console.log(`[AUTH/2FA]   - Registros encontrados no DB: ${trustedRows ? trustedRows.length : 0}`);
+
                 if (trustedRows && trustedRows.length > 0) {
-                    console.log(`[AUTH/2FA] ✅ Dispositivo confiável encontrado para ${user.email} - pulando 2FA`);
+                    console.log(`[AUTH/2FA] ✅ Dispositivo confiável encontrado para ${user.email} - pulando 2FA (via ${trustedDeviceCookie ? 'cookie' : 'localStorage'})`);
+                    
+                    // Renovar o cookie caso tenha vindo só pelo body (cookie perdido)
+                    if (!trustedDeviceCookie && trustedDeviceBody) {
+                        console.log(`[AUTH/2FA] 🔄 Renovando cookie trusted_device_2fa (estava ausente)`);
+                        const trustedCookieOpts = {
+                            httpOnly: true,
+                            path: '/',
+                            maxAge: 30 * 24 * 60 * 60 * 1000,
+                            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+                        };
+                        if (process.env.NODE_ENV === 'production') {
+                            trustedCookieOpts.secure = true;
+                        }
+                        res.cookie('trusted_device_2fa', trustedDeviceBody, trustedCookieOpts);
+                    }
+                    
                     // Throw para sair do try e cair no login normal
                     const skipError = new Error('SKIP_2FA_TRUSTED_DEVICE');
                     skipError.skipToLogin = true;
                     throw skipError;
+                } else {
+                    console.log(`[AUTH/2FA] ⚠️ Token de dispositivo presente mas não encontrado no DB para user ${user.id}`);
                 }
+            } else {
+                console.log(`[AUTH/2FA] ℹ️ Nenhum token de dispositivo confiável encontrado - 2FA será exigido`);
             }
 
             // Criar tabela de códigos 2FA se não existir
@@ -1221,6 +1250,7 @@ router.post('/verify-2fa', async (req, res) => {
         console.log('[AUTH/2FA] ✅ Cookie authToken setado para:', user.email);
 
         // 🔐 Salvar dispositivo confiável se solicitado
+        let savedTrustedToken = null;
         if (rememberDevice) {
             try {
                 const trustedToken = uuidv4();
@@ -1272,10 +1302,13 @@ router.post('/verify-2fa', async (req, res) => {
                     trustedCookieOpts.secure = true;
                 }
                 res.cookie('trusted_device_2fa', trustedToken, trustedCookieOpts);
+                savedTrustedToken = trustedToken; // Salvar para enviar no JSON response
 
-                console.log(`[AUTH/2FA] 🔒 Dispositivo confiável salvo para ${user.email} (30 dias)`);
+                console.log(`[AUTH/2FA] 🔒 Dispositivo confiável salvo para ${user.email} (30 dias) - token: ${trustedToken.substring(0, 8)}...`);
+                console.log(`[AUTH/2FA] 🔒 Cookie trusted_device_2fa setado com maxAge: ${thirtyDays}ms, secure: ${process.env.NODE_ENV === 'production'}, sameSite: ${process.env.NODE_ENV === 'production' ? 'strict' : 'lax'}`);
             } catch (trustErr) {
                 console.error('[AUTH/2FA] ⚠️ Erro ao salvar dispositivo confiável:', trustErr.message);
+                console.error('[AUTH/2FA] ⚠️ Stack:', trustErr.stack);
                 // Não impede o login — continua normalmente
             }
         }
@@ -1288,6 +1321,7 @@ router.post('/verify-2fa', async (req, res) => {
             token,
             deviceId,
             redirectTo,
+            trustedDeviceToken: savedTrustedToken || null, // 🔐 Backup via localStorage
             user: {
                 id: user.id,
                 nome: user.nome,
@@ -1320,6 +1354,7 @@ router.post('/verify-2fa', async (req, res) => {
             }
         };
 
+        console.log(`[AUTH/2FA] 📤 Resposta verify-2fa: trustedDeviceToken ${savedTrustedToken ? 'incluído' : 'NÃO incluído'}`);
         res.json(payload);
 
     } catch (error) {

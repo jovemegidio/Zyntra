@@ -25,7 +25,7 @@ const DADOS_EMPRESA_PADRAO = {
     cep: '08537-400',
     estado: 'SP',
     cidade: 'Ferraz de Vasconcelos',
-    bairro: 'VILA SÍO JOÍO',
+    bairro: 'VILA SÃO JOÃO',
     endereco: 'RUA ERNESTINA',
     numero: '270',
     complemento: '',

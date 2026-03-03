@@ -1,9 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: Portal do Funcionário</title>
 
@@ -26,9 +27,6 @@
             --success-green: #22c55e;
             --warning-yellow: #eab308;
             --danger-red: #ef4444;
-            /* Aliases para compatibilidade */
-            --primary-pink: #ec4899;
-            --primary-pink: #ec4899;
         }
 
         * {
@@ -819,15 +817,15 @@
                                 </h3>
                             </div>
                             <div class="card-body">
-                                <div class="holerite-preview">
+                                <div class="holerite-preview" id="holerite-preview">
                                     <div class="holerite-header">
-                                        <span class="holerite-month">Dezembro 2025</span>
-                                        <span class="holerite-status">Disponível</span>
+                                        <span class="holerite-month" id="holerite-month">Carregando...</span>
+                                        <span class="holerite-status" id="holerite-status" style="display: none;">Disponível</span>
                                     </div>
-                                    <div class="holerite-value">R$ 3.450,00</div>
-                                    <div class="holerite-label">Valor líquido</div>
+                                    <div class="holerite-value" id="holerite-value" style="display: none;"></div>
+                                    <div class="holerite-label" id="holerite-label" style="display: none;">Valor líquido</div>
                                 </div>
-                                <button class="btn-download" onclick="window.location.href='pages/meus-holerites.html'">
+                                <button class="btn-download" id="btn-ver-holerite" onclick="window.location.href='pages/meus-holerites.html'" style="display: none;">
                                     <i class="fas fa-download"></i>
                                     Ver Detalhes
                                 </button>
@@ -1107,9 +1105,73 @@
         document.addEventListener('DOMContentLoaded', () => {
             carregarUsuarioLogado();
             carregarNotificacoes();
+            carregarUltimoHolerite();
             // Atualizar notificações a cada 30 segundos
             _notifInterval = setInterval(carregarNotificacoes, 30000);
         });
+
+        // ========================================
+        // CARREGAR ÚLTIMO HOLERITE DINÂMICO
+        // ========================================
+        const mesesNome = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                           'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+        function formatarMoeda(valor) {
+            if (valor == null || isNaN(valor)) return 'R$ 0,00';
+            return parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        async function carregarUltimoHolerite() {
+            const monthEl = document.getElementById('holerite-month');
+            const statusEl = document.getElementById('holerite-status');
+            const valueEl = document.getElementById('holerite-value');
+            const labelEl = document.getElementById('holerite-label');
+            const btnEl = document.getElementById('btn-ver-holerite');
+
+            try {
+                const response = await fetch('/api/rh/holerites/meu-ultimo', {
+                    headers: getAuthHeaders(),
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    if (data.encontrado && data.holerite) {
+                        const h = data.holerite;
+                        const mesNome = mesesNome[h.mes] || h.mes;
+
+                        if (monthEl) monthEl.textContent = `${mesNome} ${h.ano}`;
+                        if (statusEl) {
+                            statusEl.textContent = 'Disponível';
+                            statusEl.style.display = '';
+                        }
+                        if (valueEl) {
+                            valueEl.textContent = formatarMoeda(h.salario_liquido);
+                            valueEl.style.display = '';
+                        }
+                        if (labelEl) labelEl.style.display = '';
+                        if (btnEl) btnEl.style.display = '';
+                    } else {
+                        // Nenhum holerite disponível
+                        mostrarSemHolerite(monthEl, statusEl, valueEl, labelEl, btnEl);
+                    }
+                } else {
+                    mostrarSemHolerite(monthEl, statusEl, valueEl, labelEl, btnEl);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar último holerite:', error);
+                mostrarSemHolerite(monthEl, statusEl, valueEl, labelEl, btnEl);
+            }
+        }
+
+        function mostrarSemHolerite(monthEl, statusEl, valueEl, labelEl, btnEl) {
+            if (monthEl) monthEl.textContent = 'Nenhum holerite disponível';
+            if (statusEl) statusEl.style.display = 'none';
+            if (valueEl) valueEl.style.display = 'none';
+            if (labelEl) labelEl.style.display = 'none';
+            if (btnEl) btnEl.style.display = 'none';
+        }
 
         // ========================================
         // NOTIFICAÇÕES EM TEMPO REAL
@@ -1284,7 +1346,7 @@
     <script src="/js/popup-confirmacao.js"></script>
     <script src="/js/unsaved-changes.js?v=20260108"></script>
     <script src="/js/modal-integration.js?v=20260108"></script>
-    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
     <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
         <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
     <script src="/chat/widget.js?v=20260218" defer></script> -->

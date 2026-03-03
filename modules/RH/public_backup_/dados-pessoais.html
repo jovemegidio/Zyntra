@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>ALUFORCE: Meus Dados - Portal do Funcionário</title>
+    
+    <!-- Favicon -->
+    
+
+    
+    <link rel="stylesheet" href="../../PCP/pcp_modern_clean.css?v=15.0&cache=1727978900">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="/css/responsive-complete.css?v=20260116">
+<!-- MOBILE_OFF:     <link rel="stylesheet" href="/css/mobile-fixes-final.css?v=20260116"> -->
+    <script src="/js/responsive-mobile.js?v=20260116" defer></script>
+    
+    <!-- Estilos específicos -->
+    <style>
+        /* Variables CSS personalizadas para RH */
+        :root {
+            --rh-primary: #2563eb;
+            --rh-primary-dark: #1d4ed8;
+            --rh-secondary: #64748b;
+            --rh-success: #10b981;
+            --rh-warning: #f59e0b;
+            --rh-danger: #ef4444;
+            --rh-light: #f8fafc;
+            --rh-border: #e2e8f0;
+            --rh-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --rh-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --rh-radius: 12px;
+            --rh-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Animações de entrada */
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .dados-pessoais-container {
+            padding: 32px;
+            max-width: 1400px;
+            margin: 0 auto;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .panel {
+            background: white;
+            border-radius: var(--rh-radius);
+            box-shadow: var(--rh-shadow-lg);
+            border: 1px solid var(--rh-border);
+            overflow: hidden;
+            animation: slideInUp 0.7s ease-out;
+        }
+
+        .panel h2 {
+            background: linear-gradient(135deg, var(--rh-primary) 0%, var(--rh-primary-dark) 100%);
+            color: white;
+            padding: 24px 32px;
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .panel h2 i {
+            font-size: 1.25rem;
+        }
+
+        .panel-body {
+            padding: 32px;
+        }
+        
+        .funcionario-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+        
+        .funcionario-info-item {
+            background: var(--rh-light);
+            padding: 24px;
+            border-radius: var(--rh-radius);
+            border: 1px solid var(--rh-border);
+            transition: var(--rh-transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .funcionario-info-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--rh-primary) 0%, var(--rh-primary-dark) 100%);
+        }
+
+        .funcionario-info-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--rh-shadow-lg);
+            border-color: var(--rh-primary);
+        }
+        
+        .funcionario-info-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--rh-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .funcionario-info-label::before {
+            content: '';
+            width: 3px;
+            height: 3px;
+            background: var(--rh-primary);
+            border-radius: 50%;
+        }
+        
+        .funcionario-info-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+            line-height: 1.4;
+            min-height: 1.5rem;
+        }
+
+        .editar-dados-btn {
+            background: linear-gradient(135deg, var(--rh-success) 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: var(--rh-radius);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: var(--rh-transition);
+            margin-top: 32px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 200px;
+            justify-content: center;
+            box-shadow: var(--rh-shadow);
+        }
+        
+        .editar-dados-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 24px rgba(16, 185, 129, 0.4);
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        }
+
+        .editar-dados-btn:active {
+            transform: translateY(-1px);
+        }
+
+        .editar-dados-btn i {
+            font-size: 1.1rem;
+        }
+
+        /* Responsividade aprimorada */
+        @media (max-width: 1200px) {
+            .funcionario-info-grid {
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dados-pessoais-container {
+                padding: 16px;
+            }
+
+            .panel-body {
+                padding: 20px;
+            }
+
+            .funcionario-info-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .funcionario-info-item {
+                padding: 20px;
+            }
+
+            .editar-dados-btn {
+                width: 100%;
+                margin-top: 24px;
+            }
+
+            .panel h2 {
+                padding: 20px;
+                font-size: 1.25rem;
+            }
+        }
+
+        /* Estados de loading */
+        .funcionario-info-value:empty::after {
+            content: 'Carregando...';
+            color: var(--rh-secondary);
+            font-style: italic;
+            animation: pulse 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.6; }
+            to { opacity: 1; }
+        }
+
+        /* Sistema de notificações aprimorado */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: var(--rh-radius);
+            color: white;
+            font-weight: 600;
+            box-shadow: var(--rh-shadow-lg);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 300px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: linear-gradient(135deg, var(--rh-success) 0%, #059669 100%);
+        }
+
+        .notification.error {
+            background: linear-gradient(135deg, var(--rh-danger) 0%, #dc2626 100%);
+        }
+
+        .notification.warning {
+            background: linear-gradient(135deg, var(--rh-warning) 0%, #d97706 100%);
+        }
+
+        .notification i {
+            font-size: 1.2rem;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0;
+            margin-left: auto;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .notification-close:hover {
+            opacity: 1;
+        }
+
+        /* Melhorias na sidebar */
+        .sidebar .nav-link {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .sidebar .nav-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.6s;
+        }
+
+        .sidebar .nav-link:hover::before {
+            left: 100%;
+        }
+
+        /* Badge de status */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-badge.ativo {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-badge.inativo {
+            background: #fef2f2;
+            color: #991b1b;
+        }
+
+        .status-badge.pendente {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        /* Melhorias de acessibilidade */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Focus styles melhorados */
+        .editar-dados-btn:focus,
+        .sidebar .nav-link:focus {
+            outline: 3px solid var(--rh-primary);
+            outline-offset: 2px;
+        }
+
+        /* Loader customizado */
+        .custom-loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--rh-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <script src="/js/mobile-orientation.js?v=20260109" defer></script>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Pular para o conteúdo</a>
+    <div class="container-principal">
+        <aside class="sidebar">
+            <nav id="sidebar" class="sidebar-nav" role="navigation" aria-label="Navegação principal">
+                <ul>
+                    <li>
+                        <a href="/modules/RH/public/admin-dashboard.html" class="nav-link" title="Dashboard">
+                            <span class="nav-icon"><i class="fas fa-tachometer-alt" aria-hidden="true"></i></span>
+                            <span class="nav-tooltip">Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/RH/dados-pessoais.html" class="nav-link active" title="Meus Dados">
+                            <span class="nav-icon"><i class="fas fa-user" aria-hidden="true"></i></span>
+                            <span class="nav-tooltip">Meus Dados</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/RH/holerites.html" class="nav-link" title="Holerites">
+                            <span class="nav-icon"><i class="fas fa-file-invoice" aria-hidden="true"></i></span>
+                            <span class="nav-tooltip">Holerites</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/RH/solicitacoes.html" class="nav-link" title="Solicitações">
+                            <span class="nav-icon"><i class="fas fa-clipboard-list" aria-hidden="true"></i></span>
+                            <span class="nav-tooltip">Solicitações</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/logout" class="nav-link" title="Sair">
+                            <span class="nav-icon"><i class="fas fa-sign-out-alt" aria-hidden="true"></i></span>
+                            <span class="nav-tooltip">Sair</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- overlay que aparece quando o menu lateral é aberto -->
+        <div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+        <main id="main-content" class="main-content" tabindex="-1">
+            <div class="app-container">
+                <header class="topbar">
+                    <div class="topbar-left">
+                        <div class="logo-section">
+                            <img src="Logo Monocromatico - Azul - Aluforce.webp" alt="Aluforce" class="header-logo" />
+                        </div>
+                    </div>
+                    
+                    <div class="topbar-center">
+                        <h1 class="page-title">Meus Dados Pessoais</h1>
+                    </div>
+                    
+                    <div class="topbar-right">
+                        <div class="notification-icons">
+                            <button class="notification-btn" title="Notificações" id="notification-bell">
+                                <i class="fas fa-bell"></i>
+                                <span class="notification-badge" id="notification-count">0</span>
+                            </button>
+                            <button class="notification-btn" title="Mensagens">
+                                <i class="fas fa-envelope"></i>
+                            </button>
+                            <button class="notification-btn" title="Configurações">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="user-menu" onclick="toggleUserMenu()">
+                            <span class="user-text" id="user-greeting">Carregando...</span>
+                            <div class="avatar-circle">
+                                <img id="user-avatar" src="/avatars/default.webp" alt="Usuário" / onerror="this.onerror=null; this.src='/avatars/default.webp';">
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Dados Pessoais Content -->
+                <section class="dados-pessoais-container">
+                    <div class="panel">
+                        <h2><i class="fas fa-user"></i> Meus Dados Pessoais</h2>
+                        <div class="panel-body">
+                            <div class="funcionario-info-grid">
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Nome Completo</div>
+                                    <div class="funcionario-info-value" id="dados-nome">João Silva Santos</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">CPF</div>
+                                    <div class="funcionario-info-value" id="dados-cpf">123.456.789-10</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">RG</div>
+                                    <div class="funcionario-info-value" id="dados-rg">12.345.678-9</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Data de Nascimento</div>
+                                    <div class="funcionario-info-value" id="dados-nascimento">15/03/1990</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Email</div>
+                                    <div class="funcionario-info-value" id="dados-email">joao.silva@aluforce.com</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Telefone</div>
+                                    <div class="funcionario-info-value" id="dados-telefone">(11) 99999-9999</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Endereço</div>
+                                    <div class="funcionario-info-value" id="dados-endereco">Rua das Flores, 123 - Centro</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">CEP</div>
+                                    <div class="funcionario-info-value" id="dados-cep">01234-567</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Cidade</div>
+                                    <div class="funcionario-info-value" id="dados-cidade">São Paulo - SP</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Estado Civil</div>
+                                    <div class="funcionario-info-value" id="dados-estado-civil">Solteiro(a)</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Cargo</div>
+                                    <div class="funcionario-info-value" id="dados-cargo">Carregando...</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Departamento</div>
+                                    <div class="funcionario-info-value" id="dados-departamento">Carregando...</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Data de Admissão</div>
+                                    <div class="funcionario-info-value" id="dados-admissao">Carregando...</div>
+                                </div>
+                                <div class="funcionario-info-item">
+                                    <div class="funcionario-info-label">Registro</div>
+                                    <div class="funcionario-info-value" id="dados-registro">Carregando...</div>
+                                </div>
+                            </div>
+                            <button class="editar-dados-btn" onclick="editarDados()">
+                                <i class="fas fa-edit"></i> Solicitar Alteração de Dados
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Carregar dados do usuário
+            carregarDadosUsuario();
+        });
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders() {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
+        function carregarDadosUsuario() {
+            fetch('/api/me', {
+                method: 'GET',
+                headers: getAuthHeaders(),
+                credentials: 'include'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Dados do usuário:', data);
+                document.getElementById('user-greeting').textContent = `Olá, ${data.nome}`;
+                
+                // Preencher dados pessoais
+                if (data.nome) document.getElementById('dados-nome').textContent = data.nome;
+                if (data.email) document.getElementById('dados-email').textContent = data.email;
+                if (data.cargo) document.getElementById('dados-cargo').textContent = data.cargo;
+                if (data.departamento) document.getElementById('dados-departamento').textContent = data.departamento;
+                if (data.data_admissao) document.getElementById('dados-admissao').textContent = data.data_admissao;
+                if (data.registro) document.getElementById('dados-registro').textContent = data.registro;
+                if (data.telefone) document.getElementById('dados-telefone').textContent = data.telefone;
+            })
+            .catch(error => {
+                console.error('Erro ao carregar dados:', error);
+                document.getElementById('user-greeting').textContent = 'Erro ao carregar';
+            });
+        }
+
+        function editarDados() {
+            alert('Solicitação de alteração de dados enviada ao RH. Você será contatado em breve.');
+            // Aqui você adicionaria a lógica para enviar a solicitação ao RH
+        }
+
+        function toggleUserMenu() {
+            // Implementar menu do usuário se necessário
+            console.log('Menu do usuário clicado');
+        }
+    </script>
+
+<!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
+<!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/unsaved-changes.js?v=20260108"></script>
+    <script src="/js/modal-integration.js?v=20260108"></script>
+</body>
+</html>
+

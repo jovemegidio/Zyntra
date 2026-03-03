@@ -1,0 +1,888 @@
+/* ============================================================
+   ALUFORCE DESIGN SYSTEM — Global Layout CSS
+   Padrão extraído do módulo Vendas (gold standard)
+   v1.0 — Sidebar 56px + Header 48px + Dark Theme
+   ============================================================ */
+
+/* Import bridge CSS for backward compatibility */
+@import url('global-layout-bridge.css');
+
+/* ============================================================
+   1. CSS CUSTOM PROPERTIES (Design Tokens)
+   ============================================================ */
+:root {
+    /* Layout Dimensions */
+    --sidebar-width: 56px;
+    --header-height: 48px;
+
+    /* Core Colors */
+    --primary-brand: #225cfa;
+    --primary-dark: #1a1a2e;
+    --primary-dark-alt: #0f172a;
+    --bg-gray: #f5f5f5;
+    --bg-white: #ffffff;
+    --border-color: #e5e5e5;
+    --border-light: #e2e8f0;
+    --border-lighter: #f0f0f0;
+
+    /* Text Colors */
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --text-muted: #8b8b9a;
+    --text-white: #ffffff;
+
+    /* Accent Colors */
+    --accent-blue: #225cfa;
+    --accent-green: #22c55e;
+    --accent-emerald: #10b981;
+    --accent-yellow: #eab308;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-orange: #f97316;
+    --accent-purple: #8b5cf6;
+    --accent-indigo: #667eea;
+
+    /* Notification Colors */
+    --notif-success: #22c55e;
+    --notif-warning: #f59e0b;
+    --notif-error: #ef4444;
+    --notif-info: #3b82f6;
+    --notif-order: #8b5cf6;
+    --notif-payment: #10b981;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.2);
+
+    /* Typography */
+    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-xs: 11px;
+    --font-sm: 12px;
+    --font-base: 13px;
+    --font-md: 14px;
+    --font-lg: 16px;
+    --font-xl: 18px;
+
+    /* Transitions */
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.2s ease;
+    --transition-slow: 0.3s ease;
+
+    /* Z-Index Scale */
+    --z-sidebar: 100;
+    --z-header: 90;
+    --z-dropdown: 1000;
+    --z-modal: 10000;
+    --z-notification: 99999;
+}
+
+/* ============================================================
+   2. GLOBAL RESET (layout-specific)
+   ============================================================ */
+.alf-layout * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body.alf-body {
+    font-family: var(--font-family);
+    background: var(--bg-gray);
+    color: var(--text-primary);
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+/* ============================================================
+   3. APP CONTAINER (Flex: sidebar + main)
+   ============================================================ */
+.alf-layout {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+/* ============================================================
+   4. SIDEBAR — 56px, dark, icon-only
+   ============================================================ */
+.alf-sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    background: var(--primary-dark);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    z-index: var(--z-sidebar);
+    overflow: hidden;
+    transition: width var(--transition-slow);
+}
+
+.alf-sidebar-logo {
+    width: 36px;
+    height: 36px;
+    background: var(--primary-brand);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform var(--transition-normal), background var(--transition-normal);
+}
+
+.alf-sidebar-logo:hover {
+    transform: scale(1.08);
+    background: #3a6fff;
+}
+
+.alf-sidebar-logo i {
+    color: var(--text-white);
+    font-size: var(--font-xl);
+}
+
+/* Navigation */
+.alf-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    width: 100%;
+    align-items: center;
+}
+
+.alf-sidebar-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-xl);
+    transition: all var(--transition-normal);
+    position: relative;
+    text-decoration: none;
+}
+
+.alf-sidebar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-white);
+}
+
+.alf-sidebar-btn:focus,
+.alf-sidebar-btn:focus-visible {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+.alf-sidebar-btn.active {
+    background: var(--primary-brand);
+    color: var(--text-white);
+}
+
+/* Module-specific active color override */
+.alf-sidebar[data-module-color="vendas"] .alf-sidebar-btn.active { background: #225cfa; }
+.alf-sidebar[data-module-color="financeiro"] .alf-sidebar-btn.active { background: #f59e0b; }
+.alf-sidebar[data-module-color="pcp"] .alf-sidebar-btn.active { background: #64748b; }
+.alf-sidebar[data-module-color="compras"] .alf-sidebar-btn.active { background: #10b981; }
+.alf-sidebar[data-module-color="nfe"] .alf-sidebar-btn.active { background: #10b981; }
+.alf-sidebar[data-module-color="rh"] .alf-sidebar-btn.active { background: #8b5cf6; }
+
+/* Badge on sidebar buttons */
+.alf-sidebar-btn .alf-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: var(--accent-red);
+    color: var(--text-white);
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 10px;
+    font-weight: 600;
+    min-width: 16px;
+    text-align: center;
+}
+
+/* Sidebar Bottom */
+.alf-sidebar-bottom {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    align-items: center;
+}
+
+/* Tooltip on hover (right side) */
+.alf-sidebar-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--primary-dark);
+    color: var(--text-white);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: var(--font-sm);
+    font-weight: 500;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    z-index: var(--z-dropdown);
+    box-shadow: var(--shadow-md);
+}
+
+.alf-sidebar-btn:hover::after {
+    opacity: 1;
+}
+
+/* ============================================================
+   5. MAIN AREA (header + content)
+   ============================================================ */
+.alf-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* ============================================================
+   6. HEADER — 48px, dark, logo + module name + actions
+   ============================================================ */
+.alf-header {
+    height: var(--header-height);
+    min-height: var(--header-height);
+    background: var(--primary-dark);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: var(--z-header);
+}
+
+.alf-header-left {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.alf-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-white);
+}
+
+.alf-header-brand img {
+    height: 24px;
+    pointer-events: none;
+}
+
+.alf-header-brand .alf-separator {
+    font-size: var(--font-md);
+    font-weight: 600;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.alf-header-brand .alf-module-name {
+    font-size: var(--font-md);
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* Header Right */
+.alf-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alf-header-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-lg);
+    transition: all var(--transition-normal);
+    position: relative;
+}
+
+.alf-header-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-white);
+}
+
+.alf-header-btn:focus,
+.alf-header-btn:focus-visible {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
+
+/* ============================================================
+   7. USER GREETING + AVATAR
+   ============================================================ */
+.alf-user-greeting {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: 16px;
+    color: var(--text-muted);
+    font-size: var(--font-base);
+}
+
+.alf-user-greeting strong {
+    color: var(--text-white);
+}
+
+.alf-user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-white);
+    font-size: var(--font-md);
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 8px;
+    overflow: hidden;
+    transition: transform var(--transition-normal);
+}
+
+.alf-user-avatar:hover {
+    transform: scale(1.05);
+}
+
+.alf-user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+}
+
+.alf-user-avatar img.visible {
+    display: block;
+}
+
+/* User Dropdown Menu */
+.alf-user-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 220px;
+    background: var(--bg-white);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-notification);
+    display: none;
+    overflow: hidden;
+    animation: alfSlideDown var(--transition-normal);
+}
+
+.alf-user-dropdown.active {
+    display: block;
+}
+
+.alf-user-dropdown-header {
+    padding: 16px;
+    background: linear-gradient(135deg, var(--primary-brand), #1a45c0);
+    color: var(--text-white);
+}
+
+.alf-user-dropdown-header .name {
+    font-weight: 600;
+    font-size: var(--font-md);
+}
+
+.alf-user-dropdown-header .email {
+    font-size: var(--font-xs);
+    opacity: 0.8;
+    margin-top: 2px;
+}
+
+.alf-user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    color: var(--text-primary);
+    font-size: var(--font-base);
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    transition: background var(--transition-fast);
+}
+
+.alf-user-dropdown-item:hover {
+    background: #f8fafc;
+}
+
+.alf-user-dropdown-item i {
+    width: 20px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.alf-user-dropdown-item.danger {
+    color: var(--accent-red);
+    border-top: 1px solid var(--border-light);
+}
+
+.alf-user-dropdown-item.danger i {
+    color: var(--accent-red);
+}
+
+/* ============================================================
+   8. NOTIFICATION SYSTEM
+   ============================================================ */
+.alf-notification-container {
+    position: relative;
+}
+
+.alf-notification-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    min-width: 18px;
+    height: 18px;
+    background: var(--accent-red);
+    color: var(--text-white);
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.4);
+    animation: alfPulseBadge 2s infinite;
+}
+
+.alf-notification-badge.hidden {
+    display: none;
+}
+
+@keyframes alfPulseBadge {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.alf-notification-panel {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: 380px;
+    max-height: 500px;
+    background: var(--bg-white);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    z-index: var(--z-notification);
+    display: none;
+    overflow: hidden;
+    animation: alfSlideDown var(--transition-normal);
+}
+
+.alf-notification-panel.active {
+    display: block;
+}
+
+@keyframes alfSlideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.alf-notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, var(--accent-orange), #ea580c);
+    color: var(--text-white);
+}
+
+.alf-notification-header h3 {
+    margin: 0;
+    font-size: var(--font-lg);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alf-notification-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.alf-notification-actions button {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: var(--text-white);
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition-fast);
+}
+
+.alf-notification-actions button:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Notification Tabs */
+.alf-notification-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background: #f8f8f8;
+}
+
+.alf-notif-tab {
+    flex: 1;
+    padding: 12px;
+    background: none;
+    border: none;
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    border-bottom: 2px solid transparent;
+}
+
+.alf-notif-tab:hover {
+    color: var(--accent-orange);
+}
+
+.alf-notif-tab.active {
+    color: var(--accent-orange);
+    border-bottom-color: var(--accent-orange);
+    font-weight: 600;
+}
+
+/* Notification Items */
+.alf-notification-list {
+    max-height: 340px;
+    overflow-y: auto;
+}
+
+.alf-notification-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-lighter);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+
+.alf-notification-item:hover {
+    background: #f8f8f8;
+}
+
+.alf-notification-item.unread {
+    background: #fff7ed;
+    border-left: 3px solid var(--accent-orange);
+}
+
+.alf-notification-item.important {
+    border-left: 3px solid var(--accent-red);
+}
+
+.alf-notification-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.alf-notification-icon.success { background: #dcfce7; color: var(--notif-success); }
+.alf-notification-icon.warning { background: #fef3c7; color: var(--notif-warning); }
+.alf-notification-icon.error   { background: #fee2e2; color: var(--notif-error); }
+.alf-notification-icon.info    { background: #dbeafe; color: var(--notif-info); }
+.alf-notification-icon.order   { background: #f3e8ff; color: var(--notif-order); }
+.alf-notification-icon.payment { background: #d1fae5; color: var(--notif-payment); }
+
+.alf-notification-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.alf-notification-title {
+    font-size: var(--font-base);
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.alf-notification-message {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.alf-notification-time {
+    font-size: var(--font-xs);
+    color: #999;
+    margin-top: 4px;
+}
+
+.alf-notification-footer {
+    padding: 12px;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+}
+
+.alf-notification-footer a {
+    color: var(--accent-orange);
+    text-decoration: none;
+    font-size: var(--font-sm);
+    font-weight: 500;
+}
+
+.alf-notification-footer a:hover {
+    text-decoration: underline;
+}
+
+/* ============================================================
+   9. CONTENT AREA
+   ============================================================ */
+.alf-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ============================================================
+   10. MOBILE MENU BUTTON (visible < 768px)
+   ============================================================ */
+.alf-mobile-menu-btn {
+    display: none;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: var(--font-lg);
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-normal);
+}
+
+.alf-mobile-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-white);
+}
+
+/* Mobile Overlay */
+.alf-sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: calc(var(--z-sidebar) - 1);
+    opacity: 0;
+    transition: opacity var(--transition-slow);
+}
+
+.alf-sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+}
+
+/* ============================================================
+   11. AUTH LOADING STATE
+   ============================================================ */
+body.alf-auth-loading .alf-layout {
+    opacity: 0;
+    pointer-events: none;
+}
+
+body.alf-auth-loading::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-gray);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ============================================================
+   12. RESPONSIVE DESIGN
+   ============================================================ */
+
+/* Tablet */
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 48px;
+    }
+
+    .alf-sidebar-btn {
+        width: 36px;
+        height: 36px;
+        font-size: var(--font-lg);
+    }
+
+    .alf-sidebar-logo {
+        width: 32px;
+        height: 32px;
+    }
+
+    .alf-sidebar-logo i {
+        font-size: var(--font-lg);
+    }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .alf-mobile-menu-btn {
+        display: flex;
+    }
+
+    .alf-sidebar {
+        position: fixed;
+        top: 0;
+        left: -260px;
+        width: 260px;
+        height: 100vh;
+        z-index: var(--z-sidebar);
+        transition: left var(--transition-slow);
+        padding: 16px;
+        align-items: flex-start;
+    }
+
+    .alf-sidebar.mobile-open {
+        left: 0;
+    }
+
+    /* Expanded sidebar on mobile shows labels */
+    .alf-sidebar.mobile-open .alf-sidebar-btn {
+        width: 100%;
+        height: auto;
+        padding: 10px 12px;
+        justify-content: flex-start;
+        gap: 12px;
+    }
+
+    .alf-sidebar.mobile-open .alf-sidebar-btn::after {
+        display: none;
+    }
+
+    .alf-sidebar.mobile-open .alf-sidebar-btn .alf-nav-label {
+        display: inline;
+    }
+
+    .alf-sidebar.mobile-open .alf-sidebar-logo {
+        margin-bottom: 24px;
+    }
+
+    .alf-layout {
+        flex-direction: column;
+    }
+
+    .alf-main {
+        width: 100%;
+    }
+
+    .alf-header-brand img {
+        height: 20px;
+    }
+
+    .alf-user-greeting span {
+        display: none;
+    }
+}
+
+/* Hidden label (shown only in mobile expanded sidebar) */
+.alf-nav-label {
+    display: none;
+    font-size: var(--font-base);
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.alf-sidebar-btn.active .alf-nav-label {
+    color: var(--text-white);
+}
+
+/* ============================================================
+   13. UTILITY CLASSES
+   ============================================================ */
+.alf-hidden { display: none !important; }
+.alf-visible { display: block !important; }
+.alf-flex { display: flex !important; }
+.alf-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* ============================================================
+   14. SCROLLBAR STYLING
+   ============================================================ */
+.alf-content::-webkit-scrollbar,
+.alf-notification-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.alf-content::-webkit-scrollbar-track,
+.alf-notification-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.alf-content::-webkit-scrollbar-thumb,
+.alf-notification-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+.alf-content::-webkit-scrollbar-thumb:hover,
+.alf-notification-list::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}

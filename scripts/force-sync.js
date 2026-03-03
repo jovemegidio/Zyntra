@@ -6,7 +6,7 @@
 const mysql = require('mysql2/promise');
 
 async function forceSync() {
-    console.log('=== SINCRONIZAÇÁO FORÇADA: Railway -> Local ===\n');
+    console.log('=== SINCRONIZAÇÃO FORÇADA: Railway -> Local ===\n');
     
     const railway = await mysql.createConnection({
         host: 'interchange.proxy.rlwy.net',
@@ -100,7 +100,7 @@ async function forceSync() {
     await local.query('SET FOREIGN_KEY_CHECKS = 1');
     
     // Verificação final
-    console.log('\n=== VERIFICAÇÁO FINAL ===\n');
+    console.log('\n=== VERIFICAÇÃO FINAL ===\n');
     console.log('Tabela'.padEnd(25) + 'Railway'.padStart(10) + 'Local'.padStart(10));
     console.log('-'.repeat(45));
     

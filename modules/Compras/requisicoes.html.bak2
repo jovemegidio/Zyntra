@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Requisições de Compra — ALUFORCE</title>
+    <link rel="icon" type="image/png" href="/images/favicon-aluforce.png">
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260215">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260215">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260201">
+    <style>
+        .fa-duotone { font-family: "Font Awesome 6 Free" !important; font-weight: 900 !important; }
+        /* Item cards */
+        .item-card { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: var(--space-3); margin-bottom: var(--space-3); position: relative; }
+        .item-card .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
+        .item-card .item-header span { font-size: 0.75rem; font-weight: 600; color: var(--primary-500); }
+        .item-card .btn-remove-item { background: none; border: none; color: var(--danger-500); cursor: pointer; font-size: 0.85rem; padding: var(--space-1); }
+        .item-card .form-grid { gap: var(--space-2); }
+        /* Priority radios */
+        .priority-group { display: flex; gap: var(--space-3); margin-top: var(--space-1); }
+        .priority-option { display: flex; align-items: center; gap: 6px; }
+        .priority-option input[type="radio"] { accent-color: var(--primary-500); }
+        .priority-option label { font-size: 0.8rem; color: var(--gray-700); cursor: pointer; }
+        .priority-option.urgente label { color: var(--danger-500); font-weight: 600; }
+        /* Resumo itens */
+        .resumo-itens { display: flex; gap: var(--space-4); padding: var(--space-3); background: var(--gray-50); border-radius: var(--radius-lg); margin-top: var(--space-3); }
+        .resumo-item { text-align: center; }
+        .resumo-item span { display: block; font-size: 0.7rem; color: var(--gray-500); }
+        .resumo-item strong { font-size: 1rem; color: var(--gray-800); }
+        /* Anexos */
+        .anexos-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+        .anexo-item { display: flex; align-items: center; gap: 6px; padding: var(--space-1) var(--space-2); background: var(--gray-100); border-radius: var(--radius-md); font-size: 0.75rem; }
+        .anexo-item .btn-remove { background: none; border: none; color: var(--danger-500); cursor: pointer; }
+        /* View modal */
+        .view-section { margin-bottom: var(--space-4); }
+        .view-section h4 { font-size: 0.85rem; font-weight: 600; color: var(--gray-800); margin-bottom: var(--space-2); padding-bottom: var(--space-1); border-bottom: 1px solid var(--gray-200); }
+        .view-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); }
+        .view-item label { font-size: 0.7rem; color: var(--gray-500); font-weight: 500; text-transform: uppercase; }
+        .view-item p { font-size: 0.85rem; color: var(--gray-800); margin-top: 2px; }
+    </style>
+    <script></script>
+    <script src="/js/anti-copy-protection.js" defer></script>
+</head>
+<body>
+        <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" title="Dashboard" onclick="window.location.href='index.html'"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" title="Pedidos" onclick="window.location.href='pedidos.html'"><i class="fas fa-shopping-cart"></i></button>
+                <button class="sidebar-btn" title="Cotações" onclick="window.location.href='cotacoes.html'"><i class="fas fa-file-invoice-dollar"></i></button>
+                <button class="sidebar-btn" title="Fornecedores" onclick="window.location.href='fornecedores.html'"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn active" title="Requisições" onclick="window.location.href='requisicoes.html'"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" title="Recebimento" onclick="window.location.href='recebimento.html'"><i class="fas fa-truck-loading"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Estoque MP" onclick="window.location.href='gestao-estoque.html'"><i class="fas fa-boxes"></i></button>
+                <button class="sidebar-btn" title="Relatórios" onclick="window.location.href='relatorios.html'"><i class="fas fa-chart-bar"></i></button>
+            </div>
+        </aside>
+
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Requisições</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="notification-container">
+                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()"><i class="fas fa-bell"></i><span class="notification-badge hidden" id="notification-count">0</span></button>
+                    </div>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar"><img src="" alt="" id="user-photo" style="display:none;"><span id="user-initial">U</span></div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-content">
+        <div class="page-header">
+            <div class="page-header-icon" style="background: linear-gradient(135deg, #10b981, #059669);">
+                <i class="fas fa-clipboard-list"></i>
+            </div>
+            <div class="page-header-text">
+                <h1>Requisições de Compra</h1>
+                <p>Solicite e acompanhe requisições de materiais</p>
+            </div>
+            <div class="page-header-actions">
+                <button class="btn btn-primary" onclick="abrirModalNovaRequisicao()"><i class="fas fa-plus"></i> Nova Requisição</button>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-bar" style="background: var(--primary-500);"></div>
+                <div class="stat-card-icon"><i class="fas fa-clipboard-list"></i></div>
+                <div class="stat-card-info"><span class="stat-card-value" id="totalRequisicoes">0</span><span class="stat-card-label">Total Requisições</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-bar" style="background: var(--warning-500);"></div>
+                <div class="stat-card-icon" style="color: var(--warning-500);"><i class="fas fa-clock"></i></div>
+                <div class="stat-card-info"><span class="stat-card-value" id="requisicoesPendentes">0</span><span class="stat-card-label">Pendentes</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-bar" style="background: var(--success-500);"></div>
+                <div class="stat-card-icon" style="color: var(--success-500);"><i class="fas fa-check-double"></i></div>
+                <div class="stat-card-info"><span class="stat-card-value" id="requisicoesAprovadas">0</span><span class="stat-card-label">Aprovadas</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-bar" style="background: var(--info-500);"></div>
+                <div class="stat-card-icon" style="color: var(--info-500);"><i class="fas fa-file-invoice-dollar"></i></div>
+                <div class="stat-card-info"><span class="stat-card-value" id="requisicoesCotacao">0</span><span class="stat-card-label">Em Cotação</span></div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchRequisicao" placeholder="Buscar requisição...">
+            </div>
+            <div class="filter-buttons">
+                <button class="filter-btn active" onclick="filtrarRequisicoes('todos', this)">Todas</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('pendente', this)">Pendentes</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('aprovada', this)">Aprovadas</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('cotacao', this)">Em Cotação</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('rascunho', this)">Rascunhos</button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="card">
+            <div class="card-body" style="padding:0;">
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:50px">#</th>
+                                <th>Nº Requisição</th>
+                                <th>Solicitante</th>
+                                <th>Data</th>
+                                <th>Centro de Custo</th>
+                                <th>Prioridade</th>
+                                <th>Valor Est.</th>
+                                <th>Status</th>
+                                <th style="width:120px">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="requisicoesTableBody">
+                            <tr><td colspan="9" style="text-align:center; padding:var(--space-8); color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i> Carregando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+                </div>
+        </main>
+    </div>
+
+<!-- Modal: Nova Requisição -->
+    <div class="modal-overlay" id="modalNovaRequisicao">
+        <div class="modal" style="max-width:760px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-clipboard-list"></i> Nova Requisição de Compra</h3>
+                <button class="modal-close" onclick="fecharModalNovaRequisicao()">&times;</button>
+            </div>
+            <form id="formNovaRequisicao" onsubmit="event.preventDefault();">
+                <div class="modal-body" style="max-height:60vh; overflow-y:auto;">
+                    <!-- Info -->
+                    <div class="form-grid cols-3">
+                        <div class="form-group"><label>Nº Requisição</label><input type="text" id="reqNumero" readonly style="background:var(--gray-100);"></div>
+                        <div class="form-group"><label>Solicitante</label><input type="text" id="reqSolicitante" readonly style="background:var(--gray-100);"></div>
+                        <div class="form-group"><label>Data Solicitação</label><input type="date" id="reqDataSolicitacao" readonly style="background:var(--gray-100);"></div>
+                    </div>
+                    <div class="form-grid cols-3" style="margin-top:var(--space-3);">
+                        <div class="form-group">
+                            <label>Centro de Custo</label>
+                            <select id="reqCentroCusto"><option value="">Selecione</option></select>
+                        </div>
+                        <div class="form-group"><label>Data Necessidade *</label><input type="date" id="reqDataNecessidade" required></div>
+                        <div class="form-group"><label>Projeto/Obra</label><input type="text" id="reqProjeto" placeholder="Opcional"></div>
+                    </div>
+                    <!-- Priority -->
+                    <div class="form-group" style="margin-top:var(--space-3);">
+                        <label>Prioridade</label>
+                        <div class="priority-group">
+                            <div class="priority-option"><input type="radio" name="prioridade" value="baixa" id="prioBaixa"><label for="prioBaixa">Baixa</label></div>
+                            <div class="priority-option"><input type="radio" name="prioridade" value="normal" id="prioNormal" checked><label for="prioNormal">Normal</label></div>
+                            <div class="priority-option"><input type="radio" name="prioridade" value="alta" id="prioAlta"><label for="prioAlta">Alta</label></div>
+                            <div class="priority-option urgente"><input type="radio" name="prioridade" value="urgente" id="prioUrgente"><label for="prioUrgente"><i class="fas fa-exclamation-triangle"></i> Urgente</label></div>
+                        </div>
+                    </div>
+                    <!-- Justification -->
+                    <div class="form-group" style="margin-top:var(--space-3);">
+                        <label>Justificativa *</label>
+                        <textarea id="reqJustificativa" rows="2" required placeholder="Descreva a necessidade..."></textarea>
+                    </div>
+                    <!-- Items -->
+                    <div style="margin-top:var(--space-4); padding-top:var(--space-3); border-top:1px solid var(--gray-200);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-3);">
+                            <h4 style="font-size:0.85rem; font-weight:600; color:var(--gray-800);"><i class="fas fa-boxes"></i> Itens da Requisição</h4>
+                            <button type="button" class="btn btn-primary" style="font-size:0.75rem; padding:var(--space-1) var(--space-3);" onclick="adicionarItemReq()"><i class="fas fa-plus"></i> Adicionar Item</button>
+                        </div>
+                        <div id="itensContainer"></div>
+                        <div class="resumo-itens">
+                            <div class="resumo-item"><span>Total Itens</span><strong id="totalItens">0</strong></div>
+                            <div class="resumo-item"><span>Qtd. Total</span><strong id="qtdTotal">0</strong></div>
+                            <div class="resumo-item"><span>Valor Estimado</span><strong id="valorTotal">R$ 0,00</strong></div>
+                        </div>
+                    </div>
+                    <!-- Extra -->
+                    <div class="form-grid cols-1" style="margin-top:var(--space-3);">
+                        <div class="form-group"><label>Fornecedores Sugeridos</label><input type="text" id="fornecedoresSugeridos" placeholder="Opcional — separe por vírgula"></div>
+                        <div class="form-group"><label>Observações</label><textarea id="reqObservacoes" rows="2"></textarea></div>
+                        <div class="form-group">
+                            <label>Anexos</label>
+                            <input type="file" id="reqAnexos" multiple onchange="handleAnexos(this)" style="font-size:0.8rem;">
+                            <div class="anexos-list" id="anexosList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer" style="justify-content:space-between;">
+                    <button type="button" class="btn btn-secondary" id="btnCancelarRequisicao" onclick="fecharModalNovaRequisicao()">Cancelar</button>
+                    <div style="display:flex; gap:var(--space-2);">
+                        <button type="button" class="btn btn-secondary" id="btnSalvarRascunho" onclick="salvarRascunho()"><i class="fas fa-save"></i> Salvar Rascunho</button>
+                        <button type="button" class="btn btn-primary" id="btnEnviarRequisicao" onclick="enviarRequisicao()"><i class="fas fa-paper-plane"></i> Enviar Requisição</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Visualizar Requisição -->
+    <div class="modal-overlay" id="modalVisualizarRequisicao">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye"></i> Requisição <span id="viewReqNumero"></span></h3>
+                <button class="modal-close" onclick="fecharModalVisualizar()">&times;</button>
+            </div>
+            <div class="modal-body" id="viewReqContent" style="max-height:60vh; overflow-y:auto;">
+                <p style="text-align:center; color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i></p>
+            </div>
+            <div class="modal-footer" id="viewReqFooter">
+                <button class="btn btn-secondary" onclick="fecharModalVisualizar()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /* ========== State ========== */
+    let requisicoesData = [];
+    let materiaisData = [];
+    let centrosCustoData = [];
+    let usuarioLogado = null;
+    let filtroAtual = 'todos';
+    let termoBusca = '';
+    let itemCounter = 0;
+    let anexosFiles = [];
+    const avatarNameMap = {};
+
+    function toggleMobileSidebar() {
+        document.getElementById('mobile-sidebar').classList.toggle('mobile-open');
+    }
+
+    /* ========== Init ========== */
+    document.addEventListener('DOMContentLoaded', () => {
+        carregarUsuarioLogado();
+        carregarDadosIniciais();
+        configurarEventos();
+    });
+
+    async function carregarUsuarioLogado() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { usuarioLogado = await r.json(); }
+        } catch (e) { console.log('Erro user:', e); }
+    }
+
+    async function carregarDadosIniciais() {
+        await Promise.all([carregarRequisicoes(), carregarMateriais(), carregarCentrosCusto()]);
+    }
+
+    async function carregarRequisicoes() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/requisicoes', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) {
+                const data = await r.json();
+                requisicoesData = data.requisicoes || data || [];
+            }
+        } catch (e) { console.log('Erro requisições:', e); requisicoesData = gerarDadosExemplo(); }
+        atualizarContadores();
+        filtrarRequisicoes(filtroAtual);
+    }
+
+    async function carregarMateriais() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/pcp/produtos?limit=1000', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { const d = await r.json(); materiaisData = d.produtos || d || []; }
+        } catch (e) { console.log('Erro materiais:', e); }
+    }
+
+    async function carregarCentrosCusto() {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/centros-custo', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { const d = await r.json(); centrosCustoData = d.centros || d || []; }
+        } catch (e) { console.log('Erro CC:', e); }
+    }
+
+    function gerarDadosExemplo() {
+        return [
+            { id: 1, numero: 'RC-001', solicitante: 'Admin', data_solicitacao: new Date().toISOString(), centro_custo: 'Produção', prioridade: 'normal', valor_estimado: 1500, status: 'pendente' },
+            { id: 2, numero: 'RC-002', solicitante: 'Admin', data_solicitacao: new Date().toISOString(), centro_custo: 'Manutenção', prioridade: 'alta', valor_estimado: 3200, status: 'aprovada' }
+        ];
+    }
+
+    function configurarEventos() {
+        const search = document.getElementById('searchRequisicao');
+        if (search) search.addEventListener('input', () => { termoBusca = search.value; filtrarRequisicoes(filtroAtual); });
+    }
+
+    /* ========== Filter & Render ========== */
+    function filtrarRequisicoes(status, btn) {
+        filtroAtual = status;
+        if (btn) { document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+        let dados = [...requisicoesData];
+        if (status !== 'todos') dados = dados.filter(r => r.status === status);
+        if (termoBusca) {
+            const t = termoBusca.toLowerCase();
+            dados = dados.filter(r => (r.numero || '').toLowerCase().includes(t) || (r.solicitante || '').toLowerCase().includes(t));
+        }
+        renderizarTabela(dados);
+    }
+
+    function renderizarTabela(dados) {
+        const tbody = document.getElementById('requisicoesTableBody');
+        if (!dados.length) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:var(--space-8); color:var(--gray-400);"><i class="fas fa-inbox"></i> Nenhuma requisição encontrada</td></tr>';
+            return;
+        }
+        tbody.innerHTML = dados.map((r, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td><strong>${r.numero || '-'}</strong></td>
+                <td>${r.solicitante || '-'}</td>
+                <td>${formatarData(r.data_solicitacao)}</td>
+                <td>${r.centro_custo || '-'}</td>
+                <td><span class="badge badge-${r.prioridade === 'urgente' ? 'urgent' : r.prioridade === 'alta' ? 'pending' : r.prioridade === 'normal' ? 'in-progress' : 'approved'}">${r.prioridade || 'normal'}</span></td>
+                <td>${formatarMoeda(r.valor_estimado)}</td>
+                <td><span class="badge badge-${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span></td>
+                <td>
+                    <div class="action-btns">
+                        <button class="action-btn" onclick="visualizarRequisicao(${r.id})" title="Ver"><i class="fas fa-eye"></i></button>
+                        ${r.status === 'rascunho' || r.status === 'pendente' ? '<button class="action-btn" onclick="editarRequisicao(' + r.id + ')" title="Editar"><i class="fas fa-edit"></i></button>' : ''}
+                        ${r.status === 'rascunho' ? '<button class="action-btn" style="color:var(--danger-500);" onclick="excluirRequisicao(' + r.id + ')" title="Excluir"><i class="fas fa-trash"></i></button>' : ''}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function atualizarContadores() {
+        document.getElementById('totalRequisicoes').textContent = requisicoesData.length;
+        document.getElementById('requisicoesPendentes').textContent = requisicoesData.filter(r => r.status === 'pendente' || r.status === 'urgente').length;
+        document.getElementById('requisicoesAprovadas').textContent = requisicoesData.filter(r => r.status === 'aprovada').length;
+        document.getElementById('requisicoesCotacao').textContent = requisicoesData.filter(r => r.status === 'cotacao' || r.status === 'em_cotacao').length;
+    }
+
+    /* ========== Modal: Nova Requisição ========== */
+    async function abrirModalNovaRequisicao() {
+        document.getElementById('formNovaRequisicao').reset();
+        itemCounter = 0;
+        anexosFiles = [];
+        document.getElementById('itensContainer').innerHTML = '';
+        document.getElementById('anexosList').innerHTML = '';
+        document.getElementById('reqDataSolicitacao').value = new Date().toISOString().split('T')[0];
+        if (usuarioLogado) document.getElementById('reqSolicitante').value = usuarioLogado.nome || usuarioLogado.name || 'Usuário';
+        // Populate CC
+        const sel = document.getElementById('reqCentroCusto');
+        sel.innerHTML = '<option value="">Selecione</option>' + centrosCustoData.map(c => `<option value="${c.id || c.nome}">${c.nome || c.descricao}</option>`).join('');
+        // Get next number
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/requisicoes/proximo-numero', { headers: { 'Authorization': `Bearer ${token}` } });
+            if (r.ok) { const d = await r.json(); document.getElementById('reqNumero').value = d.numero || d.proximo_numero || ''; }
+        } catch (e) { document.getElementById('reqNumero').value = 'RC-' + String(requisicoesData.length + 1).padStart(3, '0'); }
+        adicionarItemReq();
+        document.getElementById('modalNovaRequisicao').classList.add('active');
+    }
+
+    function fecharModalNovaRequisicao() {
+        document.getElementById('modalNovaRequisicao').classList.remove('active');
+    }
+
+    function adicionarItemReq() {
+        itemCounter++;
+        const id = itemCounter;
+        const materiaisOptions = materiaisData.map(m => `<option value="${m.nome || m.descricao}">${m.codigo ? m.codigo + ' - ' : ''}${m.nome || m.descricao}</option>`).join('');
+        const html = `
+        <div class="item-card" id="item-${id}">
+            <div class="item-header">
+                <span>Item #${id}</span>
+                <button type="button" class="btn-remove-item" onclick="removerItem(${id})" title="Remover"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="form-grid cols-4">
+                <div class="form-group" style="grid-column:span 2;">
+                    <label>Material/Produto</label>
+                    <input type="text" id="itemMaterial-${id}" list="listMateriais-${id}" placeholder="Buscar material..." oninput="buscarPrecoMaterial(this, ${id})">
+                    <datalist id="listMateriais-${id}">${materiaisOptions}</datalist>
+                </div>
+                <div class="form-group"><label>Quantidade</label><input type="number" id="itemQtd-${id}" min="1" value="1" onchange="calcularSubtotal(${id})"></div>
+                <div class="form-group"><label>Unidade</label>
+                    <select id="itemUnidade-${id}"><option value="UN">UN</option><option value="KG">KG</option><option value="M">M</option><option value="L">L</option><option value="CX">CX</option><option value="PC">PC</option></select>
+                </div>
+                <div class="form-group"><label>Preço Unit. Est.</label><input type="number" id="itemPreco-${id}" step="0.01" min="0" value="0" onchange="calcularSubtotal(${id})"></div>
+                <div class="form-group"><label>Subtotal</label><input type="text" id="itemSubtotal-${id}" readonly value="R$ 0,00" style="background:var(--gray-100);"></div>
+                <div class="form-group" style="grid-column:span 2;"><label>Especificação</label><input type="text" id="itemSpec-${id}" placeholder="Detalhes adicionais..."></div>
+            </div>
+        </div>`;
+        document.getElementById('itensContainer').insertAdjacentHTML('beforeend', html);
+        atualizarResumoItens();
+    }
+
+    function removerItem(id) {
+        const items = document.querySelectorAll('.item-card');
+        if (items.length <= 1) { alert('Mínimo 1 item'); return; }
+        document.getElementById('item-' + id)?.remove();
+        atualizarResumoItens();
+    }
+
+    function calcularSubtotal(id) {
+        const qtd = parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0;
+        const preco = parseFloat(document.getElementById('itemPreco-' + id)?.value) || 0;
+        const sub = qtd * preco;
+        const el = document.getElementById('itemSubtotal-' + id);
+        if (el) el.value = formatarMoeda(sub);
+        atualizarResumoItens();
+    }
+
+    function atualizarResumoItens() {
+        const items = document.querySelectorAll('.item-card');
+        let totalQtd = 0, totalVal = 0;
+        items.forEach(item => {
+            const id = item.id.split('-')[1];
+            totalQtd += parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0;
+            const qtd = parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0;
+            const preco = parseFloat(document.getElementById('itemPreco-' + id)?.value) || 0;
+            totalVal += qtd * preco;
+        });
+        document.getElementById('totalItens').textContent = items.length;
+        document.getElementById('qtdTotal').textContent = totalQtd;
+        document.getElementById('valorTotal').textContent = formatarMoeda(totalVal);
+    }
+
+    function buscarPrecoMaterial(input, itemId) {
+        const mat = materiaisData.find(m => (m.nome || m.descricao) === input.value);
+        if (mat && mat.preco_unitario) {
+            document.getElementById('itemPreco-' + itemId).value = mat.preco_unitario;
+            calcularSubtotal(itemId);
+        }
+    }
+
+    function enviarRequisicao() { salvarRequisicaoAPI('pendente'); }
+    function salvarRascunho() { salvarRequisicaoAPI('rascunho'); }
+
+    async function salvarRequisicaoAPI(status) {
+        const justificativa = document.getElementById('reqJustificativa').value;
+        if (status !== 'rascunho' && !justificativa) { alert('Preencha a justificativa'); return; }
+        const items = [];
+        document.querySelectorAll('.item-card').forEach(card => {
+            const id = card.id.split('-')[1];
+            items.push({
+                material: document.getElementById('itemMaterial-' + id)?.value || '',
+                quantidade: parseFloat(document.getElementById('itemQtd-' + id)?.value) || 0,
+                unidade: document.getElementById('itemUnidade-' + id)?.value || 'UN',
+                preco_unitario: parseFloat(document.getElementById('itemPreco-' + id)?.value) || 0,
+                especificacao: document.getElementById('itemSpec-' + id)?.value || ''
+            });
+        });
+        const prioridade = document.querySelector('input[name="prioridade"]:checked')?.value || 'normal';
+        const body = {
+            numero: document.getElementById('reqNumero').value,
+            centro_custo: document.getElementById('reqCentroCusto').value,
+            data_necessidade: document.getElementById('reqDataNecessidade').value,
+            projeto: document.getElementById('reqProjeto').value,
+            prioridade, justificativa, status, itens: items,
+            fornecedores_sugeridos: document.getElementById('fornecedoresSugeridos').value,
+            observacoes: document.getElementById('reqObservacoes').value
+        };
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch('/api/compras/requisicoes', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(body)
+            });
+            if (!r.ok) throw new Error('Erro ao salvar');
+            fecharModalNovaRequisicao();
+            carregarRequisicoes();
+            alert(status === 'rascunho' ? 'Rascunho salvo!' : 'Requisição enviada!');
+        } catch (e) { alert('Erro: ' + e.message); }
+    }
+
+    /* ========== View / Edit / Delete ========== */
+    async function visualizarRequisicao(id) {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`/api/compras/requisicoes/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const d = await r.json();
+            const req = d.requisicao || d;
+            document.getElementById('viewReqNumero').textContent = req.numero || '';
+            let itensHtml = '';
+            if (req.itens && req.itens.length) {
+                itensHtml = '<table class="data-table" style="font-size:0.8rem;"><thead><tr><th>Material</th><th>Qtd</th><th>Un</th><th>Preço</th><th>Subtotal</th></tr></thead><tbody>' +
+                    req.itens.map(it => `<tr><td>${it.material}</td><td>${it.quantidade}</td><td>${it.unidade}</td><td>${formatarMoeda(it.preco_unitario)}</td><td>${formatarMoeda((it.quantidade || 0) * (it.preco_unitario || 0))}</td></tr>`).join('') +
+                    '</tbody></table>';
+            }
+            document.getElementById('viewReqContent').innerHTML =
+                '<div class="view-section"><h4>Informações Gerais</h4><div class="view-grid">' +
+                '<div class="view-item"><label>Nº Requisição</label><p>' + (req.numero || '-') + '</p></div>' +
+                '<div class="view-item"><label>Solicitante</label><p>' + (req.solicitante || '-') + '</p></div>' +
+                '<div class="view-item"><label>Data</label><p>' + formatarData(req.data_solicitacao) + '</p></div>' +
+                '<div class="view-item"><label>Centro de Custo</label><p>' + (req.centro_custo || '-') + '</p></div>' +
+                '<div class="view-item"><label>Prioridade</label><p><span class="badge badge-' + (req.prioridade === 'urgente' ? 'urgent' : 'pending') + '">' + (req.prioridade || 'normal') + '</span></p></div>' +
+                '<div class="view-item"><label>Status</label><p><span class="badge badge-' + getStatusClass(req.status) + '">' + getStatusLabel(req.status) + '</span></p></div>' +
+                '</div></div>' +
+                '<div class="view-section"><h4>Justificativa</h4><p style="font-size:0.85rem; color:var(--gray-700);">' + (req.justificativa || '-') + '</p></div>' +
+                (itensHtml ? '<div class="view-section"><h4>Itens</h4>' + itensHtml + '</div>' : '') +
+                (req.observacoes ? '<div class="view-section"><h4>Observações</h4><p style="font-size:0.85rem; color:var(--gray-700);">' + req.observacoes + '</p></div>' : '');
+            document.getElementById('modalVisualizarRequisicao').classList.add('active');
+        } catch (e) { alert('Erro ao carregar requisição'); }
+    }
+
+    function fecharModalVisualizar() {
+        document.getElementById('modalVisualizarRequisicao').classList.remove('active');
+    }
+
+    async function editarRequisicao(id) {
+        try {
+            const token = localStorage.getItem('token');
+            const r = await fetch(`/api/compras/requisicoes/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const d = await r.json();
+            const req = d.requisicao || d;
+            if (req.status !== 'rascunho' && req.status !== 'pendente') { alert('Esta requisição não pode ser editada.'); return; }
+            await abrirModalNovaRequisicao();
+            document.getElementById('reqNumero').value = req.numero || '';
+            document.getElementById('reqJustificativa').value = req.justificativa || '';
+            document.getElementById('reqObservacoes').value = req.observacoes || '';
+            if (req.prioridade) {
+                const radio = document.querySelector(`input[name="prioridade"][value="${req.prioridade}"]`);
+                if (radio) radio.checked = true;
+            }
+        } catch (e) { alert('Erro ao carregar para edição'); }
+    }
+
+    async function excluirRequisicao(id) {
+        if (!confirm('Excluir esta requisição?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await fetch(`/api/compras/requisicoes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            carregarRequisicoes();
+            alert('Requisição excluída!');
+        } catch (e) { alert('Erro: ' + e.message); }
+    }
+
+    /* ========== Attachments ========== */
+    function handleAnexos(input) {
+        const files = Array.from(input.files);
+        files.forEach(f => {
+            if (f.size > 10 * 1024 * 1024) { alert(`${f.name} excede 10MB`); return; }
+            anexosFiles.push(f);
+        });
+        renderizarAnexos();
+        input.value = '';
+    }
+
+    function renderizarAnexos() {
+        document.getElementById('anexosList').innerHTML = anexosFiles.map((f, i) =>
+            '<div class="anexo-item"><i class="fas fa-paperclip"></i> ' + f.name +
+            ' <button type="button" class="btn-remove" onclick="removerAnexo(' + i + ')"><i class="fas fa-times"></i></button></div>'
+        ).join('');
+    }
+
+    function removerAnexo(index) { anexosFiles.splice(index, 1); renderizarAnexos(); }
+
+    /* ========== Export ========== */
+    function exportarDados() {
+        if (!requisicoesData.length) { alert('Sem dados para exportar'); return; }
+        const bom = '\uFEFF';
+        let csv = bom + 'Nº;Solicitante;Data;Centro Custo;Prioridade;Valor;Status\n';
+        requisicoesData.forEach(r => {
+            csv += `${r.numero};${r.solicitante};${formatarData(r.data_solicitacao)};${r.centro_custo};${r.prioridade};${r.valor_estimado || 0};${r.status}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'requisicoes_compras.csv'; a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    /* ========== Helpers ========== */
+    function getStatusClass(s) {
+        const map = { pendente: 'pending', aprovada: 'approved', rascunho: 'in-progress', cotacao: 'in-progress', em_cotacao: 'in-progress', rejeitada: 'cancelled', urgente: 'urgent', finalizada: 'approved' };
+        return map[s] || 'pending';
+    }
+    function getStatusLabel(s) {
+        const map = { pendente: 'Pendente', aprovada: 'Aprovada', rascunho: 'Rascunho', cotacao: 'Em Cotação', em_cotacao: 'Em Cotação', rejeitada: 'Rejeitada', urgente: 'Urgente', finalizada: 'Finalizada' };
+        return map[s] || s || '-';
+    }
+    function formatarData(d) { if (!d) return '-'; try { return new Date(d).toLocaleDateString('pt-BR'); } catch (e) { return d; } }
+    function formatarMoeda(v) { return (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+    function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+    </script>
+
+    <script src="/modules/Compras/compras-user-loader.js?v=20260214"></script>
+    <script src="/js/popup-confirmacao.js"></script>
+    <script src="/js/mobile-menu.js"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+    <script>
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('mobile-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar) sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('active');
+        }
+        function toggleNotificacoes() { const p = document.getElementById('notification-panel'); if (p) p.classList.toggle('active'); }
+    </script>
+</body>
+</html>

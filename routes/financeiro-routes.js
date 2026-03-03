@@ -34,23 +34,23 @@ module.exports = function createFinanceiroRoutes(deps) {
                 AND MONTH(data_vencimento) = MONTH(CURRENT_DATE())
                 AND YEAR(data_vencimento) = YEAR(CURRENT_DATE())
             `);
-    
+
             // Contas a receber pendentes
             const [contasReceber] = await pool.query(`
                 SELECT COALESCE(SUM(valor), 0) as total
                 FROM contas_receber
                 WHERE status = 'pendente'
             `);
-    
+
             // Contas a pagar pendentes
             const [contasPagar] = await pool.query(`
                 SELECT COALESCE(SUM(valor), 0) as total
                 FROM contas_pagar
                 WHERE status = 'pendente'
             `);
-    
+
             const saldoTotal = faturamento[0].total + contasReceber[0].total - contasPagar[0].total;
-    
+
             res.json({
                 success: true,
                 data: {
@@ -69,7 +69,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             });
         }
     });
-    
+
     // 1. Conciliação Bancária Automatizada
     router.post('/conciliacao/importar-ofx', async (req, res, next) => {
         res.json({ message: 'Importação de OFX recebida. (Simulação)' });
@@ -77,7 +77,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     router.get('/conciliacao', async (req, res, next) => {
         res.json({ conciliados: [], divergentes: [] });
     });
-    
+
     // 2. Fluxo de Caixa Detalhado e Projetado
     router.get('/fluxo-caixa', async (req, res, next) => {
         try {
@@ -93,7 +93,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             });
         } catch (error) { next(error); }
     });
-    
+
     // 3. Centro de Custos e de Lucro
     router.get('/centros-custo', async (req, res, next) => {
         try {
@@ -118,7 +118,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     // 4. Gestão de Transações Recorrentes
     router.get('/transacoes-recorrentes', async (req, res, next) => {
         res.json([]);
@@ -126,7 +126,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     router.post('/transacoes-recorrentes', async (req, res, next) => {
         res.status(201).json({ message: 'Transação recorrente agendada.' });
     });
-    
+
     // 5. Emissão de Boletos e Notas Fiscais (NFS-e)
     router.post('/emitir-boleto', async (req, res, next) => {
         res.json({ message: 'Boleto emitido (simulação).' });
@@ -134,13 +134,13 @@ module.exports = function createFinanceiroRoutes(deps) {
     router.post('/emitir-nfse', async (req, res, next) => {
         res.json({ message: 'NFS-e emitida (simulação).' });
     });
-    
+
     // 6. Anexo de Comprovantes Digitais
     router.post('/anexar-comprovante', upload.single('comprovante'), async (req, res, next) => {
         if (!req.file) return res.status(400).json({ message: 'Arquivo não enviado.' });
         res.json({ message: 'Comprovante anexado!', url: `/uploads/comprovantes/${req.file.filename}` });
     });
-    
+
     // 7. Dashboard de Indicadores-Chave (KPIs) - VERSÁO MELHORADA
     router.get('/dashboard-kpis', async (req, res, next) => {
         try {
@@ -152,7 +152,7 @@ module.exports = function createFinanceiroRoutes(deps) {
                 AND MONTH(data_vencimento) = MONTH(CURRENT_DATE())
                 AND YEAR(data_vencimento) = YEAR(CURRENT_DATE())
             `);
-    
+
             // Despesas do mês atual
             const [despesas] = await pool.query(`
                 SELECT COALESCE(SUM(valor), 0) as total
@@ -161,14 +161,14 @@ module.exports = function createFinanceiroRoutes(deps) {
                 AND MONTH(data_vencimento) = MONTH(CURRENT_DATE())
                 AND YEAR(data_vencimento) = YEAR(CURRENT_DATE())
             `);
-    
+
             // Contas em atraso
             const [atrasadas] = await pool.query(`
                 SELECT COUNT(*) as count, COALESCE(SUM(valor), 0) as valor_total
                 FROM contas_receber
                 WHERE status != 'pago' AND data_vencimento < CURRENT_DATE()
             `);
-    
+
             // Fluxo de caixa projetado próximos 30 dias
             const [fluxo30dias] = await pool.query(`
                 SELECT
@@ -182,13 +182,13 @@ module.exports = function createFinanceiroRoutes(deps) {
                     WHERE status != 'pago' AND data_vencimento BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)
                 ) as fluxo
             `);
-    
+
             const receita_mes = receitas[0].total;
             const despesa_mes = despesas[0].total;
             const lucro_mes = receita_mes - despesa_mes;
             const margem_lucro = receita_mes > 0 ? ((lucro_mes / receita_mes) * 100).toFixed(2) : 0;
             const inadimplencia = receita_mes > 0 ? ((atrasadas[0].valor_total / receita_mes) * 100).toFixed(2) : 0;
-    
+
             res.json({
                 success: true,
                 data: {
@@ -211,26 +211,26 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     // 8. Gestão de Contas a Receber - NOVA FUNCIONALIDADE
     router.get('/contas-receber', async (req, res, next) => {
         try {
             const { page = 1, limit = 100, status, vencimento_inicio, vencimento_fim } = req.query;
             const offset = (page - 1) * limit;
-    
+
             let whereClause = 'WHERE 1=1';
             const params = [];
-    
+
             if (status) {
                 whereClause += ' AND cr.status = ?';
                 params.push(status);
             }
-    
+
             if (vencimento_inicio && vencimento_fim) {
                 whereClause += ' AND cr.data_vencimento BETWEEN ? AND ?';
                 params.push(vencimento_inicio, vencimento_fim);
             }
-    
+
             const [contas] = await pool.query(`
                 SELECT
                     cr.id,
@@ -261,9 +261,9 @@ module.exports = function createFinanceiroRoutes(deps) {
                 ORDER BY cr.data_vencimento ASC
                 LIMIT ? OFFSET ?
             `, [...params, parseInt(limit), offset]);
-    
+
             console.log('[Financeiro] Contas a receber carregadas:', contas.length);
-    
+
             // Retornar dados em formato compatível com frontend
             res.json({
                 success: true,
@@ -275,24 +275,24 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     router.post('/contas-receber', async (req, res, next) => {
         try {
             const { cliente_nome, valor, data_vencimento, descricao, categoria } = req.body;
-    
+
             if (!cliente_nome || !valor || !data_vencimento) {
                 return res.status(400).json({
                     success: false,
                     message: 'Cliente, valor e data de vencimento são obrigatórios'
                 });
             }
-    
+
             const [result] = await pool.query(`
                 INSERT INTO contas_receber
                 (cliente_nome, valor, data_vencimento, descricao, categoria, status, data_cadastro)
                 VALUES (?, ?, ?, ?, ?, 'pendente', NOW())
             `, [cliente_nome, valor, data_vencimento, descricao, categoria]);
-    
+
             res.status(201).json({
                 success: true,
                 message: 'Conta a receber criada com sucesso',
@@ -302,26 +302,26 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     // 9. Gestão de Contas a Pagar - NOVA FUNCIONALIDADE
     router.get('/contas-pagar', async (req, res, next) => {
         try {
             const { page = 1, limit = 100, status, vencimento_inicio, vencimento_fim } = req.query;
             const offset = (page - 1) * limit;
-    
+
             let whereClause = 'WHERE 1=1';
             const params = [];
-    
+
             if (status) {
                 whereClause += ' AND cp.status = ?';
                 params.push(status);
             }
-    
+
             if (vencimento_inicio && vencimento_fim) {
                 whereClause += ' AND cp.data_vencimento BETWEEN ? AND ?';
                 params.push(vencimento_inicio, vencimento_fim);
             }
-    
+
             let contas;
             try {
                 // Tenta query completa com JOIN
@@ -370,9 +370,9 @@ module.exports = function createFinanceiroRoutes(deps) {
                 `, [...params, parseInt(limit), offset]);
                 contas = result;
             }
-    
+
             console.log('[Financeiro] Contas a pagar carregadas:', contas.length);
-    
+
             // Retornar dados em formato compatível com frontend
             res.json({
                 success: true,
@@ -384,24 +384,24 @@ module.exports = function createFinanceiroRoutes(deps) {
             res.status(500).json({ success: false, data: [], message: 'Erro ao buscar contas a pagar' });
         }
     });
-    
+
     router.post('/contas-pagar', async (req, res, next) => {
         try {
             const { fornecedor_nome, valor, data_vencimento, descricao, categoria } = req.body;
-    
+
             if (!fornecedor_nome || !valor || !data_vencimento) {
                 return res.status(400).json({
                     success: false,
                     message: 'Fornecedor, valor e data de vencimento são obrigatórios'
                 });
             }
-    
+
             const [result] = await pool.query(`
                 INSERT INTO contas_pagar
                 (fornecedor_nome, valor, data_vencimento, descricao, categoria, status, data_cadastro)
                 VALUES (?, ?, ?, ?, ?, 'pendente', NOW())
             `, [fornecedor_nome, valor, data_vencimento, descricao, categoria]);
-    
+
             res.status(201).json({
                 success: true,
                 message: 'Conta a pagar criada com sucesso',
@@ -411,44 +411,44 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     // 10. Relatórios Financeiros Avançados - MELHORADOS
     router.get('/relatorios/dre', async (req, res, next) => {
         try {
             const { ano = new Date().getFullYear(), mes } = req.query;
-    
+
             let whereClause = 'WHERE YEAR(data_vencimento) = ?';
             const params = [ano];
-    
+
             if (mes) {
                 whereClause += ' AND MONTH(data_vencimento) = ?';
                 params.push(mes);
             }
-    
+
             // Receitas
             const [receitas] = await pool.query(`
                 SELECT
-                    categoria,
+                    COALESCE(categoria_nome, 'Sem Categoria') as categoria,
                     COALESCE(SUM(valor), 0) as total
                 FROM contas_receber
                 ${whereClause} AND status = 'pago'
-                GROUP BY categoria
+                GROUP BY categoria_nome
             `, params);
-    
+
             // Despesas
             const [despesas] = await pool.query(`
                 SELECT
-                    categoria,
+                    COALESCE(categoria_nome, 'Sem Categoria') as categoria,
                     COALESCE(SUM(valor), 0) as total
                 FROM contas_pagar
                 ${whereClause} AND status = 'pago'
-                GROUP BY categoria
+                GROUP BY categoria_nome
             `, params);
-    
-            const total_receitas = receitas.reduce((sum, item) => sum + item.total, 0);
-            const total_despesas = despesas.reduce((sum, item) => sum + item.total, 0);
+
+            const total_receitas = receitas.reduce((sum, item) => sum + Number(item.total), 0);
+            const total_despesas = despesas.reduce((sum, item) => sum + Number(item.total), 0);
             const lucro_liquido = total_receitas - total_despesas;
-    
+
             res.json({
                 success: true,
                 data: {
@@ -473,19 +473,19 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     // 11. Fluxo de Caixa Detalhado - NOVA FUNCIONALIDADE
     router.get('/fluxo-caixa', async (req, res, next) => {
         try {
             const { data_inicio, data_fim } = req.query;
-    
+
             if (!data_inicio || !data_fim) {
                 return res.status(400).json({
                     success: false,
                     message: 'Data de início e fim são obrigatórias'
                 });
             }
-    
+
             const [movimentacoes] = await pool.query(`
                 SELECT
                     data_vencimento as data,
@@ -496,9 +496,9 @@ module.exports = function createFinanceiroRoutes(deps) {
                     categoria
                 FROM contas_receber
                 WHERE data_vencimento BETWEEN ? AND ? AND status = 'pago'
-    
+
                 UNION ALL
-    
+
                 SELECT
                     data_vencimento as data,
                     'saida' as tipo,
@@ -508,10 +508,10 @@ module.exports = function createFinanceiroRoutes(deps) {
                     categoria
                 FROM contas_pagar
                 WHERE data_vencimento BETWEEN ? AND ? AND status = 'pago'
-    
+
                 ORDER BY data ASC
             `, [data_inicio, data_fim, data_inicio, data_fim]);
-    
+
             // Calcular saldo acumulado
             let saldo_acumulado = 0;
             const fluxo_detalhado = movimentacoes.map(mov => {
@@ -520,13 +520,13 @@ module.exports = function createFinanceiroRoutes(deps) {
                 } else {
                     saldo_acumulado -= mov.valor;
                 }
-    
+
                 return {
                     ...mov,
                     saldo_acumulado
                 };
             });
-    
+
             res.json({
                 success: true,
                 data: {
@@ -543,18 +543,18 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     // 12. Alertas Financeiros Inteligentes - MELHORADOS
     router.get('/alertas', async (req, res, next) => {
         try {
             const alertas = [];
-    
+
             // Contas vencendo hoje
             const [vencendoHoje] = await pool.query(`
                 SELECT COUNT(*) as count FROM contas_receber
                 WHERE data_vencimento = CURRENT_DATE() AND status != 'pago'
             `);
-    
+
             if (vencendoHoje[0].count > 0) {
                 alertas.push({
                     tipo: 'contas_vencendo_hoje',
@@ -564,25 +564,25 @@ module.exports = function createFinanceiroRoutes(deps) {
                     quantidade: vencendoHoje[0].count
                 });
             }
-    
+
             // Contas em atraso
             const [emAtraso] = await pool.query(`
                 SELECT COUNT(*) as count, COALESCE(SUM(valor), 0) as valor_total
                 FROM contas_receber
                 WHERE data_vencimento < CURRENT_DATE() AND status != 'pago'
             `);
-    
+
             if (emAtraso[0].count > 0) {
                 alertas.push({
                     tipo: 'contas_em_atraso',
                     nivel: 'danger',
                     titulo: 'Contas em Atraso',
-                    mensagem: `${emAtraso[0].count} conta(s) em atraso totalizando R$ ${emAtraso[0].valor_total.toFixed(2)}`,
+                    mensagem: `${emAtraso[0].count} conta(s) em atraso totalizando R$ ${Number(emAtraso[0].valor_total).toFixed(2)}`,
                     quantidade: emAtraso[0].count,
-                    valor: emAtraso[0].valor_total
+                    valor: Number(emAtraso[0].valor_total)
                 });
             }
-    
+
             // Contas a pagar vencendo em 3 dias
             const [pagarVencendo] = await pool.query(`
                 SELECT COUNT(*) as count, COALESCE(SUM(valor), 0) as valor_total
@@ -590,7 +590,7 @@ module.exports = function createFinanceiroRoutes(deps) {
                 WHERE data_vencimento BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 3 DAY)
                 AND status != 'pago'
             `);
-    
+
             if (pagarVencendo[0].count > 0) {
                 alertas.push({
                     tipo: 'contas_pagar_vencendo',
@@ -601,7 +601,7 @@ module.exports = function createFinanceiroRoutes(deps) {
                     valor: pagarVencendo[0].valor_total
                 });
             }
-    
+
             res.json({
                 success: true,
                 data: { alertas }
@@ -610,7 +610,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Integração com Vendas/CRM
     router.post('/integracao/vendas/venda-ganha', [
         body('pedido_id').isInt({ min: 1 }).withMessage('ID do pedido inválido'),
@@ -623,9 +623,9 @@ module.exports = function createFinanceiroRoutes(deps) {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-    
+
             const { pedido_id, cliente_id, valor, descricao } = req.body;
-    
+
             // Verificar se pedido existe e não está já faturado
             const [pedido] = await connection.query('SELECT id, status FROM pedidos WHERE id = ?', [pedido_id]);
             if (pedido.length === 0) {
@@ -636,13 +636,13 @@ module.exports = function createFinanceiroRoutes(deps) {
                 await connection.rollback();
                 return res.status(400).json({ error: 'Pedido já está faturado' });
             }
-    
+
             // Criar conta a receber
             await connection.query('INSERT INTO contas_receber (pedido_id, cliente_id, valor, descricao, status) VALUES (?, ?, ?, ?, "pendente")', [pedido_id, cliente_id, valor, descricao]);
-    
+
             // Atualizar status do pedido
             await connection.query('UPDATE pedidos SET status = "faturado" WHERE id = ?', [pedido_id]);
-    
+
             await connection.commit();
             res.json({ message: 'Conta a receber e pedido faturado gerados.' });
         } catch (error) {
@@ -652,7 +652,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // Integração com Estoque
     router.post('/integracao/estoque/nf-compra', [
         body('fornecedor_id').isInt({ min: 1 }).withMessage('ID do fornecedor inválido'),
@@ -665,20 +665,20 @@ module.exports = function createFinanceiroRoutes(deps) {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
-    
+
             const { fornecedor_id, valor, itens } = req.body;
-    
+
             // Verificar se fornecedor existe
             const [fornecedor] = await connection.query('SELECT id FROM fornecedores WHERE id = ?', [fornecedor_id]);
             if (fornecedor.length === 0) {
                 await connection.rollback();
                 return res.status(404).json({ error: 'Fornecedor não encontrado' });
             }
-    
+
             // Criar conta a pagar
             const [contaResult] = await connection.query('INSERT INTO contas_pagar (fornecedor_id, valor, status) VALUES (?, ?, "pendente")', [fornecedor_id, valor]);
             const contaPagarId = contaResult.insertId;
-    
+
             // Atualizar estoque de cada item e registrar movimentação
             for (const item of itens) {
                 // Verificar se material existe
@@ -687,17 +687,17 @@ module.exports = function createFinanceiroRoutes(deps) {
                     await connection.rollback();
                     return res.status(404).json({ error: `Material ID ${item.material_id} não encontrado` });
                 }
-    
+
                 // Atualizar estoque
                 await connection.query('UPDATE materiais SET quantidade_estoque = quantidade_estoque + ? WHERE id = ?', [item.quantidade, item.material_id]);
-    
+
                 // Registrar movimentação de estoque
                 await connection.query(`
                     INSERT INTO estoque_movimentacoes (material_id, tipo, quantidade, referencia_tipo, referencia_id, observacao, data_movimentacao)
                     VALUES (?, 'entrada', ?, 'nf_compra', ?, 'Entrada via NF de compra', NOW())
                 `, [item.material_id, item.quantidade, contaPagarId]);
             }
-    
+
             await connection.commit();
             res.json({ message: 'Financeiro e estoque atualizados.', conta_pagar_id: contaPagarId });
         } catch (error) {
@@ -707,14 +707,14 @@ module.exports = function createFinanceiroRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // AUDIT-FIX: SECURED previously open API routes — added authenticateToken middleware.
     // These routes were accessible WITHOUT ANY authentication, exposing all contas_receber data.
     router.get('/api-aberta/contas-receber', authenticateToken, async (req, res, next) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 200, 500);
             const offset = parseInt(req.query.offset) || 0;
-            const [rows] = await pool.query('SELECT id, cliente_id, valor, descricao, status, data_vencimento, data_pagamento, created_at FROM contas_receber ORDER BY id DESC LIMIT ? OFFSET ?', [limit, offset]);
+            const [rows] = await pool.query('SELECT id, cliente_id, valor, descricao, status, data_vencimento, data_recebimento, data_criacao FROM contas_receber ORDER BY id DESC LIMIT ? OFFSET ?', [limit, offset]);
             res.json(rows);
         } catch (error) { next(error); }
     });
@@ -731,7 +731,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             res.status(201).json({ message: 'Conta a receber criada via API.' });
         } catch (error) { next(error); }
     });
-    
+
     // Gestão de Riscos com ACL
     router.post('/contas-pagar', authorizeACL('lancar_conta'), async (req, res, next) => {
         res.json({ message: 'Conta a pagar lançada (simulação).' });
@@ -742,7 +742,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     router.get('/relatorios/lucratividade', authorizeACL('ver_relatorio'), async (req, res, next) => {
         res.json({ lucro: 8000 });
     });
-    
+
     // Trilha de Auditoria
     router.post('/audit-trail', [
         body('acao').trim().notEmpty().withMessage('Ação é obrigatória')
@@ -766,18 +766,47 @@ module.exports = function createFinanceiroRoutes(deps) {
             res.json(rows);
         } catch (error) { next(error); }
     });
-    
+
     // Gestão de Orçamento
     router.post('/orcamentos', authorizeACL('criar_orcamento'), async (req, res, next) => {
-        res.status(201).json({ message: 'Orçamento criado (simulação).' });
+        try {
+            const { categoria, centro_custo, limite, alerta, alerta_pct, gasto } = req.body;
+            if (!categoria || !limite) {
+                return res.status(400).json({ error: 'Categoria e limite são obrigatórios' });
+            }
+            const [result] = await pool.query(
+                'INSERT INTO orcamentos (categoria, centro_custo, limite, alerta, alerta_pct, gasto) VALUES (?, ?, ?, ?, ?, ?)',
+                [categoria, centro_custo || null, limite, alerta || null, alerta_pct || 80, gasto || 0]
+            );
+            res.status(201).json({ success: true, id: result.insertId, message: 'Orçamento criado com sucesso' });
+        } catch (error) {
+            console.error('[Financeiro] Erro POST orcamentos:', error.message);
+            next(error);
+        }
     });
     router.get('/orcamentos', authorizeACL('ver_orcamento'), async (req, res, next) => {
-        res.json([{ categoria: 'Marketing', limite: 10000, gasto: 5000 }]);
+        try {
+            const [rows] = await pool.query('SELECT * FROM orcamentos ORDER BY id DESC');
+            res.json(rows);
+        } catch (error) {
+            if (error.code === 'ER_NO_SUCH_TABLE') return res.json([]);
+            console.error('[Financeiro] Erro GET orcamentos:', error.message);
+            next(error);
+        }
     });
     router.get('/orcamentos/alertas', authorizeACL('ver_orcamento'), async (req, res, next) => {
-        res.json([{ categoria: 'Marketing', alerta: 'Limite próximo de ser atingido.' }]);
+        try {
+            const [rows] = await pool.query(
+                'SELECT id, categoria, centro_custo, limite, gasto, alerta, alerta_pct, ROUND((gasto/limite)*100, 1) AS pct_usado FROM orcamentos WHERE limite > 0 AND (gasto/limite)*100 >= COALESCE(alerta_pct, 80) ORDER BY (gasto/limite) DESC'
+            );
+            res.json(rows);
+        } catch (error) {
+            if (error.code === 'ER_NO_SUCH_TABLE') return res.json([]);
+            console.error('[Financeiro] Erro GET orcamentos/alertas:', error.message);
+            next(error);
+        }
     });
-    
+
     // Usabilidade e Experiência
     router.post('/dashboard/personalizar', async (req, res, next) => {
         res.json({ message: 'Preferências de dashboard salvas (simulação).' });
@@ -791,7 +820,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     router.get('/relatorios/personalizar', async (req, res, next) => {
         res.json([{ nome: 'DRE Custom', colunas: ['receitas', 'despesas', 'lucro'] }]);
     });
-    
+
     // Busca Global Inteligente
     router.get('/busca-global', async (req, res, next) => {
         try {
@@ -805,7 +834,7 @@ module.exports = function createFinanceiroRoutes(deps) {
             });
         } catch (error) { next(error); }
     });
-    
+
     // Endpoints básicos mantidos para compatibilidade
     router.get('/faturamento', async (req, res, next) => {
         try {
@@ -820,16 +849,16 @@ module.exports = function createFinanceiroRoutes(deps) {
             res.json({ receber: receber?.total || 0, pagar: pagar?.total || 0, saldo: (receber?.total || 0) - (pagar?.total || 0) });
         } catch (error) { next(error); }
     });
-    
+
     // Fornecedores e Clientes do Financeiro
     router.get('/fornecedores', async (req, res, next) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
-            const [[{ total }]] = await pool.execute('SELECT COUNT(*) as total FROM fornecedores WHERE ativo = 1');
-            const [fornecedores] = await pool.execute(
-                'SELECT id, razao_social, nome_fantasia, cnpj, email, telefone, cidade, uf, ativo, created_at FROM fornecedores WHERE ativo = 1 ORDER BY razao_social LIMIT ? OFFSET ?',
+            const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM fornecedores WHERE ativo = 1');
+            const [fornecedores] = await pool.query(
+                'SELECT id, razao_social, nome_fantasia, cnpj, email, telefone, cidade, estado, ativo, data_cadastro FROM fornecedores WHERE ativo = 1 ORDER BY razao_social LIMIT ? OFFSET ?',
                 [limit, offset]
             );
             res.json({ success: true, data: fornecedores, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
@@ -838,15 +867,15 @@ module.exports = function createFinanceiroRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar fornecedores', message: error.message });
         }
     });
-    
+
     router.get('/clientes', async (req, res, next) => {
         try {
             const limit = Math.min(parseInt(req.query.limit) || 100, 500);
             const page = Math.max(parseInt(req.query.page) || 1, 1);
             const offset = (page - 1) * limit;
-            const [[{ total }]] = await pool.execute('SELECT COUNT(*) as total FROM clientes WHERE ativo = 1');
-            const [clientes] = await pool.execute(
-                'SELECT id, razao_social, nome_fantasia, cnpj, cpf, email, telefone, cidade, uf, ativo, created_at FROM clientes WHERE ativo = 1 ORDER BY razao_social LIMIT ? OFFSET ?',
+            const [[{ total }]] = await pool.query('SELECT COUNT(*) as total FROM clientes');
+            const [clientes] = await pool.query(
+                'SELECT id, razao_social, nome_fantasia, cnpj_cpf, email, telefone, cidade, estado, created_at FROM clientes ORDER BY razao_social LIMIT ? OFFSET ?',
                 [limit, offset]
             );
             res.json({ success: true, data: clientes, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
@@ -855,6 +884,6 @@ module.exports = function createFinanceiroRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar clientes', message: error.message });
         }
     });
-    
+
     return router;
 };

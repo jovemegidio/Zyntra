@@ -1,0 +1,653 @@
+/**
+ * ORDENS DE PRODUÇÃO - MOBILE CSS
+ * Otimizações específicas para Kanban de Ordens de Produção em dispositivos móveis
+ * 
+ * Corrige:
+ * - Header para mobile
+ * - Sidebar navigation
+ * - Kanban columns responsivas
+ * - Cards de ordens
+ * - Modais e formulários
+ */
+
+/* ============================================
+   VARIÁVEIS MOBILE
+   ============================================ */
+:root {
+    --mobile-header-height: 56px;
+    --mobile-sidebar-width: 60px;
+    --mobile-kanban-gap: 12px;
+}
+
+/* ============================================
+   MOBILE BREAKPOINT (768px e menor)
+   ============================================ */
+@media (max-width: 768px) {
+    
+    /* ============================================
+       SIDEBAR MOBILE - Completamente oculta
+       ============================================ */
+    .sidebar {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 280px !important;
+        height: 100vh !important;
+        z-index: 2000 !important;
+        transition: transform 0.3s ease, visibility 0.3s ease !important;
+        padding: 16px !important;
+        transform: translateX(-100%) !important;
+        visibility: hidden !important;
+    }
+    
+    /* Suportar múltiplas classes de abertura */
+    .sidebar.mobile-open,
+    .sidebar.open,
+    .sidebar.active {
+        transform: translateX(0) !important;
+        visibility: visible !important;
+    }
+    
+    /* Sidebar logo dentro do menu mobile */
+    .sidebar-logo {
+        width: 100% !important;
+        height: 48px !important;
+        margin-bottom: 24px !important;
+        justify-content: center !important;
+        border-radius: 12px !important;
+    }
+    
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1999;
+    }
+    
+    .sidebar.mobile-open + .sidebar-overlay,
+    .sidebar-overlay.active {
+        display: block;
+    }
+    
+    .sidebar-nav {
+        flex-direction: column !important;
+        gap: 8px !important;
+        padding: 0 !important;
+    }
+    
+    .sidebar-btn {
+        width: 100% !important;
+        height: 44px !important;
+        justify-content: flex-start !important;
+        padding: 0 16px !important;
+        font-size: 14px !important;
+        gap: 12px !important;
+    }
+    
+    .sidebar-btn i {
+        width: 20px;
+        text-align: center;
+    }
+    
+    .sidebar-btn::after {
+        position: relative !important;
+        left: 0 !important;
+        background: none !important;
+        color: inherit !important;
+        opacity: 1 !important;
+        padding: 0 !important;
+        font-size: 14px !important;
+    }
+    
+    .sidebar-divider {
+        width: 100% !important;
+        margin: 16px 0 !important;
+    }
+    
+    .sidebar-bottom {
+        margin-top: auto !important;
+        padding-top: 16px !important;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    /* ============================================
+       HEADER MOBILE
+       ============================================ */
+    .header {
+        left: 0 !important;
+        height: var(--mobile-header-height) !important;
+        padding: 0 12px !important;
+        position: fixed !important;
+        top: 0 !important;
+        right: 0 !important;
+        z-index: 1000 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+    }
+    
+    /* Esconder qualquer logo/imagem extra no header */
+    .header-brand img,
+    .header-logo,
+    .header-logo img {
+        display: none !important;
+    }
+    
+    .header-left {
+        gap: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+        flex: 1;
+    }
+    
+    /* Botão menu hamburger - estilo unificado */
+    .mobile-menu-toggle,
+    .mobile-menu-btn,
+    .hamburger-btn {
+        display: flex !important;
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        border: none !important;
+        background: rgba(255,255,255,0.15) !important;
+        color: white !important;
+        border-radius: 10px !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 20px !important;
+        cursor: pointer !important;
+        transition: all 0.2s !important;
+        flex-shrink: 0 !important;
+        order: -1 !important; /* Sempre primeiro */
+    }
+    
+    .mobile-menu-toggle:hover,
+    .mobile-menu-toggle:active,
+    .mobile-menu-btn:hover,
+    .mobile-menu-btn:active {
+        background: rgba(255,255,255,0.25) !important;
+        transform: scale(1.05);
+    }
+    
+    /* Se temos dois botões de menu, esconder um deles */
+    .mobile-menu-toggle + .mobile-menu-btn,
+    .mobile-menu-btn + .mobile-menu-toggle {
+        display: none !important;
+    }
+    
+    .header-brand {
+        flex-direction: row !important;
+        gap: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    .header-brand-module {
+        font-size: 15px !important;
+        padding: 4px 10px !important;
+        background: rgba(100, 116, 139, 0.8) !important;
+        border-radius: 6px !important;
+        color: white !important;
+        font-weight: 600 !important;
+    }
+    
+    .header-brand span:last-child {
+        font-size: 13px !important;
+        display: none !important;
+    }
+    
+    .header-brand-divider {
+        display: none !important;
+    }
+    
+    .header-right {
+        gap: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    .header-btn {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: 14px !important;
+    }
+    
+    .user-greeting {
+        display: none !important;
+    }
+    
+    .user-avatar {
+        width: 34px !important;
+        height: 34px !important;
+    }
+    
+    .user-avatar img {
+        width: 34px !important;
+        height: 34px !important;
+    }
+    
+    /* ============================================
+       MAIN AREA MOBILE
+       ============================================ */
+    .main-area {
+        margin-left: 0 !important;
+    }
+    
+    /* ============================================
+       FILTERS BAR MOBILE
+       ============================================ */
+    .filters-bar {
+        position: sticky;
+        top: var(--mobile-header-height);
+        padding: 12px !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        z-index: 100;
+        background: white;
+    }
+    
+    .search-box {
+        width: 100% !important;
+    }
+    
+    .search-box input {
+        width: 100% !important;
+        height: 42px !important;
+        font-size: 15px !important;
+    }
+    
+    .filter-link {
+        font-size: 12px !important;
+        text-align: center;
+    }
+    
+    /* ============================================
+       KANBAN MOBILE - SCROLL HORIZONTAL
+       ============================================ */
+    .kanban-container {
+        padding: 12px !important;
+        padding-top: calc(var(--mobile-header-height) + 80px) !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .kanban-board {
+        display: flex !important;
+        gap: var(--mobile-kanban-gap) !important;
+        min-width: max-content;
+        padding-bottom: 20px;
+    }
+    
+    /* Colunas do Kanban */
+    .kanban-column {
+        min-width: 280px !important;
+        max-width: 300px !important;
+        flex-shrink: 0 !important;
+        border-radius: 12px !important;
+    }
+    
+    .kanban-column-header {
+        padding: 12px !important;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .column-title {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+    }
+    
+    .column-count {
+        font-size: 11px !important;
+    }
+    
+    .column-indicator {
+        width: 10px !important;
+        height: 10px !important;
+    }
+    
+    .kanban-column-content {
+        padding: 8px !important;
+        max-height: calc(100vh - 280px) !important;
+        overflow-y: auto !important;
+    }
+    
+    .kanban-column-footer {
+        padding: 8px !important;
+    }
+    
+    .btn-new-card {
+        padding: 10px !important;
+        font-size: 13px !important;
+        border-radius: 8px !important;
+    }
+    
+    /* ============================================
+       CARDS DE ORDEM MOBILE
+       ============================================ */
+    .kanban-card {
+        padding: 12px !important;
+        border-radius: 10px !important;
+        margin-bottom: 8px !important;
+    }
+    
+    .card-header {
+        margin-bottom: 10px !important;
+    }
+    
+    .card-id {
+        font-size: 13px !important;
+    }
+    
+    .card-badge {
+        font-size: 10px !important;
+        padding: 3px 6px !important;
+    }
+    
+    .card-title {
+        font-size: 14px !important;
+        line-height: 1.4 !important;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    
+    .card-info {
+        gap: 6px !important;
+    }
+    
+    .card-info span {
+        font-size: 11px !important;
+    }
+    
+    .card-footer {
+        padding-top: 10px !important;
+        margin-top: 10px !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    
+    .card-footer-left,
+    .card-footer-right {
+        gap: 6px !important;
+    }
+    
+    .card-meta {
+        font-size: 11px !important;
+    }
+    
+    .card-priority {
+        width: 8px !important;
+        height: 8px !important;
+    }
+    
+    /* ============================================
+       EMPTY COLUMN
+       ============================================ */
+    .empty-column {
+        padding: 24px 16px !important;
+    }
+    
+    .empty-column i {
+        font-size: 28px !important;
+    }
+    
+    .empty-column p {
+        font-size: 12px !important;
+    }
+    
+    /* ============================================
+       MODAIS MOBILE
+       ============================================ */
+    .modal-ordem-container {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .modal-ordem-header {
+        padding: 12px 16px !important;
+    }
+    
+    .modal-ordem-header h2 {
+        font-size: 16px !important;
+    }
+    
+    .modal-ordem-close {
+        padding: 8px !important;
+    }
+    
+    .modal-ordem-body {
+        flex-direction: column !important;
+    }
+    
+    .modal-ordem-main {
+        padding: 16px !important;
+    }
+    
+    .modal-ordem-sidebar {
+        width: 100% !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        padding: 12px !important;
+        gap: 8px !important;
+        border-left: none !important;
+        border-top: 1px solid #e5e5e5;
+        position: sticky;
+        bottom: 0;
+        background: #fafafa;
+    }
+    
+    .modal-ordem-sidebar button {
+        flex: 1 !important;
+        min-width: 80px !important;
+        font-size: 12px !important;
+        padding: 10px 8px !important;
+    }
+    
+    /* Info Cards dentro do modal */
+    .info-card {
+        padding: 12px !important;
+        border-radius: 8px !important;
+    }
+    
+    .info-card h3 {
+        font-size: 13px !important;
+    }
+    
+    .info-row {
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+    
+    .info-item {
+        padding: 8px 0 !important;
+    }
+    
+    .info-item label {
+        font-size: 11px !important;
+    }
+    
+    .info-item span {
+        font-size: 13px !important;
+    }
+    
+    /* ============================================
+       FORMULÁRIO NOVA ORDEM
+       ============================================ */
+    .form-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    
+    .form-group label {
+        font-size: 12px !important;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        height: 44px !important;
+        font-size: 15px !important;
+        padding: 10px 12px !important;
+    }
+    
+    .form-group textarea {
+        height: auto !important;
+        min-height: 80px !important;
+    }
+    
+    /* Botões do formulário */
+    .modal-footer {
+        flex-direction: column !important;
+        gap: 8px !important;
+        padding: 16px !important;
+    }
+    
+    .modal-footer .btn {
+        width: 100% !important;
+        justify-content: center !important;
+        height: 46px !important;
+        font-size: 14px !important;
+    }
+}
+
+/* ============================================
+   TABLET BREAKPOINT (769px - 1024px)
+   ============================================ */
+@media (min-width: 769px) and (max-width: 1024px) {
+    
+    .sidebar {
+        width: 60px !important;
+    }
+    
+    .main-area {
+        margin-left: 60px !important;
+    }
+    
+    .header {
+        left: 60px !important;
+    }
+    
+    .kanban-column {
+        min-width: 260px !important;
+    }
+    
+    .kanban-container {
+        overflow-x: auto !important;
+    }
+    
+    .user-greeting span:first-child {
+        display: none;
+    }
+    
+    .modal-ordem-container {
+        width: 90% !important;
+    }
+}
+
+/* ============================================
+   PEQUENOS DISPOSITIVOS (< 360px)
+   ============================================ */
+@media (max-width: 360px) {
+    
+    .kanban-column {
+        min-width: 260px !important;
+    }
+    
+    .header-brand-module {
+        font-size: 14px !important;
+        padding: 3px 6px !important;
+    }
+    
+    .card-title {
+        font-size: 13px !important;
+    }
+    
+    .kanban-column-header {
+        padding: 10px !important;
+    }
+}
+
+/* ============================================
+   ORIENTAÇÃO LANDSCAPE MOBILE
+   ============================================ */
+@media (max-width: 896px) and (orientation: landscape) {
+    
+    .kanban-container {
+        padding-top: calc(var(--mobile-header-height) + 60px) !important;
+    }
+    
+    .kanban-column-content {
+        max-height: calc(100vh - 180px) !important;
+    }
+    
+    .header {
+        height: 48px !important;
+    }
+    
+    .mobile-menu-toggle {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* ============================================
+   TOUCH IMPROVEMENTS
+   ============================================ */
+@media (pointer: coarse) {
+    
+    .kanban-card {
+        cursor: grab !important;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    .kanban-card:active {
+        cursor: grabbing !important;
+        transform: scale(1.02);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    
+    .sidebar-btn,
+    .header-btn,
+    .btn,
+    button {
+        min-height: 44px;
+    }
+    
+    /* Scroll suave para touch */
+    .kanban-board {
+        scroll-snap-type: x mandatory;
+    }
+    
+    .kanban-column {
+        scroll-snap-align: start;
+    }
+}
+
+/* ============================================
+   DARK MODE SUPPORT (se houver)
+   ============================================ */
+@media (prefers-color-scheme: dark) {
+    .sidebar.mobile-open {
+        box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+    }
+}
+
+/* ============================================
+   PRINT HIDE MOBILE ELEMENTS
+   ============================================ */
+@media print {
+    .mobile-menu-toggle,
+    .sidebar-overlay {
+        display: none !important;
+    }
+}

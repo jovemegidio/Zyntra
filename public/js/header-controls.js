@@ -78,12 +78,12 @@ document.addEventListener('DOMContentLoaded', function() {
         // Configuração dos módulos disponíveis para busca (dinâmico)
         function getModulosDisponiveis() {
             return [
-                { id: 'vendas', nome: 'Vendas', icone: 'fa-shopping-cart', cor: '#10b981', url: '/modules/Vendas/public/index.html' },
-                { id: 'compras', nome: 'Compras', icone: 'fa-cart-plus', cor: '#3b82f6', url: '/modules/Compras/index.html' },
-                { id: 'financeiro', nome: 'Financeiro', icone: 'fa-dollar-sign', cor: '#8b5cf6', url: '/modules/Financeiro/index.html' },
-                { id: 'nfe', nome: 'Faturamento', icone: 'fa-file-invoice-dollar', cor: '#f59e0b', url: '/modules/NFe/index.html' },
-                { id: 'pcp', nome: 'PCP', icone: 'fa-industry', cor: '#06b6d4', url: '/modules/PCP/index.html' },
-                { id: 'rh', nome: 'Recursos Humanos', icone: 'fa-users', cor: '#ec4899', url: getUrlRH() }
+                { id: 'vendas', nome: 'Vendas', icone: 'fa-chart-line', cor: '#10b981', corRgb: '16,185,129', url: '/modules/Vendas/public/index.html' },
+                { id: 'compras', nome: 'Compras', icone: 'fa-cart-shopping', cor: '#6366f1', corRgb: '99,102,241', url: '/modules/Compras/index.html' },
+                { id: 'financeiro', nome: 'Financeiro', icone: 'fa-wallet', cor: '#a855f7', corRgb: '168,85,247', url: '/modules/Financeiro/index.html' },
+                { id: 'nfe', nome: 'Faturamento', icone: 'fa-file-invoice', cor: '#f97316', corRgb: '249,115,22', url: '/modules/NFe/index.html' },
+                { id: 'pcp', nome: 'PCP', icone: 'fa-gears', cor: '#475569', corRgb: '71,85,105', url: '/modules/PCP/index.html' },
+                { id: 'rh', nome: 'Recursos Humanos', icone: 'fa-people-group', cor: '#ec4899', corRgb: '236,72,153', url: getUrlRH() }
             ];
         }
 
@@ -115,7 +115,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('[Header] Busca fechada');
         }
 
-        // Mostrar módulos como sugestões iniciais
         function showModulosSugestao() {
             if (!headerSearchResults) return;
             
@@ -124,12 +123,12 @@ document.addEventListener('DOMContentLoaded', function() {
             headerSearchResults.innerHTML = `
                 <div class="search-modules-hint">
                     <div class="search-hint-title">
-                        <i class="fas fa-lightbulb"></i> NAVEGAÇÃO RÁPIDA
+                        <i class="fas fa-compass"></i> NAVEGAÇÃO RÁPIDA
                     </div>
                     <div class="search-modules-grid">
                         ${modulosDisponiveis.map(m => `
-                            <div class="search-module-item" onclick="window.location.href='${m.url}'" style="--module-color: ${m.cor}">
-                                <i class="fas ${m.icone}"></i>
+                            <div class="search-module-item" onclick="window.location.href='${m.url}'" style="--module-color: ${m.cor}; --module-color-rgb: ${m.corRgb}">
+                                <i class="fas ${m.icone}" style="color: ${m.cor}; background: linear-gradient(135deg, ${m.cor}14, ${m.cor}22);"></i>
                                 <span>${m.nome}</span>
                             </div>
                         `).join('')}

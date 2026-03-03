@@ -1,17 +1,38 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Aluforce: Requisições de Compra</title>
-    <link rel="icon" type="image/png" href="/images/favicon-aluforce.png">
-    <script src="/js/auth-unified.js?v=20260214" defer></script>
+
+    <!-- Sistema de Autenticação Unificado -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
+
+    <!-- Fontes -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260215">
-    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260215">
-    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260201">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/js/csp-fix.js" defer></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- CSS Padrão Global -->
+    <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260301">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260301">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260301">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     <style>
         .fa-duotone { font-family: "Font Awesome 6 Free" !important; font-weight: 900 !important; }
 
@@ -223,8 +244,8 @@
         function limparNotificacoes() {}
     </script>
     <script src="/js/anti-copy-protection.js" defer></script>
-    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
-    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+    <!-- Chat Widget BOB AI -->
+    <link rel="stylesheet" href="/chat/widget.css?v=20260301">
 </head>
 <body>
     <div class="app-container">
@@ -325,7 +346,7 @@
             <div class="filter-buttons">
                 <button class="filter-btn active" onclick="filtrarRequisicoes('todos', this)">Todas</button>
                 <button class="filter-btn" onclick="filtrarRequisicoes('pendente', this)">Pendentes</button>
-                <button class="filter-btn" onclick="filtrarRequisicoes('aprovada', this)">Aprovadas</button>
+                <button class="filter-btn" onclick="filtrarRequisicoes('aprovado', this)">Aprovadas</button>
                 <button class="filter-btn" onclick="filtrarRequisicoes('cotacao', this)">Em Cotação</button>
                 <button class="filter-btn" onclick="filtrarRequisicoes('rascunho', this)">Rascunhos</button>
             </div>
@@ -511,6 +532,7 @@
     let termoBusca = '';
     let itemCounter = 0;
     let anexosFiles = [];
+    let editingId = null;
     const avatarNameMap = {};
 
     function toggleMobileSidebar() {
@@ -571,7 +593,7 @@
     function gerarDadosExemplo() {
         return [
             { id: 1, numero: 'RC-001', solicitante: 'Admin', data_solicitacao: new Date().toISOString(), centro_custo: 'Produção', prioridade: 'normal', valor_estimado: 1500, status: 'pendente' },
-            { id: 2, numero: 'RC-002', solicitante: 'Admin', data_solicitacao: new Date().toISOString(), centro_custo: 'Manutenção', prioridade: 'alta', valor_estimado: 3200, status: 'aprovada' }
+            { id: 2, numero: 'RC-002', solicitante: 'Admin', data_solicitacao: new Date().toISOString(), centro_custo: 'Manutenção', prioridade: 'alta', valor_estimado: 3200, status: 'aprovado' }
         ];
     }
 
@@ -623,12 +645,13 @@
     function atualizarContadores() {
         document.getElementById('totalRequisicoes').textContent = requisicoesData.length;
         document.getElementById('requisicoesPendentes').textContent = requisicoesData.filter(r => r.status === 'pendente' || r.status === 'urgente').length;
-        document.getElementById('requisicoesAprovadas').textContent = requisicoesData.filter(r => r.status === 'aprovada').length;
+        document.getElementById('requisicoesAprovadas').textContent = requisicoesData.filter(r => r.status === 'aprovado' || r.status === 'aprovada').length;
         document.getElementById('requisicoesCotacao').textContent = requisicoesData.filter(r => r.status === 'cotacao' || r.status === 'em_cotacao').length;
     }
 
     /* ========== Modal: Nova Requisição ========== */
     async function abrirModalNovaRequisicao() {
+        editingId = null;
         document.getElementById('formNovaRequisicao').reset();
         itemCounter = 0;
         anexosFiles = [];
@@ -645,6 +668,9 @@
             const r = await fetch('/api/compras/requisicoes/proximo-numero', { headers: { 'Authorization': `Bearer ${token}` } });
             if (r.ok) { const d = await r.json(); document.getElementById('reqNumero').value = d.numero || d.proximo_numero || ''; }
         } catch (e) { document.getElementById('reqNumero').value = 'RC-' + String(requisicoesData.length + 1).padStart(3, '0'); }
+        // Restaurar título do modal para criação
+        const modalTitle = document.querySelector('#modalNovaRequisicao .modal-header h3');
+        if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-clipboard-list"></i> Nova Requisição de Compra';
         adicionarItemReq();
         document.getElementById('modalNovaRequisicao').classList.add('active');
     }
@@ -790,14 +816,17 @@
 
         try {
             const token = localStorage.getItem('token');
-            const r = await fetch('/api/compras/requisicoes', {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            const url = editingId ? `/api/compras/requisicoes/${editingId}` : '/api/compras/requisicoes';
+            const method = editingId ? 'PUT' : 'POST';
+            const r = await fetch(url, {
+                method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(body)
             });
             if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.message || 'Erro ao salvar requisição'); }
             fecharModalNovaRequisicao();
             carregarRequisicoes();
-            showToast(status === 'rascunho' ? 'Rascunho salvo com sucesso!' : 'Requisição enviada com sucesso!', 'success');
+            showToast(editingId ? 'Requisição atualizada com sucesso!' : (status === 'rascunho' ? 'Rascunho salvo com sucesso!' : 'Requisição enviada com sucesso!'), 'success');
+            editingId = null;
         } catch (e) {
             showToast('Erro: ' + e.message, 'error');
             console.error('[Requisição] Erro ao salvar:', e);
@@ -820,7 +849,7 @@
             let itensHtml = '';
             if (req.itens && req.itens.length) {
                 itensHtml = '<table class="data-table" style="font-size:0.8rem;"><thead><tr><th>Material</th><th>Qtd</th><th>Un</th><th>Preço</th><th>Subtotal</th></tr></thead><tbody>' +
-                    req.itens.map(it => `<tr><td>${it.material}</td><td>${it.quantidade}</td><td>${it.unidade}</td><td>${formatarMoeda(it.preco_unitario)}</td><td>${formatarMoeda((it.quantidade || 0) * (it.preco_unitario || 0))}</td></tr>`).join('') +
+                    req.itens.map(it => `<tr><td>${it.descricao || it.material || '-'}</td><td>${it.quantidade}</td><td>${it.unidade}</td><td>${formatarMoeda(it.valor_estimado || it.preco_unitario)}</td><td>${formatarMoeda(it.subtotal || (it.quantidade || 0) * (it.valor_estimado || it.preco_unitario || 0))}</td></tr>`).join('') +
                     '</tbody></table>';
             }
             document.getElementById('viewReqContent').innerHTML =
@@ -847,25 +876,58 @@
         try {
             const token = localStorage.getItem('token');
             const r = await fetch(`/api/compras/requisicoes/${id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!r.ok) throw new Error('Erro ao buscar requisição');
             const d = await r.json();
             const req = d.requisicao || d;
             if (req.status !== 'rascunho' && req.status !== 'pendente') { showToast('Esta requisição não pode ser editada', 'warning'); return; }
             await abrirModalNovaRequisicao();
+            editingId = id;
             document.getElementById('reqNumero').value = req.numero || '';
             document.getElementById('reqJustificativa').value = req.justificativa || '';
             document.getElementById('reqObservacoes').value = req.observacoes || '';
+            // Preencher campos adicionais
+            if (req.centro_custo) {
+                const sel = document.getElementById('reqCentroCusto');
+                for (let i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value == req.centro_custo || sel.options[i].textContent == req.centro_custo) { sel.selectedIndex = i; break; }
+                }
+            }
+            if (req.data_necessidade) document.getElementById('reqDataNecessidade').value = (req.data_necessidade || '').split('T')[0];
+            if (req.projeto) document.getElementById('reqProjeto').value = req.projeto;
+            if (req.fornecedores_sugeridos) document.getElementById('fornecedoresSugeridos').value = req.fornecedores_sugeridos;
             if (req.prioridade) {
                 const radio = document.querySelector(`input[name="prioridade"][value="${req.prioridade}"]`);
                 if (radio) radio.checked = true;
             }
-        } catch (e) { showToast('Erro ao carregar para edição', 'error'); }
+            // Carregar itens existentes
+            if (req.itens && req.itens.length) {
+                document.getElementById('itensContainer').innerHTML = '';
+                itemCounter = 0;
+                req.itens.forEach(it => {
+                    adicionarItemReq();
+                    const itemId = itemCounter;
+                    document.getElementById('itemMaterial-' + itemId).value = it.descricao || it.material || '';
+                    document.getElementById('itemQtd-' + itemId).value = it.quantidade || 1;
+                    const unSel = document.getElementById('itemUnidade-' + itemId);
+                    if (unSel && it.unidade) unSel.value = it.unidade;
+                    document.getElementById('itemPreco-' + itemId).value = formatarMoeda(it.valor_estimado || it.preco_unitario || 0);
+                    calcularSubtotal(itemId);
+                    const specEl = document.getElementById('itemSpec-' + itemId);
+                    if (specEl) specEl.value = it.observacao || '';
+                });
+            }
+            // Atualizar título do modal para edição
+            const modalTitle = document.querySelector('#modalNovaRequisicao .modal-header h3');
+            if (modalTitle) modalTitle.innerHTML = '<i class="fas fa-edit"></i> Editar Requisição de Compra';
+        } catch (e) { showToast('Erro ao carregar para edição', 'error'); console.error('[Requisição] Erro edição:', e); }
     }
 
     async function excluirRequisicao(id) {
         if (!confirm('Excluir esta requisição?')) return;
         try {
             const token = localStorage.getItem('token');
-            await fetch(`/api/compras/requisicoes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            const r = await fetch(`/api/compras/requisicoes/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+            if (!r.ok) { const err = await r.json().catch(() => ({})); throw new Error(err.message || 'Erro ao excluir requisição'); }
             carregarRequisicoes();
             showToast('Requisição excluída com sucesso!', 'success');
         } catch (e) { showToast('Erro: ' + e.message, 'error'); }
@@ -932,11 +994,11 @@
 
     /* ========== Helpers ========== */
     function getStatusClass(s) {
-        const map = { pendente: 'pending', aprovada: 'approved', rascunho: 'in-progress', cotacao: 'in-progress', em_cotacao: 'in-progress', rejeitada: 'cancelled', urgente: 'urgent', finalizada: 'approved' };
+        const map = { pendente: 'pending', aprovado: 'approved', aprovada: 'approved', rascunho: 'in-progress', cotacao: 'in-progress', em_cotacao: 'in-progress', rejeitado: 'cancelled', rejeitada: 'cancelled', cancelado: 'cancelled', urgente: 'urgent', finalizada: 'approved' };
         return map[s] || 'pending';
     }
     function getStatusLabel(s) {
-        const map = { pendente: 'Pendente', aprovada: 'Aprovada', rascunho: 'Rascunho', cotacao: 'Em Cotação', em_cotacao: 'Em Cotação', rejeitada: 'Rejeitada', urgente: 'Urgente', finalizada: 'Finalizada' };
+        const map = { pendente: 'Pendente', aprovado: 'Aprovada', aprovada: 'Aprovada', rascunho: 'Rascunho', cotacao: 'Em Cotação', em_cotacao: 'Em Cotação', rejeitado: 'Rejeitada', rejeitada: 'Rejeitada', cancelado: 'Cancelado', urgente: 'Urgente', finalizada: 'Finalizada' };
         return map[s] || s || '-';
     }
     function formatarData(d) { if (!d) return '-'; try { return new Date(d).toLocaleDateString('pt-BR'); } catch (e) { return d; } }
@@ -989,17 +1051,20 @@
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="/modules/Compras/compras-user-loader.js?v=20260214"></script>
-    <script src="/js/popup-confirmacao.js"></script>
-    <script src="/js/mobile-menu.js"></script>
-    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <!-- Module Scripts -->
+    <script src="/modules/Compras/js/compras-utils.js?v=20260301"></script>
+    <script src="/modules/Compras/compras-user-loader.js?v=20260301"></script>
 
-<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
-    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
-    <script src="/chat/widget.js?v=20260218" defer></script> -->
+    <!-- Shared Utilities -->
+    <script src="/js/popup-confirmacao.js?v=20260301"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260301" defer></script>
+    <script src="/_shared/confirm-dialog.js?v=20260301"></script>
 
-    <!-- Sidebar Click Animation -->
-    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
-    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <!-- Chat Widget BOB AI -->
+    <script src="/chat/widget.js?v=20260301" defer></script>
+
+    <!-- Enterprise Shared -->
+    <script src="/js/sidebar-click-animation.js?v=20260301"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260301"></script>
 </body>
 </html>

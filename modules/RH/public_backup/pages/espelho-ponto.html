@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>ALUFORCE - Espelho de Ponto</title>
+    
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/responsive-complete.css?v=20260108">
+    <script src="/js/responsive-mobile.js?v=20260108" defer></script>
+    
+    <style>
+        :root {
+            --sidebar-width: 56px;
+            --header-height: 48px;
+            --primary-orange: #f97316;
+            --primary-purple: #8b5cf6;
+            --primary-dark: #1a1a2e;
+            --bg-gray: #f5f5f5;
+            --border-color: #e5e5e5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666;
+            --success-green: #22c55e;
+            --warning-yellow: #eab308;
+            --danger-red: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .app-container { display: flex; height: 100vh; }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--primary-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 100;
+        }
+
+        .sidebar-logo {
+            width: 36px; height: 36px;
+            background: var(--primary-purple);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+
+        .sidebar-btn {
+            width: 40px; height: 40px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 10px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-purple); color: white; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* MAIN AREA */
+        .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* HEADER */
+        .header {
+            height: var(--header-height);
+            background: var(--primary-dark);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 16px;
+        }
+
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-brand img { height: 24px; }
+        .header-brand span { font-size: 14px; font-weight: 600; color: #8b8b9a; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+
+        .header-btn {
+            width: 36px; height: 36px;
+            border: none; background: transparent;
+            color: #8b8b9a; border-radius: 8px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .header-btn:hover { background: rgba(255, 255, 255, 0.1); color: white; }
+
+        .user-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-left: 8px; overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+
+        .user-greeting {
+            display: flex; align-items: center; gap: 12px;
+            margin-left: 16px; color: #8b8b9a; font-size: 13px;
+        }
+
+        .user-greeting strong { color: white; }
+
+        /* CONTENT AREA */
+        .content-area {
+            flex: 1; overflow-y: auto; padding: 24px; background: #ffffff;
+        }
+
+        .page-header { margin-bottom: 24px; }
+
+        .page-title {
+            font-size: 1.75rem; font-weight: 700; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 12px;
+        }
+
+        .page-title i { color: var(--primary-purple); }
+        .page-subtitle { color: #64748b; margin-top: 4px; }
+
+        /* Cards */
+        .card {
+            background: white; border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9; overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            padding: 20px 24px; border-bottom: 1px solid #f1f5f9;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .card-title {
+            font-size: 1rem; font-weight: 600; color: #1e293b;
+            margin: 0; display: flex; align-items: center; gap: 8px;
+        }
+
+        .card-title i { color: var(--primary-purple); }
+        .card-body { padding: 24px; }
+
+        /* Controls */
+        .controls-bar {
+            display: flex; gap: 16px; align-items: flex-end;
+            margin-bottom: 24px; flex-wrap: wrap;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 0.875rem; font-weight: 500; color: #64748b; }
+
+        .form-select, .form-input {
+            padding: 10px 16px; border: 1px solid #e2e8f0;
+            border-radius: 10px; font-size: 0.875rem;
+            color: #1e293b; background: white; min-width: 180px;
+        }
+
+        .form-select:focus, .form-input:focus {
+            outline: none; border-color: var(--primary-purple);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px; border: none; border-radius: 10px;
+            font-size: 0.875rem; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 8px;
+            transition: all 0.2s; text-decoration: none;
+        }
+
+        .btn-primary { background: var(--primary-purple); color: white; }
+        .btn-primary:hover { background: #7c3aed; }
+        .btn-outline { background: transparent; color: #64748b; border: 1px solid #e2e8f0; }
+        .btn-outline:hover { background: #f8fafc; color: #1e293b; }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px; margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white; border-radius: 16px;
+            border: 1px solid #f1f5f9; padding: 20px;
+            display: flex; align-items: center; gap: 16px;
+        }
+
+        .stat-icon {
+            width: 48px; height: 48px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .stat-icon.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .stat-icon.yellow { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .stat-icon.red { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+
+        .stat-content h4 { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
+        .stat-content .value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+
+        /* Table */
+        .table-container { overflow-x: auto; }
+
+        .data-table {
+            width: 100%; border-collapse: collapse;
+        }
+
+        .data-table th, .data-table td {
+            padding: 12px 16px; text-align: left;
+            border-bottom: 1px solid #f1f5f9; font-size: 0.875rem;
+        }
+
+        .data-table th {
+            background: #f8fafc; font-weight: 600; color: #64748b;
+        }
+
+        .data-table tr:hover { background: #f8fafc; }
+
+        .status-badge {
+            padding: 4px 10px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 500;
+        }
+
+        .status-badge.normal { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .status-badge.atraso { background: rgba(234, 179, 8, 0.1); color: #eab308; }
+        .status-badge.falta { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .status-badge.folga { background: rgba(100, 116, 139, 0.1); color: #64748b; }
+    </style>
+    <script src="/js/anti-copy-protection.js"></script>
+    <link rel="stylesheet" href="/css/popup-confirmacao.css">
+    <script src="/js/mobile-orientation.js?v=20260109" defer></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle">
+                <i class="fas fa-home"></i>
+            </a>
+            
+            <nav class="sidebar-nav">
+                <a href="../funcionario.html" class="sidebar-btn" title="Meu Portal">
+                    <i class="fas fa-th-large"></i>
+                </a>
+                <a href="meus-holerites.html" class="sidebar-btn" title="Meus Holerites">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+                <a href="espelho-ponto.html" class="sidebar-btn active" title="Espelho de Ponto">
+                    <i class="fas fa-clock"></i>
+                </a>
+                <a href="dados-cadastrais.html" class="sidebar-btn" title="Meus Dados">
+                    <i class="fas fa-user-edit"></i>
+                </a>
+                <a href="beneficios.html" class="sidebar-btn" title="Benefícios">
+                    <i class="fas fa-gift"></i>
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <a href="enviar-atestado.html" class="sidebar-btn" title="Enviar Atestado">
+                    <i class="fas fa-notes-medical"></i>
+                </a>
+                <a href="../solicitacoes.html" class="sidebar-btn" title="Solicitações">
+                    <i class="fas fa-envelope"></i>
+                </a>
+                <!-- Botão Admin - visível apenas para RH e TI -->
+                <a href="../areaadm.html" class="sidebar-btn admin-only" id="btn-admin" title="Administração RH" style="display: none;">
+                    <i class="fas fa-user-shield"></i>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <div class="header-brand">
+                        <span>RH</span>
+                        <span>|</span>
+                        <span style="color: white;">Espelho de Ponto</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações">
+                        <i class="fas fa-bell"></i>
+                    </button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initial">U</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="page-header">
+                    <h1 class="page-title">
+                        <i class="fas fa-clock"></i>
+                        Espelho de Ponto
+                    </h1>
+                    <p class="page-subtitle">Consulte suas marcações de ponto</p>
+                </div>
+
+                <!-- Controls -->
+                <div class="controls-bar">
+                    <div class="form-group">
+                        <label class="form-label">Data Início</label>
+                        <input type="date" class="form-input" id="data-inicio" value="2025-12-01">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Data Fim</label>
+                        <input type="date" class="form-input" id="data-fim" value="2025-12-18">
+                    </div>
+                    <button class="btn btn-primary" onclick="carregarEspelho()">
+                        <i class="fas fa-search"></i>
+                        Consultar
+                    </button>
+                    <button class="btn btn-outline" onclick="exportarPDF()">
+                        <i class="fas fa-download"></i>
+                        Exportar PDF
+                    </button>
+                    <a href="../funcionario.html" class="btn btn-outline">
+                        <i class="fas fa-arrow-left"></i>
+                        Voltar
+                    </a>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Dias Trabalhados</h4>
+                            <div class="value" id="dias-trabalhados">14</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Horas Trabalhadas</h4>
+                            <div class="value" id="horas-trabalhadas">112h</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon yellow">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Atrasos</h4>
+                            <div class="value" id="total-atrasos">2</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon red">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h4>Faltas</h4>
+                            <div class="value" id="total-faltas">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-list"></i>
+                            Registros Detalhados
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="ponto-table">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Dia</th>
+                                        <th>Entrada</th>
+                                        <th>Saída Almoço</th>
+                                        <th>Retorno Almoço</th>
+                                        <th>Saída</th>
+                                        <th>Horas</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ponto-tbody">
+                                    <!-- Data loaded dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const avatarNameMap = {
+            'clemerson': '/avatars/Clemerson.webp',
+            'isabela': '/avatars/Isabela.webp',
+            'thaina': '/avatars/Thaina.webp',
+            'thiago': '/avatars/Thiago.webp',
+            'nicolas': '/avatars/NicolasDaniel.webp',
+            'nicolasdaniel': '/avatars/NicolasDaniel.webp',
+            'rh': '/avatars/Rh.webp',
+            'admin': '/avatars/admin.webp',
+            'ti': '/avatars/TI.webp',
+            'tialuforce': '/avatars/TI.webp',
+            'antonio': '/avatars/Antonio.webp',
+            'antônio': '/avatars/Antonio.webp',
+            'andreia': '/avatars/Andreia.webp',
+            'guilherme': '/avatars/Guilherme.webp',
+            'marcelo': '/avatars/Marcelo.webp',
+            'financeiro': '/avatars/Financeiro.webp',
+            'douglas': '/avatars/Douglas.webp',
+            'hellen': '/avatars/Hellen.webp',
+            'helen': '/avatars/Hellen.webp'
+        };
+
+        function getAvatarFromEmail(email, nome) {
+            if (!email) return null;
+            const username = email.split('@')[0].split('.')[0].toLowerCase();
+            if (avatarNameMap[username]) return avatarNameMap[username];
+            if (nome) {
+                const firstName = nome.split(' ')[0].toLowerCase();
+                if (avatarNameMap[firstName]) return avatarNameMap[firstName];
+            }
+            return null;
+        }
+
+        // Helper: Obtém headers de autenticação com o token
+        function getAuthHeaders(additionalHeaders = {}) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            return {
+                'Authorization': token ? `Bearer ${token}` : '',
+                ...additionalHeaders
+            };
+        }
+
+        async function carregarUsuarioLogado() {
+            try {
+                const response = await fetch('/api/me', { 
+                    headers: getAuthHeaders(),
+                    credentials: 'include' 
+                });
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Atualizar saudação dinâmica baseada na hora
+                    const greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) {
+                        const hour = new Date().getHours();
+                        let greeting = 'Bom dia';
+                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                        greetingTextEl.textContent = greeting;
+                    }
+                    
+                    // Usar apelido se disponível, senão primeiro nome
+                    const userName = user.apelido || user.nome || 'Usuário';
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    let userAvatar = user.avatar && user.avatar !== '/avatars/default.webp' ? user.avatar : null;
+                    if (!userAvatar) userAvatar = getAvatarFromEmail(user.email, userName);
+                    
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userInitialEl = document.getElementById('user-initial');
+                    
+                    if (userAvatar && userPhotoEl) {
+                        userPhotoEl.src = userAvatar;
+                        userPhotoEl.classList.add('visible');
+                        userPhotoEl.style.display = 'block';
+                        if (userInitialEl) userInitialEl.style.display = 'none';
+                    } else if (userInitialEl) {
+                        userInitialEl.textContent = userName.charAt(0).toUpperCase();
+                        userInitialEl.style.display = 'flex';
+                        if (userPhotoEl) userPhotoEl.style.display = 'none';
+                    }
+                    
+                    // Mostrar botão admin apenas para usuários específicos
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    const btnAdmin = document.getElementById('btn-admin');
+                    if (btnAdmin && user.email && adminEmails.includes(user.email.toLowerCase())) {
+                        btnAdmin.style.display = 'flex';
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        const pontoData = [
+            { data: '18/12/2025', dia: 'Quarta', entrada: '08:00', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:00', horas: '8h', status: 'normal' },
+            { data: '17/12/2025', dia: 'Terça', entrada: '08:05', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:00', horas: '8h', status: 'normal' },
+            { data: '16/12/2025', dia: 'Segunda', entrada: '08:15', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:00', horas: '8h', status: 'atraso' },
+            { data: '15/12/2025', dia: 'Domingo', entrada: '-', saidaAlmoco: '-', retornoAlmoco: '-', saida: '-', horas: '-', status: 'folga' },
+            { data: '14/12/2025', dia: 'Sábado', entrada: '-', saidaAlmoco: '-', retornoAlmoco: '-', saida: '-', horas: '-', status: 'folga' },
+            { data: '13/12/2025', dia: 'Sexta', entrada: '08:00', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:00', horas: '8h', status: 'normal' },
+            { data: '12/12/2025', dia: 'Quinta', entrada: '08:00', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:00', horas: '8h', status: 'normal' },
+            { data: '11/12/2025', dia: 'Quarta', entrada: '08:00', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:00', horas: '8h', status: 'normal' },
+            { data: '10/12/2025', dia: 'Terça', entrada: '08:20', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:20', horas: '8h', status: 'atraso' },
+            { data: '09/12/2025', dia: 'Segunda', entrada: '08:00', saidaAlmoco: '12:00', retornoAlmoco: '13:00', saida: '17:00', horas: '8h', status: 'normal' },
+        ];
+
+        function renderPonto(data) {
+            const tbody = document.getElementById('ponto-tbody');
+            tbody.innerHTML = data.map(p => `
+                <tr>
+                    <td>${p.data}</td>
+                    <td>${p.dia}</td>
+                    <td>${p.entrada}</td>
+                    <td>${p.saidaAlmoco}</td>
+                    <td>${p.retornoAlmoco}</td>
+                    <td>${p.saida}</td>
+                    <td>${p.horas}</td>
+                    <td><span class="status-badge ${p.status}">${p.status.charAt(0).toUpperCase() + p.status.slice(1)}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function carregarEspelho() {
+            renderPonto(pontoData);
+        }
+
+        function exportarPDF() {
+            alert('Gerando PDF do espelho de ponto...');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarUsuarioLogado();
+            renderPonto(pontoData);
+        });
+    </script>
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+    <script src="/js/popup-confirmacao.js"></script></body>
+</html>
+

@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>ALUFORCE - Módulo Financeiro</title>
+    
+    <link rel="icon" href="/Favicon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        /* ============================================
+           VARIÁVEIS CSS - DESIGN SYSTEM ALUFORCE
+           ============================================ */
+        :root {
+            --primary: #1e40af;
+            --primary-hover: #1e3a8a;
+            --primary-light: #dbeafe;
+            --success: #10b981;
+            --success-light: #d1fae5;
+            --warning: #f59e0b;
+            --warning-light: #fef3c7;
+            --danger: #ef4444;
+            --danger-light: #fee2e2;
+            --info: #06b6d4;
+            
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            
+            --dark-bg: #0f172a;
+            --dark-surface: #1e293b;
+            --dark-border: #334155;
+            
+            --sidebar-width: 64px;
+            --header-height: 56px;
+            
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-900);
+            min-height: 100vh;
+        }
+
+        /* ============================================
+           SIDEBAR
+           ============================================ */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: linear-gradient(180deg, var(--dark-bg) 0%, #0c1222 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 0;
+            z-index: 1000;
+            border-right: 1px solid var(--dark-border);
+        }
+
+        .sidebar-logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .sidebar-logo i { color: white; font-size: 18px; }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            width: 100%;
+            padding: 0 12px;
+        }
+
+        .sidebar-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: var(--gray-400);
+            border-radius: var(--radius-lg);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            position: relative;
+            margin: 0 auto;
+            text-decoration: none;
+        }
+
+        .sidebar-btn:hover { background: rgba(255,255,255,0.08); color: white; }
+        .sidebar-btn.active {
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: white;
+        }
+
+        .sidebar-btn::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 54px;
+            background: var(--gray-900);
+            color: white;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            z-index: 1001;
+        }
+
+        .sidebar-btn:hover::after { opacity: 1; visibility: visible; }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: var(--header-height);
+            background: white;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 999;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-logo { height: 28px; }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Botão de Notificação */
+        .notification-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            color: var(--gray-500);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .notification-btn:hover { background: var(--gray-100); color: var(--primary); }
+
+        .notification-badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            min-width: 18px;
+            height: 18px;
+            background: var(--danger);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            transition: background 0.2s;
+        }
+
+        .user-info:hover { background: var(--gray-100); }
+
+        .user-name { font-size: 14px; color: var(--gray-700); }
+        .user-name strong { color: var(--gray-900); }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            overflow: hidden;
+        }
+
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* ============================================
+           MAIN CONTENT
+           ============================================ */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            padding: 24px;
+            min-height: calc(100vh - var(--header-height));
+        }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .page-title h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--gray-900);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .page-title h1 i { color: var(--primary); }
+        .page-title p { color: var(--gray-500); font-size: 14px; margin-top: 4px; }
+
+        .page-actions { display: flex; gap: 12px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-secondary { background: white; color: var(--gray-700); border: 1px solid var(--gray-300); }
+        .btn-secondary:hover { background: var(--gray-50); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+
+        /* ============================================
+           KPI CARDS
+           ============================================ */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--gray-200);
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .kpi-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .kpi-card.receitas .kpi-icon { background: var(--success-light); color: var(--success); }
+        .kpi-card.despesas .kpi-icon { background: var(--danger-light); color: var(--danger); }
+        .kpi-card.saldo .kpi-icon { background: var(--primary-light); color: var(--primary); }
+        .kpi-card.vencidas .kpi-icon { background: var(--warning-light); color: var(--warning); }
+
+        .kpi-trend {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 20px;
+        }
+
+        .kpi-trend.up { background: var(--success-light); color: var(--success); }
+        .kpi-trend.down { background: var(--danger-light); color: var(--danger); }
+
+        .kpi-label { font-size: 13px; color: var(--gray-500); margin-bottom: 4px; }
+        .kpi-value { font-size: 28px; font-weight: 700; color: var(--gray-900); }
+        .kpi-sub { font-size: 12px; color: var(--gray-400); margin-top: 8px; }
+
+        /* ============================================
+           CARDS & TABLES
+           ============================================ */
+        .card {
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--gray-900);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title i { color: var(--primary); }
+
+        .card-body { padding: 20px; }
+
+        .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+
+        /* Table */
+        .table-wrapper { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        th {
+            background: var(--gray-50);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            text-transform: uppercase;
+        }
+
+        td { font-size: 14px; color: var(--gray-700); }
+
+        tr:hover { background: var(--gray-50); }
+
+        /* Status badges */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-pago { background: var(--success-light); color: var(--success); }
+        .status-pendente { background: var(--warning-light); color: var(--warning); }
+        .status-vencido { background: var(--danger-light); color: var(--danger); }
+        .status-aberto { background: var(--primary-light); color: var(--primary); }
+
+        /* Action buttons */
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: transparent;
+            color: var(--gray-400);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover { background: var(--gray-100); color: var(--gray-700); }
+        .action-btn.edit:hover { color: var(--primary); }
+        .action-btn.delete:hover { color: var(--danger); }
+        .action-btn.pay:hover { color: var(--success); }
+
+        /* ============================================
+           MODAL
+           ============================================ */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+
+        .modal {
+            background: white;
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow: hidden;
+            transform: scale(0.9);
+            transition: transform 0.3s;
+        }
+
+        .modal-overlay.active .modal { transform: scale(1); }
+
+        .modal-header {
+            padding: 20px 24px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .modal-close:hover { background: rgba(255,255,255,0.3); }
+
+        .modal-body {
+            padding: 24px;
+            max-height: calc(90vh - 140px);
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            background: var(--gray-50);
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        /* Form */
+        .form-group { margin-bottom: 16px; }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        /* ============================================
+           PAINEL DE NOTIFICAÇÕES
+           ============================================ */
+        .notifications-panel {
+            position: fixed;
+            top: var(--header-height);
+            right: 0;
+            width: 380px;
+            height: calc(100vh - var(--header-height));
+            background: white;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+            z-index: 1500;
+            transform: translateX(100%);
+            transition: transform 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .notifications-panel.active { transform: translateX(0); }
+
+        .notifications-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notifications-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .notifications-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .notification-item {
+            padding: 12px;
+            border-radius: var(--radius-md);
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .notification-item:hover { background: var(--gray-50); }
+        .notification-item.unread { background: var(--primary-light); border-left-color: var(--primary); }
+        .notification-item.error { border-left-color: var(--danger); }
+        .notification-item.warning { border-left-color: var(--warning); }
+        .notification-item.success { border-left-color: var(--success); }
+
+        .notification-item h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .notification-item p { font-size: 13px; color: var(--gray-600); }
+        .notification-item .time { font-size: 11px; color: var(--gray-400); margin-top: 6px; }
+
+        .notifications-footer {
+            padding: 16px;
+            border-top: 1px solid var(--gray-200);
+            text-align: center;
+        }
+
+        .notifications-footer a {
+            color: var(--primary);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        /* ============================================
+           CHART
+           ============================================ */
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 1200px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar { width: 0; transform: translateX(-100%); }
+            .header { left: 0; }
+            .main-content { margin-left: 0; }
+            .kpi-grid { grid-template-columns: 1fr; }
+            .grid-2 { grid-template-columns: 1fr; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <a href="/" class="sidebar-logo" title="Voltar ao Painel">
+            <i class="fas fa-industry"></i>
+        </a>
+        
+        <nav class="sidebar-nav">
+            <a href="/modules/Financeiro/index.html" class="sidebar-btn active" data-tooltip="Dashboard">
+                <i class="fas fa-chart-pie"></i>
+            </a>
+            <a href="/modules/Financeiro/contas-pagar.html" class="sidebar-btn" data-tooltip="Contas a Pagar">
+                <i class="fas fa-file-invoice-dollar"></i>
+            </a>
+            <a href="/modules/Financeiro/contas-receber.html" class="sidebar-btn" data-tooltip="Contas a Receber">
+                <i class="fas fa-hand-holding-usd"></i>
+            </a>
+            <a href="/modules/Financeiro/bancos.html" class="sidebar-btn" data-tooltip="Bancos">
+                <i class="fas fa-university"></i>
+            </a>
+            <a href="/modules/Financeiro/fluxo-caixa.html" class="sidebar-btn" data-tooltip="Fluxo de Caixa">
+                <i class="fas fa-chart-area"></i>
+            </a>
+            <a href="/modules/Financeiro/conciliacao.html" class="sidebar-btn" data-tooltip="Conciliação">
+                <i class="fas fa-balance-scale"></i>
+            </a>
+            <a href="/modules/Financeiro/relatorios.html" class="sidebar-btn" data-tooltip="Relatórios">
+                <i class="fas fa-chart-bar"></i>
+            </a>
+        </nav>
+        
+        <div style="padding: 12px;">
+            <a href="/" class="sidebar-btn" data-tooltip="Painel Principal">
+                <i class="fas fa-home"></i>
+            </a>
+        </div>
+    </aside>
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-left">
+            <img src="/images/Logo Monocromatico - Azul - Aluforce.png" alt="ALUFORCE" class="header-logo">
+            <span class="header-title">| Módulo Financeiro</span>
+        </div>
+        
+        <div class="header-right">
+            <button class="notification-btn" id="btn-notifications" onclick="toggleNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notification-count">3</span>
+            </button>
+            
+            <div class="user-info" onclick="toggleUserMenu()">
+                <span class="user-name">Bem-vindo, <strong id="user-name">Carregando...</strong></span>
+                <div class="user-avatar" id="user-avatar">
+                    <span id="user-initial">?</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- NOTIFICATIONS PANEL -->
+    <div class="notifications-panel" id="notifications-panel">
+        <div class="notifications-header">
+            <h3><i class="fas fa-bell"></i> Notificações</h3>
+            <button class="action-btn" onclick="marcarTodasLidas()" title="Marcar todas como lidas">
+                <i class="fas fa-check-double"></i>
+            </button>
+        </div>
+        <div class="notifications-list" id="notifications-list">
+            <!-- Notificações serão carregadas aqui -->
+        </div>
+        <div class="notifications-footer">
+            <a href="#" onclick="toggleNotifications()">Fechar painel</a>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="page-title">
+                <h1><i class="fas fa-chart-pie"></i> Dashboard Financeiro</h1>
+                <p>Visão geral das finanças da empresa</p>
+            </div>
+            <div class="page-actions">
+                <button class="btn btn-secondary" onclick="exportarDados()">
+                    <i class="fas fa-download"></i> Exportar
+                </button>
+                <button class="btn btn-primary" onclick="abrirModalLancamento()">
+                    <i class="fas fa-plus"></i> Novo Lançamento
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card receitas">
+                <div class="kpi-header">
+                    <div class="kpi-icon"><i class="fas fa-arrow-down"></i></div>
+                    <span class="kpi-trend up"><i class="fas fa-arrow-up"></i> 12%</span>
+                </div>
+                <div class="kpi-label">Receitas do Mês</div>
+                <div class="kpi-value" id="kpi-receitas">R$ 0,00</div>
+                <div class="kpi-sub" id="kpi-receitas-qtd">0 lançamentos</div>
+            </div>
+            
+            <div class="kpi-card despesas">
+                <div class="kpi-header">
+                    <div class="kpi-icon"><i class="fas fa-arrow-up"></i></div>
+                    <span class="kpi-trend down"><i class="fas fa-arrow-down"></i> 8%</span>
+                </div>
+                <div class="kpi-label">Despesas do Mês</div>
+                <div class="kpi-value" id="kpi-despesas">R$ 0,00</div>
+                <div class="kpi-sub" id="kpi-despesas-qtd">0 lançamentos</div>
+            </div>
+            
+            <div class="kpi-card saldo">
+                <div class="kpi-header">
+                    <div class="kpi-icon"><i class="fas fa-wallet"></i></div>
+                    <span class="kpi-trend up"><i class="fas fa-arrow-up"></i> 15%</span>
+                </div>
+                <div class="kpi-label">Saldo em Conta</div>
+                <div class="kpi-value" id="kpi-saldo">R$ 0,00</div>
+                <div class="kpi-sub">Atualizado agora</div>
+            </div>
+            
+            <div class="kpi-card vencidas">
+                <div class="kpi-header">
+                    <div class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                </div>
+                <div class="kpi-label">Contas Vencidas</div>
+                <div class="kpi-value" id="kpi-vencidas">R$ 0,00</div>
+                <div class="kpi-sub" id="kpi-vencidas-qtd">0 contas</div>
+            </div>
+        </div>
+
+        <!-- Charts and Tables -->
+        <div class="grid-2">
+            <!-- Gráfico -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-chart-line"></i> Fluxo de Caixa</span>
+                    <select id="periodo-chart" onchange="atualizarGrafico()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        <option value="7">Últimos 7 dias</option>
+                        <option value="30" selected>Últimos 30 dias</option>
+                        <option value="90">Últimos 90 dias</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="fluxoCaixaChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Próximos Vencimentos -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-calendar-alt"></i> Próximos Vencimentos</span>
+                    <a href="/modules/Financeiro/contas-pagar.html" style="color: var(--primary); font-size: 13px; text-decoration: none;">Ver todos</a>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Descrição</th>
+                                    <th>Vencimento</th>
+                                    <th>Valor</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-vencimentos">
+                                <!-- Dados serão carregados via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Últimas Transações -->
+        <div class="card" style="margin-top: 24px;">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-exchange-alt"></i> Últimas Transações</span>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="filtrarTransacoes('todas')">Todas</button>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="filtrarTransacoes('receitas')">Receitas</button>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="filtrarTransacoes('despesas')">Despesas</button>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Descrição</th>
+                                <th>Categoria</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela-transacoes">
+                            <!-- Dados serão carregados via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL NOVO LANÇAMENTO -->
+    <div class="modal-overlay" id="modal-lancamento">
+        <div class="modal">
+            <div class="modal-header">
+                <h2><i class="fas fa-plus-circle"></i> Novo Lançamento</h2>
+                <button class="modal-close" onclick="fecharModal('modal-lancamento')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-lancamento">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tipo</label>
+                            <select id="tipo-lancamento" required>
+                                <option value="">Selecione...</option>
+                                <option value="receita">Receita</option>
+                                <option value="despesa">Despesa</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Categoria</label>
+                            <select id="categoria-lancamento" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Descrição</label>
+                        <input type="text" id="descricao-lancamento" placeholder="Descrição do lançamento" required>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Valor</label>
+                            <input type="text" id="valor-lancamento" placeholder="R$ 0,00" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Data de Vencimento</label>
+                            <input type="date" id="vencimento-lancamento" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Fornecedor/Cliente</label>
+                            <input type="text" id="pessoa-lancamento" placeholder="Nome do fornecedor ou cliente">
+                        </div>
+                        <div class="form-group">
+                            <label>Centro de Custo</label>
+                            <select id="centro-custo-lancamento">
+                                <option value="">Nenhum</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Observações</label>
+                        <textarea id="obs-lancamento" rows="3" placeholder="Observações adicionais..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModal('modal-lancamento')">Cancelar</button>
+                <button class="btn btn-primary" onclick="salvarLancamento()">
+                    <i class="fas fa-save"></i> Salvar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // VARIÁVEIS GLOBAIS
+        // ============================================
+        let fluxoCaixaChart = null;
+        let notificacoes = [];
+        let transacoes = [];
+
+        // ============================================
+        // INICIALIZAÇÃO
+        // ============================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            await carregarUsuario();
+            await carregarDados();
+            inicializarGrafico();
+            carregarNotificacoes();
+            
+            // Fechar notificações ao clicar fora
+            document.addEventListener('click', (e) => {
+                const panel = document.getElementById('notifications-panel');
+                const btn = document.getElementById('btn-notifications');
+                if (!panel.contains(e.target) && !btn.contains(e.target)) {
+                    panel.classList.remove('active');
+                }
+            });
+        });
+
+        // ============================================
+        // CARREGAR USUÁRIO
+        // ============================================
+        async function carregarUsuario() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('user-name').textContent = user.name || user.email.split('@')[0];
+                    document.getElementById('user-initial').textContent = (user.name || user.email)[0].toUpperCase();
+                    
+                    if (user.avatar) {
+                        document.getElementById('user-avatar').innerHTML = `<img src="${user.avatar}" alt="Avatar">`;
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar usuário:', error);
+            }
+        }
+
+        // ============================================
+        // CARREGAR DADOS DO DASHBOARD
+        // ============================================
+        async function carregarDados() {
+            try {
+                // Carregar estatísticas
+                const [estatsPagar, estatsReceber] = await Promise.all([
+                    fetch('/api/financeiro/contas-pagar/estatisticas', { credentials: 'include' }).then(r => r.json()).catch(() => ({})),
+                    fetch('/api/financeiro/contas-receber/estatisticas', { credentials: 'include' }).then(r => r.json()).catch(() => ({}))
+                ]);
+
+                // Atualizar KPIs
+                const receitas = estatsReceber.total_recebido || 0;
+                const despesas = estatsPagar.total_pago || 0;
+                const saldo = receitas - despesas;
+                const vencidas = estatsPagar.total_vencido || 0;
+
+                document.getElementById('kpi-receitas').textContent = formatarMoeda(receitas);
+                document.getElementById('kpi-receitas-qtd').textContent = `${estatsReceber.quantidade_recebidas || 0} lançamentos`;
+                
+                document.getElementById('kpi-despesas').textContent = formatarMoeda(despesas);
+                document.getElementById('kpi-despesas-qtd').textContent = `${estatsPagar.quantidade_pagas || 0} lançamentos`;
+                
+                document.getElementById('kpi-saldo').textContent = formatarMoeda(saldo);
+                
+                document.getElementById('kpi-vencidas').textContent = formatarMoeda(vencidas);
+                document.getElementById('kpi-vencidas-qtd').textContent = `${estatsPagar.quantidade_vencidas || 0} contas`;
+
+                // Carregar próximos vencimentos
+                await carregarProximosVencimentos();
+                
+                // Carregar últimas transações
+                await carregarUltimasTransacoes();
+
+            } catch (error) {
+                console.error('Erro ao carregar dados:', error);
+            }
+        }
+
+        async function carregarProximosVencimentos() {
+            try {
+                const response = await fetch('/api/financeiro/contas-pagar?status=pendente&limit=5', { credentials: 'include' });
+                const contas = await response.json();
+                
+                const tbody = document.getElementById('tabela-vencimentos');
+                tbody.innerHTML = contas.slice(0, 5).map(conta => `
+                    <tr>
+                        <td>${conta.descricao || conta.fornecedor}</td>
+                        <td>${formatarData(conta.data_vencimento)}</td>
+                        <td>${formatarMoeda(conta.valor)}</td>
+                        <td><span class="status ${getStatusClass(conta)}">${getStatusText(conta)}</span></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" style="text-align: center; color: var(--gray-400);">Nenhum vencimento próximo</td></tr>';
+            } catch (error) {
+                console.error('Erro ao carregar vencimentos:', error);
+            }
+        }
+
+        async function carregarUltimasTransacoes() {
+            try {
+                const [contasPagar, contasReceber] = await Promise.all([
+                    fetch('/api/financeiro/contas-pagar?limit=10', { credentials: 'include' }).then(r => r.json()).catch(() => []),
+                    fetch('/api/financeiro/contas-receber?limit=10', { credentials: 'include' }).then(r => r.json()).catch(() => [])
+                ]);
+
+                transacoes = [
+                    ...contasPagar.map(c => ({ ...c, tipo: 'despesa' })),
+                    ...contasReceber.map(c => ({ ...c, tipo: 'receita' }))
+                ].sort((a, b) => new Date(b.created_at || b.data_vencimento) - new Date(a.created_at || a.data_vencimento)).slice(0, 10);
+
+                renderizarTransacoes(transacoes);
+            } catch (error) {
+                console.error('Erro ao carregar transações:', error);
+            }
+        }
+
+        function renderizarTransacoes(lista) {
+            const tbody = document.getElementById('tabela-transacoes');
+            tbody.innerHTML = lista.map(t => `
+                <tr>
+                    <td>${formatarData(t.data_vencimento)}</td>
+                    <td>${t.descricao || t.fornecedor || t.cliente}</td>
+                    <td>${t.categoria || '-'}</td>
+                    <td style="color: ${t.tipo === 'receita' ? 'var(--success)' : 'var(--danger)'}; font-weight: 600;">
+                        ${t.tipo === 'receita' ? '+' : '-'} ${formatarMoeda(t.valor)}
+                    </td>
+                    <td><span class="status ${getStatusClass(t)}">${getStatusText(t)}</span></td>
+                    <td>
+                        <button class="action-btn edit" title="Editar" onclick="editarTransacao(${t.id}, '${t.tipo}')"><i class="fas fa-edit"></i></button>
+                        <button class="action-btn pay" title="Baixar" onclick="baixarTransacao(${t.id}, '${t.tipo}')"><i class="fas fa-check"></i></button>
+                    </td>
+                </tr>
+            `).join('') || '<tr><td colspan="6" style="text-align: center; color: var(--gray-400);">Nenhuma transação encontrada</td></tr>';
+        }
+
+        function filtrarTransacoes(tipo) {
+            if (tipo === 'todas') {
+                renderizarTransacoes(transacoes);
+            } else if (tipo === 'receitas') {
+                renderizarTransacoes(transacoes.filter(t => t.tipo === 'receita'));
+            } else {
+                renderizarTransacoes(transacoes.filter(t => t.tipo === 'despesa'));
+            }
+        }
+
+        // ============================================
+        // GRÁFICO
+        // ============================================
+        function inicializarGrafico() {
+            const ctx = document.getElementById('fluxoCaixaChart').getContext('2d');
+            
+            fluxoCaixaChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Receitas',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Despesas',
+                            data: [],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: value => 'R$ ' + value.toLocaleString('pt-BR')
+                            }
+                        }
+                    }
+                }
+            });
+
+            atualizarGrafico();
+        }
+
+        async function atualizarGrafico() {
+            const dias = parseInt(document.getElementById('periodo-chart').value);
+            const labels = [];
+            const receitas = [];
+            const despesas = [];
+
+            // Gerar dados de exemplo (substituir por API real)
+            for (let i = dias - 1; i >= 0; i--) {
+                const data = new Date();
+                data.setDate(data.getDate() - i);
+                labels.push(data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+                receitas.push(Math.random() * 10000 + 5000);
+                despesas.push(Math.random() * 8000 + 3000);
+            }
+
+            fluxoCaixaChart.data.labels = labels;
+            fluxoCaixaChart.data.datasets[0].data = receitas;
+            fluxoCaixaChart.data.datasets[1].data = despesas;
+            fluxoCaixaChart.update();
+        }
+
+        // ============================================
+        // NOTIFICAÇÕES
+        // ============================================
+        function toggleNotifications() {
+            const panel = document.getElementById('notifications-panel');
+            panel.classList.toggle('active');
+        }
+
+        async function carregarNotificacoes() {
+            try {
+                // Carregar contas vencidas para gerar notificações
+                const response = await fetch('/api/financeiro/contas-pagar?status=vencido', { credentials: 'include' });
+                const contasVencidas = await response.json();
+                
+                notificacoes = [];
+                
+                // Adicionar notificações de contas vencidas
+                contasVencidas.forEach(conta => {
+                    notificacoes.push({
+                        id: conta.id,
+                        tipo: 'error',
+                        titulo: 'Conta Vencida',
+                        mensagem: `${conta.descricao || conta.fornecedor} - ${formatarMoeda(conta.valor)}`,
+                        tempo: formatarData(conta.data_vencimento),
+                        lida: false
+                    });
+                });
+
+                // Adicionar notificação de boas-vindas se não houver outras
+                if (notificacoes.length === 0) {
+                    notificacoes.push({
+                        id: 0,
+                        tipo: 'success',
+                        titulo: 'Tudo em dia!',
+                        mensagem: 'Não há contas vencidas no momento.',
+                        tempo: 'Agora',
+                        lida: false
+                    });
+                }
+
+                renderizarNotificacoes();
+                atualizarBadgeNotificacoes();
+            } catch (error) {
+                console.error('Erro ao carregar notificações:', error);
+            }
+        }
+
+        function renderizarNotificacoes() {
+            const lista = document.getElementById('notifications-list');
+            lista.innerHTML = notificacoes.map(n => `
+                <div class="notification-item ${n.lida ? '' : 'unread'} ${n.tipo}" onclick="marcarLida(${n.id})">
+                    <h4>${n.titulo}</h4>
+                    <p>${n.mensagem}</p>
+                    <span class="time">${n.tempo}</span>
+                </div>
+            `).join('') || '<p style="text-align: center; color: var(--gray-400); padding: 20px;">Nenhuma notificação</p>';
+        }
+
+        function marcarLida(id) {
+            const notif = notificacoes.find(n => n.id === id);
+            if (notif) {
+                notif.lida = true;
+                renderizarNotificacoes();
+                atualizarBadgeNotificacoes();
+            }
+        }
+
+        function marcarTodasLidas() {
+            notificacoes.forEach(n => n.lida = true);
+            renderizarNotificacoes();
+            atualizarBadgeNotificacoes();
+        }
+
+        function atualizarBadgeNotificacoes() {
+            const naoLidas = notificacoes.filter(n => !n.lida).length;
+            const badge = document.getElementById('notification-count');
+            badge.textContent = naoLidas;
+            badge.style.display = naoLidas > 0 ? 'flex' : 'none';
+        }
+
+        // ============================================
+        // MODAL
+        // ============================================
+        function abrirModalLancamento() {
+            document.getElementById('modal-lancamento').classList.add('active');
+            carregarCategorias();
+        }
+
+        function fecharModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        async function carregarCategorias() {
+            try {
+                const response = await fetch('/api/financeiro/categorias', { credentials: 'include' });
+                const categorias = await response.json();
+                
+                const select = document.getElementById('categoria-lancamento');
+                select.innerHTML = '<option value="">Selecione...</option>' +
+                    categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+            } catch (error) {
+                console.error('Erro ao carregar categorias:', error);
+            }
+        }
+
+        async function salvarLancamento() {
+            const tipo = document.getElementById('tipo-lancamento').value;
+            const descricao = document.getElementById('descricao-lancamento').value;
+            const valor = parseFloat(document.getElementById('valor-lancamento').value.replace(/[^\d,]/g, '').replace(',', '.'));
+            const vencimento = document.getElementById('vencimento-lancamento').value;
+            
+            if (!tipo || !descricao || !valor || !vencimento) {
+                alert('Preencha todos os campos obrigatórios!');
+                return;
+            }
+
+            const endpoint = tipo === 'receita' ? '/api/financeiro/contas-receber' : '/api/financeiro/contas-pagar';
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        descricao,
+                        valor,
+                        data_vencimento: vencimento,
+                        categoria_id: document.getElementById('categoria-lancamento').value,
+                        observacoes: document.getElementById('obs-lancamento').value
+                    })
+                });
+
+                if (response.ok) {
+                    fecharModal('modal-lancamento');
+                    document.getElementById('form-lancamento').reset();
+                    await carregarDados();
+                    alert('Lançamento salvo com sucesso!');
+                } else {
+                    throw new Error('Erro ao salvar');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar lançamento:', error);
+                alert('Erro ao salvar lançamento. Tente novamente.');
+            }
+        }
+
+        // ============================================
+        // FUNÇÕES AUXILIARES
+        // ============================================
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            return new Date(data).toLocaleDateString('pt-BR');
+        }
+
+        function getStatusClass(conta) {
+            if (conta.status === 'pago' || conta.status === 'recebido') return 'status-pago';
+            const vencimento = new Date(conta.data_vencimento);
+            const hoje = new Date();
+            if (vencimento < hoje) return 'status-vencido';
+            return 'status-pendente';
+        }
+
+        function getStatusText(conta) {
+            if (conta.status === 'pago') return 'Pago';
+            if (conta.status === 'recebido') return 'Recebido';
+            const vencimento = new Date(conta.data_vencimento);
+            const hoje = new Date();
+            if (vencimento < hoje) return 'Vencido';
+            return 'Pendente';
+        }
+
+        function editarTransacao(id, tipo) {
+            const url = tipo === 'receita' ? '/modules/Financeiro/contas-receber.html' : '/modules/Financeiro/contas-pagar.html';
+            window.location.href = `${url}?editar=${id}`;
+        }
+
+        function baixarTransacao(id, tipo) {
+            if (confirm('Confirma a baixa desta transação?')) {
+                const endpoint = tipo === 'receita' ? `/api/financeiro/contas-receber/${id}/receber` : `/api/financeiro/contas-pagar/${id}/pagar`;
+                fetch(endpoint, { method: 'POST', credentials: 'include' })
+                    .then(() => carregarDados())
+                    .catch(err => alert('Erro ao baixar transação'));
+            }
+        }
+
+        function exportarDados() {
+            alert('Funcionalidade de exportação em desenvolvimento.');
+        }
+
+        function toggleUserMenu() {
+            // Implementar menu do usuário se necessário
+        }
+    </script>
+
+    <!-- Sistema de Chat e Suporte -->
+    <script src="/js/chat-suporte-widgets.js?v=20251223"></script>
+    
+    <!-- Sistema de Monitoramento de Conexão -->
+    <script src="../_shared/connection-monitor.js?v=20251223"></script>
+</body>
+</html>

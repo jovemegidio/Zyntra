@@ -1,8 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <meta charset="UTF-8">
+    <meta name="theme-color" content="#1a1a2e">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: Benefícios</title>
@@ -790,17 +791,42 @@
             return null;
         }
 
-        function carregarBeneficios() {
+        // Helper: Obtém headers de autenticação
+        function getApiHeaders(json = false) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+            const h = { 'Authorization': token ? `Bearer ${token}` : '' };
+            if (json) h['Content-Type'] = 'application/json';
+            return h;
+        }
+
+        async function carregarBeneficios() {
+            try {
+                const response = await fetch('/api/rh/beneficios', {
+                    headers: getApiHeaders(),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.length > 0) {
+                        beneficios = data;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(beneficios));
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('[Benefícios] API indisponível, usando cache local:', e.message);
+            }
+            // Fallback: localStorage
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 beneficios = JSON.parse(saved);
             } else {
                 beneficios = [...beneficiosPadrao];
-                salvarBeneficios();
+                salvarBeneficiosLocal();
             }
         }
 
-        function salvarBeneficios() {
+        function salvarBeneficiosLocal() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(beneficios));
         }
 
@@ -1013,7 +1039,7 @@
             document.getElementById('modalBeneficio').classList.add('show');
         }
 
-        function salvarBeneficio() {
+        async function salvarBeneficio() {
             const id = document.getElementById('beneficio-id').value;
             const dados = {
                 nome: document.getElementById('beneficio-nome').value,
@@ -1023,7 +1049,6 @@
                 valor: (function() {
                     let v = document.getElementById('beneficio-valor').value.trim();
                     if (!v) return '';
-                    // Garantir prefixo R$
                     if (!/^R\$/i.test(v)) v = 'R$ ' + v;
                     return v;
                 })(),
@@ -1036,21 +1061,55 @@
                 return;
             }
 
-            if (id) {
-                // Editar
-                const index = beneficios.findIndex(b => b.id === parseInt(id));
-                if (index !== -1) {
-                    beneficios[index] = { ...beneficios[index], ...dados };
+            try {
+                let response;
+                if (id) {
+                    // Editar via API
+                    response = await fetch(`/api/rh/beneficios/${id}`, {
+                        method: 'PUT',
+                        headers: getApiHeaders(true),
+                        credentials: 'include',
+                        body: JSON.stringify(dados)
+                    });
+                } else {
+                    // Criar via API
+                    response = await fetch('/api/rh/beneficios', {
+                        method: 'POST',
+                        headers: getApiHeaders(true),
+                        credentials: 'include',
+                        body: JSON.stringify(dados)
+                    });
                 }
-                showToast('Benefício atualizado com sucesso!', 'success');
-            } else {
-                // Novo
-                const novoId = Math.max(0, ...beneficios.map(b => b.id)) + 1;
-                beneficios.push({ id: novoId, ...dados });
-                showToast('Benefício criado com sucesso!', 'success');
+
+                if (response.ok) {
+                    showToast(id ? 'Benefício atualizado com sucesso!' : 'Benefício criado com sucesso!', 'success');
+                    await carregarBeneficios();
+                } else {
+                    // Fallback local
+                    if (id) {
+                        const index = beneficios.findIndex(b => b.id === parseInt(id));
+                        if (index !== -1) beneficios[index] = { ...beneficios[index], ...dados };
+                    } else {
+                        const novoId = Math.max(0, ...beneficios.map(b => b.id)) + 1;
+                        beneficios.push({ id: novoId, ...dados });
+                    }
+                    salvarBeneficiosLocal();
+                    showToast(id ? 'Benefício atualizado localmente' : 'Benefício criado localmente', 'success');
+                }
+            } catch (error) {
+                console.error('Erro ao salvar benefício:', error);
+                // Fallback local
+                if (id) {
+                    const index = beneficios.findIndex(b => b.id === parseInt(id));
+                    if (index !== -1) beneficios[index] = { ...beneficios[index], ...dados };
+                } else {
+                    const novoId = Math.max(0, ...beneficios.map(b => b.id)) + 1;
+                    beneficios.push({ id: novoId, ...dados });
+                }
+                salvarBeneficiosLocal();
+                showToast(id ? 'Benefício atualizado localmente' : 'Benefício criado localmente', 'success');
             }
 
-            salvarBeneficios();
             renderizarBeneficios();
             renderizarListaAdmin();
             fecharModalBeneficio();
@@ -1070,9 +1129,23 @@
                 iconeBtnConfirmar: 'fa-trash-alt',
                 itemNome: b.nome,
                 avisoExtra: 'Esta ação não pode ser desfeita.',
-                onConfirmar: function() {
-                    beneficios = beneficios.filter(x => x.id !== id);
-                    salvarBeneficios();
+                onConfirmar: async function() {
+                    try {
+                        const resp = await fetch(`/api/rh/beneficios/${id}`, {
+                            method: 'DELETE',
+                            headers: getApiHeaders(),
+                            credentials: 'include'
+                        });
+                        if (resp.ok) {
+                            await carregarBeneficios();
+                        } else {
+                            beneficios = beneficios.filter(x => x.id !== id);
+                            salvarBeneficiosLocal();
+                        }
+                    } catch (e) {
+                        beneficios = beneficios.filter(x => x.id !== id);
+                        salvarBeneficiosLocal();
+                    }
                     renderizarBeneficios();
                     renderizarListaAdmin();
                     showToast('Benefício excluído com sucesso!', 'success');
@@ -1254,8 +1327,8 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            carregarBeneficios();
+        document.addEventListener('DOMContentLoaded', async () => {
+            await carregarBeneficios();
             renderizarBeneficios();
             carregarUsuarioLogado();
         });
@@ -1271,7 +1344,7 @@
     <!-- Sistema de Monitoramento de Conexão -->
     <script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
     <script src="/js/popup-confirmacao.js"></script>
-    <script src="/js/auth-unified.js?v=20260211"></script>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
     <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
     <!-- Chat Widget BOB AI -->

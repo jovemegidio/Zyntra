@@ -1,0 +1,525 @@
+/**
+ * ============================================================================
+ * NFe EMISSÃO - MOBILE ENTERPRISE ENHANCEMENT
+ * Converte formulário extenso em wizard step-by-step
+ * Score anterior: 3.5 → Score alvo: 7.5+
+ * ============================================================================
+ */
+
+/* ==========================================================================
+   MOBILE WIZARD STEPS
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    /* Steps como dots no topo */
+    .steps {
+        flex-direction: row !important;
+        justify-content: center !important;
+        gap: 12px !important;
+        padding: 16px !important;
+        background: white !important;
+        position: sticky !important;
+        top: 56px !important;
+        z-index: 50 !important;
+        border-bottom: 1px solid #e5e7eb !important;
+        margin-bottom: 0 !important;
+    }
+    
+    .step {
+        flex: none !important;
+        width: 36px !important;
+        height: 36px !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        border-left: none !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #e5e7eb !important;
+    }
+    
+    .step strong {
+        display: none !important;
+    }
+    
+    .step-number {
+        margin-right: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        line-height: 36px !important;
+    }
+    
+    .step.active {
+        background: #10b981 !important;
+        transform: scale(1.2) !important;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+    }
+    
+    .step.active .step-number {
+        background: transparent !important;
+        color: white !important;
+    }
+    
+    .step.completed {
+        background: #22c55e !important;
+    }
+    
+    .step.completed .step-number {
+        background: transparent !important;
+    }
+    
+    /* Progress line entre steps */
+    .step:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        right: -12px;
+        top: 50%;
+        width: 12px;
+        height: 2px;
+        background: #e5e7eb;
+    }
+    
+    .step.completed:not(:last-child)::after {
+        background: #22c55e;
+    }
+    
+    /* Step title tooltip */
+    .step::before {
+        content: attr(data-title);
+        position: absolute;
+        bottom: -24px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 10px;
+        color: #6b7280;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    
+    .step.active::before {
+        opacity: 1;
+        color: #10b981;
+        font-weight: 600;
+    }
+}
+
+/* ==========================================================================
+   FORM SECTIONS - ACCORDION EM MOBILE
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .content-area {
+        padding: 12px !important;
+        padding-bottom: 100px !important;
+    }
+    
+    .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+    
+    /* Form sections como cards colapsáveis */
+    .form-section {
+        margin-bottom: 12px !important;
+        padding: 0 !important;
+        border-radius: 16px !important;
+        overflow: hidden !important;
+        border: 1px solid #e5e7eb !important;
+    }
+    
+    .form-section h3 {
+        padding: 16px !important;
+        margin-bottom: 0 !important;
+        background: #f9fafb !important;
+        font-size: 15px !important;
+        cursor: pointer !important;
+        border-bottom: none !important;
+        transition: all 0.2s !important;
+    }
+    
+    .form-section h3::after {
+        content: '\f078';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        position: absolute;
+        right: 16px;
+        font-size: 12px;
+        color: #9ca3af;
+        transition: transform 0.2s;
+    }
+    
+    .form-section.collapsed h3::after {
+        transform: rotate(-90deg);
+    }
+    
+    .form-section h3:active {
+        background: #f3f4f6 !important;
+    }
+    
+    /* Conteúdo do form */
+    .form-section > *:not(h3) {
+        padding: 0 16px !important;
+    }
+    
+    .form-section > *:last-child {
+        padding-bottom: 16px !important;
+    }
+    
+    /* Form rows em coluna */
+    .form-row {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+        margin-bottom: 12px !important;
+    }
+    
+    /* Form groups */
+    .form-group {
+        width: 100% !important;
+    }
+    
+    .form-group label {
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        color: #374151 !important;
+        margin-bottom: 6px !important;
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100% !important;
+        min-height: 48px !important;
+        padding: 12px 14px !important;
+        font-size: 16px !important; /* Previne zoom iOS */
+        border-radius: 12px !important;
+        border: 1.5px solid #d1d5db !important;
+        background: white !important;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus {
+        border-color: #10b981 !important;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1) !important;
+    }
+}
+
+/* ==========================================================================
+   TABELA DE ITENS → CARDS
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .itens-table {
+        display: block !important;
+    }
+    
+    .itens-table thead {
+        display: none !important;
+    }
+    
+    .itens-table tbody {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+    
+    .itens-table tr {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        background: white !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 12px !important;
+        padding: 12px !important;
+        gap: 8px !important;
+        position: relative !important;
+    }
+    
+    .itens-table td {
+        border: none !important;
+        padding: 4px !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    
+    /* Labels para cada campo */
+    .itens-table td::before {
+        content: attr(data-label);
+        font-size: 10px !important;
+        font-weight: 600 !important;
+        color: #6b7280 !important;
+        text-transform: uppercase !important;
+        margin-bottom: 4px !important;
+    }
+    
+    /* Código - 50% width */
+    .itens-table td:nth-child(1) {
+        width: 50% !important;
+    }
+    
+    /* Descrição - 100% width */
+    .itens-table td:nth-child(2) {
+        width: 100% !important;
+        order: -1 !important;
+    }
+    
+    .itens-table td:nth-child(2) input {
+        font-weight: 600 !important;
+        font-size: 15px !important;
+    }
+    
+    /* NCM, CFOP, Unid - 33% each */
+    .itens-table td:nth-child(3),
+    .itens-table td:nth-child(4),
+    .itens-table td:nth-child(5) {
+        width: calc(33.33% - 6px) !important;
+    }
+    
+    /* Qtd, Valor Unit, Total - 33% each */
+    .itens-table td:nth-child(6),
+    .itens-table td:nth-child(7),
+    .itens-table td:nth-child(8) {
+        width: calc(33.33% - 6px) !important;
+    }
+    
+    /* Total destacado */
+    .itens-table td:nth-child(8) {
+        background: #f0fdf4 !important;
+        border-radius: 8px !important;
+        padding: 8px !important;
+    }
+    
+    .itens-table td:nth-child(8) input {
+        font-weight: 700 !important;
+        color: #16a34a !important;
+    }
+    
+    /* Botão remover */
+    .itens-table td:last-child {
+        position: absolute !important;
+        top: 8px !important;
+        right: 8px !important;
+        width: auto !important;
+    }
+    
+    .itens-table td:last-child::before {
+        display: none !important;
+    }
+    
+    .itens-table input {
+        width: 100% !important;
+        min-height: 40px !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
+    }
+}
+
+/* ==========================================================================
+   TOTAIS
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .totais {
+        margin-top: 16px !important;
+        padding: 16px !important;
+        border-radius: 16px !important;
+        background: #f9fafb !important;
+    }
+    
+    .totais-row {
+        padding: 12px 0 !important;
+        font-size: 14px !important;
+    }
+    
+    .totais-row.total {
+        font-size: 18px !important;
+        padding-top: 16px !important;
+        margin-top: 8px !important;
+    }
+}
+
+/* ==========================================================================
+   ACTIONS - BOTTOM FIXED
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .actions {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        background: white !important;
+        padding: 12px 16px !important;
+        padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+        margin: 0 !important;
+        border-top: 1px solid #e5e7eb !important;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.05) !important;
+        display: flex !important;
+        gap: 8px !important;
+        z-index: 100 !important;
+    }
+    
+    .actions .btn {
+        flex: 1 !important;
+        justify-content: center !important;
+        min-height: 48px !important;
+        border-radius: 12px !important;
+    }
+    
+    /* Primary action maior */
+    .actions .btn-success {
+        flex: 2 !important;
+    }
+    
+    /* Esconder texto em botões secundários, mostrar só ícone */
+    .actions .btn-secondary .btn-icon,
+    .actions .btn-primary:not(.btn-success) .btn-icon {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+}
+
+/* ==========================================================================
+   PREVIEW AREA
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .preview-area {
+        max-height: 300px !important;
+        font-size: 11px !important;
+        padding: 12px !important;
+        border-radius: 12px !important;
+    }
+}
+
+/* ==========================================================================
+   ALERTS
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .alert {
+        margin: 12px !important;
+        border-radius: 12px !important;
+        padding: 14px 16px !important;
+        font-size: 14px !important;
+    }
+}
+
+/* ==========================================================================
+   TABS BAR MOBILE
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .tabs-bar {
+        display: none !important; /* Usar bottom nav ao invés */
+    }
+}
+
+/* ==========================================================================
+   SIDEBAR MOBILE
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%) !important;
+        width: 280px !important;
+        transition: transform 0.3s ease !important;
+    }
+    
+    .sidebar.active {
+        transform: translateX(0) !important;
+    }
+    
+    .main-area {
+        margin-left: 0 !important;
+    }
+}
+
+/* ==========================================================================
+   HEADER MOBILE
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .header {
+        height: 56px !important;
+        padding: 0 12px !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 100 !important;
+    }
+    
+    .header-brand span:not(:first-child) {
+        display: none !important;
+    }
+    
+    .user-greeting span:not(strong) {
+        display: none !important;
+    }
+    
+    .header-right {
+        gap: 4px !important;
+    }
+    
+    .header-btn {
+        width: 40px !important;
+        height: 40px !important;
+    }
+}
+
+/* ==========================================================================
+   MOBILE MENU BUTTON
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .mobile-menu-btn {
+        display: flex !important;
+        width: 40px !important;
+        height: 40px !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: rgba(255,255,255,0.1) !important;
+        border: none !important;
+        border-radius: 10px !important;
+        color: white !important;
+        font-size: 18px !important;
+        cursor: pointer !important;
+        margin-right: 12px !important;
+    }
+}
+
+/* ==========================================================================
+   QUICK ADD ITEM BUTTON
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    .form-section .btn-primary[onclick*="adicionarItem"] {
+        width: 100% !important;
+        justify-content: center !important;
+        min-height: 48px !important;
+        border-radius: 12px !important;
+        margin-top: 8px !important;
+    }
+}
+
+/* ==========================================================================
+   TABLET ADJUSTMENTS
+   ========================================================================== */
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .form-row {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    
+    .steps {
+        padding: 20px !important;
+    }
+    
+    .step {
+        padding: 20px !important;
+    }
+    
+    .content-area {
+        padding: 20px !important;
+    }
+}

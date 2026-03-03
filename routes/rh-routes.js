@@ -8,6 +8,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const bcrypt = require('bcryptjs');
+
 module.exports = function createRHRoutes(deps) {
     const { pool, authenticateToken, authorizeArea, authorizeAdmin, writeAuditLog, jwt, JWT_SECRET } = deps;
     const router = express.Router();
@@ -35,14 +37,14 @@ module.exports = function createRHRoutes(deps) {
 
     router.use(authenticateToken);
     router.use(authorizeArea('rh'));
-    
+
     // Rota /me para o RH retornar dados do usuário logado
     router.get('/me', async (req, res) => {
         try {
             if (!req.user) {
                 return res.status(401).json({ message: 'Não autenticado' });
             }
-    
+
             // Buscar dados completos do usuário no banco com JOIN para foto do funcionário
             const [[dbUser]] = await pool.query(
                 `SELECT u.id, u.nome, u.email, u.role, u.is_admin,
@@ -53,11 +55,11 @@ module.exports = function createRHRoutes(deps) {
                  WHERE u.id = ?`,
                 [req.user.id]
             );
-    
+
             if (!dbUser) {
                 return res.status(404).json({ message: 'Usuário não encontrado' });
             }
-    
+
             // Parse permissões
             let permissoes = [];
             if (dbUser.permissoes) {
@@ -68,10 +70,10 @@ module.exports = function createRHRoutes(deps) {
                     permissoes = [];
                 }
             }
-    
+
             // Determinar a foto (prioridade: avatar > foto > foto_funcionario)
             const fotoUsuario = dbUser.avatar || dbUser.foto || dbUser.foto_funcionario || "/avatars/default.webp";
-    
+
             // Retornar dados completos do usuário
             res.json({
                 user: {
@@ -91,7 +93,7 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao buscar dados do usuário' });
         }
     });
-    
+
     // ROTAS: CRUD básico de funcionários (opera sobre a tabela `usuarios`)
     // Criar funcionário (admin apenas)
     router.post('/funcionarios', [
@@ -122,12 +124,12 @@ module.exports = function createRHRoutes(deps) {
             }
         } catch (error) { next(error); }
     });
-    
+
     // Listar funcionários (admin apenas) - busca da tabela funcionarios
     router.get('/funcionarios', authorizeAdmin, async (req, res, next) => {
         try {
             const { status, departamento, search, limit = 100, offset = 0 } = req.query;
-    
+
             let sql = `
                 SELECT
                     id, nome_completo, email, cpf, rg, telefone,
@@ -145,7 +147,7 @@ module.exports = function createRHRoutes(deps) {
                 WHERE 1=1
             `;
             const params = [];
-    
+
             if (status) {
                 sql += ' AND status = ?';
                 params.push(status);
@@ -159,12 +161,12 @@ module.exports = function createRHRoutes(deps) {
                 const searchTerm = `%${search}%`;
                 params.push(searchTerm, searchTerm, searchTerm, searchTerm);
             }
-    
+
             sql += ' ORDER BY nome_completo ASC LIMIT ? OFFSET ?';
             params.push(parseInt(limit), parseInt(offset));
-    
+
             const [rows] = await pool.query(sql, params);
-    
+
             // Buscar contagens para estatísticas
             const [[stats]] = await pool.query(`
                 SELECT
@@ -174,22 +176,22 @@ module.exports = function createRHRoutes(deps) {
                     SUM(CASE WHEN MONTH(data_admissao) = MONTH(CURRENT_DATE()) AND YEAR(data_admissao) = YEAR(CURRENT_DATE()) THEN 1 ELSE 0 END) as admissoes_mes
                 FROM funcionarios
             `);
-    
+
             // Buscar lista de departamentos únicos
             const [deptRows] = await pool.query('SELECT DISTINCT departamento FROM funcionarios WHERE departamento IS NOT NULL AND departamento != "" ORDER BY departamento');
             const departamentos = deptRows.map(r => r.departamento);
-    
+
             // Buscar lista de cargos únicos
             const [cargoRows] = await pool.query('SELECT DISTINCT cargo FROM funcionarios WHERE cargo IS NOT NULL AND cargo != "" ORDER BY cargo');
             const cargos = cargoRows.map(r => r.cargo);
-    
+
             // Descriptografar CPF/RG (LGPD)
             const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
             rows.forEach(r => {
                 if (r.cpf) r.cpf = _dec(r.cpf);
                 if (r.rg) r.rg = _dec(r.rg);
             });
-    
+
             res.json({
                 funcionarios: rows,
                 stats: stats || { total: 0, ativos: 0, aniversariantes: 0, admissoes_mes: 0 },
@@ -201,7 +203,7 @@ module.exports = function createRHRoutes(deps) {
             next(error);
         }
     });
-    
+
     // API para listar cargos com estatísticas
     router.get('/cargos', authorizeAdmin, async (req, res, next) => {
         try {
@@ -235,13 +237,13 @@ module.exports = function createRHRoutes(deps) {
                 GROUP BY cargo, departamento
                 ORDER BY cargo
             `);
-    
+
             // Adicionar IDs sequenciais
             const cargosComId = rows.map((c, index) => ({
                 id: index + 1,
                 ...c
             }));
-    
+
             res.json({
                 success: true,
                 data: cargosComId,
@@ -252,18 +254,18 @@ module.exports = function createRHRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Buscar funcionário por ID (próprio usuário ou admin/RH)
     // NOTA: Se o usuário chegou até aqui, já passou pelo authorizeArea('rh')
     router.get('/funcionarios/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             // Verificar se é admin ou RH
             const userRole = (req.user.role || '').toLowerCase();
             const isAdmin = userRole === 'admin' || req.user.is_admin === 1 || req.user.is_admin === true || req.user.is_admin === '1';
             const isRH = userRole === 'rh' || userRole === 'recursos humanos';
-    
+
             // Verificar se é o próprio usuário (por email na tabela funcionarios)
             let isSelf = false;
             if (req.user.email) {
@@ -273,14 +275,14 @@ module.exports = function createRHRoutes(deps) {
                 } catch (e) { /* ignora erro */ }
             }
             if (!isSelf) isSelf = Number(req.user.id) === parseInt(id);
-    
+
             const hasRHAccess = isAdmin || isRH || req.isConsultoria === true;
-    
+
             if (!isSelf && !hasRHAccess) {
                 console.log(`[RH] Acesso negado funcionário ${id} - User: ${req.user.nome || req.user.email}, Role: ${userRole}`);
                 return res.status(403).json({ message: 'Acesso negado' });
             }
-    
+
             // Buscar dados na tabela funcionarios (mais completa)
             const [rows] = await pool.query(`
                 SELECT
@@ -299,7 +301,7 @@ module.exports = function createRHRoutes(deps) {
                 FROM funcionarios
                 WHERE id = ?
             `, [id]);
-    
+
             if (rows.length === 0) {
                 // Se não encontrou na tabela funcionarios, buscar na tabela usuarios
                 const [userRows] = await pool.query(`
@@ -310,26 +312,26 @@ module.exports = function createRHRoutes(deps) {
                     FROM usuarios
                     WHERE id = ?
                 `, [id]);
-    
+
                 if (userRows.length === 0) {
                     return res.status(404).json({ message: 'Funcionário não encontrado' });
                 }
-    
+
                 return res.json(userRows[0]);
             }
-    
+
             // Descriptografar CPF/RG (LGPD)
             const _dec = lgpdCrypto ? lgpdCrypto.decryptPII : (v => v);
             if (rows[0].cpf) rows[0].cpf = _dec(rows[0].cpf);
             if (rows[0].rg) rows[0].rg = _dec(rows[0].rg);
-    
+
             res.json(rows[0]);
         } catch (error) {
             console.error('Erro ao buscar funcionário:', error);
             next(error);
         }
     });
-    
+
     // Deletar funcionário por id (admin apenas)
     router.delete('/funcionarios/:id', [
         authorizeAdmin,
@@ -338,7 +340,7 @@ module.exports = function createRHRoutes(deps) {
     ], async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             // Verificar se o funcionário existe
             const [funcionario] = await pool.query('SELECT id FROM funcionarios WHERE id = ?', [id]);
             if (funcionario.length === 0) {
@@ -351,12 +353,12 @@ module.exports = function createRHRoutes(deps) {
                 await pool.query('DELETE FROM usuarios WHERE id = ?', [id]);
                 return res.status(204).send();
             }
-    
+
             // AUDIT-FIX HIGH-003: Use explicit cascade list + transaction instead of dynamic FK lookup
             const connection = await pool.getConnection();
             try {
                 await connection.beginTransaction();
-    
+
                 // Explicit list of known FK tables for funcionarios (avoids dynamic table name injection)
                 const fkCascadeTables = [
                     { table: 'ponto_registros', column: 'funcionario_id' },
@@ -373,7 +375,7 @@ module.exports = function createRHRoutes(deps) {
                     { table: 'avaliacoes_desempenho', column: 'funcionario_id' },
                     { table: 'esocial_eventos', column: 'funcionario_id' }
                 ];
-    
+
                 for (const fk of fkCascadeTables) {
                     try {
                         await connection.query(`DELETE FROM \`${fk.table}\` WHERE \`${fk.column}\` = ?`, [id]);
@@ -382,7 +384,7 @@ module.exports = function createRHRoutes(deps) {
                         if (err.errno !== 1146) throw err;
                     }
                 }
-    
+
                 // Agora deleta o funcionário
                 const [result] = await connection.query('DELETE FROM funcionarios WHERE id = ?', [id]);
                 if (result.affectedRows === 0) {
@@ -390,7 +392,7 @@ module.exports = function createRHRoutes(deps) {
                     connection.release();
                     return res.status(404).json({ message: 'Funcionário não encontrado.' });
                 }
-    
+
                 await connection.commit();
                 connection.release();
                 res.status(204).send();
@@ -401,7 +403,7 @@ module.exports = function createRHRoutes(deps) {
             }
         } catch (error) { next(error); }
     });
-    
+
     // Atualizar funcionário por id (admin apenas)
     router.put('/funcionarios/:id', [
         authorizeAdmin,
@@ -428,7 +430,7 @@ module.exports = function createRHRoutes(deps) {
                 vt_qtd_passagens, vt_linhas, vt_dias_desconto,
                 vt_mes_referencia, vt_motivo_desconto
             } = req.body;
-    
+
             // AUDIT-FIX R-06: NUNCA armazenar senha em texto plano
             // Se senha_texto foi enviada, hashear com bcrypt ou rejeitar a operação
             let senhaHasheada = null; // null = não atualizar campo senha
@@ -441,10 +443,10 @@ module.exports = function createRHRoutes(deps) {
                     return res.status(500).json({ message: 'Erro ao processar senha. Operação cancelada por segurança.' });
                 }
             }
-    
+
             // Processar vt_ativo como boolean → int
             const vtAtivoInt = vt_ativo === true || vt_ativo === 'true' || vt_ativo === 1 ? 1 : (vt_ativo === false || vt_ativo === 'false' || vt_ativo === 0 ? 0 : vt_ativo);
-    
+
             const [result] = await pool.query(`
                 UPDATE funcionarios SET
                     nome_completo = COALESCE(?, nome_completo),
@@ -513,18 +515,18 @@ module.exports = function createRHRoutes(deps) {
                 vt_mes_referencia, vt_motivo_desconto,
                 id
             ]);
-    
+
             if (result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Funcionário não encontrado.' });
             }
-    
+
             res.json({ message: 'Funcionário atualizado com sucesso!' });
         } catch (error) {
             console.error('Erro ao atualizar funcionário:', error);
             next(error);
         }
     });
-    
+
     // Criar funcionário na tabela funcionarios (admin apenas)
     router.post('/funcionarios/novo', [
         authorizeAdmin,
@@ -535,49 +537,49 @@ module.exports = function createRHRoutes(deps) {
     ], async (req, res, next) => {
         try {
             const {
-                nome_completo, email, cpf, rg, telefone,
+                nome_completo, email, cpf, rg, telefone, sexo,
                 cargo, departamento, status = 'Ativo',
                 data_nascimento, data_admissao,
                 estado_civil, nacionalidade, naturalidade,
                 endereco, pis_pasep, ctps_numero, ctps_serie,
-                banco, agencia, conta_corrente,
+                banco, tipo_chave_pix, chave_pix, agencia, conta_corrente,
                 dependentes, cnh, certificado_reservista,
                 titulo_eleitor, zona_eleitoral, secao_eleitoral,
                 filiacao_mae, filiacao_pai, dados_conjuge
             } = req.body;
-    
+
             // Gerar senha temporária aleatória segura (12 chars)
             const crypto = require('crypto');
             const senhaTemp = crypto.randomBytes(8).toString('base64').slice(0, 12);
-    
+
             // Hash da senha
             const hashed = await bcrypt.hash(senhaTemp, 10);
-    
+
             const [result] = await pool.query(`
                 INSERT INTO funcionarios (
-                    nome_completo, email, senha, password_hash, cpf, rg, telefone,
+                    nome_completo, email, senha, password_hash, cpf, rg, telefone, sexo,
                     cargo, departamento, status, role,
                     data_nascimento, data_admissao,
                     estado_civil, nacionalidade, naturalidade,
                     endereco, pis_pasep, ctps_numero, ctps_serie,
-                    banco, agencia, conta_corrente,
+                    banco, tipo_chave_pix, chave_pix, agencia, conta_corrente,
                     dependentes, cnh, certificado_reservista,
                     titulo_eleitor, zona_eleitoral, secao_eleitoral,
                     filiacao_mae, filiacao_pai, dados_conjuge,
                     forcar_troca_senha
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'funcionario', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'funcionario', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             `, [
-                nome_completo, email, hashed, hashed, cpf, rg, telefone,
+                nome_completo, email, hashed, hashed, cpf, rg, telefone, sexo || null,
                 cargo, departamento, status,
                 data_nascimento, data_admissao,
                 estado_civil, nacionalidade, naturalidade,
                 endereco, pis_pasep, ctps_numero, ctps_serie,
-                banco, agencia, conta_corrente,
+                banco, tipo_chave_pix || null, chave_pix || null, agencia, conta_corrente,
                 dependentes || 0, cnh, certificado_reservista,
                 titulo_eleitor, zona_eleitoral, secao_eleitoral,
                 filiacao_mae, filiacao_pai, dados_conjuge
             ]);
-    
+
             // Retorna senha temporária para o admin informar ao funcionário
             // A flag forcar_troca_senha=1 já está setada no INSERT
             res.status(201).json({
@@ -594,7 +596,7 @@ module.exports = function createRHRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Upload de foto do funcionário
     router.post('/funcionarios/:id/foto', [
         authorizeAdmin,
@@ -603,26 +605,26 @@ module.exports = function createRHRoutes(deps) {
     ], upload.single('foto'), async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             if (!req.file) {
                 return res.status(400).json({ message: 'Nenhuma foto enviada.' });
             }
-    
+
             console.log('📸 Upload de foto recebido:', req.file);
-    
+
             // O multer já salvou o arquivo em public/uploads/RH/fotos
             // Usar o caminho que o multer definiu
             const nomeArquivo = req.file.filename;
             const ext = path.extname(nomeArquivo).toLowerCase();
             const caminhoFoto = `/uploads/RH/fotos/${nomeArquivo}`;
-    
+
             // Criar thumbnail (200x200)
             const sharp = require('sharp');
             const thumbName = nomeArquivo.replace(ext, `-thumb${ext}`);
             const pastaFotos = path.dirname(req.file.path);
             const thumbPath = path.join(pastaFotos, thumbName);
             const thumbUrl = `/uploads/RH/fotos/${thumbName}`;
-    
+
             try {
                 await sharp(req.file.path)
                     .resize(200, 200, { fit: 'cover' })
@@ -632,11 +634,11 @@ module.exports = function createRHRoutes(deps) {
                 console.error('⚠️ Erro ao criar thumbnail:', sharpErr);
                 // Continua mesmo se thumbnail falhar
             }
-    
+
             // Atualizar foto no banco (apenas colunas que existem: foto_perfil_url e foto_thumb_url)
             await pool.query('UPDATE funcionarios SET foto_perfil_url = ?, foto_thumb_url = ? WHERE id = ?', [caminhoFoto, thumbUrl, id]);
             console.log('✅ Foto atualizada no banco para funcionário:', id);
-    
+
             res.json({
                 message: 'Foto atualizada com sucesso!',
                 foto: caminhoFoto,
@@ -648,7 +650,7 @@ module.exports = function createRHRoutes(deps) {
             next(error);
         }
     });
-    
+
     // Importar funcionários via CSV/Excel (admin apenas)
     router.post('/funcionarios/importar', [
         authorizeAdmin
@@ -657,7 +659,7 @@ module.exports = function createRHRoutes(deps) {
             if (!req.file) {
                 return res.status(400).json({ message: 'Arquivo não enviado.' });
             }
-    
+
             // Por enquanto retorna sucesso - a implementação completa depende da lib de parsing
             res.json({
                 message: 'Arquivo recebido. Processamento em desenvolvimento.',
@@ -668,7 +670,7 @@ module.exports = function createRHRoutes(deps) {
             next(error);
         }
     });
-    
+
     // HOLERITES
     router.get('/funcionarios/:id/holerites', async (req, res, next) => {
         try {
@@ -691,7 +693,7 @@ module.exports = function createRHRoutes(deps) {
             res.status(201).json({ message: 'Holerite anexado!' });
         } catch (e) { next(e); }
     });
-    
+
     // ATESTADOS
     router.get('/atestados', async (req, res, next) => {
         try {
@@ -701,36 +703,36 @@ module.exports = function createRHRoutes(deps) {
             res.json(rows);
         } catch (e) { next(e); }
     });
-    
+
     // Buscar meus atestados (usuário logado)
     router.get('/meus-atestados', async (req, res, next) => {
         try {
             const funcionarioId = req.user.id;
-    
+
             const [rows] = await pool.query(`
                 SELECT * FROM atestados
                 WHERE funcionario_id = ?
                 ORDER BY created_at DESC
             `, [funcionarioId]);
-    
+
             rows.forEach(a => {
                 if (a.arquivo) a.arquivo_url = `/uploads/atestados/${a.arquivo}`;
             });
-    
+
             res.json(rows);
         } catch (e) {
             console.error('Erro ao buscar atestados:', e);
             next(e);
         }
     });
-    
+
     // Buscar atestados de um funcionário específico (admin)
     router.get('/funcionarios/:id/atestados', async (req, res, next) => {
         try {
             const funcionarioId = req.params.id;
-    
+
             // AUDIT-FIX ARCH-002: Removed duplicate CREATE TABLE atestados (kept in POST route with more columns)
-    
+
             // Verificar e adicionar colunas que podem faltar
             const colunasExtras = [
                 "ALTER TABLE atestados ADD COLUMN IF NOT EXISTS dias_afastamento INT",
@@ -740,11 +742,11 @@ module.exports = function createRHRoutes(deps) {
                 "ALTER TABLE atestados ADD COLUMN IF NOT EXISTS aprovado_por INT",
                 "ALTER TABLE atestados ADD COLUMN IF NOT EXISTS data_aprovacao DATETIME"
             ];
-    
+
             for (const sql of colunasExtras) {
                 try { await pool.query(sql); } catch (e) { /* coluna já existe */ }
             }
-    
+
             const [rows] = await pool.query(`
                 SELECT a.*, f.nome_completo as funcionario_nome
                 FROM atestados a
@@ -752,18 +754,18 @@ module.exports = function createRHRoutes(deps) {
                 WHERE a.funcionario_id = ?
                 ORDER BY a.created_at DESC
             `, [funcionarioId]);
-    
+
             rows.forEach(a => {
                 if (a.arquivo) a.arquivo_url = `/uploads/atestados/${a.arquivo}`;
             });
-    
+
             res.json(rows);
         } catch (e) {
             console.error('Erro ao buscar atestados:', e);
             next(e);
         }
     });
-    
+
     // Aprovar atestado
     router.put('/atestados/:id/aprovar', [authorizeAdmin], async (req, res, next) => {
         try {
@@ -775,7 +777,7 @@ module.exports = function createRHRoutes(deps) {
             res.json({ message: 'Atestado aprovado com sucesso!' });
         } catch (e) { next(e); }
     });
-    
+
     // Recusar atestado
     router.put('/atestados/:id/recusar', [authorizeAdmin], async (req, res, next) => {
         try {
@@ -788,11 +790,11 @@ module.exports = function createRHRoutes(deps) {
             res.json({ message: 'Atestado recusado.' });
         } catch (e) { next(e); }
     });
-    
+
     router.post('/atestados', upload.single('arquivo'), async (req, res, next) => {
         try {
             if (!req.file) return res.status(400).json({ message: 'Arquivo não enviado.' });
-    
+
             const funcionario_id = req.body.funcionario_id || req.user.id;
             const data_inicio = req.body.data_inicio;
             const data_fim = req.body.data_fim;
@@ -802,7 +804,7 @@ module.exports = function createRHRoutes(deps) {
             const cid = req.body.cid || null;
             const observacoes = req.body.observacoes || null;
             const data_atestado = new Date().toISOString().slice(0, 10);
-    
+
             // Criar tabela se não existir com todos os campos
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS atestados (
@@ -824,7 +826,7 @@ module.exports = function createRHRoutes(deps) {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `);
-    
+
             // Adicionar colunas se não existirem (para tabelas já criadas)
             const colunasExtras = [
                 'ALTER TABLE atestados ADD COLUMN IF NOT EXISTS nome_medico VARCHAR(255)',
@@ -835,21 +837,21 @@ module.exports = function createRHRoutes(deps) {
             for (const sql of colunasExtras) {
                 try { await pool.query(sql); } catch (e) { /* coluna já existe */ }
             }
-    
+
             await pool.query(
                 `INSERT INTO atestados
                 (funcionario_id, data_atestado, data_inicio, data_fim, arquivo, nome_medico, crm, tipo_atestado, cid, observacoes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [funcionario_id, data_atestado, data_inicio, data_fim, req.file.filename, nome_medico, crm, tipo_atestado, cid, observacoes]
             );
-    
+
             res.status(201).json({ message: 'Atestado enviado com sucesso!' });
         } catch (e) {
             console.error('Erro ao enviar atestado:', e);
             next(e);
         }
     });
-    
+
     // AVISOS
     router.get('/avisos', async (req, res, next) => {
         try {
@@ -867,14 +869,14 @@ module.exports = function createRHRoutes(deps) {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
             `);
-    
+
             // Adicionar colunas se não existirem (para tabelas antigas)
             try {
                 await pool.query(`ALTER TABLE avisos ADD COLUMN IF NOT EXISTS tipo VARCHAR(50) DEFAULT 'info'`);
                 await pool.query(`ALTER TABLE avisos ADD COLUMN IF NOT EXISTS conteudo TEXT`);
                 await pool.query(`ALTER TABLE avisos ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
             } catch (e) { /* Colunas já existem ou DB não suporta IF NOT EXISTS */ }
-    
+
             // Query segura - usando apenas colunas existentes
             const [rows] = await pool.query(`
                 SELECT
@@ -915,11 +917,11 @@ module.exports = function createRHRoutes(deps) {
             res.status(204).send();
         } catch (e) { next(e); }
     });
-    
+
     // =====================================================
     // SOLICITAÇÕES RH
     // =====================================================
-    
+
     // Criar tabela de solicitações se não existir
     async function criarTabelaSolicitacoes() {
         try {
@@ -948,7 +950,7 @@ module.exports = function createRHRoutes(deps) {
         }
     }
     criarTabelaSolicitacoes();
-    
+
     // Listar solicitações do usuário logado
     // Buscar solicitações de um funcionário específico (por ID)
     router.get('/funcionarios/:id/solicitacoes', async (req, res, next) => {
@@ -959,7 +961,7 @@ module.exports = function createRHRoutes(deps) {
                 WHERE funcionario_id = ?
                 ORDER BY created_at DESC
             `, [id]);
-    
+
             const stats = {
                 total: rows.length,
                 pendentes: rows.filter(r => r.status === 'Pendente').length,
@@ -967,14 +969,14 @@ module.exports = function createRHRoutes(deps) {
                 aprovadas: rows.filter(r => r.status === 'Aprovada' || r.status === 'Aprovado').length,
                 recusadas: rows.filter(r => r.status === 'Recusada' || r.status === 'Recusado').length
             };
-    
+
             res.json({ solicitacoes: rows, stats });
         } catch (e) {
             console.error('Erro ao buscar solicitações do funcionário:', e);
             next(e);
         }
     });
-    
+
     router.get('/solicitacoes', async (req, res, next) => {
         try {
             const userEmail = req.user.email;
@@ -983,7 +985,7 @@ module.exports = function createRHRoutes(deps) {
                 WHERE funcionario_email = ?
                 ORDER BY created_at DESC
             `, [userEmail]);
-    
+
             // Calcular estatísticas
             const stats = {
                 total: rows.length,
@@ -992,21 +994,21 @@ module.exports = function createRHRoutes(deps) {
                 aprovadas: rows.filter(r => r.status === 'Aprovada' || r.status === 'Aprovado').length,
                 recusadas: rows.filter(r => r.status === 'Recusada' || r.status === 'Recusado').length
             };
-    
+
             res.json({ solicitacoes: rows, stats });
         } catch (e) {
             console.error('Erro ao listar solicitações:', e);
             next(e);
         }
     });
-    
+
     // Listar todas as solicitações (admin)
     router.get('/solicitacoes/todas', authorizeAdmin, async (req, res, next) => {
         try {
             const { status, tipo } = req.query;
             let sql = 'SELECT id, tipo, categoria, assunto, descricao, status, prioridade, funcionario_id, funcionario_email, funcionario_nome, created_at, updated_at FROM rh_solicitacoes WHERE 1=1';
             const params = [];
-    
+
             if (status) {
                 sql += ' AND status = ?';
                 params.push(status);
@@ -1015,21 +1017,21 @@ module.exports = function createRHRoutes(deps) {
                 sql += ' AND tipo = ?';
                 params.push(tipo);
             }
-    
+
             sql += ' ORDER BY created_at DESC LIMIT 300';
-    
+
             const [rows] = await pool.query(sql, params);
             res.json(rows);
         } catch (e) { next(e); }
     });
-    
+
     // Criar nova solicitação
     router.post('/solicitacoes', upload.single('anexo'), async (req, res, next) => {
         try {
             const { tipo, categoria, assunto, descricao, prioridade, funcionario_id } = req.body;
             const userEmail = req.user.email;
             const userName = req.user.nome || req.user.apelido || 'Usuário';
-    
+
             // Definir assunto automaticamente se não fornecido
             let assuntoFinal = assunto;
             if (!assuntoFinal && tipo && categoria) {
@@ -1037,15 +1039,15 @@ module.exports = function createRHRoutes(deps) {
             } else if (!assuntoFinal && tipo) {
                 assuntoFinal = tipo;
             }
-    
+
             const anexoFile = req.file ? req.file.filename : null;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO rh_solicitacoes
                 (funcionario_id, funcionario_nome, funcionario_email, tipo, categoria, assunto, descricao, prioridade, anexo)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [funcionario_id || null, userName, userEmail, tipo, categoria, assuntoFinal, descricao, prioridade || 'normal', anexoFile]);
-    
+
             res.status(201).json({
                 message: 'Solicitação enviada com sucesso!',
                 id: result.insertId
@@ -1055,46 +1057,46 @@ module.exports = function createRHRoutes(deps) {
             next(e);
         }
     });
-    
+
     // Atualizar status da solicitação (admin)
     router.put('/solicitacoes/:id/status', authorizeAdmin, async (req, res, next) => {
         try {
             const { id } = req.params;
             const { status, resposta } = req.body;
-    
+
             await pool.query(`
                 UPDATE rh_solicitacoes
                 SET status = ?, resposta = ?, respondido_por = ?, data_resposta = NOW()
                 WHERE id = ?
             `, [status, resposta || null, req.user.id, id]);
-    
+
             res.json({ message: 'Status atualizado com sucesso!' });
         } catch (e) { next(e); }
     });
-    
+
     // Deletar solicitação
     router.delete('/solicitacoes/:id', async (req, res, next) => {
         try {
             const { id } = req.params;
             const userEmail = req.user.email;
-    
+
             // Verificar se a solicitação pertence ao usuário
             const [rows] = await pool.query('SELECT * FROM rh_solicitacoes WHERE id = ?', [id]);
             if (rows.length === 0) {
                 return res.status(404).json({ message: 'Solicitação não encontrada.' });
             }
-    
+
             // Admin pode deletar qualquer solicitação
             const isAdmin = req.user.role === 'admin' || ['rh@aluforce.ind.br', 'ti@aluforce.ind.br'].includes(userEmail.toLowerCase());
             if (rows[0].funcionario_email !== userEmail && !isAdmin) {
                 return res.status(403).json({ message: 'Sem permissão para deletar esta solicitação.' });
             }
-    
+
             await pool.query('DELETE FROM rh_solicitacoes WHERE id = ?', [id]);
             res.json({ message: 'Solicitação deletada.' });
         } catch (e) { next(e); }
     });
-    
+
     // DASHBOARD RH
     router.get('/dashboard', async (req, res, next) => {
         try {
@@ -1103,27 +1105,27 @@ module.exports = function createRHRoutes(deps) {
             res.json({ stats: { totalFuncionarios }, aniversariantes });
         } catch (e) { next(e); }
     });
-    
+
     // AVISOS/NOTIFICAÇÕES - ROTA DUPLICADA REMOVIDA (já existe acima)
     // A rota principal de avisos está definida anteriormente no código
-    
+
     router.get('/avisos/stream', async (req, res, next) => {
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
-    
+
         // Enviar comentário inicial para manter conexão
         res.write(': connected\n\n');
-    
+
         const interval = setInterval(() => {
             res.write('data: {"type":"ping"}\n\n');
         }, 30000);
-    
+
         req.on('close', () => {
             clearInterval(interval);
         });
     });
-    
+
     router.post('/avisos/sse-handshake', async (req, res, next) => {
         try {
             res.json({ success: true });
@@ -1131,17 +1133,17 @@ module.exports = function createRHRoutes(deps) {
             res.json({ success: false });
         }
     });
-    
+
     // STATUS DE DOCUMENTOS DO FUNCIONÁRIO
     router.get('/funcionarios/:id/doc-status', async (req, res, next) => {
         try {
             const { id } = req.params;
-    
+
             // Verificar se é o próprio usuário ou admin
             if (req.user.id !== parseInt(id) && req.user.role !== 'admin' && req.user.is_admin !== 1) {
                 return res.status(403).json({ message: 'Acesso negado' });
             }
-    
+
             // Buscar status de documentos
             const [rows] = await pool.query(`
                 SELECT
@@ -1155,14 +1157,14 @@ module.exports = function createRHRoutes(deps) {
                 FROM funcionarios
                 WHERE id = ?
             `, [id]);
-    
+
             if (rows.length === 0) {
                 return res.json({
                     cpf_ok: 0, rg_ok: 0, ctps_ok: 0, pis_ok: 0,
                     titulo_ok: 0, reservista_ok: 0, cnh_ok: 0
                 });
             }
-    
+
             res.json(rows[0]);
         } catch (error) {
             console.error('Erro ao buscar status de documentos:', error);
@@ -1172,14 +1174,14 @@ module.exports = function createRHRoutes(deps) {
             });
         }
     });
-    
+
     // ============================================================
     // GESTÃO DE HOLERITES (COMPLETA)
     // ============================================================
-    
+
     // AUDIT-FIX ARCH-002: rh_holerites_gestao DDL moved to database/migrations/startup-tables.js
     // Table is created at server startup via runMigrations(). No inline DDL here.
-    
+
     // GET /api/rh/holerites/eventos/padrao - Eventos padrão de folha
     router.get('/holerites/eventos/padrao', async (req, res) => {
         try {
@@ -1218,7 +1220,7 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao buscar eventos padrão' });
         }
     });
-    
+
     // GET /api/rh/holerites/relatorio/visualizacoes - Relatório
     router.get('/holerites/relatorio/visualizacoes', authorizeAdmin, async (req, res) => {
         try {
@@ -1233,9 +1235,9 @@ module.exports = function createRHRoutes(deps) {
             if (mes) { sql += ' AND h.mes = ?'; params.push(parseInt(mes)); }
             if (ano) { sql += ' AND h.ano = ?'; params.push(parseInt(ano)); }
             sql += ' ORDER BY f.nome_completo';
-    
+
             const [rows] = await pool.query(sql, params);
-    
+
             // Gerar HTML do relatório
             const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatório de Visualizações</title>
             <style>body{font-family:Arial;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;font-size:12px}th{background:#8b5cf6;color:white}tr:nth-child(even){background:#f5f3ff}.ok{color:green}.no{color:red}h1{color:#1e293b;font-size:18px}</style></head>
@@ -1246,7 +1248,7 @@ module.exports = function createRHRoutes(deps) {
             <td>${r.total_visualizacoes || 0}</td><td>${r.data_primeira_visualizacao ? new Date(r.data_primeira_visualizacao).toLocaleString('pt-BR') : '-'}</td>
             <td class="${r.confirmado_recebimento ? 'ok' : 'no'}">${r.confirmado_recebimento ? '✅' : '❌'}</td></tr>`).join('')}
             </tbody></table><p style="margin-top:20px;color:#64748b;font-size:12px">Total: ${rows.length} holerites | Gerado em ${new Date().toLocaleString('pt-BR')}</p></body></html>`;
-    
+
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             res.send(html);
         } catch (error) {
@@ -1254,12 +1256,46 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao gerar relatório' });
         }
     });
-    
+
+    // GET /api/rh/holerites/meu-ultimo - Último holerite publicado do funcionário logado (sem exigir admin)
+    router.get('/holerites/meu-ultimo', async (req, res) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) return res.status(401).json({ message: 'Não autenticado' });
+
+            // Buscar funcionario_id do usuário logado
+            const [funcRows] = await pool.query(
+                'SELECT id FROM funcionarios WHERE user_id = ? OR id = ?',
+                [userId, userId]
+            );
+            const funcionarioId = funcRows.length > 0 ? funcRows[0].id : userId;
+
+            // Buscar o holerite publicado mais recente
+            const [rows] = await pool.query(
+                `SELECT h.id, h.mes, h.ano, h.salario_liquido, h.total_proventos, h.total_descontos, h.status, h.visualizado
+                 FROM rh_holerites_gestao h
+                 WHERE h.funcionario_id = ? AND h.status = 'publicado'
+                 ORDER BY h.ano DESC, h.mes DESC
+                 LIMIT 1`,
+                [funcionarioId]
+            );
+
+            if (rows.length === 0) {
+                return res.json({ encontrado: false });
+            }
+
+            res.json({ encontrado: true, holerite: rows[0] });
+        } catch (error) {
+            console.error('Erro ao buscar último holerite:', error);
+            res.status(500).json({ message: 'Erro ao buscar último holerite' });
+        }
+    });
+
     // GET /api/rh/holerites - Listar holerites com filtros
     router.get('/holerites', authorizeAdmin, async (req, res) => {
         try {
             const { funcionario_id, mes, ano, status } = req.query;
-    
+
             let sql = `
                 SELECT h.*, f.nome_completo as funcionario_nome, f.cpf, f.cargo, f.departamento
                 FROM rh_holerites_gestao h
@@ -1267,21 +1303,21 @@ module.exports = function createRHRoutes(deps) {
                 WHERE 1=1
             `;
             const params = [];
-    
+
             if (funcionario_id) { sql += ' AND h.funcionario_id = ?'; params.push(parseInt(funcionario_id)); }
             if (mes) { sql += ' AND h.mes = ?'; params.push(parseInt(mes)); }
             if (ano) { sql += ' AND h.ano = ?'; params.push(parseInt(ano)); }
             if (status) { sql += ' AND h.status = ?'; params.push(status); }
-    
+
             sql += ' ORDER BY h.ano DESC, h.mes DESC, f.nome_completo ASC';
             const [holerites] = await pool.query(sql, params);
-    
+
             // Parse JSON fields
             holerites.forEach(h => {
                 try { h.proventos = typeof h.proventos === 'string' ? JSON.parse(h.proventos) : (h.proventos || []); } catch(e) { h.proventos = []; }
                 try { h.descontos = typeof h.descontos === 'string' ? JSON.parse(h.descontos) : (h.descontos || []); } catch(e) { h.descontos = []; }
             });
-    
+
             // Stats — AUDIT-FIX HIGH-009: parameterized instead of inline concatenation
             let statsSql = `
                 SELECT
@@ -1296,14 +1332,70 @@ module.exports = function createRHRoutes(deps) {
             if (ano) { statsSql += ' AND ano = ?'; statsParams.push(parseInt(ano)); }
             if (mes) { statsSql += ' AND mes = ?'; statsParams.push(parseInt(mes)); }
             const [[stats]] = await pool.query(statsSql, statsParams);
-    
+
             res.json({ holerites, stats: stats || { total: 0, publicados: 0, rascunhos: 0, visualizados: 0 } });
         } catch (error) {
             console.error('Erro ao listar holerites:', error);
             res.status(500).json({ message: 'Erro ao listar holerites' });
         }
     });
-    
+
+    // GET /api/rh/holerites/download?mes=X&ano=Y - Download do holerite pelo mês/ano do funcionário logado
+    // IMPORTANTE: deve ficar ANTES de /holerites/:id para não ser capturada como :id="download"
+    router.get('/holerites/download', async (req, res) => {
+        try {
+            const { mes, ano } = req.query;
+            if (!mes || !ano) {
+                return res.status(400).json({ message: 'Parâmetros mes e ano são obrigatórios' });
+            }
+
+            const userId = req.user?.id;
+            if (!userId) {
+                return res.status(401).json({ message: 'Usuário não autenticado' });
+            }
+
+            // Buscar funcionario_id do usuário logado
+            const [funcRows] = await pool.query(
+                'SELECT id FROM funcionarios WHERE user_id = ? OR id = ?',
+                [userId, userId]
+            );
+            const funcionarioId = funcRows.length > 0 ? funcRows[0].id : userId;
+
+            // Buscar o holerite
+            const [rows] = await pool.query(
+                `SELECT h.id, h.arquivo_pdf, f.nome_completo, h.mes, h.ano
+                 FROM rh_holerites_gestao h
+                 JOIN funcionarios f ON f.id = h.funcionario_id
+                 WHERE h.funcionario_id = ? AND h.mes = ? AND h.ano = ? AND h.status = 'publicado'
+                 ORDER BY h.created_at DESC LIMIT 1`,
+                [funcionarioId, parseInt(mes), parseInt(ano)]
+            );
+
+            if (rows.length === 0 || !rows[0].arquivo_pdf) {
+                return res.status(404).json({ message: 'Holerite não encontrado para o período informado' });
+            }
+
+            const h = rows[0];
+            const absolutePath = process.platform !== 'win32'
+                ? path.join('/var/www', h.arquivo_pdf)
+                : path.join(__dirname, '..', 'public', h.arquivo_pdf);
+
+            if (!fs.existsSync(absolutePath)) {
+                return res.status(404).json({ message: 'Arquivo PDF não encontrado no servidor' });
+            }
+
+            const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            const nomeArquivo = `Holerite_${h.nome_completo.replace(/\s+/g, '_')}_${meses[h.mes]}_${h.ano}.pdf`;
+
+            res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+            res.setHeader('Content-Type', 'application/pdf');
+            fs.createReadStream(absolutePath).pipe(res);
+        } catch (error) {
+            console.error('Erro ao baixar holerite por período:', error);
+            res.status(500).json({ message: 'Erro ao baixar holerite' });
+        }
+    });
+
     // GET /api/rh/holerites/:id - Buscar holerite por ID
     router.get('/holerites/:id', async (req, res) => {
         try {
@@ -1313,13 +1405,13 @@ module.exports = function createRHRoutes(deps) {
                 JOIN funcionarios f ON f.id = h.funcionario_id
                 WHERE h.id = ?
             `, [req.params.id]);
-    
+
             if (rows.length === 0) return res.status(404).json({ message: 'Holerite não encontrado' });
-    
+
             const h = rows[0];
             try { h.proventos = typeof h.proventos === 'string' ? JSON.parse(h.proventos) : (h.proventos || []); } catch(e) { h.proventos = []; }
             try { h.descontos = typeof h.descontos === 'string' ? JSON.parse(h.descontos) : (h.descontos || []); } catch(e) { h.descontos = []; }
-    
+
             // Se é o próprio funcionário visualizando, registrar visualização
             if (req.user && req.user.id === h.funcionario_id) {
                 const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || '';
@@ -1329,27 +1421,27 @@ module.exports = function createRHRoutes(deps) {
                     await pool.query(`UPDATE rh_holerites_gestao SET data_ultima_visualizacao = NOW(), total_visualizacoes = total_visualizacoes + 1, ip_visualizacao = ? WHERE id = ?`, [ip, h.id]);
                 }
             }
-    
+
             res.json(h);
         } catch (error) {
             console.error('Erro ao buscar holerite:', error);
             res.status(500).json({ message: 'Erro ao buscar holerite' });
         }
     });
-    
+
     // POST /api/rh/holerites - Criar holerite
     router.post('/holerites', authorizeAdmin, async (req, res) => {
         try {
             const { funcionario_id, mes, ano, proventos, descontos, status } = req.body;
-    
+
             if (!funcionario_id || !mes || !ano) {
                 return res.status(400).json({ message: 'Funcionário, mês e ano são obrigatórios' });
             }
-    
+
             const totalProventos = (proventos || []).reduce((sum, p) => sum + (parseFloat(p.valor) || 0), 0);
             const totalDescontos = (descontos || []).reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
             const salarioLiquido = totalProventos - totalDescontos;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO rh_holerites_gestao (funcionario_id, mes, ano, proventos, descontos, total_proventos, total_descontos, salario_liquido, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1359,7 +1451,7 @@ module.exports = function createRHRoutes(deps) {
                 totalProventos, totalDescontos, salarioLiquido,
                 status || 'rascunho'
             ]);
-    
+
             res.json({ message: 'Holerite criado com sucesso!', id: result.insertId });
         } catch (error) {
             if (error.code === 'ER_DUP_ENTRY') {
@@ -1369,16 +1461,16 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao criar holerite' });
         }
     });
-    
+
     // PUT /api/rh/holerites/:id - Atualizar holerite
     router.put('/holerites/:id', authorizeAdmin, async (req, res) => {
         try {
             const { funcionario_id, mes, ano, proventos, descontos, status } = req.body;
-    
+
             const totalProventos = (proventos || []).reduce((sum, p) => sum + (parseFloat(p.valor) || 0), 0);
             const totalDescontos = (descontos || []).reduce((sum, d) => sum + (parseFloat(d.valor) || 0), 0);
             const salarioLiquido = totalProventos - totalDescontos;
-    
+
             const [result] = await pool.query(`
                 UPDATE rh_holerites_gestao SET
                     funcionario_id = COALESCE(?, funcionario_id),
@@ -1397,7 +1489,7 @@ module.exports = function createRHRoutes(deps) {
                 totalProventos, totalDescontos, salarioLiquido,
                 status, req.params.id
             ]);
-    
+
             if (result.affectedRows === 0) return res.status(404).json({ message: 'Holerite não encontrado' });
             res.json({ message: 'Holerite atualizado com sucesso!' });
         } catch (error) {
@@ -1405,7 +1497,7 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao atualizar holerite' });
         }
     });
-    
+
     // DELETE /api/rh/holerites/:id - Excluir holerite
     router.delete('/holerites/:id', authorizeAdmin, async (req, res) => {
         try {
@@ -1417,7 +1509,35 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao excluir holerite' });
         }
     });
-    
+
+    // POST /api/rh/holerites/:id/visualizar - Registrar visualização do holerite
+    router.post('/holerites/:id/visualizar', async (req, res) => {
+        try {
+            const [rows] = await pool.query('SELECT id, visualizado FROM rh_holerites_gestao WHERE id = ?', [req.params.id]);
+            if (rows.length === 0) return res.status(404).json({ message: 'Holerite não encontrado' });
+
+            const h = rows[0];
+            const ip = req.headers['x-forwarded-for'] || req.connection?.remoteAddress || '';
+
+            if (!h.visualizado) {
+                await pool.query(
+                    `UPDATE rh_holerites_gestao SET visualizado = 1, data_primeira_visualizacao = NOW(), data_ultima_visualizacao = NOW(), total_visualizacoes = 1, ip_visualizacao = ? WHERE id = ?`,
+                    [ip, h.id]
+                );
+            } else {
+                await pool.query(
+                    `UPDATE rh_holerites_gestao SET data_ultima_visualizacao = NOW(), total_visualizacoes = total_visualizacoes + 1, ip_visualizacao = ? WHERE id = ?`,
+                    [ip, h.id]
+                );
+            }
+
+            res.json({ success: true, message: 'Visualização registrada' });
+        } catch (error) {
+            console.error('Erro ao registrar visualização do holerite:', error);
+            res.status(500).json({ message: 'Erro ao registrar visualização' });
+        }
+    });
+
     // POST /api/rh/holerites/:id/publicar - Publicar holerite
     router.post('/holerites/:id/publicar', authorizeAdmin, async (req, res) => {
         try {
@@ -1432,25 +1552,25 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao publicar holerite' });
         }
     });
-    
+
     // ============================================================
     // IMPORTAÇÃO DE HOLERITES EM LOTE (PDF CONSOLIDADO)
     // ============================================================
-    
+
     // POST /api/rh/holerites/importar-pdf - Importar PDF consolidado e separar por funcionário
     router.post('/holerites/importar-pdf', authorizeAdmin, upload.single('pdf'), async (req, res) => {
         try {
             if (!req.file) {
                 return res.status(400).json({ message: 'Nenhum arquivo PDF enviado' });
             }
-    
+
             const { mes, ano, publicar_automaticamente } = req.body;
             if (!mes || !ano) {
                 // Limpar arquivo temporário
                 if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
                 return res.status(400).json({ message: 'Mês e ano são obrigatórios' });
             }
-    
+
             let pdfParse, PDFLibDocument;
             try {
                 pdfParse = require('pdf-parse');
@@ -1464,9 +1584,9 @@ module.exports = function createRHRoutes(deps) {
                 if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
                 return res.status(500).json({ message: 'Biblioteca pdf-lib não instalada no servidor. Execute: npm install pdf-lib' });
             }
-    
+
             const pdfBuffer = fs.readFileSync(req.file.path);
-    
+
             // 1) Extrair texto página a página usando pdf-parse custom pagerender
             const pages = [];
             const customRender = function(pageData) {
@@ -1479,15 +1599,15 @@ module.exports = function createRHRoutes(deps) {
                     return text;
                 });
             };
-    
+
             // Primeiro, extrair texto geral para obter nº de páginas
             const pdfData = await pdfParse(pdfBuffer);
             const totalPages = pdfData.numpages;
-    
+
             // 2) Carregar o PDF com pdf-lib para manipulação de páginas
             const pdfDoc = await PDFLibDocument.load(pdfBuffer);
             const allPages = pdfDoc.getPages();
-    
+
             // 3) Extrair texto página a página usando a API do pdf-parse com paginação
             // Abordagem: usar pdf-parse com page render customizado para cada página
             const pageTexts = [];
@@ -1500,7 +1620,7 @@ module.exports = function createRHRoutes(deps) {
                 const singlePageData = await pdfParse(Buffer.from(singlePageBytes));
                 pageTexts.push(singlePageData.text || '');
             }
-    
+
             // 4) Buscar todos os funcionários ativos para matching
             const [funcionarios] = await pool.query(`
                 SELECT id, nome_completo, cpf, cargo, departamento, salario_base
@@ -1508,12 +1628,12 @@ module.exports = function createRHRoutes(deps) {
                 WHERE ativo = 1 OR status = 'ativo'
                 ORDER BY nome_completo
             `);
-    
+
             if (funcionarios.length === 0) {
                 if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
                 return res.status(400).json({ message: 'Nenhum funcionário ativo cadastrado' });
             }
-    
+
             // 5) Normalizar nomes para comparação
             function normalizeStr(str) {
                 return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
@@ -1521,18 +1641,18 @@ module.exports = function createRHRoutes(deps) {
             function normalizeCPF(cpf) {
                 return (cpf || '').replace(/[^\d]/g, '');
             }
-    
+
             // 6) Agrupar páginas por funcionário
             // Estratégia: cada página (ou bloco de páginas seguidas) pertence a um funcionário
             // Identificar pelo nome completo ou CPF presente no texto
             const pageAssignments = []; // { pageIndex, funcionarioId, funcionarioNome, matched_by }
-    
+
             for (let i = 0; i < pageTexts.length; i++) {
                 const text = pageTexts[i];
                 const normalText = normalizeStr(text);
                 let matched = null;
                 let matchedBy = '';
-    
+
                 // Tentar match por CPF primeiro (mais preciso)
                 for (const func of funcionarios) {
                     const cpfLimpo = normalizeCPF(func.cpf);
@@ -1542,7 +1662,7 @@ module.exports = function createRHRoutes(deps) {
                         break;
                     }
                 }
-    
+
                 // Se não encontrou por CPF, tentar por nome completo
                 if (!matched) {
                     for (const func of funcionarios) {
@@ -1554,7 +1674,7 @@ module.exports = function createRHRoutes(deps) {
                         }
                     }
                 }
-    
+
                 // Se não encontrou pelo nome completo, tentar pelo primeiro + último nome
                 if (!matched) {
                     for (const func of funcionarios) {
@@ -1569,7 +1689,7 @@ module.exports = function createRHRoutes(deps) {
                         }
                     }
                 }
-    
+
                 pageAssignments.push({
                     pageIndex: i,
                     funcionarioId: matched ? matched.id : null,
@@ -1578,11 +1698,11 @@ module.exports = function createRHRoutes(deps) {
                     textPreview: text.substring(0, 200).replace(/\n/g, ' ')
                 });
             }
-    
+
             // 7) Agrupar páginas consecutivas do mesmo funcionário
             const groups = [];
             let currentGroup = null;
-    
+
             for (const pa of pageAssignments) {
                 if (!currentGroup || currentGroup.funcionarioId !== pa.funcionarioId) {
                     if (currentGroup) groups.push(currentGroup);
@@ -1598,7 +1718,7 @@ module.exports = function createRHRoutes(deps) {
                 }
             }
             if (currentGroup) groups.push(currentGroup);
-    
+
             // 8) Criar diretório para holerites PDFs
             const holeriteDir = process.platform !== 'win32'
                 ? '/var/www/uploads/RH/holerites'
@@ -1606,7 +1726,7 @@ module.exports = function createRHRoutes(deps) {
             if (!fs.existsSync(holeriteDir)) {
                 fs.mkdirSync(holeriteDir, { recursive: true });
             }
-    
+
             // 9) Processar cada grupo identificado
             const resultados = {
                 total_paginas: totalPages,
@@ -1616,11 +1736,11 @@ module.exports = function createRHRoutes(deps) {
                 erros: [],
                 detalhes: []
             };
-    
+
             const mesInt = parseInt(mes);
             const anoInt = parseInt(ano);
             const statusHolerite = publicar_automaticamente === 'true' || publicar_automaticamente === true ? 'publicado' : 'rascunho';
-    
+
             for (const group of groups) {
                 if (!group.funcionarioId) {
                     resultados.nao_identificados++;
@@ -1632,7 +1752,7 @@ module.exports = function createRHRoutes(deps) {
                     });
                     continue;
                 }
-    
+
                 try {
                     // Criar PDF individual com as páginas do funcionário
                     const individualDoc = await PDFLibDocument.create();
@@ -1641,27 +1761,27 @@ module.exports = function createRHRoutes(deps) {
                         individualDoc.addPage(copiedPage);
                     }
                     const individualBytes = await individualDoc.save();
-    
+
                     // Salvar arquivo
                     const fileName = `holerite_${group.funcionarioId}_${anoInt}_${String(mesInt).padStart(2, '0')}_${Date.now()}.pdf`;
                     const filePath = path.join(holeriteDir, fileName);
                     fs.writeFileSync(filePath, individualBytes);
-    
+
                     // URL relativa para o arquivo
                     const arquivoUrl = process.platform !== 'win32'
                         ? `/uploads/RH/holerites/${fileName}`
                         : `/uploads/RH/holerites/${fileName}`;
-    
+
                     // Extrair valores do texto (tentativa de parse dos proventos/descontos)
                     const textData = pageTexts[group.pages[0]] || '';
                     const extractedData = extrairDadosHolerite(textData);
-    
+
                     // Verificar se já existe holerite para este funcionário/período
                     const [existing] = await pool.query(
                         'SELECT id FROM rh_holerites_gestao WHERE funcionario_id = ? AND mes = ? AND ano = ?',
                         [group.funcionarioId, mesInt, anoInt]
                     );
-    
+
                     let holeriteId;
                     if (existing.length > 0) {
                         // Atualizar existente - adicionar arquivo PDF
@@ -1672,7 +1792,7 @@ module.exports = function createRHRoutes(deps) {
                                 updated_at = NOW()
                             WHERE id = ?
                         `, [arquivoUrl, holeriteId]);
-    
+
                         resultados.detalhes.push({
                             paginas: group.pages.map(p => p + 1),
                             funcionario: group.funcionarioNome,
@@ -1688,10 +1808,10 @@ module.exports = function createRHRoutes(deps) {
                         const descontos = extractedData.descontos.length > 0 ? extractedData.descontos :
                             [{ codigo: '050', descricao: 'INSS', referencia: '', valor: 0 },
                              { codigo: '051', descricao: 'IRRF', referencia: '', valor: 0 }];
-    
+
                         const totalProventos = proventos.reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
                         const totalDescontos = descontos.reduce((s, d) => s + (parseFloat(d.valor) || 0), 0);
-    
+
                         const [insertResult] = await pool.query(`
                             INSERT INTO rh_holerites_gestao
                                 (funcionario_id, mes, ano, proventos, descontos, total_proventos, total_descontos, salario_liquido, status, arquivo_pdf)
@@ -1703,7 +1823,7 @@ module.exports = function createRHRoutes(deps) {
                             statusHolerite, arquivoUrl
                         ]);
                         holeriteId = insertResult.insertId;
-    
+
                         resultados.detalhes.push({
                             paginas: group.pages.map(p => p + 1),
                             funcionario: group.funcionarioNome,
@@ -1713,7 +1833,7 @@ module.exports = function createRHRoutes(deps) {
                             holerite_id: holeriteId
                         });
                     }
-    
+
                     // Também salvar na tabela legada de holerites (para o portal do funcionário com PDF)
                     try {
                         await pool.query(`
@@ -1725,9 +1845,9 @@ module.exports = function createRHRoutes(deps) {
                         // Ignorar erro da tabela legada — não é crítico
                         console.warn('[HOLERITE IMPORT] Aviso ao salvar na tabela legada:', legacyErr.message);
                     }
-    
+
                     resultados.importados++;
-    
+
                 } catch (groupErr) {
                     console.error(`[HOLERITE IMPORT] Erro ao processar grupo do funcionário ${group.funcionarioNome}:`, groupErr);
                     resultados.erros.push({
@@ -1737,19 +1857,19 @@ module.exports = function createRHRoutes(deps) {
                     });
                 }
             }
-    
+
             // Limpar arquivo original temporário
             if (req.file.path && fs.existsSync(req.file.path)) {
                 fs.unlinkSync(req.file.path);
             }
-    
+
             console.log(`[HOLERITE IMPORT] Importação concluída: ${resultados.importados} importados, ${resultados.nao_identificados} não identificados de ${totalPages} páginas`);
-    
+
             res.json({
                 message: `Importação concluída! ${resultados.importados} holerites processados de ${totalPages} páginas.`,
                 resultados
             });
-    
+
         } catch (error) {
             console.error('[HOLERITE IMPORT] Erro geral:', error);
             if (req.file && req.file.path && fs.existsSync(req.file.path)) {
@@ -1758,17 +1878,17 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao importar PDF: ' + error.message });
         }
     });
-    
+
     // Função auxiliar: extrair dados de proventos/descontos do texto do holerite
     function extrairDadosHolerite(text) {
         const proventos = [];
         const descontos = [];
-    
+
         // Padrões comuns em holerites brasileiros
         // Tenta identificar linhas com: código | descrição | referência | valor
         const lines = text.split('\n');
         let section = 'unknown'; // proventos, descontos, unknown
-    
+
         for (const line of lines) {
             const upper = line.toUpperCase().trim();
             if (upper.includes('PROVENTO') || upper.includes('VENCIMENTO') || upper.includes('CRÉDITO')) {
@@ -1783,7 +1903,7 @@ module.exports = function createRHRoutes(deps) {
                 section = 'unknown';
                 continue;
             }
-    
+
             // Tentar extrair valor (último número da linha, formato brasileiro)
             const valorMatch = line.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/);
             if (valorMatch && section !== 'unknown') {
@@ -1793,21 +1913,21 @@ module.exports = function createRHRoutes(deps) {
                     // Extrair código e descrição
                     const beforeValue = line.substring(0, line.lastIndexOf(valorMatch[1])).trim();
                     const codeMatch = beforeValue.match(/^(\d{1,4})\s+(.*)/);
-    
+
                     const item = {
                         codigo: codeMatch ? codeMatch[1].padStart(3, '0') : '000',
                         descricao: codeMatch ? codeMatch[2].trim() : beforeValue,
                         referencia: '',
                         valor: valor
                     };
-    
+
                     // Tentar separar referência da descrição
                     const refMatch = item.descricao.match(/(.*?)\s+(\d+[.,]?\d*\s*[hH%]?)\s*$/);
                     if (refMatch) {
                         item.descricao = refMatch[1].trim();
                         item.referencia = refMatch[2].trim();
                     }
-    
+
                     if (section === 'proventos') {
                         proventos.push(item);
                     } else {
@@ -1816,10 +1936,10 @@ module.exports = function createRHRoutes(deps) {
                 }
             }
         }
-    
+
         return { proventos, descontos };
     }
-    
+
     // POST /api/rh/holerites/:id/confirmar - Confirmar recebimento pelo funcionário
     router.post('/holerites/:id/confirmar', async (req, res) => {
         try {
@@ -1834,7 +1954,7 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao confirmar recebimento' });
         }
     });
-    
+
     // GET /api/rh/holerites/:id/download-pdf - Download do PDF individual do holerite
     router.get('/holerites/:id/download-pdf', async (req, res) => {
         try {
@@ -1845,19 +1965,19 @@ module.exports = function createRHRoutes(deps) {
             if (rows.length === 0 || !rows[0].arquivo_pdf) {
                 return res.status(404).json({ message: 'PDF não encontrado para este holerite' });
             }
-    
+
             const h = rows[0];
             const absolutePath = process.platform !== 'win32'
                 ? path.join('/var/www', h.arquivo_pdf)
                 : path.join(__dirname, '..', 'public', h.arquivo_pdf);
-    
+
             if (!fs.existsSync(absolutePath)) {
                 return res.status(404).json({ message: 'Arquivo PDF não encontrado no servidor' });
             }
-    
+
             const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
             const nomeArquivo = `Holerite_${h.nome_completo.replace(/\s+/g, '_')}_${meses[h.mes]}_${h.ano}.pdf`;
-    
+
             res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
             res.setHeader('Content-Type', 'application/pdf');
             fs.createReadStream(absolutePath).pipe(res);
@@ -1866,13 +1986,13 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao baixar PDF' });
         }
     });
-    
+
     // GET /api/rh/atividades - Atividades recentes do módulo RH
     router.get('/atividades', async (req, res) => {
         try {
             const limit = req.query.limit ? Math.min(50, Math.max(1, parseInt(req.query.limit, 10))) : 10;
             const atividades = [];
-    
+
             // 1. Últimas admissões (últimos 90 dias)
             try {
                 const [admissoes] = await pool.query(`
@@ -1888,7 +2008,7 @@ module.exports = function createRHRoutes(deps) {
                 });
                 atividades.push(...admissoes);
             } catch(e) { /* ignore */ }
-    
+
             // 2. Últimos desligamentos (últimos 90 dias)
             try {
                 const [desligamentos] = await pool.query(`
@@ -1904,7 +2024,7 @@ module.exports = function createRHRoutes(deps) {
                 });
                 atividades.push(...desligamentos);
             } catch(e) { /* ignore */ }
-    
+
             // 3. Últimos holerites enviados
             try {
                 const [holerites] = await pool.query(`
@@ -1920,7 +2040,7 @@ module.exports = function createRHRoutes(deps) {
                 });
                 atividades.push(...holerites);
             } catch(e) { /* ignore */ }
-    
+
             // 4. Avisos/comunicados recentes
             try {
                 const [avisos] = await pool.query(`
@@ -1930,7 +2050,7 @@ module.exports = function createRHRoutes(deps) {
                 `);
                 atividades.push(...avisos);
             } catch(e) { /* ignore */ }
-    
+
             // Ordenar por data e limitar
             atividades.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
             res.json(atividades.slice(0, limit));
@@ -1939,8 +2059,8 @@ module.exports = function createRHRoutes(deps) {
             res.status(500).json({ message: 'Erro ao buscar atividades' });
         }
     });
-    
-    
+
+
     // ==========================================
     // ROTAS DE FÉRIAS
     // ==========================================
@@ -1996,7 +2116,7 @@ module.exports = function createRHRoutes(deps) {
                        s.adiantamento_13, s.status, s.solicitado_em, s.aprovado_por,
                        s.aprovado_em, s.motivo_reprovacao, s.observacoes, s.observacoes_rh,
                        s.created_at, s.updated_at,
-                       CONCAT(f.nome, ' ', COALESCE(f.sobrenome, '')) as aprovado_por_nome
+                       f.nome_completo as aprovado_por_nome
                 FROM ferias_solicitacoes s
                 LEFT JOIN funcionarios f ON s.aprovado_por = f.id
                 WHERE s.funcionario_id = ?
@@ -2015,6 +2135,290 @@ module.exports = function createRHRoutes(deps) {
 
     // NOTA: Rotas de ponto (marcações, ajustes, histórico) são fornecidas
     // pelo módulo rh-extras.js montado em routes/index.js
-    
+
+    // ==========================================
+    // ROTAS DE AVALIAÇÕES
+    // ==========================================
+
+    // POST /api/rh/avaliacoes - Enviar auto-avaliação
+    router.post('/avaliacoes', async (req, res) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) return res.status(401).json({ message: 'Não autenticado' });
+
+            const { nota_pessoal, pontos_fortes, pontos_melhoria, objetivos, comentarios } = req.body;
+
+            if (!nota_pessoal && nota_pessoal !== 0) {
+                return res.status(400).json({ message: 'A nota pessoal é obrigatória' });
+            }
+
+            // Criar tabela se não existir (DDL idempotente)
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS rh_avaliacoes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    funcionario_id INT NOT NULL,
+                    tipo ENUM('autoavaliacao','gestor','360') DEFAULT 'autoavaliacao',
+                    nota_pessoal DECIMAL(3,1),
+                    pontos_fortes TEXT,
+                    pontos_melhoria TEXT,
+                    objetivos TEXT,
+                    comentarios TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_funcionario (funcionario_id),
+                    INDEX idx_created (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            `);
+
+            const [result] = await pool.query(`
+                INSERT INTO rh_avaliacoes (funcionario_id, tipo, nota_pessoal, pontos_fortes, pontos_melhoria, objetivos, comentarios)
+                VALUES (?, 'autoavaliacao', ?, ?, ?, ?, ?)
+            `, [userId, nota_pessoal, pontos_fortes || null, pontos_melhoria || null, objetivos || null, comentarios || null]);
+
+            res.status(201).json({ success: true, id: result.insertId, message: 'Auto-avaliação enviada com sucesso!' });
+        } catch (error) {
+            console.error('Erro ao salvar auto-avaliação:', error);
+            res.status(500).json({ message: 'Erro ao enviar auto-avaliação' });
+        }
+    });
+
+    // GET /api/rh/avaliacoes - Listar avaliações do funcionário logado
+    router.get('/avaliacoes', async (req, res) => {
+        try {
+            const userId = req.user?.id;
+
+            // Verificar se a tabela existe
+            const [tables] = await pool.query("SHOW TABLES LIKE 'rh_avaliacoes'");
+            if (tables.length === 0) return res.json([]);
+
+            const [avaliacoes] = await pool.query(
+                'SELECT * FROM rh_avaliacoes WHERE funcionario_id = ? ORDER BY created_at DESC',
+                [userId]
+            );
+            res.json(avaliacoes);
+        } catch (error) {
+            console.error('Erro ao buscar avaliações:', error);
+            res.status(500).json({ message: 'Erro ao buscar avaliações' });
+        }
+    });
+
+    // ==========================================
+    // ROTAS DE BENEFÍCIOS
+    // ==========================================
+
+    // GET /api/rh/beneficios - Listar benefícios
+    router.get('/beneficios', async (req, res) => {
+        try {
+            // Criar tabela se não existir
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS rh_beneficios (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    nome VARCHAR(255) NOT NULL,
+                    descricao TEXT,
+                    icone VARCHAR(50) DEFAULT 'fa-gift',
+                    cor VARCHAR(20) DEFAULT '#3b82f6',
+                    tipo ENUM('saude','alimentacao','transporte','educacao','outros') DEFAULT 'outros',
+                    valor DECIMAL(10,2) DEFAULT 0,
+                    ativo TINYINT(1) DEFAULT 1,
+                    criado_por INT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            `);
+
+            const [beneficios] = await pool.query('SELECT * FROM rh_beneficios ORDER BY nome');
+            res.json(beneficios);
+        } catch (error) {
+            console.error('Erro ao listar benefícios:', error);
+            res.status(500).json({ message: 'Erro ao listar benefícios' });
+        }
+    });
+
+    // POST /api/rh/beneficios - Criar benefício
+    router.post('/beneficios', authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, descricao, icone, cor, tipo, valor } = req.body;
+            if (!nome) return res.status(400).json({ message: 'Nome é obrigatório' });
+
+            const [result] = await pool.query(
+                'INSERT INTO rh_beneficios (nome, descricao, icone, cor, tipo, valor, criado_por) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [nome, descricao || null, icone || 'fa-gift', cor || '#3b82f6', tipo || 'outros', valor || 0, req.user?.id]
+            );
+            res.status(201).json({ success: true, id: result.insertId, message: 'Benefício criado!' });
+        } catch (error) {
+            console.error('Erro ao criar benefício:', error);
+            res.status(500).json({ message: 'Erro ao criar benefício' });
+        }
+    });
+
+    // PUT /api/rh/beneficios/:id - Atualizar benefício
+    router.put('/beneficios/:id', authorizeAdmin, async (req, res) => {
+        try {
+            const { nome, descricao, icone, cor, tipo, valor, ativo } = req.body;
+            const [result] = await pool.query(
+                'UPDATE rh_beneficios SET nome = ?, descricao = ?, icone = ?, cor = ?, tipo = ?, valor = ?, ativo = ? WHERE id = ?',
+                [nome, descricao, icone, cor, tipo, valor, ativo !== undefined ? ativo : 1, req.params.id]
+            );
+            if (result.affectedRows === 0) return res.status(404).json({ message: 'Benefício não encontrado' });
+            res.json({ success: true, message: 'Benefício atualizado!' });
+        } catch (error) {
+            console.error('Erro ao atualizar benefício:', error);
+            res.status(500).json({ message: 'Erro ao atualizar benefício' });
+        }
+    });
+
+    // DELETE /api/rh/beneficios/:id - Excluir benefício
+    router.delete('/beneficios/:id', authorizeAdmin, async (req, res) => {
+        try {
+            const [result] = await pool.query('DELETE FROM rh_beneficios WHERE id = ?', [req.params.id]);
+            if (result.affectedRows === 0) return res.status(404).json({ message: 'Benefício não encontrado' });
+            res.json({ success: true, message: 'Benefício excluído!' });
+        } catch (error) {
+            console.error('Erro ao excluir benefício:', error);
+            res.status(500).json({ message: 'Erro ao excluir benefício' });
+        }
+    });
+
+    // ============================================================
+    // CONFIGURAÇÕES RH - Folha de Pagamento e Ponto Eletrônico
+    // ============================================================
+
+    // GET /api/rh/configuracoes/folha-pagamento
+    router.get('/configuracoes/folha-pagamento', async (req, res) => {
+        try {
+            const [rows] = await pool.query(
+                "SELECT chave, valor FROM rh_configuracoes WHERE categoria = 'folha_pagamento'"
+            );
+            const config = {};
+            rows.forEach(r => { config[r.chave] = r.valor; });
+            // Defaults se não existir no DB
+            res.json({
+                success: true,
+                data: {
+                    dia_fechamento: config.dia_fechamento || '25',
+                    dia_pagamento: config.dia_pagamento || '5',
+                    inss_patronal: config.inss_patronal || '20',
+                    fgts: config.fgts || '8',
+                    vale_transporte: config.vale_transporte || '6',
+                    vale_refeicao: config.vale_refeicao || '20'
+                }
+            });
+        } catch (error) {
+            console.error('Erro ao carregar config folha:', error);
+            // Retornar defaults em caso de erro (tabela pode não existir)
+            res.json({
+                success: true,
+                data: {
+                    dia_fechamento: '25', dia_pagamento: '5',
+                    inss_patronal: '20', fgts: '8',
+                    vale_transporte: '6', vale_refeicao: '20'
+                }
+            });
+        }
+    });
+
+    // PUT /api/rh/configuracoes/folha-pagamento
+    router.put('/configuracoes/folha-pagamento', authorizeAdmin, async (req, res) => {
+        try {
+            const { dia_fechamento, dia_pagamento, inss_patronal, fgts, vale_transporte, vale_refeicao } = req.body;
+            const configs = { dia_fechamento, dia_pagamento, inss_patronal, fgts, vale_transporte, vale_refeicao };
+            
+            // Criar tabela se não existir
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS rh_configuracoes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    categoria VARCHAR(50) NOT NULL,
+                    chave VARCHAR(100) NOT NULL,
+                    valor TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY idx_cat_chave (categoria, chave)
+                )
+            `);
+
+            for (const [chave, valor] of Object.entries(configs)) {
+                if (valor !== undefined) {
+                    await pool.query(
+                        `INSERT INTO rh_configuracoes (categoria, chave, valor) VALUES ('folha_pagamento', ?, ?)
+                         ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+                        [chave, valor]
+                    );
+                }
+            }
+            res.json({ success: true, message: 'Configurações da folha salvas!' });
+        } catch (error) {
+            console.error('Erro ao salvar config folha:', error);
+            res.status(500).json({ message: 'Erro ao salvar configurações' });
+        }
+    });
+
+    // GET /api/rh/configuracoes/ponto-eletronico
+    router.get('/configuracoes/ponto-eletronico', async (req, res) => {
+        try {
+            const [rows] = await pool.query(
+                "SELECT chave, valor FROM rh_configuracoes WHERE categoria = 'ponto_eletronico'"
+            );
+            const config = {};
+            rows.forEach(r => { config[r.chave] = r.valor; });
+            res.json({
+                success: true,
+                data: {
+                    entrada: config.entrada || '08:00',
+                    saida_almoco: config.saida_almoco || '12:00',
+                    retorno_almoco: config.retorno_almoco || '13:00',
+                    saida: config.saida || '17:00',
+                    tolerancia_atraso: config.tolerancia_atraso || 'true',
+                    horas_extras_auto: config.horas_extras_auto || 'true',
+                    notificar_gestores: config.notificar_gestores || 'false'
+                }
+            });
+        } catch (error) {
+            console.error('Erro ao carregar config ponto:', error);
+            res.json({
+                success: true,
+                data: {
+                    entrada: '08:00', saida_almoco: '12:00',
+                    retorno_almoco: '13:00', saida: '17:00',
+                    tolerancia_atraso: 'true', horas_extras_auto: 'true',
+                    notificar_gestores: 'false'
+                }
+            });
+        }
+    });
+
+    // PUT /api/rh/configuracoes/ponto-eletronico
+    router.put('/configuracoes/ponto-eletronico', authorizeAdmin, async (req, res) => {
+        try {
+            const { entrada, saida_almoco, retorno_almoco, saida, tolerancia_atraso, horas_extras_auto, notificar_gestores } = req.body;
+            const configs = { entrada, saida_almoco, retorno_almoco, saida, tolerancia_atraso, horas_extras_auto, notificar_gestores };
+            
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS rh_configuracoes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    categoria VARCHAR(50) NOT NULL,
+                    chave VARCHAR(100) NOT NULL,
+                    valor TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY idx_cat_chave (categoria, chave)
+                )
+            `);
+
+            for (const [chave, valor] of Object.entries(configs)) {
+                if (valor !== undefined) {
+                    await pool.query(
+                        `INSERT INTO rh_configuracoes (categoria, chave, valor) VALUES ('ponto_eletronico', ?, ?)
+                         ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
+                        [chave, valor]
+                    );
+                }
+            }
+            res.json({ success: true, message: 'Configurações do ponto salvas!' });
+        } catch (error) {
+            console.error('Erro ao salvar config ponto:', error);
+            res.status(500).json({ message: 'Erro ao salvar configurações' });
+        }
+    });
+
     return router;
 };

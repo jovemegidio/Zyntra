@@ -3157,6 +3157,76 @@ let query = 'SELECT id, nome, tipo, icone, ativo FROM formas_pagamento WHERE 1=1
     });
 
     // ============================================================
+    // MOVIMENTAÇÃO DE ESTOQUE (Entrada / Saída / Ajuste)
+    // Endpoint unificado acessível de qualquer módulo
+    // ============================================================
+    router.post('/estoque/movimentacao', authenticateToken, async (req, res) => {
+        const { material_id, produto_id, tipo, quantidade, observacoes, observacao, local, documento } = req.body;
+        
+        try {
+            const itemId = material_id || produto_id;
+            const tabela = material_id ? 'materiais' : 'produtos';
+            const coluna = material_id ? 'quantidade_estoque' : 'estoque_atual';
+            const obs = observacoes || observacao || '';
+            const tipoNorm = (tipo || 'ENTRADA').toUpperCase();
+            
+            if (!itemId) return res.status(400).json({ success: false, message: 'Informe o produto ou material' });
+            if (!quantidade || parseFloat(quantidade) <= 0) return res.status(400).json({ success: false, message: 'Quantidade inválida' });
+            if (!['ENTRADA', 'SAIDA', 'AJUSTE'].includes(tipoNorm)) return res.status(400).json({ success: false, message: 'Tipo inválido' });
+
+            const colunaSelect = tabela === 'produtos' ? 'COALESCE(estoque_atual, quantidade_estoque, 0) as quantidade' : `${coluna} as quantidade`;
+            const [item] = await pool.query(`SELECT ${colunaSelect}, nome, codigo FROM ${tabela} WHERE id = ?`, [itemId]);
+            if (!item || item.length === 0) return res.status(404).json({ success: false, message: `${tabela === 'materiais' ? 'Material' : 'Produto'} não encontrado` });
+
+            const quantidadeAnterior = parseFloat(item[0].quantidade) || 0;
+            let novaQuantidade;
+            switch (tipoNorm) {
+                case 'ENTRADA': novaQuantidade = quantidadeAnterior + parseFloat(quantidade); break;
+                case 'SAIDA': novaQuantidade = quantidadeAnterior - parseFloat(quantidade); break;
+                case 'AJUSTE': novaQuantidade = parseFloat(quantidade); break;
+            }
+
+            if (novaQuantidade < 0) return res.status(400).json({ success: false, message: 'Quantidade insuficiente em estoque' });
+
+            const conn = await pool.getConnection();
+            await conn.beginTransaction();
+            try {
+                await conn.query(`UPDATE ${tabela} SET ${coluna} = ? WHERE id = ?`, [novaQuantidade, itemId]);
+                // Sync quantidade_estoque for produtos
+                if (tabela === 'produtos') {
+                    await conn.query('UPDATE produtos SET quantidade_estoque = ? WHERE id = ?', [novaQuantidade, itemId]);
+                }
+                await conn.query(`
+                    INSERT INTO movimentacoes_estoque 
+                    (material_id, produto_id, tipo, quantidade, quantidade_anterior, quantidade_atual, observacoes, local, documento, usuario_id, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                `, [material_id || null, produto_id || null, tipoNorm, quantidade, quantidadeAnterior, novaQuantidade, obs, local || 'PRINCIPAL', documento || null, req.user?.id || 1]);
+                
+                await conn.commit();
+                conn.release();
+            } catch (dbErr) {
+                await conn.rollback();
+                conn.release();
+                throw dbErr;
+            }
+
+            const nomeItem = item[0].nome || item[0].codigo || 'Produto';
+            console.log(`[ESTOQUE] ${tipoNorm} - ${nomeItem}: ${quantidadeAnterior} → ${novaQuantidade} (por ${req.user?.nome || 'sistema'})`);
+
+            res.json({ 
+                success: true,
+                message: 'Movimentação registrada com sucesso',
+                quantidade_anterior: quantidadeAnterior,
+                quantidade_atual: novaQuantidade,
+                nome_item: nomeItem
+            });
+        } catch (err) {
+            console.error('[ESTOQUE] Erro ao registrar movimentação:', err);
+            res.status(500).json({ success: false, message: 'Erro ao registrar movimentação: ' + err.message });
+        }
+    });
+
+    // ============================================================
     // TEMPLATE ESTOQUE - DOWNLOAD E IMPORTAÇÃO
     // ============================================================
 
@@ -3435,6 +3505,47 @@ let query = 'SELECT id, nome, tipo, icone, ativo FROM formas_pagamento WHERE 1=1
                         ]
                     );
                     bobinasInseridas++;
+                }
+
+                // Atualizar estoque_atual e quantidade_estoque com base nas bobinas importadas
+                for (const [codigo] of produtosMap) {
+                    const [totalBob] = await conn.query(
+                        `SELECT COALESCE(SUM(quantidade), 0) as total FROM bobinas_estoque WHERE codigo_produto = ? AND status = 'disponivel'`,
+                        [codigo]
+                    );
+                    const novoEstoque = parseFloat(totalBob[0].total) || 0;
+
+                    // Buscar estoque anterior para registro de movimentação
+                    const [prodAnterior] = await conn.query(
+                        'SELECT id, COALESCE(estoque_atual, 0) as estoque_anterior FROM produtos WHERE codigo = ?',
+                        [codigo]
+                    );
+                    if (prodAnterior.length > 0) {
+                        const estoqueAnterior = parseFloat(prodAnterior[0].estoque_anterior) || 0;
+                        
+                        await conn.query(
+                            'UPDATE produtos SET estoque_atual = ?, quantidade_estoque = ? WHERE codigo = ?',
+                            [novoEstoque, novoEstoque, codigo]
+                        );
+
+                        // Registrar movimentação de ajuste para rastreabilidade
+                        if (Math.abs(novoEstoque - estoqueAnterior) > 0.001) {
+                            await conn.query(
+                                `INSERT INTO movimentacoes_estoque 
+                                    (produto_id, tipo, quantidade, quantidade_anterior, quantidade_atual, observacoes, local, documento, usuario_id, created_at) 
+                                    VALUES (?, 'AJUSTE', ?, ?, ?, ?, 'PRINCIPAL', ?, ?, NOW())`,
+                                [
+                                    prodAnterior[0].id,
+                                    novoEstoque,
+                                    estoqueAnterior,
+                                    novoEstoque,
+                                    `Importação de planilha Excel (${bobinasParaImportar.filter(b => b.codigo === codigo).length} bobinas)`,
+                                    'IMPORTAÇÃO PLANILHA',
+                                    req.user?.id || 1
+                                ]
+                            );
+                        }
+                    }
                 }
 
                 await conn.commit();

@@ -588,7 +588,7 @@ class ComprasDashboard {
         console.log('Salvando edição da ordem:', { ordemId, fornecedor, data, prazo, valor, status });
         
         try {
-            const response = await fetch(`/api/compras/ordens/${ordemId}`, {
+            const response = await fetch(`/api/compras/pedidos/${ordemId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -635,14 +635,17 @@ class ComprasDashboard {
         setTimeout(() => notif.remove(), 3000);
     }
 
-    async atualizarDados() {
+    async atualizarDados(evt) {
         console.log('🔄 Atualizando dados do dashboard...');
         
         // Simular loading
-        const btn = event.target.closest('button');
-        const originalContent = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
-        btn.disabled = true;
+        const e = evt || window.event;
+        const btn = e && e.target ? e.target.closest('button') : null;
+        const originalContent = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Atualizando...';
+            btn.disabled = true;
+        }
 
         await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -651,8 +654,10 @@ class ComprasDashboard {
         this.renderizarTabelaFornecedores();
         this.renderizarAlertas();
 
-        btn.innerHTML = originalContent;
-        btn.disabled = false;
+        if (btn) {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        }
         
         console.log('✅ Dados atualizados!');
     }

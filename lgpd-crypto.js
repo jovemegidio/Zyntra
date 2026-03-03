@@ -41,6 +41,8 @@ function encryptPII(plaintext) {
  */
 function decryptPII(encryptedText) {
     if (!encryptedText || typeof encryptedText !== 'string') return encryptedText;
+    // Handle legacy [ENCRYPTED] placeholder strings
+    if (encryptedText.includes('ENCRYPTED') || encryptedText === '[ENCRYPTED]') return '';
     if (!encryptedText.startsWith('ENC:')) return encryptedText; // Not encrypted — return as-is (plaintext)
 
     try {

@@ -2,52 +2,179 @@
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1a2744">
+    <meta name="format-detection" content="telephone=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: CT-e</title>
     
     <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
     
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- CSP Fix -->
+    <script src="/js/csp-fix.js" defer></script>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
+    <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
+    
+    <!-- Bootstrap (layout interno CT-e) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
 
     <style>
-        .status-badge {
-            padding: 0.35rem 0.65rem;
-            border-radius: 0.25rem;
-            font-size: 0.875rem;
-            font-weight: 500;
+        :root {
+            --sidebar-width: 48px;
+            --header-height: 42px;
+            --primary-orange: #225cfa;
+            --primary-dark: #1a1a2e;
+            --text-muted: #8b8b9a;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
         }
-        .status-pendente { background-color: #fff3cd; color: #856404; }
-        .status-autorizada { background-color: #d1e7dd; color: #0a3622; }
-        .status-cancelada { background-color: #f8d7da; color: #58151c; }
-        .status-inutilizada { background-color: #e2e3e5; color: #41464b; }
-        .cte-card { transition: all 0.3s; cursor: pointer; }
-        .cte-card:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.1); transform: translateY(-2px); }
-        .stats-card { border-left: 4px solid; }
-        .stats-card.primary { border-color: #0d6efd; }
-        .stats-card.success { border-color: #198754; }
-        .stats-card.danger { border-color: #dc3545; }
-        .stats-card.warning { border-color: #ffc107; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: #f5f6f8; min-height: 100vh; overflow-x: hidden; }
+        .app-container { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+
+        /* Sidebar */
+        .sidebar { width: var(--sidebar-width); height: 100vh; background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; flex-shrink: 0; z-index: 100; }
+        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-orange); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; margin-bottom: 20px; text-decoration: none; }
+        .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+        .sidebar-btn { width: 34px; height: 34px; min-height: 34px; border: none; background: transparent; color: var(--text-muted); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; position: relative; }
+        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .sidebar-btn.active { background: var(--primary-orange); color: white; }
+        .sidebar-btn::after { content: attr(title); position: absolute; left: 54px; background: #1a1a2e; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .sidebar-btn::before { content: ''; position: absolute; left: 46px; border: 6px solid transparent; border-right-color: #1a1a2e; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; }
+        .sidebar-btn:hover::after, .sidebar-btn:hover::before { opacity: 1; }
+        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+
+        /* Main Area */
+        .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .header { height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; }
+        .header-left { display: flex; align-items: center; gap: 24px; }
+        .header-brand { display: flex; align-items: center; gap: 8px; color: white; }
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; cursor: pointer; margin-left: 8px; overflow: hidden; }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .user-avatar img.visible { display: block; }
+        .user-greeting { display: flex; align-items: center; gap: 12px; margin-left: 16px; color: #8b8b9a; font-size: 13px; }
+        .user-greeting strong { color: white; }
+
+        .content-area { flex: 1; padding: 24px; overflow-y: auto; background: #f5f6f8; }
+
+        /* CT-e specific overrides for Bootstrap harmony */
+        .content-area .card { border: none; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .content-area .card-header { background: white; border-bottom: 1px solid #e2e8f0; border-radius: 12px 12px 0 0 !important; }
+        .content-area .form-label { font-size: 13px; font-weight: 500; color: #475569; }
+        .content-area .form-control, .content-area .form-select { border-radius: 8px; border-color: #e2e8f0; font-size: 14px; }
+        .content-area .btn-primary { background: var(--primary-orange); border-color: var(--primary-orange); }
+        .content-area .btn-primary:hover { background: #1a4fd8; border-color: #1a4fd8; }
+        .content-area .modal-content { border-radius: 16px; border: none; }
+        .content-area .modal-header { border-bottom: 1px solid #e2e8f0; }
+        .content-area .modal-footer { border-top: 1px solid #e2e8f0; }
+
+        .status-badge { padding: 0.35rem 0.65rem; border-radius: 20px; font-size: 0.8rem; font-weight: 500; }
+        .status-pendente { background: rgba(245,158,11,0.1); color: #b45309; }
+        .status-autorizada { background: rgba(34,197,94,0.1); color: #15803d; }
+        .status-cancelada { background: rgba(239,68,68,0.1); color: #dc2626; }
+        .status-inutilizada { background: #e2e3e5; color: #41464b; }
+        .cte-card { transition: all 0.3s; cursor: pointer; border: 1px solid #e2e8f0 !important; }
+        .cte-card:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.08); transform: translateY(-2px); border-color: var(--primary-orange) !important; }
+        .stats-card { border-left: 4px solid; border-radius: 12px !important; }
+        .stats-card.primary { border-color: var(--primary-orange); }
+        .stats-card.success { border-color: var(--success); }
+        .stats-card.danger { border-color: var(--danger); }
+        .stats-card.warning { border-color: var(--warning); }
+        .stats-card .card-title { font-size: 13px; color: #64748b; font-weight: 500; }
+        .stats-card h2 { font-size: 28px; font-weight: 700; color: #1e293b; }
+
+        /* Mobile */
+        .mobile-menu-btn { display: none; width: 36px; height: 36px; border: none; background: transparent; color: white; border-radius: 8px; cursor: pointer; font-size: 18px; }
+        .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; left: -260px; width: 260px; transition: left 0.3s; z-index: 200; }
+            .sidebar.open { left: 0; }
+            .sidebar-overlay.active { display: block; }
+            .mobile-menu-btn { display: flex; align-items: center; justify-content: center; }
+        }
     </style>
+
+    <!-- Verificação de Admin (Gestão de Vendas) -->
+    <script src="js/vendas-admin-check.js"></script>
+
+    <!-- Controle de Acesso por Permissões -->
+    <script src="js/vendas-access-control.js?v=20260114" defer></script>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
     <script src="/js/modal-title.js?v=20260210"></script>
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
 
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/vendas.html">
-                <i class="bi bi-truck"></i> CT-e - Conhecimento de Transporte
-            </a>
-            <button class="btn btn-light" onclick="mostrarFormularioEmissao()">
-                <i class="bi bi-plus-circle"></i> Novo CT-e
-            </button>
-        </div>
-    </nav>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-    <div class="container-fluid mt-4">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <button class="sidebar-btn" onclick="window.location.href='index.html'" title="Kanban"><i class="fas fa-columns"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='pedidos.html'" title="Pedidos"><i class="fas fa-clipboard-list"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='clientes.html'" title="Clientes"><i class="fas fa-users"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='prospeccao.html'" title="Prospecções & Leads"><i class="fas fa-crosshairs"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='estoque.html'" title="Estoque"><i class="fas fa-boxes-stacked"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='dashboard.html'" title="Meu Dashboard"><i class="fas fa-chart-pie"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='dashboard-admin.html'" title="Gestão de Vendas"><i class="fas fa-chart-line"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='relatorios.html'" title="Relatórios"><i class="fas fa-chart-bar"></i></button>
+                <button class="sidebar-btn" onclick="window.location.href='comissoes.html'" title="Comissões"><i class="fas fa-percentage"></i></button>
+                <button class="sidebar-btn active" title="CT-e"><i class="fas fa-truck"></i></button>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">CT-e</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" onclick="mostrarFormularioEmissao()" title="Novo CT-e"><i class="fas fa-plus"></i></button>
+                    <button class="header-btn" onclick="exportarExcel()" title="Exportar"><i class="fas fa-download"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar">
+                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <span id="user-initials"></span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <div class="content-area">
         <!-- Dashboard de Estatísticas -->
         <div class="row mb-4" id="dashboard">
             <div class="col-md-3">
@@ -112,7 +239,7 @@
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <button class="btn btn-primary w-100" onclick="buscarCTes()">
-                            <i class="bi bi-search"></i> Buscar
+                            <i class="fas fa-search"></i> Buscar
                         </button>
                     </div>
                 </div>
@@ -124,7 +251,7 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">CT-es Cadastrados</h5>
                 <button class="btn btn-sm btn-outline-secondary" onclick="exportarExcel()">
-                    <i class="bi bi-file-earmark-excel"></i> Exportar
+                    <i class="fas fa-file-excel"></i> Exportar
                 </button>
             </div>
             <div class="card-body">
@@ -138,6 +265,7 @@
             </div>
         </div>
     </div>
+    </div><!-- /content-area -->
 
     <!-- Modal: Emitir CT-e -->
     <div class="modal fade" id="modalEmissao" tabindex="-1">
@@ -362,7 +490,7 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary" onclick="emitirCTe()">
-                        <i class="bi bi-send"></i> Emitir CT-e
+                        <i class="fas fa-paper-plane"></i> Emitir CT-e
                     </button>
                 </div>
             </div>
@@ -384,16 +512,19 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-danger" onclick="cancelarCTe()">
-                        <i class="bi bi-x-circle"></i> Cancelar CT-e
+                        <i class="fas fa-times-circle"></i> Cancelar CT-e
                     </button>
                     <button type="button" class="btn btn-outline-info" onclick="baixarDACTE()">
-                        <i class="bi bi-file-pdf"></i> Baixar DACTE
+                        <i class="fas fa-file-pdf"></i> Baixar DACTE
                     </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                 </div>
             </div>
         </div>
     </div>
+
+    </main><!-- /main-area -->
+    </div><!-- /app-container -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -817,9 +948,31 @@
             }
         }
     </script>
-    <script src="/js/auth-unified.js?v=20260131"></script>
+
+    <!-- Toggle Mobile Sidebar -->
+    <script>
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            if (sidebar) sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('active');
+        }
+    </script>
+
+    <!-- Footer Scripts Padrão Aluforce -->
+    <script src="/js/connection-monitor.js?v=20260131"></script>
+    <script src="/js/popup-confirmacao.js?v=20260131"></script>
+    <script src="/js/confirm-modal.js?v=20260201"></script>
+    <script src="/js/performance-utils.js?v=20260207"></script>
+    <script src="/js/auth-unified.js?v=20260301"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script src="/js/user-dropdown.js?v=20260222" defer></script>
+    <script src="/js/sidebar-click-animation.js?v=20260212"></script>
+    <script src="/js/mobile-sidebar.js?v=20260212"></script>
+
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <script src="/_shared/accessibility-widget.js"></script>
 </body>
 </html>

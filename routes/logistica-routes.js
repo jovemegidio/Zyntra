@@ -8,7 +8,8 @@ module.exports = function createLogisticaRoutes(deps) {
     const { pool, authenticateToken, authorizeArea } = deps;
     const router = express.Router();
     router.use(authenticateToken);
-    router.use(authorizeArea('logistica'));
+    // Logística é sub-módulo de NFe — usa mesma permissão para acesso
+    router.use(authorizeArea('nfe'));
     // ===================== ROTAS LOGÍSTICA =====================
     
     // Dashboard da Logística - Contadores por status

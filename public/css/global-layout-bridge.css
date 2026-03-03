@@ -1,0 +1,195 @@
+/* ============================================================
+   ALUFORCE DESIGN SYSTEM — CSS Migration Bridge
+   Mapeia classes legadas → classes globais alf-*
+   Garante compatibilidade visual durante a migração
+   v1.0 — Bridging old module CSS to new global layout
+   ============================================================ */
+
+/* ============================================================
+   1. HIDE OLD SIDEBARS & HEADERS (replaced by alf-* components)
+   When app-layout.js runs, it removes old elements from DOM.
+   This CSS ensures they are hidden immediately even before JS runs.
+   ============================================================ */
+body.alf-body .app-container > aside.sidebar:not(.alf-sidebar),
+body.alf-body .container-principal > aside.sidebar:not(.alf-sidebar),
+body.alf-body aside.sidebar:not(.alf-sidebar),
+body.alf-body .nfe-sidebar,
+body.alf-body .sidebar-container:not(.alf-sidebar) {
+    display: none !important;
+}
+
+body.alf-body .app-container > .main-area > header.header:not(.alf-header),
+body.alf-body .container-principal > header.header:not(.alf-header),
+body.alf-body header.header:not(.alf-header),
+body.alf-body .nfe-header:not(.alf-header),
+body.alf-body .topbar:not(.alf-header) {
+    display: none !important;
+}
+
+/* Hide old layout wrappers — content will be moved by JS */
+body.alf-body > .app-container {
+    display: contents !important;
+}
+
+body.alf-body > .container-principal {
+    display: contents !important;
+}
+
+/* ============================================================
+   2. CONTENT AREA NORMALIZATION
+   Ensure content areas from all modules display correctly
+   within the new alf-content wrapper
+   ============================================================ */
+
+/* Old Vendas/PCP/RH .main-area inside alf-content */
+.alf-content .main-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    height: 100%;
+}
+
+/* Old Financeiro/Compras .main-content inside alf-content */
+.alf-content .main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+/* Content area normalizations */
+.alf-content .content-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ============================================================
+   3. LEGACY VARIABLE MAPPING
+   Map old module-specific CSS variables to global tokens
+   ============================================================ */
+
+/* Vendas legacy variables */
+body[data-module="vendas"] {
+    --primary-orange: var(--primary-brand);
+    --primary-dark: var(--primary-dark);
+}
+
+/* Financeiro legacy variables */
+body[data-module="financeiro"] {
+    --fin-primary: #1e40af;
+    --fin-primary-hover: #1e3a8a;
+    --fin-primary-light: #dbeafe;
+}
+
+/* NFe legacy variables */
+body[data-module="nfe"] {
+    --nfe-primary: #10b981;
+    --nfe-primary-hover: #059669;
+    --nfe-primary-light: #d1fae5;
+}
+
+/* PCP legacy variables */
+body[data-module="pcp"] {
+    --pcp-primary: #64748b;
+    --pcp-primary-hover: #475569;
+}
+
+/* RH legacy variables */
+body[data-module="rh"] {
+    --rh-primary: #8b5cf6;
+    --rh-primary-hover: #7c3aed;
+    --primary-purple: #8b5cf6;
+}
+
+/* Compras legacy variables */
+body[data-module="compras"] {
+    --compras-primary: #10b981;
+    --compras-primary-hover: #059669;
+}
+
+/* ============================================================
+   4. LOADER OVERLAY (Financeiro uses this)
+   ============================================================ */
+body.alf-body #loader-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+}
+
+body.alf-body #loader-wrapper.hidden,
+body.alf-body #loader-wrapper.loaded {
+    display: none;
+}
+
+/* ============================================================
+   5. PRINT STYLES — Hide layout in print mode
+   ============================================================ */
+@media print {
+    .alf-sidebar,
+    .alf-header,
+    .alf-sidebar-overlay,
+    .alf-mobile-menu-btn {
+        display: none !important;
+    }
+
+    .alf-layout {
+        display: block !important;
+    }
+
+    .alf-main {
+        display: block !important;
+    }
+
+    .alf-content {
+        overflow: visible !important;
+        height: auto !important;
+    }
+}
+
+/* ============================================================
+   6. ANIMATION KEYFRAMES (shared across modules)
+   ============================================================ */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ============================================================
+   7. COMMON COMPONENT OVERRIDES
+   Ensure modals, popups, etc. work above the global layout
+   ============================================================ */
+body.alf-body .modal-overlay,
+body.alf-body .modal-backdrop,
+body.alf-body .popup-overlay,
+body.alf-body .confirm-modal-overlay {
+    z-index: 100000;
+}
+
+body.alf-body .modal,
+body.alf-body .popup,
+body.alf-body .confirm-modal {
+    z-index: 100001;
+}

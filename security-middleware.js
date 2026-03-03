@@ -291,7 +291,7 @@ function securityHeaders() {
                 fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
                 imgSrc: ["'self'", "data:", "https:", "blob:"],
                 connectSrc: ["'self'", "data:", "ws:", "wss:", "https://cdn.jsdelivr.net", "https:"],
-                frameSrc: ["'self'"],
+                frameSrc: ["'self'", "blob:"],
                 // AUDIT-FIX ARCH-001: Additional CSP hardening directives
                 objectSrc: ["'none'"],
                 baseUri: ["'self'"],

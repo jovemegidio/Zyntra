@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f172a">
+    <title>Aluforce: Painel de Controle</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons - Lucide -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- CSS Principal -->
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i data-lucide="zap"></i>
+                </div>
+                <span class="logo-text">ALUFORCE</span>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <i data-lucide="panel-left-close"></i>
+            </button>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <div class="nav-section">
+                <span class="nav-section-title">Principal</span>
+                <a href="#" class="nav-item active" data-module="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <span class="nav-section-title">Comercial</span>
+                <a href="/Vendas/" class="nav-item" data-module="vendas">
+                    <i data-lucide="shopping-cart"></i>
+                    <span>Vendas</span>
+                    <span class="nav-badge">12</span>
+                </a>
+                <a href="#" class="nav-item" data-module="compras">
+                    <i data-lucide="package"></i>
+                    <span>Compras</span>
+                </a>
+                <a href="#" class="nav-item" data-module="clientes">
+                    <i data-lucide="users"></i>
+                    <span>Clientes</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <span class="nav-section-title">Produção</span>
+                <a href="#" class="nav-item" data-module="pcp">
+                    <i data-lucide="factory"></i>
+                    <span>PCP</span>
+                </a>
+                <a href="#" class="nav-item" data-module="estoque">
+                    <i data-lucide="warehouse"></i>
+                    <span>Estoque</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <span class="nav-section-title">Fiscal</span>
+                <a href="#" class="nav-item" data-module="nfe">
+                    <i data-lucide="file-text"></i>
+                    <span>NF-e</span>
+                </a>
+                <a href="#" class="nav-item" data-module="cte">
+                    <i data-lucide="truck"></i>
+                    <span>CT-e</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <span class="nav-section-title">Financeiro</span>
+                <a href="#" class="nav-item" data-module="financeiro">
+                    <i data-lucide="wallet"></i>
+                    <span>Financeiro</span>
+                </a>
+                <a href="#" class="nav-item" data-module="caixa">
+                    <i data-lucide="landmark"></i>
+                    <span>Caixa</span>
+                </a>
+            </div>
+            
+            <div class="nav-section">
+                <span class="nav-section-title">RH</span>
+                <a href="#" class="nav-item" data-module="funcionarios">
+                    <i data-lucide="user-check"></i>
+                    <span>Funcionários</span>
+                </a>
+                <a href="#" class="nav-item" data-module="ponto">
+                    <i data-lucide="clock"></i>
+                    <span>Ponto</span>
+                </a>
+            </div>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="user-profile">
+                <div class="user-avatar">
+                    <span id="userInitials">TI</span>
+                </div>
+                <div class="user-info">
+                    <span class="user-name" id="userName">Administrador</span>
+                    <span class="user-role" id="userRole">TI</span>
+                </div>
+                <button class="user-menu-btn" id="userMenuBtn">
+                    <i data-lucide="more-vertical"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i data-lucide="menu"></i>
+                </button>
+                <div class="search-container">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Buscar pedidos, clientes, produtos..." class="search-input">
+                    <kbd class="search-shortcut">⌘K</kbd>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="header-btn" id="themeToggle" title="Alternar tema">
+                    <i data-lucide="sun"></i>
+                </button>
+                <button class="header-btn notification-btn" id="notificationBtn">
+                    <i data-lucide="bell"></i>
+                    <span class="notification-badge">3</span>
+                </button>
+                <button class="header-btn" id="settingsBtn">
+                    <i data-lucide="settings"></i>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Dashboard Content -->
+        <div class="dashboard-content">
+            <!-- Welcome Section -->
+            <section class="welcome-section">
+                <div class="welcome-text">
+                    <h1>Bom dia, <span id="welcomeName">Administrador</span>! 👋</h1>
+                    <p>Aqui está o resumo do seu negócio hoje.</p>
+                </div>
+                <div class="date-display">
+                    <span class="current-date" id="currentDate">29 de Janeiro, 2026</span>
+                    <span class="current-time" id="currentTime">16:30</span>
+                </div>
+            </section>
+            
+            <!-- KPI Cards -->
+            <section class="kpi-section">
+                <div class="kpi-card kpi-revenue">
+                    <div class="kpi-icon">
+                        <i data-lucide="trending-up"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Faturamento Hoje</span>
+                        <span class="kpi-value" id="kpiFaturamento">R$ 45.280,00</span>
+                        <span class="kpi-change positive">
+                            <i data-lucide="arrow-up"></i>
+                            +12.5% vs ontem
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="kpi-card kpi-orders">
+                    <div class="kpi-icon">
+                        <i data-lucide="shopping-bag"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Pedidos Hoje</span>
+                        <span class="kpi-value" id="kpiPedidos">24</span>
+                        <span class="kpi-change positive">
+                            <i data-lucide="arrow-up"></i>
+                            +8 vs ontem
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="kpi-card kpi-clients">
+                    <div class="kpi-icon">
+                        <i data-lucide="users"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">Novos Clientes</span>
+                        <span class="kpi-value" id="kpiClientes">7</span>
+                        <span class="kpi-change positive">
+                            <i data-lucide="arrow-up"></i>
+                            +3 este mês
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="kpi-card kpi-pending">
+                    <div class="kpi-icon">
+                        <i data-lucide="clock"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <span class="kpi-label">A Receber</span>
+                        <span class="kpi-value" id="kpiReceber">R$ 128.450,00</span>
+                        <span class="kpi-change warning">
+                            <i data-lucide="alert-circle"></i>
+                            5 vencendo hoje
+                        </span>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <div class="chart-card chart-main">
+                    <div class="chart-header">
+                        <h3>Faturamento Mensal</h3>
+                        <div class="chart-actions">
+                            <select class="chart-select" id="chartPeriod">
+                                <option value="7d">Últimos 7 dias</option>
+                                <option value="30d" selected>Últimos 30 dias</option>
+                                <option value="90d">Últimos 90 dias</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-card chart-secondary">
+                    <div class="chart-header">
+                        <h3>Vendas por Categoria</h3>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Quick Actions & Recent Activity -->
+            <section class="bottom-section">
+                <!-- Quick Actions -->
+                <div class="quick-actions-card">
+                    <h3>Ações Rápidas</h3>
+                    <div class="quick-actions-grid">
+                        <button class="quick-action" data-action="novo-pedido">
+                            <div class="quick-action-icon">
+                                <i data-lucide="plus-circle"></i>
+                            </div>
+                            <span>Novo Pedido</span>
+                        </button>
+                        <button class="quick-action" data-action="novo-cliente">
+                            <div class="quick-action-icon">
+                                <i data-lucide="user-plus"></i>
+                            </div>
+                            <span>Novo Cliente</span>
+                        </button>
+                        <button class="quick-action" data-action="emitir-nfe">
+                            <div class="quick-action-icon">
+                                <i data-lucide="file-plus"></i>
+                            </div>
+                            <span>Emitir NF-e</span>
+                        </button>
+                        <button class="quick-action" data-action="relatorios">
+                            <div class="quick-action-icon">
+                                <i data-lucide="bar-chart-2"></i>
+                            </div>
+                            <span>Relatórios</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Recent Orders -->
+                <div class="recent-orders-card">
+                    <div class="card-header">
+                        <h3>Pedidos Recentes</h3>
+                        <a href="/Vendas/" class="view-all-link">Ver todos →</a>
+                    </div>
+                    <div class="orders-list" id="recentOrdersList">
+                        <!-- Orders will be loaded dynamically -->
+                        <div class="order-item">
+                            <div class="order-info">
+                                <span class="order-number">#1842</span>
+                                <span class="order-client">Comercial Elétrica Papiro LTDA</span>
+                            </div>
+                            <div class="order-details">
+                                <span class="order-value">R$ 13.084,67</span>
+                                <span class="order-status status-approved">Aprovado</span>
+                            </div>
+                        </div>
+                        <div class="order-item">
+                            <div class="order-info">
+                                <span class="order-number">#1841</span>
+                                <span class="order-client">AFS Elétrica</span>
+                            </div>
+                            <div class="order-details">
+                                <span class="order-value">R$ 21.615,00</span>
+                                <span class="order-status status-pending">Em Análise</span>
+                            </div>
+                        </div>
+                        <div class="order-item">
+                            <div class="order-info">
+                                <span class="order-number">#1840</span>
+                                <span class="order-client">Impacto Elétrica</span>
+                            </div>
+                            <div class="order-details">
+                                <span class="order-value">R$ 80.780,00</span>
+                                <span class="order-status status-production">Produção</span>
+                            </div>
+                        </div>
+                        <div class="order-item">
+                            <div class="order-info">
+                                <span class="order-number">#1839</span>
+                                <span class="order-client">Gasparzinho Distribuidora</span>
+                            </div>
+                            <div class="order-details">
+                                <span class="order-value">R$ 7.500,00</span>
+                                <span class="order-status status-shipped">Entregue</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Notifications Panel -->
+                <div class="notifications-card">
+                    <div class="card-header">
+                        <h3>Notificações</h3>
+                        <button class="mark-all-read">Marcar todas como lidas</button>
+                    </div>
+                    <div class="notifications-list" id="notificationsList">
+                        <div class="notification-item unread">
+                            <div class="notification-icon warning">
+                                <i data-lucide="alert-triangle"></i>
+                            </div>
+                            <div class="notification-content">
+                                <p>Estoque baixo: <strong>Cabo PP 3x2.5mm</strong></p>
+                                <span class="notification-time">Há 5 minutos</span>
+                            </div>
+                        </div>
+                        <div class="notification-item unread">
+                            <div class="notification-icon success">
+                                <i data-lucide="check-circle"></i>
+                            </div>
+                            <div class="notification-content">
+                                <p>Pedido <strong>#1842</strong> aprovado pelo financeiro</p>
+                                <span class="notification-time">Há 15 minutos</span>
+                            </div>
+                        </div>
+                        <div class="notification-item">
+                            <div class="notification-icon info">
+                                <i data-lucide="info"></i>
+                            </div>
+                            <div class="notification-content">
+                                <p>NF-e <strong>251</strong> autorizada com sucesso</p>
+                                <span class="notification-time">Há 1 hora</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    
+    <!-- User Menu Dropdown -->
+    <div class="user-menu-dropdown" id="userMenuDropdown">
+        <a href="#" class="dropdown-item">
+            <i data-lucide="user"></i>
+            <span>Meu Perfil</span>
+        </a>
+        <a href="#" class="dropdown-item">
+            <i data-lucide="settings"></i>
+            <span>Configurações</span>
+        </a>
+        <div class="dropdown-divider"></div>
+        <a href="/logout.html" class="dropdown-item logout">
+            <i data-lucide="log-out"></i>
+            <span>Sair</span>
+        </a>
+    </div>
+    
+    <!-- Notification Panel -->
+    <div class="notification-panel" id="notificationPanel">
+        <div class="panel-header">
+            <h3>Notificações</h3>
+            <button class="close-panel" id="closeNotificationPanel">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="panel-content">
+            <!-- Notifications loaded here -->
+        </div>
+    </div>
+    
+    <!-- Command Palette (Ctrl+K) -->
+    <div class="command-palette-overlay" id="commandPalette">
+        <div class="command-palette">
+            <div class="command-input-wrapper">
+                <i data-lucide="search"></i>
+                <input type="text" placeholder="Digite um comando ou pesquise..." id="commandInput">
+            </div>
+            <div class="command-results" id="commandResults">
+                <div class="command-group">
+                    <span class="command-group-title">Ações Rápidas</span>
+                    <button class="command-item">
+                        <i data-lucide="plus"></i>
+                        <span>Criar novo pedido</span>
+                        <kbd>N</kbd>
+                    </button>
+                    <button class="command-item">
+                        <i data-lucide="user-plus"></i>
+                        <span>Cadastrar cliente</span>
+                        <kbd>C</kbd>
+                    </button>
+                </div>
+                <div class="command-group">
+                    <span class="command-group-title">Navegação</span>
+                    <button class="command-item" onclick="window.location='/Vendas/'">
+                        <i data-lucide="shopping-cart"></i>
+                        <span>Ir para Vendas</span>
+                    </button>
+                    <button class="command-item">
+                        <i data-lucide="file-text"></i>
+                        <span>Ir para NF-e</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="dashboard.js"></script>
+</body>
+</html>

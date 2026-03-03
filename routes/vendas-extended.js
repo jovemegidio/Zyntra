@@ -175,6 +175,9 @@ module.exports = function createVendasExtendedRoutes(deps) {
                     u.nome,
                     COUNT(p.id) as vendas,
                     COALESCE(SUM(CASE WHEN p.status IN ('faturado', 'recibo') THEN p.valor ELSE 0 END), 0) AS valor
+                 FROM usuarios u
+                 LEFT JOIN pedidos p ON p.vendedor_id = u.id AND p.created_at >= CURDATE() - INTERVAL ? DAY
+                 WHERE u.area = 'vendas' OR u.role = 'vendedor'
                  GROUP BY u.id, u.nome
                  ORDER BY valor DESC
                  LIMIT ?`,
@@ -1369,48 +1372,196 @@ module.exports = function createVendasExtendedRoutes(deps) {
     });
 
     // ========================================
-    // RELATÓRIOS PDF
+    // RELATÓRIOS PDF - Template Profissional
     // ========================================
-    function criarPdfRelatorio(titulo, colunas, linhas, filtrosTexto) {
+
+    // Categorias de comissão por tipo de produto
+    const COMISSAO_CATEGORIAS = {
+        'POTENCIA': { nome: 'Cabos de Potência (Power)', percentual: 2.0, keywords: ['POTENCIA', 'POWER', 'NBR 7285', 'NBR 7286', '0,6/1KV', '1KV'] },
+        'MULTIPLEX': { nome: 'Cabos Multiplexados', percentual: 1.0, keywords: ['TRIPLEX', 'DUPLEX', 'QUADRUPLEX', 'MULTIPLEX', 'NEUTRO ISOLADO'] },
+        'OUTROS': { nome: 'Outros Produtos', percentual: 1.0, keywords: [] }
+    };
+
+    function classificarProdutoComissao(descricao) {
+        if (!descricao) return COMISSAO_CATEGORIAS['OUTROS'];
+        const desc = descricao.toUpperCase();
+        if (COMISSAO_CATEGORIAS['POTENCIA'].keywords.some(k => desc.includes(k)) && 
+            !COMISSAO_CATEGORIAS['MULTIPLEX'].keywords.some(k => desc.includes(k))) {
+            return COMISSAO_CATEGORIAS['POTENCIA'];
+        }
+        if (COMISSAO_CATEGORIAS['MULTIPLEX'].keywords.some(k => desc.includes(k))) {
+            return COMISSAO_CATEGORIAS['MULTIPLEX'];
+        }
+        return COMISSAO_CATEGORIAS['OUTROS'];
+    }
+
+    function criarPdfRelatorio(titulo, colunas, linhas, filtrosTexto, opcoes = {}) {
         const PDFDocument = require('pdfkit');
-        const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 40 });
+        const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 40, bufferPages: true });
         const buffers = [];
         doc.on('data', b => buffers.push(b));
 
-        doc.fontSize(20).font('Helvetica-Bold').fillColor('#1a1a2e').text('ALUFORCE', 40, 30);
-        doc.fontSize(10).font('Helvetica').fillColor('#6b7280').text('Sistema de Gestão Empresarial', 40, 55);
-        doc.moveTo(40, 72).lineTo(doc.page.width - 40, 72).strokeColor('#e5e7eb').stroke();
-
-        doc.moveDown(0.5);
-        doc.fontSize(16).font('Helvetica-Bold').fillColor('#1e293b').text(titulo, { align: 'center' });
-        if (filtrosTexto) {
-            doc.fontSize(9).font('Helvetica').fillColor('#6b7280').text(filtrosTexto, { align: 'center' });
-        }
-        doc.fontSize(8).fillColor('#94a3b8').text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, { align: 'center' });
-        doc.moveDown(1);
-
-        const tableTop = doc.y;
         const pageW = doc.page.width - 80;
-        const colW = pageW / colunas.length;
+        const margin = 40;
 
-        doc.rect(40, tableTop, pageW, 24).fill('#f1f5f9');
-        colunas.forEach((col, i) => {
-            doc.fontSize(9).font('Helvetica-Bold').fillColor('#374151')
-               .text(col, 44 + i * colW, tableTop + 7, { width: colW - 8, align: 'left' });
-        });
+        function desenharHeader(isFirstPage) {
+            // Barra superior com gradiente simulado
+            doc.rect(0, 0, doc.page.width, 6).fill('#1e40af');
 
-        let y = tableTop + 28;
-        linhas.forEach((linha, idx) => {
-            if (y > doc.page.height - 60) { doc.addPage(); y = 40; }
-            if (idx % 2 === 0) doc.rect(40, y - 2, pageW, 20).fill('#fafafa');
-            linha.forEach((val, i) => {
-                doc.fontSize(8).font('Helvetica').fillColor('#374151')
-                   .text(String(val || '-'), 44 + i * colW, y + 2, { width: colW - 8, align: 'left' });
+            // Logo e nome
+            doc.fontSize(22).font('Helvetica-Bold').fillColor('#1e293b').text('ALUFORCE', margin, 18);
+            doc.fontSize(9).font('Helvetica').fillColor('#94a3b8').text('Sistema de Gestão Empresarial', margin, 44);
+
+            // Data de geração no canto direito
+            doc.fontSize(8).fillColor('#94a3b8')
+               .text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, 20, { align: 'right', width: pageW });
+
+            // Linha separadora
+            doc.moveTo(margin, 60).lineTo(doc.page.width - margin, 60).strokeColor('#e2e8f0').lineWidth(1).stroke();
+
+            if (isFirstPage) {
+                // Título centralizado
+                doc.fontSize(16).font('Helvetica-Bold').fillColor('#1e293b').text(titulo, margin, 70, { align: 'center', width: pageW });
+                if (filtrosTexto) {
+                    doc.fontSize(9).font('Helvetica').fillColor('#64748b').text(filtrosTexto, margin, 90, { align: 'center', width: pageW });
+                }
+
+                // Resumo cards se fornecidos
+                if (opcoes.resumo && opcoes.resumo.length > 0) {
+                    const cardY = filtrosTexto ? 110 : 95;
+                    const cardW = Math.min(160, (pageW - (opcoes.resumo.length - 1) * 12) / opcoes.resumo.length);
+                    const totalCardsW = cardW * opcoes.resumo.length + (opcoes.resumo.length - 1) * 12;
+                    const startX = margin + (pageW - totalCardsW) / 2;
+
+                    opcoes.resumo.forEach((card, i) => {
+                        const cx = startX + i * (cardW + 12);
+                        doc.roundedRect(cx, cardY, cardW, 48, 6).fill(card.cor || '#f0f9ff');
+                        doc.roundedRect(cx, cardY, cardW, 48, 6).strokeColor(card.borda || '#bfdbfe').lineWidth(0.5).stroke();
+                        doc.fontSize(8).font('Helvetica').fillColor('#64748b').text(card.label, cx + 12, cardY + 10, { width: cardW - 24 });
+                        doc.fontSize(13).font('Helvetica-Bold').fillColor(card.corTexto || '#1e40af').text(card.valor, cx + 12, cardY + 24, { width: cardW - 24 });
+                    });
+                    return cardY + 62;
+                }
+                return filtrosTexto ? 108 : 95;
+            }
+            return 70;
+        }
+
+        function desenharFooter(pageNum, totalPages) {
+            const y = doc.page.height - 30;
+            doc.moveTo(margin, y - 8).lineTo(doc.page.width - margin, y - 8).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+            doc.fontSize(7).font('Helvetica').fillColor('#94a3b8')
+               .text('ALUFORCE - Relatório Confidencial', margin, y, { width: pageW / 2 })
+               .text(`Página ${pageNum} de ${totalPages}`, margin, y, { align: 'right', width: pageW });
+        }
+
+        // Calcular larguras de coluna proporcionais
+        const colWidths = opcoes.colWidths || colunas.map(() => pageW / colunas.length);
+        const colAligns = opcoes.colAligns || colunas.map(() => 'left');
+
+        // Primeira página: header + título
+        let tableStart = desenharHeader(true);
+
+        // Cabeçalho da tabela
+        function desenharCabecalhoTabela(y) {
+            doc.rect(margin, y, pageW, 26).fill('#1e293b');
+            let x = margin;
+            colunas.forEach((col, i) => {
+                doc.fontSize(9).font('Helvetica-Bold').fillColor('#ffffff')
+                   .text(col, x + 8, y + 8, { width: colWidths[i] - 16, align: colAligns[i] });
+                x += colWidths[i];
             });
-            y += 20;
-        });
+            return y + 26;
+        }
 
-        doc.fontSize(8).fillColor('#94a3b8').text(`Total de registros: ${linhas.length}`, 40, y + 16);
+        let y = desenharCabecalhoTabela(tableStart);
+        const rowH = 22;
+
+        // Seções agrupadas ou linhas simples
+        if (opcoes.secoes) {
+            opcoes.secoes.forEach((secao) => {
+                // Verificar espaço para header de seção + pelo menos 1 linha
+                if (y + 30 + rowH > doc.page.height - 50) {
+                    doc.addPage();
+                    tableStart = desenharHeader(false);
+                    y = desenharCabecalhoTabela(tableStart);
+                }
+                // Header de seção
+                doc.rect(margin, y, pageW, 24).fill(secao.cor || '#eff6ff');
+                doc.fontSize(9).font('Helvetica-Bold').fillColor(secao.corTexto || '#1e40af')
+                   .text(secao.titulo, margin + 10, y + 7, { width: pageW - 20 });
+                if (secao.info) {
+                    doc.fontSize(8).font('Helvetica').fillColor('#64748b')
+                       .text(secao.info, margin + 10, y + 7, { align: 'right', width: pageW - 20 });
+                }
+                y += 24;
+
+                secao.linhas.forEach((linha, idx) => {
+                    if (y + rowH > doc.page.height - 50) {
+                        doc.addPage();
+                        tableStart = desenharHeader(false);
+                        y = desenharCabecalhoTabela(tableStart);
+                    }
+                    if (idx % 2 === 0) doc.rect(margin, y, pageW, rowH).fill('#f8fafc');
+                    let x = margin;
+                    linha.forEach((val, i) => {
+                        const isMoney = String(val).startsWith('R$');
+                        doc.fontSize(8).font(isMoney ? 'Helvetica-Bold' : 'Helvetica').fillColor('#334155')
+                           .text(String(val || '-'), x + 8, y + 6, { width: colWidths[i] - 16, align: colAligns[i] });
+                        x += colWidths[i];
+                    });
+                    y += rowH;
+                });
+
+                // Subtotal da seção
+                if (secao.subtotal) {
+                    doc.rect(margin, y, pageW, 22).fill('#e0e7ff');
+                    doc.fontSize(8).font('Helvetica-Bold').fillColor('#3730a3')
+                       .text(secao.subtotal, margin + 10, y + 6, { width: pageW - 20, align: 'right' });
+                    y += 24;
+                }
+            });
+        } else {
+            linhas.forEach((linha, idx) => {
+                if (y + rowH > doc.page.height - 50) {
+                    doc.addPage();
+                    tableStart = desenharHeader(false);
+                    y = desenharCabecalhoTabela(tableStart);
+                }
+                if (idx % 2 === 0) doc.rect(margin, y, pageW, rowH).fill('#f8fafc');
+                // Linha de separação suave
+                doc.moveTo(margin, y + rowH).lineTo(margin + pageW, y + rowH).strokeColor('#f1f5f9').lineWidth(0.3).stroke();
+
+                let x = margin;
+                linha.forEach((val, i) => {
+                    const isMoney = String(val).startsWith('R$');
+                    doc.fontSize(8).font(isMoney ? 'Helvetica-Bold' : 'Helvetica').fillColor('#334155')
+                       .text(String(val || '-'), x + 8, y + 6, { width: colWidths[i] - 16, align: colAligns[i] });
+                    x += colWidths[i];
+                });
+                y += rowH;
+            });
+        }
+
+        // Rodapé com total
+        y += 8;
+        doc.rect(margin, y, pageW, 1).fill('#e2e8f0');
+        doc.fontSize(9).font('Helvetica-Bold').fillColor('#1e40af')
+           .text(`Total de registros: ${opcoes.totalRegistros || linhas.length}`, margin + 8, y + 8);
+
+        // Totalizadores gerais
+        if (opcoes.totais) {
+            doc.fontSize(9).font('Helvetica-Bold').fillColor('#1e293b')
+               .text(opcoes.totais, margin + 8, y + 8, { align: 'right', width: pageW - 16 });
+        }
+
+        // Adicionar footer em todas as páginas
+        const totalPages = doc.bufferedPageRange().count;
+        for (let i = 0; i < totalPages; i++) {
+            doc.switchToPage(i);
+            desenharFooter(i + 1, totalPages);
+        }
+
         doc.end();
         return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(buffers))));
     }
@@ -1424,11 +1575,16 @@ module.exports = function createVendasExtendedRoutes(deps) {
         return new Date(data).toLocaleDateString('pt-BR');
     }
 
+    function formatarQtd(valor) {
+        const num = parseFloat(valor) || 0;
+        return num % 1 === 0 ? num.toString() : num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    }
+
     // PDF: Vendas por Período
     router.get('/relatorios/vendas-periodo/pdf', authenticateToken, authorizeArea('vendas'), async (req, res) => {
         try {
             const { data_inicio, data_fim, vendedor_id, status } = req.query;
-            let query = `SELECT p.numero_pedido, p.cliente_nome, p.vendedor_nome, p.valor, p.status, p.created_at
+            let query = `SELECT p.id, COALESCE(p.omie_numero_pedido, p.id) as numero, p.cliente_nome, p.vendedor_nome, p.valor, p.status, p.created_at
                          FROM pedidos p WHERE 1=1`;
             const params = [];
             if (data_inicio) { query += ' AND p.created_at >= ?'; params.push(data_inicio); }
@@ -1438,50 +1594,142 @@ module.exports = function createVendasExtendedRoutes(deps) {
             query += ' ORDER BY p.created_at DESC';
 
             const [rows] = await vendasPool.query(query, params);
+
+            const totalValor = rows.reduce((s, r) => s + (parseFloat(r.valor) || 0), 0);
+            const statusMap = {};
+            rows.forEach(r => { statusMap[r.status || 'N/A'] = (statusMap[r.status || 'N/A'] || 0) + 1; });
+            const statusResumo = Object.entries(statusMap).map(([k, v]) => `${k}: ${v}`).join(' | ');
+
             const filtro = `Período: ${data_inicio || 'início'} a ${data_fim || 'hoje'}${vendedor_id ? ' | Vendedor filtrado' : ''}${status && status !== 'todos' ? ` | Status: ${status}` : ''}`;
             const colunas = ['Nº Pedido', 'Cliente', 'Vendedor', 'Valor', 'Status', 'Data'];
+            const pageW = 842 - 80; // A4 landscape
+            const colWidths = [pageW * 0.10, pageW * 0.28, pageW * 0.20, pageW * 0.14, pageW * 0.13, pageW * 0.15];
+            const colAligns = ['center', 'left', 'left', 'right', 'center', 'center'];
+
             const linhas = rows.map(r => [
-                r.numero_pedido || '-', r.cliente_nome || '-', r.vendedor_nome || '-',
-                formatarMoedaPdf(r.valor), r.status || '-', formatarDataPdf(r.created_at)
+                String(r.numero || r.id), r.cliente_nome || '-', r.vendedor_nome || '-',
+                formatarMoedaPdf(r.valor), (r.status || '-').charAt(0).toUpperCase() + (r.status || '-').slice(1),
+                formatarDataPdf(r.created_at)
             ]);
 
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Vendas por Período', colunas, linhas, filtro);
+            const resumo = [
+                { label: 'Total de Pedidos', valor: String(rows.length), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
+                { label: 'Valor Total', valor: formatarMoedaPdf(totalValor), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
+                { label: 'Ticket Médio', valor: formatarMoedaPdf(rows.length ? totalValor / rows.length : 0), cor: '#fefce8', borda: '#fde68a', corTexto: '#92400e' }
+            ];
+
+            const pdfBuffer = await criarPdfRelatorio('Relatório de Vendas por Período', colunas, linhas, filtro, {
+                colWidths, colAligns, resumo, totais: `Valor Total: ${formatarMoedaPdf(totalValor)}`
+            });
             res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-vendas.pdf' });
             res.send(pdfBuffer);
         } catch (err) {
             console.error('Erro ao gerar PDF vendas-periodo:', err);
-            res.status(500).json({ error: 'Erro ao gerar PDF' });
+            res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
         }
     });
 
-    // PDF: Comissões
+    // PDF: Comissões (com categorias: 2% cabos power, 1% multiplexado)
     router.get('/relatorios/comissoes/pdf', authenticateToken, authorizeArea('vendas'), async (req, res) => {
         try {
-            const { data_inicio, data_fim, vendedor_id, percentual_comissao } = req.query;
-            const pct = parseFloat(percentual_comissao) || 1;
-            let query = `SELECT p.vendedor_nome, COUNT(*) as qtd, SUM(p.valor) as total_vendas,
-                         SUM(p.valor * ${pct} / 100) as comissao
-                         FROM pedidos p WHERE p.status IN ('faturado','entregue','aprovado')`;
+            const { data_inicio, data_fim, vendedor_id } = req.query;
+
+            // Buscar itens dos pedidos com informação do vendedor
+            let query = `SELECT p.vendedor_nome, p.vendedor_id, pi.descricao, pi.codigo,
+                         pi.quantidade, pi.preco_unitario, pi.subtotal
+                         FROM pedido_itens pi
+                         INNER JOIN pedidos p ON pi.pedido_id = p.id
+                         WHERE p.status IN ('faturado','entregue','aprovado','recibo')`;
             const params = [];
             if (data_inicio) { query += ' AND p.created_at >= ?'; params.push(data_inicio); }
             if (data_fim) { query += ' AND p.created_at <= ?'; params.push(data_fim + ' 23:59:59'); }
             if (vendedor_id) { query += ' AND p.vendedor_id = ?'; params.push(vendedor_id); }
-            query += ' GROUP BY p.vendedor_id, p.vendedor_nome ORDER BY comissao DESC';
+            query += ' ORDER BY p.vendedor_nome, pi.descricao';
 
             const [rows] = await vendasPool.query(query, params);
-            const filtro = `Período: ${data_inicio || 'início'} a ${data_fim || 'hoje'} | Percentual: ${pct}%`;
-            const colunas = ['Vendedor', 'Qtd Vendas', 'Total Vendido', 'Comissão'];
-            const linhas = rows.map(r => [
-                r.vendedor_nome || '-', r.qtd || 0,
-                formatarMoedaPdf(r.total_vendas), formatarMoedaPdf(r.comissao)
-            ]);
 
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Comissões', colunas, linhas, filtro);
+            // Agrupar por vendedor e categoria
+            const vendedores = {};
+            rows.forEach(r => {
+                const vend = r.vendedor_nome || 'Sem vendedor';
+                if (!vendedores[vend]) vendedores[vend] = { power: [], multiplex: [], outros: [], totalVendas: 0, totalComissao: 0 };
+                const cat = classificarProdutoComissao(r.descricao);
+                const subtotal = parseFloat(r.subtotal) || (parseFloat(r.preco_unitario) * parseFloat(r.quantidade)) || 0;
+                const comissao = subtotal * cat.percentual / 100;
+                const item = { descricao: r.descricao, codigo: r.codigo, qtd: parseFloat(r.quantidade), subtotal, comissao, percentual: cat.percentual };
+                vendedores[vend].totalVendas += subtotal;
+                vendedores[vend].totalComissao += comissao;
+
+                if (cat === COMISSAO_CATEGORIAS['POTENCIA']) vendedores[vend].power.push(item);
+                else if (cat === COMISSAO_CATEGORIAS['MULTIPLEX']) vendedores[vend].multiplex.push(item);
+                else vendedores[vend].outros.push(item);
+            });
+
+            const filtro = `Período: ${data_inicio || 'início'} a ${data_fim || 'hoje'} | Cabos Power: 2% | Multiplexado: 1% | Outros: 1%`;
+            const colunas = ['Vendedor', 'Produto', 'Código', 'Qtd', 'Valor Venda', '% Com.', 'Comissão'];
+            const pageW = 842 - 80;
+            const colWidths = [pageW * 0.16, pageW * 0.26, pageW * 0.10, pageW * 0.08, pageW * 0.15, pageW * 0.09, pageW * 0.16];
+            const colAligns = ['left', 'left', 'center', 'right', 'right', 'center', 'right'];
+
+            const secoes = [];
+            let grandTotalVendas = 0;
+            let grandTotalComissao = 0;
+            let totalRegistros = 0;
+
+            Object.entries(vendedores).sort((a, b) => b[1].totalComissao - a[1].totalComissao).forEach(([vendNome, vend]) => {
+                grandTotalVendas += vend.totalVendas;
+                grandTotalComissao += vend.totalComissao;
+
+                const secaoLinhas = [];
+                const addItems = (items, catNome) => {
+                    items.forEach(item => {
+                        secaoLinhas.push([
+                            vendNome, item.descricao || '-', item.codigo || '-',
+                            formatarQtd(item.qtd), formatarMoedaPdf(item.subtotal),
+                            `${item.percentual}%`, formatarMoedaPdf(item.comissao)
+                        ]);
+                        totalRegistros++;
+                    });
+                };
+                addItems(vend.power, 'Power');
+                addItems(vend.multiplex, 'Multiplex');
+                addItems(vend.outros, 'Outros');
+
+                if (secaoLinhas.length > 0) {
+                    const powerTotal = vend.power.reduce((s, i) => s + i.comissao, 0);
+                    const muxTotal = vend.multiplex.reduce((s, i) => s + i.comissao, 0);
+                    const outrosTotal = vend.outros.reduce((s, i) => s + i.comissao, 0);
+                    let detalhes = [];
+                    if (vend.power.length) detalhes.push(`Power 2%: ${formatarMoedaPdf(powerTotal)}`);
+                    if (vend.multiplex.length) detalhes.push(`Multiplex 1%: ${formatarMoedaPdf(muxTotal)}`);
+                    if (vend.outros.length) detalhes.push(`Outros 1%: ${formatarMoedaPdf(outrosTotal)}`);
+
+                    secoes.push({
+                        titulo: `${vendNome}`,
+                        info: `Vendas: ${formatarMoedaPdf(vend.totalVendas)}`,
+                        cor: '#eff6ff',
+                        corTexto: '#1e40af',
+                        linhas: secaoLinhas,
+                        subtotal: `${detalhes.join('  •  ')}  │  Total Comissão: ${formatarMoedaPdf(vend.totalComissao)}`
+                    });
+                }
+            });
+
+            const resumo = [
+                { label: 'Vendedores', valor: String(Object.keys(vendedores).length), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
+                { label: 'Total Vendido', valor: formatarMoedaPdf(grandTotalVendas), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
+                { label: 'Total Comissões', valor: formatarMoedaPdf(grandTotalComissao), cor: '#fef3c7', borda: '#fde68a', corTexto: '#92400e' }
+            ];
+
+            const pdfBuffer = await criarPdfRelatorio('Relatório de Comissões por Categoria', colunas, [], filtro, {
+                colWidths, colAligns, resumo, secoes, totalRegistros,
+                totais: `Total Comissões: ${formatarMoedaPdf(grandTotalComissao)}`
+            });
             res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-comissoes.pdf' });
             res.send(pdfBuffer);
         } catch (err) {
             console.error('Erro ao gerar PDF comissoes:', err);
-            res.status(500).json({ error: 'Erro ao gerar PDF' });
+            res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
         }
     });
 
@@ -1491,7 +1739,7 @@ module.exports = function createVendasExtendedRoutes(deps) {
             const { cliente_id, status, cidade, estado, ordenar_por } = req.query;
             let query = `SELECT c.nome, c.email, c.telefone, c.cidade, c.estado, c.ativo,
                          (SELECT COUNT(*) FROM pedidos p WHERE p.cliente_id = c.id) as qtd_pedidos,
-                         (SELECT SUM(p.valor) FROM pedidos p WHERE p.cliente_id = c.id) as total_compras
+                         (SELECT COALESCE(SUM(p.valor), 0) FROM pedidos p WHERE p.cliente_id = c.id) as total_compras
                          FROM clientes c WHERE 1=1`;
             const params = [];
             if (cliente_id) { query += ' AND c.id = ?'; params.push(cliente_id); }
@@ -1503,28 +1751,47 @@ module.exports = function createVendasExtendedRoutes(deps) {
             query += ` ORDER BY ${orderMap[ordenar_por] || 'c.nome ASC'}`;
 
             const [rows] = await vendasPool.query(query, params);
+
+            const totalClientes = rows.length;
+            const totalCompras = rows.reduce((s, r) => s + (parseFloat(r.total_compras) || 0), 0);
+            const totalPedidos = rows.reduce((s, r) => s + (parseInt(r.qtd_pedidos) || 0), 0);
+            const clientesComPedido = rows.filter(r => parseInt(r.qtd_pedidos) > 0).length;
+
             const filtro = `${cidade ? `Cidade: ${cidade} | ` : ''}${estado ? `Estado: ${estado} | ` : ''}Ordenado por: ${ordenar_por || 'nome'}`;
             const colunas = ['Nome', 'Email', 'Telefone', 'Cidade', 'UF', 'Pedidos', 'Total Compras'];
+            const pageW = 842 - 80;
+            const colWidths = [pageW * 0.20, pageW * 0.22, pageW * 0.13, pageW * 0.16, pageW * 0.06, pageW * 0.08, pageW * 0.15];
+            const colAligns = ['left', 'left', 'center', 'left', 'center', 'center', 'right'];
+
             const linhas = rows.map(r => [
                 r.nome || '-', r.email || '-', r.telefone || '-',
-                r.cidade || '-', r.estado || '-', r.qtd_pedidos || 0, formatarMoedaPdf(r.total_compras)
+                r.cidade || '-', r.estado || '-', String(r.qtd_pedidos || 0), formatarMoedaPdf(r.total_compras)
             ]);
 
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Clientes', colunas, linhas, filtro);
+            const resumo = [
+                { label: 'Total Clientes', valor: String(totalClientes), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
+                { label: 'Clientes Ativos', valor: String(clientesComPedido), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
+                { label: 'Total em Pedidos', valor: String(totalPedidos), cor: '#fefce8', borda: '#fde68a', corTexto: '#92400e' },
+                { label: 'Valor Total', valor: formatarMoedaPdf(totalCompras), cor: '#fdf2f8', borda: '#fbcfe8', corTexto: '#9d174d' }
+            ];
+
+            const pdfBuffer = await criarPdfRelatorio('Relatório de Clientes', colunas, linhas, filtro, {
+                colWidths, colAligns, resumo, totais: `${totalClientes} clientes | ${totalPedidos} pedidos | ${formatarMoedaPdf(totalCompras)}`
+            });
             res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-clientes.pdf' });
             res.send(pdfBuffer);
         } catch (err) {
             console.error('Erro ao gerar PDF clientes:', err);
-            res.status(500).json({ error: 'Erro ao gerar PDF' });
+            res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
         }
     });
 
-    // PDF: Produtos
+    // PDF: Produtos Mais Vendidos
     router.get('/relatorios/produtos/pdf', authenticateToken, authorizeArea('vendas'), async (req, res) => {
         try {
             const { data_inicio, data_fim, ordenar_por } = req.query;
             let query = `SELECT pi.descricao, pi.codigo, SUM(pi.quantidade) as qtd_total,
-                         SUM(pi.preco_unitario * pi.quantidade) as valor_total,
+                         SUM(pi.subtotal) as valor_total,
                          COUNT(DISTINCT pi.pedido_id) as qtd_pedidos
                          FROM pedido_itens pi
                          INNER JOIN pedidos p ON pi.pedido_id = p.id
@@ -1537,19 +1804,35 @@ module.exports = function createVendasExtendedRoutes(deps) {
             query += ` ORDER BY ${orderMap[ordenar_por] || 'valor_total DESC'}`;
 
             const [rows] = await vendasPool.query(query, params);
+
+            const totalQtd = rows.reduce((s, r) => s + (parseFloat(r.qtd_total) || 0), 0);
+            const totalValor = rows.reduce((s, r) => s + (parseFloat(r.valor_total) || 0), 0);
+
             const filtro = `Período: ${data_inicio || 'início'} a ${data_fim || 'hoje'} | Ordenado por: ${ordenar_por || 'valor'}`;
             const colunas = ['Código', 'Descrição', 'Qtd Vendida', 'Nº Pedidos', 'Valor Total'];
+            const pageW = 842 - 80;
+            const colWidths = [pageW * 0.12, pageW * 0.38, pageW * 0.15, pageW * 0.12, pageW * 0.23];
+            const colAligns = ['center', 'left', 'right', 'center', 'right'];
+
             const linhas = rows.map(r => [
-                r.codigo || '-', r.descricao || '-', r.qtd_total || 0,
-                r.qtd_pedidos || 0, formatarMoedaPdf(r.valor_total)
+                r.codigo || '-', r.descricao || '-', formatarQtd(r.qtd_total),
+                String(r.qtd_pedidos || 0), formatarMoedaPdf(r.valor_total)
             ]);
 
-            const pdfBuffer = await criarPdfRelatorio('Relatório de Produtos Mais Vendidos', colunas, linhas, filtro);
+            const resumo = [
+                { label: 'Produtos Únicos', valor: String(rows.length), cor: '#f0f9ff', borda: '#bfdbfe', corTexto: '#1e40af' },
+                { label: 'Qtd Total Vendida', valor: formatarQtd(totalQtd), cor: '#f0fdf4', borda: '#bbf7d0', corTexto: '#166534' },
+                { label: 'Valor Total', valor: formatarMoedaPdf(totalValor), cor: '#fef3c7', borda: '#fde68a', corTexto: '#92400e' }
+            ];
+
+            const pdfBuffer = await criarPdfRelatorio('Relatório de Produtos Mais Vendidos', colunas, linhas, filtro, {
+                colWidths, colAligns, resumo, totais: `${rows.length} produtos | Qtd: ${formatarQtd(totalQtd)} | ${formatarMoedaPdf(totalValor)}`
+            });
             res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename=relatorio-produtos.pdf' });
             res.send(pdfBuffer);
         } catch (err) {
             console.error('Erro ao gerar PDF produtos:', err);
-            res.status(500).json({ error: 'Erro ao gerar PDF' });
+            res.status(500).json({ error: 'Erro ao gerar PDF', detalhe: err.message });
         }
     });
 

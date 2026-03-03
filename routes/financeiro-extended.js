@@ -12,26 +12,26 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     // ============================================================
     // ROTAS DO MÓDULO FINANCEIRO (COM CONTROLE DE PERMISSÕES)
     // ============================================================
-    
+
     // Obter permissões do usuário no Financeiro
     router.get('/permissoes', authenticateToken, async (req, res) => {
         const token = req.cookies?.authToken || req.cookies?.token || req.headers['authorization']?.replace('Bearer ', '');
-    
+
         if (!token) {
             return res.status(401).json({ message: 'Não autenticado' });
         }
-    
+
         try {
             const user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
-    
+
             // Buscar dados básicos do usuário
             const [users] = await pool.query(
                 'SELECT id, nome_completo as nome, nome_completo as apelido, role, permissoes_financeiro FROM funcionarios WHERE id = ? OR email = ?',
                 [user.id, user.email]
             );
-    
+
             let userData = users[0];
-    
+
             if (!userData) {
                 // Tentar na tabela usuarios
                 try {
@@ -39,13 +39,13 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         'SELECT id, nome, role, is_admin FROM usuarios WHERE id = ? OR email = ?',
                         [user.id, user.email]
                     );
-    
+
                     if (usuarios && usuarios.length > 0) {
                         userData = usuarios[0];
                     }
                 } catch (e) { /* tabela pode não existir */ }
             }
-    
+
             // Verificar se é admin pelo JWT ou pelo banco
             const isAdmin = user.role === 'admin' ||
                             user.role === 'Admin' ||
@@ -53,7 +53,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                             userData?.role === 'Admin' ||
                             userData?.role === 'administrador' ||
                             userData?.role === 'Administrador';
-    
+
             // Admins têm acesso total
             if (isAdmin) {
                 return res.json({
@@ -72,10 +72,10 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     }
                 });
             }
-    
+
             // Verificar permissões específicas do usuário baseado no nome/apelido
             const userName = (userData?.apelido || userData?.nome || user.nome || '').toLowerCase().split(' ')[0];
-    
+
             // Permissões específicas por usuário
             const permissoesUsuarios = {
                 'hellen': { contas_pagar: true, contas_receber: true, fluxo_caixa: true, bancos: true, relatorios: true },
@@ -83,7 +83,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                 'junior': { contas_pagar: true, contas_receber: true, fluxo_caixa: true, bancos: true, relatorios: true },
                 'eldir': { contas_pagar: true, contas_receber: true, fluxo_caixa: true, bancos: true, relatorios: true }
             };
-    
+
             // Verificar se usuário tem permissões específicas
             if (permissoesUsuarios[userName]) {
                 const perms = permissoesUsuarios[userName];
@@ -103,7 +103,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     }
                 });
             }
-    
+
             // Usuários com role financeiro têm acesso
             const roleFinanceiro = ['financeiro', 'contabilidade', 'contador'];
             if (userData?.role && roleFinanceiro.includes(userData.role.toLowerCase())) {
@@ -123,7 +123,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     }
                 });
             }
-    
+
             // Usuário sem permissão específica - sem acesso ao financeiro
             return res.json({
                 success: true,
@@ -140,15 +140,15 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     excluir: false
                 }
             });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao verificar permissões:', err);
             return res.status(401).json({ message: 'Token inválido' });
         }
     });
-    
+
     // ===== ROTAS DE RESUMO DO FINANCEIRO =====
-    
+
     // Resumo Geral de Contas (Pagar + Receber combinado)
     router.get('/contas/resumo', authenticateToken, async (req, res) => {
         try {
@@ -157,7 +157,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             if (!token) {
                 return res.status(401).json({ message: 'Não autenticado' });
             }
-    
+
             // Buscar resumo de contas a receber
             const [receber] = await pool.query(`
                 SELECT
@@ -167,7 +167,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     COUNT(*) as total
                 FROM contas_receber
             `);
-    
+
             // Buscar resumo de contas a pagar
             const [pagar] = await pool.query(`
                 SELECT
@@ -177,7 +177,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     COUNT(*) as total
                 FROM contas_pagar
             `);
-    
+
             res.json({
                 receber: {
                     pendente: receber[0]?.pendente || 0,
@@ -202,7 +202,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             });
         }
     });
-    
+
     // Resumo de Contas a Receber
     router.get('/contas-receber/resumo', authenticateToken, async (req, res) => {
         try {
@@ -211,7 +211,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             if (!token) {
                 return res.status(401).json({ message: 'Não autenticado' });
             }
-    
+
             // Calcular totais
             const [result] = await pool.query(`
                 SELECT
@@ -221,7 +221,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     COUNT(*) as total_registros
                 FROM contas_receber
             `);
-    
+
             res.json({
                 total_pendente: result[0]?.total_pendente || 0,
                 total_recebido: result[0]?.total_recebido || 0,
@@ -233,7 +233,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             res.json({ total_pendente: 0, total_recebido: 0, total_vencido: 0, total_registros: 0 });
         }
     });
-    
+
     // Resumo de Contas a Pagar
     router.get('/contas-pagar/resumo', authenticateToken, async (req, res) => {
         try {
@@ -242,7 +242,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             if (!token) {
                 return res.status(401).json({ message: 'Não autenticado' });
             }
-    
+
             // Calcular totais
             const [result] = await pool.query(`
                 SELECT
@@ -252,7 +252,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     COUNT(*) as total_registros
                 FROM contas_pagar
             `);
-    
+
             res.json({
                 total_pendente: result[0]?.total_pendente || 0,
                 total_pago: result[0]?.total_pago || 0,
@@ -264,7 +264,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             res.json({ total_pendente: 0, total_pago: 0, total_vencido: 0, total_registros: 0 });
         }
     });
-    
+
     // Saldo Total das Contas Bancárias
     // AUDIT-FIX HIGH-011: Consolidated — always use contas_bancarias table
     router.get('/contas-bancarias/saldo-total', authenticateToken, async (req, res) => {
@@ -280,12 +280,12 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             res.json({ saldo_total: 0 });
         }
     });
-    
+
     // =================================================================
     // API CONTAS BANCÁRIAS - CRUD COMPLETO
     // AUDIT-FIX HIGH-011: Consolidated — single table (contas_bancarias), no try/catch fallback
     // =================================================================
-    
+
     // GET - Listar todas as contas bancárias
     router.get('/contas-bancarias', authenticateToken, async (req, res) => {
         try {
@@ -304,45 +304,45 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar contas bancárias' });
         }
     });
-    
+
     // POST - Criar nova conta bancária
     // AUDIT-FIX HIGH-011: Direct contas_bancarias insert, no fallback
     router.post('/contas-bancarias', authenticateToken, async (req, res) => {
         try {
             const { nome, banco, tipo, agencia, numero_conta, saldo, observacoes } = req.body;
-    
+
             const [result] = await pool.query(`
                 INSERT INTO contas_bancarias (nome, banco, tipo, agencia, conta, saldo_inicial, saldo_atual, ativo, observacoes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
             `, [nome, banco, tipo || 'corrente', agencia, numero_conta, saldo || 0, saldo || 0, observacoes]);
-    
+
             res.json({ success: true, id: result.insertId, message: 'Conta criada com sucesso' });
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao criar conta bancária:', err);
             res.status(500).json({ error: 'Erro ao criar conta bancária' });
         }
     });
-    
+
     // PUT - Atualizar conta bancária
     // AUDIT-FIX HIGH-011: Direct contas_bancarias update, no fallback
     router.put('/contas-bancarias/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             const { nome, banco, tipo, agencia, numero_conta, saldo, observacoes } = req.body;
-    
+
             await pool.query(`
                 UPDATE contas_bancarias
                 SET nome = ?, banco = ?, tipo = ?, agencia = ?, conta = ?, saldo_atual = ?, observacoes = ?
                 WHERE id = ?
             `, [nome, banco, tipo, agencia, numero_conta, saldo, observacoes, id]);
-    
+
             res.json({ success: true, message: 'Conta atualizada com sucesso' });
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao atualizar conta bancária:', err);
             res.status(500).json({ error: 'Erro ao atualizar conta bancária' });
         }
     });
-    
+
     // DELETE - Desativar conta bancária (soft delete)
     // AUDIT-FIX HIGH-011: Consistent soft delete
     router.delete('/contas-bancarias/:id', authenticateToken, async (req, res) => {
@@ -355,34 +355,18 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             res.status(500).json({ error: 'Erro ao remover conta bancária' });
         }
     });
-    
+
     // GET - Buscar movimentações de uma conta
     router.get('/contas-bancarias/:id/movimentacoes', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             const { data_inicio, data_fim, tipo } = req.query;
-    
-            // Verificar se tabela existe
-            const [tables] = await pool.query("SHOW TABLES LIKE 'movimentacoes_bancarias'");
-    
-            if (tables.length === 0) {
-                await pool.query(`
-                    CREATE TABLE IF NOT EXISTS movimentacoes_bancarias (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        conta_id INT,
-                        tipo ENUM('entrada', 'saida', 'transferencia') DEFAULT 'entrada',
-                        valor DECIMAL(15,2),
-                        descricao VARCHAR(255),
-                        data DATE,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (conta_id) REFERENCES contas_bancarias(id) ON DELETE CASCADE
-                    )
-                `);
-            }
-    
-            let query = `SELECT id, conta_id, tipo, valor, descricao, data, created_at FROM movimentacoes_bancarias WHERE conta_id = ?`;
+
+            // Tabela movimentacoes_bancarias já existe com schema correto (banco_id, não conta_id)
+
+            let query = `SELECT id, banco_id, tipo, valor, cliente_fornecedor, data, created_at FROM movimentacoes_bancarias WHERE banco_id = ?`;
             const params = [id];
-    
+
             if (data_inicio) {
                 query += ` AND data >= ?`;
                 params.push(data_inicio);
@@ -395,9 +379,9 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                 query += ` AND tipo = ?`;
                 params.push(tipo);
             }
-    
+
             query += ` ORDER BY data DESC, id DESC LIMIT 500`;
-    
+
             const [movimentacoes] = await pool.query(query, params);
             res.json(movimentacoes);
         } catch (err) {
@@ -405,52 +389,56 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             res.status(500).json({ error: 'Erro ao buscar movimentações' });
         }
     });
-    
+
     // POST - Criar movimentação bancária
     router.post('/contas-bancarias/:id/movimentacoes', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
             const { tipo, valor, descricao, data } = req.body;
-    
+
             // AUDIT-FIX ARCH-002: Removed duplicate CREATE TABLE (already in GET route with FK)
-    
+
+            // Verificar se o id corresponde a um banco existente para a FK
+            const [bancoCheck] = await pool.query('SELECT id FROM bancos WHERE id = ?', [id]);
+            const validBancoId = bancoCheck.length > 0 ? id : null;
+
             // Inserir movimentação
             await pool.query(`
-                INSERT INTO movimentacoes_bancarias (conta_id, tipo, valor, descricao, data)
+                INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data)
                 VALUES (?, ?, ?, ?, ?)
-            `, [id, tipo, valor, descricao, data]);
-    
+            `, [validBancoId, tipo, valor, descricao || '', data]);
+
             // Atualizar saldo da conta na tabela contas_bancarias
             // AUDIT-FIX HIGH-011: Direct update, no fallback
             const ajuste = tipo === 'entrada' ? valor : -valor;
             await pool.query(`UPDATE contas_bancarias SET saldo_atual = COALESCE(saldo_atual, saldo, 0) + ? WHERE id = ?`, [ajuste, id]);
-    
+
             res.json({ success: true, message: 'Movimentação registrada com sucesso' });
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao criar movimentação:', err);
             res.status(500).json({ error: 'Erro ao criar movimentação' });
         }
     });
-    
+
     // POST - Criar movimentação bancária (rota usada pelo frontend bancos.html)
     router.post('/movimentacoes-bancarias', authenticateToken, async (req, res) => {
         const connection = await pool.getConnection();
         try {
             await connection.beginTransaction();
             const { banco_id, tipo, valor, data, descricao, categoria } = req.body;
-    
+
             // Validação Enterprise: campos obrigatórios
             if (!banco_id || !tipo || !valor || !descricao) {
                 connection.release();
                 return res.status(400).json({ error: 'Campos obrigatórios: banco_id, tipo, valor, descricao' });
             }
-    
+
             // Validação Enterprise: tipo de movimentação
             if (!['entrada', 'saida'].includes(tipo)) {
                 connection.release();
                 return res.status(400).json({ error: 'Tipo de movimentação inválido. Use "entrada" ou "saida"' });
             }
-    
+
             // Validação Enterprise: valor monetário (evitar float impreciso)
             const valorNum = parseFloat(valor);
             if (isNaN(valorNum) || valorNum <= 0 || valorNum > 999999999.99) {
@@ -458,14 +446,14 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                 return res.status(400).json({ error: 'Valor inválido. Deve ser maior que 0' });
             }
             const valorSanitizado = Math.round(valorNum * 100) / 100;
-    
+
             // Validação Enterprise: data no formato correto
             const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
             if (data && !dateRegex.test(data)) {
                 connection.release();
                 return res.status(400).json({ error: 'Data inválida. Use formato YYYY-MM-DD' });
             }
-    
+
             // Buscar saldo atual do banco COM LOCK para evitar race condition
             const [banco] = await connection.query('SELECT saldo_atual FROM bancos WHERE id = ? FOR UPDATE', [banco_id]);
             if (!banco || banco.length === 0) {
@@ -473,22 +461,22 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                 connection.release();
                 return res.status(404).json({ error: 'Banco não encontrado' });
             }
-    
+
             const saldoAtual = parseFloat(banco[0].saldo_atual) || 0;
             const novoSaldo = tipo === 'entrada'
                 ? Math.round((saldoAtual + valorSanitizado) * 100) / 100
                 : Math.round((saldoAtual - valorSanitizado) * 100) / 100;
-    
+
             // Inserir movimentação
             await connection.query(
                 `INSERT INTO movimentacoes_bancarias (banco_id, data, tipo, valor, saldo, cliente_fornecedor, categoria)
                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [banco_id, data || new Date().toISOString().split('T')[0], tipo, valorSanitizado, novoSaldo, descricao, categoria || null]
             );
-    
+
             // Atualizar saldo do banco
             await connection.query('UPDATE bancos SET saldo_atual = ? WHERE id = ?', [novoSaldo, banco_id]);
-    
+
             await connection.commit();
             res.json({ success: true, message: 'Movimentação registrada com sucesso', novo_saldo: novoSaldo });
         } catch (err) {
@@ -499,7 +487,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             connection.release();
         }
     });
-    
+
     // Contas a Receber - Listar (apenas quem tem permissão)
     router.get('/contas-receber', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         try {
@@ -507,44 +495,44 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             const pageNum = Math.max(1, parseInt(page) || 1);
             const limitNum = Math.min(Math.max(1, parseInt(limit) || 100), 500);
             const offset = (pageNum - 1) * limitNum;
-    
+
             let whereClause = ' WHERE 1=1';
             const params = [];
-    
+
             if (status) {
                 whereClause += ' AND status = ?';
                 params.push(status);
             }
-    
+
             if (cliente) {
                 whereClause += ' AND (cliente_id = ? OR descricao LIKE ?)';
                 params.push(cliente, `%${cliente}%`);
             }
-    
+
             if (data_inicio) {
                 whereClause += ' AND data_vencimento >= ?';
                 params.push(data_inicio);
             }
-    
+
             if (data_fim) {
                 whereClause += ' AND data_vencimento <= ?';
                 params.push(data_fim);
             }
-    
+
             const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM contas_receber${whereClause}`, params);
             const total = countResult[0].total;
-    
+
             const query = `SELECT id, cliente_id, descricao, valor, data_vencimento, data_pagamento, status, categoria, numero_documento, observacoes, criado_por, created_at, updated_at FROM contas_receber${whereClause} ORDER BY data_vencimento DESC LIMIT ? OFFSET ?`;
-    
+
             const [contas] = await pool.query(query, [...params, limitNum, offset]);
             return res.json({ data: contas, total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao buscar contas a receber:', err);
             return res.status(500).json({ message: 'Erro ao buscar contas a receber' });
         }
     });
-    
+
     // Contas a Pagar - Listar (apenas quem tem permissão)
     router.get('/contas-pagar', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         try {
@@ -552,87 +540,87 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             const pageNum = Math.max(1, parseInt(page) || 1);
             const limitNum = Math.min(Math.max(1, parseInt(limit) || 100), 500);
             const offset = (pageNum - 1) * limitNum;
-    
+
             let whereClause = ' WHERE 1=1';
             const params = [];
-    
+
             if (status) {
                 whereClause += ' AND status = ?';
                 params.push(status);
             }
-    
+
             if (fornecedor) {
                 whereClause += ' AND (fornecedor_id = ? OR descricao LIKE ?)';
                 params.push(fornecedor, `%${fornecedor}%`);
             }
-    
+
             if (data_inicio) {
                 whereClause += ' AND data_vencimento >= ?';
                 params.push(data_inicio);
             }
-    
+
             if (data_fim) {
                 whereClause += ' AND data_vencimento <= ?';
                 params.push(data_fim);
             }
-    
+
             const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM contas_pagar${whereClause}`, params);
             const total = countResult[0].total;
-    
+
             const query = `SELECT id, fornecedor_id, descricao, valor, data_vencimento, data_pagamento, status, categoria, numero_documento, observacoes, criado_por, created_at, updated_at FROM contas_pagar${whereClause} ORDER BY data_vencimento DESC LIMIT ? OFFSET ?`;
-    
+
             const [contas] = await pool.query(query, [...params, limitNum, offset]);
             return res.json({ data: contas, total, page: pageNum, limit: limitNum, pages: Math.ceil(total / limitNum) });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao buscar contas a pagar:', err);
             return res.status(500).json({ message: 'Erro ao buscar contas a pagar' });
         }
     });
-    
+
     // Criar Conta a Receber (requer permissão de criar)
     router.post('/contas-receber', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         if (!req.userPermissions.criar) {
             return res.status(403).json({ message: 'Você não tem permissão para criar contas' });
         }
-    
+
         try {
             const { cliente_id, valor, descricao, vencimento, categoria } = req.body;
-    
+
             const [result] = await pool.query(
                 'INSERT INTO contas_receber (cliente_id, valor, descricao, vencimento, categoria, status, criado_por) VALUES (?, ?, ?, ?, ?, "pendente", ?)',
                 [cliente_id, valor, descricao, vencimento, categoria, req.user.id]
             );
-    
+
             return res.json({
                 success: true,
                 message: 'Conta a receber criada com sucesso',
                 id: result.insertId
             });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao criar conta a receber:', err);
             return res.status(500).json({ message: 'Erro ao criar conta a receber' });
         }
     });
-    
+
     // Criar Conta a Pagar (requer permissão de criar)
     router.post('/contas-pagar', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         if (!req.userPermissions.criar) {
             return res.status(403).json({ message: 'Você não tem permissão para criar contas' });
         }
-    
+
         try {
             const { fornecedor_id, valor, descricao, vencimento, data_vencimento, categoria, categoria_id, banco_id, forma_pagamento, observacoes } = req.body;
-    
+
             console.log('[FINANCEIRO/POST-PAGAR] Body recebido:', JSON.stringify(req.body));
-    
+
             // Aceitar tanto 'vencimento' quanto 'data_vencimento'
             const dataVenc = data_vencimento || vencimento;
             const catId = categoria_id || categoria;
-    
+
             console.log('[FINANCEIRO/POST-PAGAR] Após processamento:', { descricao, valor, dataVenc, catId });
-    
+
             if (!descricao || !valor || !dataVenc) {
                 console.log('[FINANCEIRO/POST-PAGAR] Validação falhou!');
                 return res.status(400).json({
@@ -641,122 +629,122 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     received: { descricao: !!descricao, valor: !!valor, vencimento: !!dataVenc, body: req.body }
                 });
             }
-    
+
             const [result] = await pool.query(
                 `INSERT INTO contas_pagar (fornecedor_id, valor, descricao, data_vencimento, categoria_id, banco_id, forma_pagamento, observacoes, status)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, "pendente")`,
                 [fornecedor_id || null, valor, descricao, dataVenc, catId || null, banco_id || null, forma_pagamento || null, observacoes || null]
             );
-    
+
             return res.json({
                 success: true,
                 message: 'Conta a pagar criada com sucesso',
                 id: result.insertId
             });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao criar conta a pagar:', err);
             console.error('[FINANCEIRO] Stack:', err.stack);
             return res.status(500).json({ message: 'Erro ao criar conta a pagar', error: err.message });
         }
     });
-    
+
     // Obter conta a receber específica
     router.get('/contas-receber/:id', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         try {
             const { id } = req.params;
             const [rows] = await pool.query('SELECT * FROM contas_receber WHERE id = ?', [id]);
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({ message: 'Conta a receber não encontrada' });
             }
-    
+
             res.json({ success: true, conta: rows[0] });
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao buscar conta:', err);
             res.status(500).json({ message: 'Erro ao buscar conta a receber' });
         }
     });
-    
+
     // Obter conta a pagar específica
     router.get('/contas-pagar/:id', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         try {
             const { id } = req.params;
             const [rows] = await pool.query('SELECT * FROM contas_pagar WHERE id = ?', [id]);
-    
+
             if (rows.length === 0) {
                 return res.status(404).json({ message: 'Conta a pagar não encontrada' });
             }
-    
+
             res.json({ success: true, conta: rows[0] });
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao buscar conta:', err);
             res.status(500).json({ message: 'Erro ao buscar conta a pagar' });
         }
     });
-    
+
     // Editar Conta a Receber (requer permissão de editar)
     router.put('/contas-receber/:id', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         if (!req.userPermissions.editar) {
             return res.status(403).json({ message: 'Você não tem permissão para editar contas' });
         }
-    
+
         try {
             const { id } = req.params;
             const { valor, descricao, vencimento, status, categoria } = req.body;
-    
+
             await pool.query(
                 'UPDATE contas_receber SET valor = ?, descricao = ?, vencimento = ?, status = ?, categoria = ?, atualizado_por = ?, atualizado_em = NOW() WHERE id = ?',
                 [valor, descricao, vencimento, status, categoria, req.user.id, id]
             );
-    
+
             return res.json({
                 success: true,
                 message: 'Conta a receber atualizada com sucesso'
             });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao atualizar conta a receber:', err);
             return res.status(500).json({ message: 'Erro ao atualizar conta a receber' });
         }
     });
-    
+
     // Editar Conta a Pagar (requer permissão de editar)
     router.put('/contas-pagar/:id', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         if (!req.userPermissions.editar) {
             return res.status(403).json({ message: 'Você não tem permissão para editar contas' });
         }
-    
+
         try {
             const { id } = req.params;
             const { valor, descricao, vencimento, status, categoria } = req.body;
-    
+
             await pool.query(
                 'UPDATE contas_pagar SET valor = ?, descricao = ?, vencimento = ?, status = ?, categoria = ?, atualizado_por = ?, atualizado_em = NOW() WHERE id = ?',
                 [valor, descricao, vencimento, status, categoria, req.user.id, id]
             );
-    
+
             return res.json({
                 success: true,
                 message: 'Conta a pagar atualizada com sucesso'
             });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao atualizar conta a pagar:', err);
             return res.status(500).json({ message: 'Erro ao atualizar conta a pagar' });
         }
     });
-    
+
     // Excluir Conta a Receber (requer permissão de excluir)
     // AUDIT-FIX DB-008: Soft-delete with audit trail instead of hard delete
     router.delete('/contas-receber/:id', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         if (!req.userPermissions.excluir) {
             return res.status(403).json({ message: 'Você não tem permissão para excluir contas' });
         }
-    
+
         try {
             const { id } = req.params;
-    
+
             // AUDIT-FIX: Log the deletion before executing (audit trail)
             try {
                 const [original] = await pool.query('SELECT * FROM contas_receber WHERE id = ?', [id]);
@@ -764,30 +752,30 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     await writeAuditLog({ userId: req.user?.id, action: 'DELETE', module: 'FINANCEIRO', description: `Excluir contas_receber #${id}`, previousData: original[0], ip: req.ip });
                 }
             } catch(e) { console.log('[AUDIT] writeAuditLog falhou:', e.message); }
-    
+
             await pool.query('DELETE FROM contas_receber WHERE id = ?', [id]);
-    
+
             return res.json({
                 success: true,
                 message: 'Conta a receber excluída com sucesso'
             });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao excluir conta a receber:', err);
             return res.status(500).json({ message: 'Erro ao excluir conta a receber' });
         }
     });
-    
+
     // Excluir Conta a Pagar (requer permissão de excluir)
     // AUDIT-FIX DB-008: Added audit trail before deletion
     router.delete('/contas-pagar/:id', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         if (!req.userPermissions.excluir) {
             return res.status(403).json({ message: 'Você não tem permissão para excluir contas' });
         }
-    
+
         try {
             const { id } = req.params;
-    
+
             // AUDIT-FIX: Log the deletion before executing (audit trail)
             try {
                 const [original] = await pool.query('SELECT * FROM contas_pagar WHERE id = ?', [id]);
@@ -795,24 +783,24 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     await writeAuditLog({ userId: req.user?.id, action: 'DELETE', module: 'FINANCEIRO', description: `Excluir contas_pagar #${id}`, previousData: original[0], ip: req.ip });
                 }
             } catch(e) { console.log('[AUDIT] writeAuditLog falhou:', e.message); }
-    
+
             await pool.query('DELETE FROM contas_pagar WHERE id = ?', [id]);
-    
+
             return res.json({
                 success: true,
                 message: 'Conta a pagar excluída com sucesso'
             });
-    
+
         } catch (err) {
             console.error('[FINANCEIRO] Erro ao excluir conta a pagar:', err);
             return res.status(500).json({ message: 'Erro ao excluir conta a pagar' });
         }
     });
-    
+
     // ============================================================
     // IMPORTAÇÃO DE DADOS VIA XLSX - MÓDULO FINANCEIRO
     // ============================================================
-    
+
     // Função auxiliar para parsear data BR (DD/MM/AAAA) para MySQL (AAAA-MM-DD)
     function parseDataBR(dataStr) {
         if (!dataStr) return null;
@@ -837,7 +825,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
         }
         return null;
     }
-    
+
     // Função para parsear valor monetário
     function parseValor(valorStr) {
         if (!valorStr) return 0;
@@ -845,25 +833,25 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
         const str = String(valorStr).replace(/[^\d,.-]/g, '').replace(',', '.');
         return parseFloat(str) || 0;
     }
-    
+
     // Importar Contas a Pagar via XLSX (v2.0 - Compatível SGE/Omie completo)
     router.post('/importar/contas-pagar', authenticateToken, async (req, res) => {
         let connection;
         try {
             const { dados } = req.body;
-    
+
             if (!dados || !Array.isArray(dados) || dados.length === 0) {
                 return res.status(400).json({ error: 'Nenhum dado para importar' });
             }
-    
+
             console.log('[IMPORTAR] Contas a Pagar v2 - Recebido:', dados.length, 'registros');
-    
+
             connection = await pool.getConnection();
             await connection.beginTransaction();
-    
+
             let importados = 0;
             let erros = [];
-    
+
             // Helper: parsear booleano Sim/Não
             const parseBool = (v) => {
                 if (!v) return 0;
@@ -897,7 +885,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     const valor = parseValor(row.valor);
                     const dataVenc = parseDataBR(row.data_vencimento);
                     const descricao = row.descricao || row.fornecedor_nome || row.tipo_documento || 'Importado SGE';
-    
+
                     if (!valor && valor !== 0) {
                         erros.push({ linha: i + 2, erro: 'Valor é obrigatório' });
                         continue;
@@ -906,7 +894,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         erros.push({ linha: i + 2, erro: 'Data de Vencimento é obrigatória' });
                         continue;
                     }
-    
+
 // Buscar fornecedor_id pelo nome (pre-loaded)
                     let fornecedor_id = row.fornecedor_nome
                         ? findByLike(allFornecedores, row.fornecedor_nome, ['razao_social', 'nome_fantasia', 'cnpj'])
@@ -925,7 +913,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     let banco_id = row.conta_corrente_nome
                         ? findByLike(allContasBancarias, row.conta_corrente_nome, ['nome'])
                         : null;
-    
+
                     await connection.query(`
                         INSERT INTO contas_pagar (
                             descricao, fornecedor_id, fornecedor_nome, cnpj_cpf, valor, data_vencimento,
@@ -1033,25 +1021,25 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         parseValor(row.aliquota_cofins) || null,
                         parseValor(row.valor_cofins_nf) || null
                     ]);
-    
+
                     importados++;
                 } catch (err) {
                     console.error(`[IMPORTAR] Erro linha ${i + 2}:`, err.message);
                     erros.push({ linha: i + 2, erro: err.message });
                 }
             }
-    
+
             await connection.commit();
-    
+
             console.log('[IMPORTAR] Contas a Pagar - Importados:', importados, '| Erros:', erros.length);
-    
+
             res.json({
                 success: true,
                 importados,
                 total: dados.length,
                 erros
             });
-    
+
         } catch (err) {
             if (connection) await connection.rollback().catch(() => {});
             console.error('[IMPORTAR] Erro em Contas a Pagar:', err);
@@ -1060,31 +1048,31 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             if (connection) connection.release();
         }
     });
-    
+
     // Importar Contas a Receber via XLSX (v2.0 - Compatível SGE/Omie completo)
     router.post('/importar/contas-receber', authenticateToken, async (req, res) => {
         let connection;
         try {
             const { dados } = req.body;
-    
+
             if (!dados || !Array.isArray(dados) || dados.length === 0) {
                 return res.status(400).json({ error: 'Nenhum dado para importar' });
             }
-    
+
             console.log('[IMPORTAR] Contas a Receber v2 - Recebido:', dados.length, 'registros');
-    
+
             connection = await pool.getConnection();
             await connection.beginTransaction();
-    
+
             let importados = 0;
             let erros = [];
-    
+
             const parseBool = (v) => {
                 if (!v) return 0;
                 const s = String(v).toLowerCase().trim();
                 return (s === 'sim' || s === 's' || s === '1' || s === 'true') ? 1 : 0;
             };
-    
+
             // Pre-load lookup tables to avoid N+1 queries
             const [allClientes] = await connection.query('SELECT id, razao_social, nome_fantasia, cnpj FROM clientes');
             const [allCategFinanceiras] = await connection.query('SELECT id, nome FROM categorias_financeiras');
@@ -1120,7 +1108,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         erros.push({ linha: i + 2, erro: 'Data de Vencimento é obrigatória' });
                         continue;
                     }
-    
+
 // Buscar cliente_id pelo nome (pre-loaded)
                     let cliente_id = row.cliente_nome
                         ? findByLike(allClientes, row.cliente_nome, ['razao_social', 'nome_fantasia', 'cnpj'])
@@ -1139,7 +1127,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                     let banco_id = row.conta_corrente_nome
                         ? findByLike(allContasBancarias, row.conta_corrente_nome, ['nome'])
                         : null;
-    
+
                     await connection.query(`
                         INSERT INTO contas_receber (
                             descricao, cliente_id, cliente_nome, valor, data_vencimento,
@@ -1219,25 +1207,25 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         parseBool(row.reter_inss),
                         row.departamento || null
                     ]);
-    
+
                     importados++;
                 } catch (err) {
                     console.error(`[IMPORTAR] Erro linha ${i + 2}:`, err.message);
                     erros.push({ linha: i + 2, erro: err.message });
                 }
             }
-    
+
             await connection.commit();
-    
+
             console.log('[IMPORTAR] Contas a Receber - Importados:', importados, '| Erros:', erros.length);
-    
+
             res.json({
                 success: true,
                 importados,
                 total: dados.length,
                 erros
             });
-    
+
         } catch (err) {
             if (connection) await connection.rollback().catch(() => {});
             console.error('[IMPORTAR] Erro em Contas a Receber:', err);
@@ -1246,25 +1234,25 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             if (connection) connection.release();
         }
     });
-    
+
     // Importar Bancos/Contas Bancárias via XLSX
     router.post('/importar/bancos', authenticateToken, async (req, res) => {
         let connection;
         try {
             const { dados } = req.body;
-    
+
             if (!dados || !Array.isArray(dados) || dados.length === 0) {
                 return res.status(400).json({ error: 'Nenhum dado para importar' });
             }
-    
+
             console.log('[IMPORTAR] Bancos - Recebido:', dados.length, 'registros');
-    
+
             connection = await pool.getConnection();
             await connection.beginTransaction();
-    
+
             let importados = 0;
             let erros = [];
-    
+
             for (let i = 0; i < dados.length; i++) {
                 const row = dados[i];
                 try {
@@ -1272,7 +1260,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         erros.push({ linha: i + 2, erro: 'Nome da conta é obrigatório' });
                         continue;
                     }
-    
+
                     await connection.query(`
                         INSERT INTO contas_bancarias
                         (nome, banco, agencia, conta, tipo, saldo_inicial, saldo_atual, limite_credito, considera_fluxo, emite_boletos, ativo, observacoes, created_at)
@@ -1290,24 +1278,24 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         row.emite_boletos === 'sim' || row.emite_boletos === '1' || row.emite_boletos === true ? 1 : 0,
                         row.observacoes || null
                     ]);
-    
+
                     importados++;
                 } catch (err) {
                     erros.push({ linha: i + 2, erro: err.message });
                 }
             }
-    
+
             await connection.commit();
-    
+
             console.log('[IMPORTAR] Bancos - Importados:', importados, '| Erros:', erros.length);
-    
+
             res.json({
                 success: true,
                 importados,
                 total: dados.length,
                 erros
             });
-    
+
         } catch (err) {
             if (connection) await connection.rollback().catch(() => {});
             console.error('[IMPORTAR] Erro em Bancos:', err);
@@ -1316,25 +1304,25 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             if (connection) connection.release();
         }
     });
-    
+
     // Importar Movimentações Bancárias via XLSX
     router.post('/importar/movimentacoes', authenticateToken, async (req, res) => {
         let connection;
         try {
             const { dados } = req.body;
-    
+
             if (!dados || !Array.isArray(dados) || dados.length === 0) {
                 return res.status(400).json({ error: 'Nenhum dado para importar' });
             }
-    
+
             console.log('[IMPORTAR] Movimentações - Recebido:', dados.length, 'registros');
-    
+
             connection = await pool.getConnection();
             await connection.beginTransaction();
-    
+
             let importados = 0;
             let erros = [];
-    
+
             for (let i = 0; i < dados.length; i++) {
                 const row = dados[i];
                 try {
@@ -1342,24 +1330,24 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         erros.push({ linha: i + 2, erro: 'Campos obrigatórios: Data, Tipo e Valor' });
                         continue;
                     }
-    
+
                     const dataMov = parseDataBR(row.data);
                     if (!dataMov) {
                         erros.push({ linha: i + 2, erro: 'Data inválida' });
                         continue;
                     }
-    
+
                     // Buscar banco_id pelo nome se fornecido
                     let banco_id = null;
                     if (row.conta_bancaria) {
                         const [bancos] = await connection.query('SELECT id FROM contas_bancarias WHERE nome LIKE ? LIMIT 1', [`%${row.conta_bancaria}%`]);
                         if (bancos.length > 0) banco_id = bancos[0].id;
                     }
-    
+
                     const tipo = row.tipo.toLowerCase().includes('entrada') ? 'entrada' :
                                  row.tipo.toLowerCase().includes('saida') || row.tipo.toLowerCase().includes('saída') ? 'saida' :
                                  'transferencia';
-    
+
                     await connection.query(`
                         INSERT INTO movimentacoes_bancarias
                         (banco_id, data, tipo, valor, cliente_fornecedor, categoria, numero_documento, nota_fiscal, parcela, observacoes, created_at)
@@ -1376,24 +1364,24 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         row.parcela || null,
                         row.observacoes || null
                     ]);
-    
+
                     importados++;
                 } catch (err) {
                     erros.push({ linha: i + 2, erro: err.message });
                 }
             }
-    
+
             await connection.commit();
-    
+
             console.log('[IMPORTAR] Movimentações - Importados:', importados, '| Erros:', erros.length);
-    
+
             res.json({
                 success: true,
                 importados,
                 total: dados.length,
                 erros
             });
-    
+
         } catch (err) {
             if (connection) await connection.rollback().catch(() => {});
             console.error('[IMPORTAR] Erro em Movimentações:', err);
@@ -1402,25 +1390,25 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             if (connection) connection.release();
         }
     });
-    
+
     // Importar Fluxo de Caixa (previsões) via XLSX
     router.post('/importar/fluxo-caixa', authenticateToken, async (req, res) => {
         let connection;
         try {
             const { dados } = req.body;
-    
+
             if (!dados || !Array.isArray(dados) || dados.length === 0) {
                 return res.status(400).json({ error: 'Nenhum dado para importar' });
             }
-    
+
             console.log('[IMPORTAR] Fluxo de Caixa - Recebido:', dados.length, 'registros');
-    
+
             connection = await pool.getConnection();
             await connection.beginTransaction();
-    
+
             let importados = 0;
             let erros = [];
-    
+
             for (let i = 0; i < dados.length; i++) {
                 const row = dados[i];
                 try {
@@ -1428,16 +1416,16 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                         erros.push({ linha: i + 2, erro: 'Campos obrigatórios: Data Prevista, Descrição, Tipo e Valor' });
                         continue;
                     }
-    
+
                     const dataPrevista = parseDataBR(row.data_prevista);
                     if (!dataPrevista) {
                         erros.push({ linha: i + 2, erro: 'Data prevista inválida' });
                         continue;
                     }
-    
+
                     const tipo = row.tipo.toLowerCase().includes('entrada') ? 'entrada' : 'saida';
                     const valor = parseValor(row.valor);
-    
+
                     // Inserir como conta a receber (entrada) ou conta a pagar (saída) com status 'previsao'
                     if (tipo === 'entrada') {
                         await connection.query(`
@@ -1452,24 +1440,24 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
                             VALUES (?, ?, ?, 'previsao', ?, NOW())
                         `, [row.descricao, valor, dataPrevista, row.observacoes || `[Fluxo] ${row.cliente_fornecedor || ''}`]);
                     }
-    
+
                     importados++;
                 } catch (err) {
                     erros.push({ linha: i + 2, erro: err.message });
                 }
             }
-    
+
             await connection.commit();
-    
+
             console.log('[IMPORTAR] Fluxo de Caixa - Importados:', importados, '| Erros:', erros.length);
-    
+
             res.json({
                 success: true,
                 importados,
                 total: dados.length,
                 erros
             });
-    
+
         } catch (err) {
             if (connection) await connection.rollback().catch(() => {});
             console.error('[IMPORTAR] Erro em Fluxo de Caixa:', err);
@@ -1655,7 +1643,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             const { codigo, nome, tipo, aliquota, base, descricao, observacoes, ativo } = req.body;
             await pool.execute(
                 `UPDATE impostos SET codigo=?, nome=?, tipo=?, aliquota=?, base_calculo=?, descricao=?, observacoes=?, ativo=? WHERE id=?`,
-                [codigo, nome, tipo, aliquota || 0, base, descricao || '', observacoes || '', ativo !== false ? 1 : 0, req.params.id]
+                [codigo, nome, tipo, aliquota || 0, base || null, descricao || '', observacoes || '', ativo !== false ? 1 : 0, req.params.id]
             );
             res.json({ success: true });
         } catch (err) {
@@ -1686,7 +1674,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
             // Buscar em clientes e fornecedores
             const [clientes] = await pool.execute(
                 `SELECT id, razao_social, nome_fantasia, COALESCE(nome_fantasia, razao_social) as nome,
-                        endereco, numero, bairro, cidade, estado, cep, cnpj_cpf, telefone, complemento,
+                        endereco, bairro, cidade, estado, cep, cnpj_cpf, telefone,
                         'cliente' as tipo_registro
                  FROM clientes WHERE (razao_social LIKE ? OR nome_fantasia LIKE ? OR cnpj_cpf LIKE ?) AND ativo = 1 LIMIT 20`,
                 [search, search, search]
@@ -1694,7 +1682,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
 
             const [fornecedores] = await pool.execute(
                 `SELECT id, razao_social, nome_fantasia, COALESCE(nome_fantasia, razao_social) as nome,
-                        endereco, numero, bairro, cidade, uf as estado, cep, cnpj as cnpj_cpf, telefone, '' as complemento,
+                        endereco, bairro, cidade, estado, cep, cnpj as cnpj_cpf, telefone,
                         'fornecedor' as tipo_registro
                  FROM fornecedores WHERE (razao_social LIKE ? OR nome_fantasia LIKE ? OR cnpj LIKE ?) AND ativo = 1 LIMIT 20`,
                 [search, search, search]
@@ -1718,7 +1706,7 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
 
             const [fornecedores] = await pool.execute(
                 `SELECT id, razao_social, nome_fantasia, COALESCE(nome_fantasia, razao_social) as nome,
-                        cnpj as cnpj_cpf, telefone, cidade, uf as estado, 'fornecedor' as tipo_registro
+                        cnpj as cnpj_cpf, telefone, cidade, estado, 'fornecedor' as tipo_registro
                  FROM fornecedores WHERE ativo = 1 ORDER BY razao_social LIMIT 100`
             ).catch(() => [[]]);
 
@@ -1740,14 +1728,16 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
 
             const tel = ddd && telefone ? `(${ddd}) ${telefone}` : (telefone || '');
 
-            // Inserir como cliente por padrão
-            await pool.execute(
-                `INSERT INTO clientes (razao_social, nome_fantasia, cnpj_cpf, telefone, contato, endereco, numero, bairro, complemento, cidade, estado, cep, ativo)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-                [razao_social, nome_fantasia || '', cnpj_cpf || '', tel, contato || '', endereco || '', numero || '', bairro || '', complemento || '', cidade || '', estado || '', cep || '']
+            // Inserir como cliente por padrão (ON DUPLICATE KEY UPDATE para evitar erro de CNPJ duplicado)
+            const [result] = await pool.execute(
+                `INSERT INTO clientes (nome, razao_social, nome_fantasia, cnpj_cpf, telefone, contato, endereco, bairro, cidade, estado, cep, empresa_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE razao_social=VALUES(razao_social), nome_fantasia=VALUES(nome_fantasia), telefone=VALUES(telefone), contato=VALUES(contato)`,
+                [nome_fantasia || razao_social, razao_social, nome_fantasia || '', cnpj_cpf || '', tel, contato || '', endereco || '', bairro || '', cidade || '', estado || '', cep || '', req.user?.empresa_id || 1]
             );
 
-            res.json({ success: true, message: 'Cliente/Fornecedor cadastrado com sucesso' });
+            const isUpdate = result.affectedRows === 2;
+            res.json({ success: true, message: isUpdate ? 'Cliente/Fornecedor atualizado com sucesso' : 'Cliente/Fornecedor cadastrado com sucesso' });
         } catch (err) {
             console.error('[FINANCEIRO] Erro POST clientes-fornecedores:', err.message);
             res.status(500).json({ message: 'Erro ao cadastrar' });
@@ -1954,15 +1944,36 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     router.put('/orcamentos/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-            const { categoria, centro_custo, limite, alerta, gasto } = req.body;
-            await pool.query(
-                `UPDATE orcamentos SET categoria=?, centro_custo=?, limite=?, alerta=?, gasto=?, updated_at=NOW() WHERE id=?`,
-                [categoria, centro_custo || null, limite, alerta, gasto || 0, id]
+            const { categoria, centro_custo, limite, alerta, alerta_pct, gasto } = req.body;
+            const [result] = await pool.query(
+                `UPDATE orcamentos SET categoria=?, centro_custo=?, limite=?, alerta=?, alerta_pct=?, gasto=? WHERE id=?`,
+                [categoria, centro_custo || null, limite, alerta || null, alerta_pct || 80, gasto || 0, id]
             );
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Orçamento não encontrado' });
+            }
             res.json({ success: true, message: 'Orçamento atualizado com sucesso' });
         } catch (error) {
             console.error('[Financeiro] Erro PUT orcamentos:', error.message);
             res.status(500).json({ error: 'Erro ao atualizar orçamento' });
+        }
+    });
+
+    // ---- ORÇAMENTOS: DELETE ----
+    router.delete('/orcamentos/:id', authenticateToken, async (req, res) => {
+        try {
+            const { id } = req.params;
+            const [result] = await pool.query('DELETE FROM orcamentos WHERE id = ?', [id]);
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Orçamento não encontrado' });
+            }
+            res.json({ success: true, message: 'Orçamento excluído com sucesso' });
+        } catch (error) {
+            console.error('[Financeiro] Erro DELETE orcamentos:', error.message);
+            if (error.code === 'ER_NO_SUCH_TABLE') {
+                return res.status(404).json({ error: 'Tabela de orçamentos não encontrada' });
+            }
+            res.status(500).json({ error: 'Erro ao excluir orçamento' });
         }
     });
 
@@ -1980,10 +1991,10 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
 
     router.post('/plano-contas', authenticateToken, async (req, res) => {
         try {
-            const { codigo, nome, tipo, pai_id, cor, icone, ativo } = req.body;
+            const { codigo, nome, tipo, pai_id, cor, ativo } = req.body;
             const [result] = await pool.query(
-                `INSERT INTO plano_contas (codigo, nome, tipo, pai_id, cor, icone, ativo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-                [codigo, nome, tipo, pai_id || null, cor || '#6366f1', icone || 'fa-folder', ativo !== false ? 1 : 0]
+                `INSERT INTO plano_contas (codigo, nome, tipo, pai_id, cor, ativo, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+                [codigo, nome, tipo, pai_id || null, cor || '#6366f1', ativo !== false ? 1 : 0]
             );
             res.json({ success: true, id: result.insertId, message: 'Conta criada com sucesso' });
         } catch (error) {
@@ -1995,10 +2006,10 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     router.put('/plano-contas/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-            const { codigo, nome, tipo, pai_id, cor, icone, ativo } = req.body;
+            const { codigo, nome, tipo, pai_id, cor, ativo } = req.body;
             await pool.query(
-                `UPDATE plano_contas SET codigo=?, nome=?, tipo=?, pai_id=?, cor=?, icone=?, ativo=?, updated_at=NOW() WHERE id=?`,
-                [codigo, nome, tipo, pai_id || null, cor, icone || 'fa-folder', ativo ? 1 : 0, id]
+                `UPDATE plano_contas SET codigo=?, nome=?, tipo=?, pai_id=?, cor=?, ativo=?, updated_at=NOW() WHERE id=?`,
+                [codigo, nome, tipo, pai_id || null, cor, ativo ? 1 : 0, id]
             );
             res.json({ success: true, message: 'Conta atualizada com sucesso' });
         } catch (error) {
@@ -2054,11 +2065,11 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
 
     router.post('/bancos', authenticateToken, async (req, res) => {
         try {
-            const { codigo, nome, agencia, conta, tipo, apelido, saldo, saldo_inicial, observacoes, ativo } = req.body;
+            const { nome, instituicao, agencia, conta_corrente, tipo_conta, saldo_inicial, limite_credito, status, considera_fluxo, emite_boleto } = req.body;
             const [result] = await pool.query(
-                `INSERT INTO bancos (codigo, nome, agencia, conta, tipo, apelido, saldo, saldo_inicial, observacoes, ativo, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-                [codigo, nome, agencia, conta, tipo || 'corrente', apelido || '', saldo || 0, saldo_inicial || 0, observacoes || '', ativo !== false ? 1 : 0]
+                `INSERT INTO bancos (nome, instituicao, agencia, conta_corrente, tipo_conta, saldo_inicial, saldo_atual, limite_credito, status, considera_fluxo, emite_boleto, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                [nome, instituicao || '', agencia || '', conta_corrente || '', tipo_conta || 'corrente', saldo_inicial || 0, saldo_inicial || 0, limite_credito || 0, status || 'ativo', considera_fluxo ? 1 : 0, emite_boleto ? 1 : 0]
             );
             res.json({ success: true, id: result.insertId, message: 'Banco cadastrado com sucesso' });
         } catch (error) {
@@ -2070,10 +2081,10 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     router.put('/bancos/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-            const { codigo, nome, agencia, conta, tipo, apelido, saldo, saldo_inicial, observacoes, ativo } = req.body;
+            const { nome, instituicao, agencia, conta_corrente, tipo_conta, saldo_inicial, saldo_atual, limite_credito, status, considera_fluxo, emite_boleto } = req.body;
             await pool.query(
-                `UPDATE bancos SET codigo=?, nome=?, agencia=?, conta=?, tipo=?, apelido=?, saldo=?, saldo_inicial=?, observacoes=?, ativo=?, updated_at=NOW() WHERE id=?`,
-                [codigo, nome, agencia, conta, tipo, apelido, saldo, saldo_inicial, observacoes, ativo ? 1 : 0, id]
+                `UPDATE bancos SET nome=?, instituicao=?, agencia=?, conta_corrente=?, tipo_conta=?, saldo_inicial=?, saldo_atual=?, limite_credito=?, status=?, considera_fluxo=?, emite_boleto=?, updated_at=NOW() WHERE id=?`,
+                [nome, instituicao, agencia, conta_corrente, tipo_conta, saldo_inicial, saldo_atual, limite_credito, status || 'ativo', considera_fluxo ? 1 : 0, emite_boleto ? 1 : 0, id]
             );
             res.json({ success: true, message: 'Banco atualizado com sucesso' });
         } catch (error) {
@@ -2085,10 +2096,18 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     router.delete('/bancos/:id', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-            await pool.query('DELETE FROM bancos WHERE id = ?', [id]);
+            // Remover movimentações vinculadas antes de excluir o banco
+            await pool.query('DELETE FROM movimentacoes_bancarias WHERE banco_id = ?', [id]);
+            const [result] = await pool.query('DELETE FROM bancos WHERE id = ?', [id]);
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ error: 'Banco não encontrado' });
+            }
             res.json({ success: true, message: 'Banco excluído com sucesso' });
         } catch (error) {
             console.error('[Financeiro] Erro DELETE bancos/:id:', error.message);
+            if (error.code === 'ER_ROW_IS_REFERENCED_2' || error.code === 'ER_ROW_IS_REFERENCED') {
+                return res.status(409).json({ error: 'Banco não pode ser excluído pois possui registros vinculados' });
+            }
             res.status(500).json({ error: 'Erro ao excluir banco' });
         }
     });
@@ -2121,14 +2140,14 @@ module.exports = function createFinanceiroExtendedRoutes(deps) {
     router.post('/contas-pagar/:id/baixar', authenticateToken, async (req, res) => {
         try {
             const { id } = req.params;
-            const { valor_pago, data_pagamento, conta_bancaria_id, forma_pagamento_id, observacoes } = req.body;
+            const { valor_pago, data_pagamento, banco_id, forma_pagamento, observacoes } = req.body;
             const [conta] = await pool.query('SELECT * FROM contas_pagar WHERE id = ?', [id]);
             if (!conta || conta.length === 0) return res.status(404).json({ message: 'Conta não encontrada' });
             const valorTotal = conta[0].valor + (conta[0].valor_juros || 0) + (conta[0].valor_multa || 0) - (conta[0].valor_desconto || 0);
             const status = valor_pago >= valorTotal ? 'pago' : 'pendente';
             await pool.query(
-                `UPDATE contas_pagar SET status=?, valor_pago=?, data_pagamento=?, conta_bancaria_id=?, forma_pagamento_id=?, observacoes=? WHERE id=?`,
-                [status, valor_pago, data_pagamento || new Date().toISOString().split('T')[0], conta_bancaria_id, forma_pagamento_id, observacoes, id]
+                `UPDATE contas_pagar SET status=?, valor_pago=?, data_pagamento=?, banco_id=?, forma_pagamento=?, observacoes=? WHERE id=?`,
+                [status, valor_pago, data_pagamento || new Date().toISOString().split('T')[0], banco_id, forma_pagamento, observacoes, id]
             );
             res.json({ success: true, message: 'Pagamento registrado com sucesso' });
         } catch (err) {

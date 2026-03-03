@@ -859,7 +859,7 @@ router.get('/importacoes', authenticateToken, async (req, res) => {
     try {
         var limite = parseInt(req.query.limite || 50);
         const [importacoes] = await pool.query(
-            'SELECT pi.id, pi.origem as tipo, pi.data_inicio as periodo_inicio, pi.data_fim as periodo_fim, pi.total_registros, pi.registros_sucesso as importados, pi.registros_duplicados as duplicados, pi.registros_erro as erros, pi.ip_equipamento, pi.status, pi.criado_em, COALESCE(u.nome, u.nome_completo, \'Sistema\') as usuario_nome FROM ponto_importacoes pi LEFT JOIN usuarios u ON pi.usuario_id = u.id ORDER BY pi.criado_em DESC LIMIT ?',
+            'SELECT pi.id, pi.origem as tipo, pi.data_inicio as periodo_inicio, pi.data_fim as periodo_fim, pi.total_registros, pi.registros_sucesso as importados, pi.registros_duplicados as duplicados, pi.registros_erro as erros, pi.ip_equipamento, pi.status, pi.criado_em, COALESCE(u.nome, \'Sistema\') as usuario_nome FROM ponto_importacoes pi LEFT JOIN usuarios u ON pi.usuario_id = u.id ORDER BY pi.criado_em DESC LIMIT ?',
             [limite]
         );
         res.json({ success: true, importacoes: importacoes });

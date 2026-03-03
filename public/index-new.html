@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang=pt-BR>
+<head>
+    <meta charset=UTF-8>
+    <meta name=viewport content=width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover>
+    <meta name=theme-color content=#0a0a0f>
+    <meta name=apple-mobile-web-app-capable content=yes>
+    <meta name=apple-mobile-web-app-status-bar-style content=black-translucent>
+    <meta name=apple-mobile-web-app-title content=ALUFORCE>
+    <meta name=mobile-web-app-capable content=yes>
+    <meta name=application-name content=ALUFORCE>
+    <meta name=description content=ALUFORCE ERP - Sistema de GestÃ£o Empresarial>
+
+    <title>ALUFORCE ERP | Painel de Controle</title>
+
+    <!-- Favicon e Ã­cones -->
+    <link rel=icon type=image/x-icon href=/favicon.ico>
+    <link rel=icon type=image/png sizes=32x32 href=/icons/favicon-32x32.png>
+    <link rel=apple-touch-icon href=/icons/apple-touch-icon.png>
+    <link rel=manifest href=/manifest.json>
+
+    <!-- Fonts -->
+    <link rel=preconnect href=https://fonts.googleapis.com>
+    <link rel=preconnect href=https://fonts.gstatic.com crossorigin>
+    <link href=https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap rel=stylesheet>
+
+    <!-- Icons -->
+    <link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css>
+
+    <!-- CSS do Sistema Original (mantÃ©m funcionalidades) -->
+    <link rel=stylesheet href=/css/modal-fix-critical.css?v=20260129>
+    <link rel=stylesheet href=/css/notifications-fix.css?v=20260129>
+    <link rel=stylesheet href=/css/popup-confirmacao.css>
+
+    <!-- CSS do Dashboard Visual -->
+    <link rel=stylesheet href=/css/aluforce-dashboard.css?v=20260129b>
+
+    <!-- CSS para ocultar modais por padrÃ£o -->
+    <style>
+        #preferences-modal:not(.active),
+        #profile-modal:not([aria-hidden=false]),
+        #modal-configuracoes:not(.active),
+        .profile-modal:not(.main-dashboard):not([aria-hidden=false]),
+        .config-modal:not(.active),
+        .modal-overlay:not(.active) {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Background com imagem -->
+    <div class=background-container>
+        <div class=background-image></div>
+        <div class=background-overlay></div>
+    </div>
+
+    <!-- Header Original com funcionalidades -->
+    <header class=main-header>
+        <div class=header-content>
+            <div class=header-left>
+                <div class=logo-section>
+                    <img src=/images/Logo Monocromatico - Branco - Aluforce.png alt=ALUFORCE class=header-logo>
+                </div>
+            </div>
+            <div class=header-right>
+                <div class=header-icons>
+                    <!-- Busca -->
+                    <div class=header-search-wrapper>
+                        <button class=header-icon-btn title=Buscar id=search-btn>
+                            <i class=fas fa-search></i>
+                        </button>
+                        <div id=header-search-container class=header-search-container aria-hidden=true>
+                            <input id=header-search-input type=search placeholder=O que vocÃª deseja pesquisar? autocomplete=off />
+                            <div id=header-search-results class=header-search-results aria-live=polite></div>
+                        </div>
+                    </div>
+                    
+                    <!-- ConfiguraÃ§Ãµes (admin only) -->
+                    <button class=header-icon-btn title=ConfiguraÃ§Ãµes id=settings-btn data-admin-only=true style=display:none;>
+                        <i class=fas fa-cog></i>
+                    </button>
+                    
+                    <!-- NotificaÃ§Ãµes -->
+                    <button class=header-icon-btn notification-btn title=NotificaÃ§Ãµes id=notifications-btn>
+                        <i class=fas fa-bell></i>
+                        <span class=notification-dot id=notification-count>0</span>
+                    </button>
+                    
+                    <!-- Ajuda -->
+                    <button class=header-icon-btn title=Ajuda id=help-btn>
+                        <i class=fas fa-question-circle></i>
+                    </button>
+                    
+                    <!-- Perfil do UsuÃ¡rio -->
+                    <div class=user-profile-header id=user-profile>
+                        <span class=user-name id=header-user-name>UsuÃ¡rio</span>
+                        <div class=user-avatar-header id=header-user-avatar>U</div>
+                        
+                        <!-- Menu Dropdown do UsuÃ¡rio -->
+                        <div class=user-dropdown-menu id=user-dropdown>
+                            <div class=dropdown-header>
+                                <div class=dropdown-avatar id=dropdown-avatar>U</div>
+                                <div class=dropdown-info>
+                                    <span class=dropdown-user-name id=dropdown-user-name>UsuÃ¡rio</span>
+                                    <span class=dropdown-user-email id=dropdown-user-email>usuario@aluforce.ind.br</span>
+                                </div>
+                            </div>
+                            <hr class=dropdown-divider>
+                            <div class=dropdown-options>
+                                <div class=dropdown-item id=profile-option>
+                                    <i class=fas fa-user></i>
+                                    <span>Meu Perfil</span>
+                                </div>
+                                <div class=dropdown-item id=preferences-option>
+                                    <i class=fas fa-sliders-h></i>
+                                    <span>PreferÃªncias</span>
+                                </div>
+                                <div class=dropdown-item id=admin-users-option data-admin-only style=display: none; onclick=window.location.href='/admin/usuarios.html'>
+                                    <i class=fas fa-users-cog></i>
+                                    <span>Gerenciar UsuÃ¡rios</span>
+                                </div>
+                                <div class=dropdown-item id=settings-option data-admin-only=true style=display: none;>
+                                    <i class=fas fa-cog></i>
+                                    <span>ConfiguraÃ§Ãµes</span>
+                                </div>
+                                <hr class=dropdown-divider>
+                                <div class=dropdown-item logout-item id=logout-option>
+                                    <i class=fas fa-sign-out-alt></i>
+                                    <span>Sair</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class=main-content>
+        <!-- Greeting Section -->
+        <div class=greeting-section>
+            <div class=greeting-card>
+                <div class=greeting-date>
+                    <i class=fas fa-calendar-alt></i>
+                    <span id=currentDate>Carregando...</span>
+                </div>
+                <h1 class=greeting-title>
+                    OlÃ¡, <span id=userName>UsuÃ¡rio</span>
+                </h1>
+                <p class=greeting-quote id=motivationalQuote>Sua dedicaÃ§Ã£o de hoje Ã© o seu sucesso de amanhÃ£.</p>
+                <div class=greeting-meta>
+                    <span class=meta-time>
+                        <span class=meta-dot></span>
+                        <span id=currentTime>00:00</span>
+                    </span>
+                    <span class=meta-divider>â€¢</span>
+                    <span class=meta-company>
+                        <i class=fas fa-building></i>
+                        Aluforce
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modules Grid -->
+        <div class=modules-section>
+            <div class=modules-grid>
+                <!-- Compras -->
+                <a href=/modules/Compras/index.html class=module-card cyan data-area=compras>
+                    <div class=module-icon>
+                        <i class=fas fa-shopping-bag></i>
+                    </div>
+                    <span class=module-name>Compras</span>
+                </a>
+
+                <!-- Vendas -->
+                <a href=/Vendas/index.html class=module-card blue data-area=vendas>
+                    <div class=module-icon>
+                        <i class=fas fa-chart-line></i>
+                    </div>
+                    <span class=module-name>Vendas</span>
+                    <span class=module-badge id=vendas-badge style=display:none;>0</span>
+                </a>
+
+                <!-- NF-e & LogÃ­stica -->
+                <a href=/modules/NFe/index.html class=module-card teal data-area=nfe>
+                    <div class=module-icon>
+                        <i class=fas fa-truck></i>
+                    </div>
+                    <span class=module-name>NF-e & LogÃ­stica</span>
+                </a>
+
+                <!-- PCP -->
+                <a href=/modules/PCP/index.html class=module-card coral data-area=pcp>
+                    <div class=module-icon>
+                        <i class=fas fa-industry></i>
+                    </div>
+                    <span class=module-name>Planejamento e<br>Controle da ProduÃ§Ã£o</span>
+                </a>
+
+                <!-- Financeiro -->
+                <a href=/modules/Financeiro/index.html class=module-card lime data-area=financeiro>
+                    <div class=module-icon>
+                        <i class=fas fa-dollar-sign></i>
+                    </div>
+                    <span class=module-name>Financeiro</span>
+                    <span class=module-badge warning id=financeiro-badge style=display:none;>0</span>
+                </a>
+
+                <!-- RH -->
+                <a href=# class=module-card purple data-area=rh onclick=navegarRH(event)>
+                    <div class=module-icon>
+                        <i class=fas fa-users></i>
+                    </div>
+                    <span class=module-name>Recursos<br>Humanos</span>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Floating Action Buttons -->
+    <div class=floating-buttons>
+        <a href=https://discord.gg/aluforce target=_blank class=fab discord title=Discord>
+            <i class=fab fa-discord></i>
+        </a>
+        <button class=fab support title=Suporte id=support-btn>
+            <i class=fas fa-headset></i>
+        </button>
+    </div>
+
+    <!-- Container para modais carregados dinamicamente -->
+    <div id=config-modals-container></div>
+    <div id=profile-modal-container></div>
+    <div id=notifications-container></div>
+
+    <!-- Scripts do Sistema Original -->
+    <script src=/js/auth-unified.js?v=20260129></script>
+    <script src=/js/permissions.js?v=20260129></script>
+    <script src=/js/header-controls.js?v=20260129></script>
+    <script src=/js/notifications-manager.js?v=20260129></script>
+    <script src=/js/config-modals.js?v=20260129></script>
+
+    <script>
+        // ========================================
+        // CONFIGURAÃ‡ÃƒO E AUTENTICAÃ‡ÃƒO
+        // ========================================
+        
+        let currentUser = null;
+        
+        const emailPermissions = {
+            'ti@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'diretoria@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            'compras@aluforce.ind.br': ['compras'],
+            'financeiro@aluforce.ind.br': ['financeiro'],
+            'vendas@aluforce.ind.br': ['vendas'],
+            'vendas1@aluforce.ind.br': ['vendas'],
+            'vendas2@aluforce.ind.br': ['vendas'],
+            'pcp@aluforce.ind.br': ['pcp', 'vendas'],
+            'expedicao@aluforce.ind.br': ['nfe', 'vendas'],
+            'rh@aluforce.ind.br': ['rh']
+        };
+
+        const motivationalQuotes = [
+            Sua dedicaÃ§Ã£o de hoje Ã© o seu sucesso de amanhÃ£.,
+            Grandes conquistas exigem grandes esforÃ§os.,
+            O sucesso Ã© a soma de pequenos esforÃ§os repetidos dia apÃ³s dia.,
+            A excelÃªncia nÃ£o Ã© um ato, mas um hÃ¡bito.,
+            Cada dia Ã© uma nova oportunidade de fazer melhor.,
+            O trabalho duro vence o talento quando o talento nÃ£o trabalha duro.,
+            Foco, forÃ§a e fÃ©. Vamos em frente!,
+            Transforme obstÃ¡culos em oportunidades.
+        ];
+
+        // InicializaÃ§Ã£o
+        document.addEventListener('DOMContentLoaded', function() {
+            initAuth();
+            initDateTime();
+            initUI();
+            setRandomQuote();
+            loadConfigModals();
+        });
+
+        // AutenticaÃ§Ã£o
+        async function initAuth() {
+            try {
+                const response = await fetch('/api/me', { credentials: 'include' });
+                if (!response.ok) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+                
+                currentUser = await response.json();
+                window.currentUser = currentUser; // Para os scripts externos
+                
+                updateUserUI(currentUser);
+                applyModulePermissions(currentUser.email);
+                applyAdminPermissions(currentUser.email);
+                
+            } catch (error) {
+                console.error('Auth error:', error);
+                window.location.href = '/login.html';
+            }
+        }
+
+        function updateUserUI(user) {
+            const name = user.nome || user.name || 'UsuÃ¡rio';
+            const firstName = name.split(' ')[0];
+            const email = user.email || '';
+            const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            
+            // Greeting
+            document.getElementById('userName').textContent = firstName;
+            
+            // Header
+            const headerName = document.getElementById('header-user-name');
+            const headerAvatar = document.getElementById('header-user-avatar');
+            if (headerName) headerName.textContent = firstName;
+            if (headerAvatar) headerAvatar.textContent = initials;
+            
+            // Dropdown
+            const dropdownName = document.getElementById('dropdown-user-name');
+            const dropdownEmail = document.getElementById('dropdown-user-email');
+            const dropdownAvatar = document.getElementById('dropdown-avatar');
+            if (dropdownName) dropdownName.textContent = name;
+            if (dropdownEmail) dropdownEmail.textContent = email;
+            if (dropdownAvatar) dropdownAvatar.textContent = initials;
+        }
+
+        function applyModulePermissions(email) {
+            const permissions = emailPermissions[email] || [];
+            const isAdmin = ['ti@aluforce.ind.br', 'diretoria@aluforce.ind.br'].includes(email);
+            
+            if (isAdmin) return;
+            
+            document.querySelectorAll('[data-area]').forEach(el => {
+                const area = el.dataset.area;
+                if (!permissions.includes(area)) {
+                    el.style.display = 'none';
+                }
+            });
+        }
+
+        function applyAdminPermissions(email) {
+            const isAdmin = ['ti@aluforce.ind.br', 'diretoria@aluforce.ind.br'].includes(email);
+            
+            document.querySelectorAll('[data-admin-only]').forEach(el => {
+                el.style.display = isAdmin ? '' : 'none';
+            });
+        }
+
+        // ========================================
+        // DATA E HORA
+        // ========================================
+        
+        function initDateTime() {
+            updateDateTime();
+            setInterval(updateDateTime, 1000);
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            
+            // Data formatada
+            const options = { 
+                weekday: 'long', 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+            };
+            let dateStr = now.toLocaleDateString('pt-BR', options);
+            dateStr = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+            document.getElementById('currentDate').textContent = dateStr;
+            
+            // Hora
+            const timeStr = now.toLocaleTimeString('pt-BR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            document.getElementById('currentTime').textContent = timeStr;
+        }
+
+        function setRandomQuote() {
+            const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+            document.getElementById('motivationalQuote').textContent = quote;
+        }
+
+        // ========================================
+        // INTERFACE
+        // ========================================
+        
+        function initUI() {
+            // User dropdown toggle
+            const userProfile = document.getElementById('user-profile');
+            const userDropdown = document.getElementById('user-dropdown');
+            
+            if (userProfile && userDropdown) {
+                userProfile.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    userDropdown.classList.toggle('active');
+                });
+            }
+            
+            // Close dropdown on outside click
+            document.addEventListener('click', (e) => {
+                if (userDropdown && !userDropdown.contains(e.target) && !userProfile.contains(e.target)) {
+                    userDropdown.classList.remove('active');
+                }
+            });
+            
+            // Logout
+            const logoutOption = document.getElementById('logout-option');
+            if (logoutOption) {
+                logoutOption.addEventListener('click', handleLogout);
+            }
+            
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (userDropdown) userDropdown.classList.remove('active');
+                    const searchContainer = document.getElementById('header-search-container');
+                    if (searchContainer) searchContainer.setAttribute('aria-hidden', 'true');
+                }
+            });
+        }
+
+        // Carregar modais de configuraÃ§Ã£o
+        function loadConfigModals() {
+            fetch('/config-modals.html')
+                .then(response => response.ok ? response.text() : '')
+                .then(html => {
+                    if (html) {
+                        const container = document.getElementById('config-modals-container');
+                        if (container) container.innerHTML = html;
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // ========================================
+        // NAVEGAÃ‡ÃƒO E AÃ‡Ã•ES
+        // ========================================
+        
+        function navegarRH(event) {
+            event.preventDefault();
+            const email = currentUser?.email || '';
+            
+            const adminUrls = ['ti@aluforce.ind.br', 'diretoria@aluforce.ind.br', 'rh@aluforce.ind.br'];
+            const url = adminUrls.includes(email) ? '/RecursosHumanos/admin.html' : '/RecursosHumanos/index.html';
+            
+            window.location.href = url;
+        }
+
+        function handleLogout(event) {
+            if (event) event.preventDefault();
+            if (confirm('Deseja sair do sistema?')) {
+                fetch('/api/logout', { method: 'POST', credentials: 'include' })
+                    .finally(() => window.location.href = '/login.html');
+            }
+        }
+
+        // PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+    </script>
+<script src="/_shared/user-profile-loader.js"></script>
+</body>
+</html>
+

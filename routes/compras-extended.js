@@ -35,7 +35,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             const { ativo, search, page = 1, limit = 100 } = req.query;
             const limitNum = Math.min(Math.max(1, parseInt(limit) || 100), 500);
             const offset = (Math.max(1, parseInt(page) || 1) - 1) * limitNum;
-            let query = 'SELECT id, razao_social, nome_fantasia, cnpj, ie, endereco, cidade, estado, cep, telefone, email, contato_principal, condicoes_pagamento, prazo_entrega_padrao, ativo, observacoes, created_at FROM fornecedores';
+            let query = 'SELECT id, razao_social, nome_fantasia, cnpj, ie, endereco, cidade, estado, cep, telefone, email, contato_principal, condicoes_pagamento, prazo_entrega_padrao, ativo, observacoes, data_cadastro FROM fornecedores';
             const params = [];
             let conditions = [];
 
@@ -348,6 +348,193 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
     // ===== ESTOQUE DE MATÉRIAS-PRIMAS =====
 
+    // Listar TODOS os materiais do PCP (tabela materiais) para gerenciamento
+    router.get('/estoque/materiais-pcp', authenticateToken, async (req, res) => {
+        try {
+            const { busca, search, tipo, ativo, page = 1, limit = 50 } = req.query;
+            const searchTerm = busca || search || '';
+            const offset = (parseInt(page) - 1) * parseInt(limit);
+            let where = '1=1';
+            const params = [];
+
+            if (searchTerm) {
+                where += ' AND (m.codigo_material LIKE ? OR m.descricao LIKE ?)';
+                params.push(`%${searchTerm}%`, `%${searchTerm}%`);
+            }
+            if (tipo && tipo !== 'todos') {
+                if (tipo === 'sem_tipo') {
+                    where += ' AND (m.tipo IS NULL OR m.tipo = "")';
+                } else {
+                    where += ' AND m.tipo = ?';
+                    params.push(tipo);
+                }
+            }
+            if (ativo !== undefined && ativo !== '') {
+                where += ' AND m.ativo = ?';
+                params.push(parseInt(ativo));
+            }
+
+            // Total count
+            const [countResult] = await pool.query(`SELECT COUNT(*) as total FROM materiais m WHERE ${where}`, params);
+            const total = countResult[0].total;
+
+            // Materiais paginados (COLLATE to avoid collation mismatch)
+            const [materiais] = await pool.query(`
+                SELECT m.id, m.codigo_material, m.descricao, m.unidade_medida, m.tipo, m.ativo,
+                       m.custo_unitario, m.quantidade_estoque, m.estoque_minimo, m.ncm,
+                       (SELECT COUNT(*) FROM estoque_materias_primas emp WHERE emp.codigo COLLATE utf8mb4_general_ci = m.codigo_material COLLATE utf8mb4_general_ci) as vinculado_estoque
+                FROM materiais m WHERE ${where}
+                ORDER BY m.ativo DESC, m.descricao ASC
+                LIMIT ? OFFSET ?
+            `, [...params, parseInt(limit), offset]);
+
+            // Tipos disponíveis para filtro
+            const [tipos] = await pool.query(`
+                SELECT COALESCE(tipo, 'sem_tipo') as tipo, COUNT(*) as count
+                FROM materiais GROUP BY COALESCE(tipo, 'sem_tipo') ORDER BY count DESC
+            `);
+
+            // Stats
+            const [stats] = await pool.query(`
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN ativo = 1 THEN 1 ELSE 0 END) as ativos,
+                    SUM(CASE WHEN ativo = 0 THEN 1 ELSE 0 END) as inativos
+                FROM materiais
+            `);
+
+            res.json({
+                materiais,
+                tipos,
+                stats: stats[0],
+                paginacao: { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / parseInt(limit)) }
+            });
+        } catch (err) {
+            console.error('[COMPRAS] Erro ao listar materiais PCP:', err);
+            res.status(500).json({ message: 'Erro ao listar materiais PCP', error: err.message });
+        }
+    });
+
+    // Atualizar material PCP (editar)
+    router.put('/estoque/materiais-pcp/:id', authenticateToken, async (req, res) => {
+        try {
+            const { codigo_material, descricao, tipo, unidade_medida, custo_unitario, estoque_minimo, ativo, ncm } = req.body;
+            const updates = [];
+            const params = [];
+
+            if (codigo_material !== undefined) { updates.push('codigo_material = ?'); params.push(codigo_material); }
+            if (descricao !== undefined) { updates.push('descricao = ?'); params.push(descricao); }
+            if (tipo !== undefined) { updates.push('tipo = ?'); params.push(tipo || null); }
+            if (unidade_medida !== undefined) { updates.push('unidade_medida = ?'); params.push(unidade_medida); }
+            if (custo_unitario !== undefined) { updates.push('custo_unitario = ?'); params.push(parseFloat(custo_unitario) || 0); }
+            if (estoque_minimo !== undefined) { updates.push('estoque_minimo = ?'); params.push(parseFloat(estoque_minimo) || 0); }
+            if (ativo !== undefined) { updates.push('ativo = ?'); params.push(parseInt(ativo)); }
+            if (ncm !== undefined) { updates.push('ncm = ?'); params.push(ncm || null); }
+
+            if (updates.length === 0) return res.status(400).json({ message: 'Nenhum campo para atualizar' });
+
+            params.push(req.params.id);
+            await pool.query(`UPDATE materiais SET ${updates.join(', ')} WHERE id = ?`, params);
+            res.json({ success: true, message: 'Material atualizado' });
+        } catch (err) {
+            console.error('[COMPRAS] Erro ao atualizar material PCP:', err);
+            res.status(500).json({ message: 'Erro ao atualizar' });
+        }
+    });
+
+    // Ativar/Desativar materiais em lote (bulk)
+    router.post('/estoque/materiais-pcp/bulk-toggle', authenticateToken, async (req, res) => {
+        try {
+            const { ids, ativo } = req.body;
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({ message: 'IDs são obrigatórios' });
+            }
+            const placeholders = ids.map(() => '?').join(',');
+            await pool.query(`UPDATE materiais SET ativo = ? WHERE id IN (${placeholders})`, [ativo ? 1 : 0, ...ids]);
+            res.json({ success: true, message: `${ids.length} materiais atualizados`, affected: ids.length });
+        } catch (err) {
+            console.error('[COMPRAS] Erro bulk toggle:', err);
+            res.status(500).json({ message: 'Erro ao atualizar em lote' });
+        }
+    });
+
+    // Deletar materiais em lote
+    router.post('/estoque/materiais-pcp/bulk-delete', authenticateToken, async (req, res) => {
+        try {
+            const { ids } = req.body;
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({ message: 'IDs são obrigatórios' });
+            }
+            const placeholders = ids.map(() => '?').join(',');
+            const [result] = await pool.query(`DELETE FROM materiais WHERE id IN (${placeholders})`, ids);
+            res.json({ success: true, message: `${result.affectedRows} materiais removidos`, affected: result.affectedRows });
+        } catch (err) {
+            console.error('[COMPRAS] Erro bulk delete:', err);
+            res.status(500).json({ message: 'Erro ao deletar em lote' });
+        }
+    });
+
+    // Criar novo material PCP
+    router.post('/estoque/materiais-pcp/criar', authenticateToken, async (req, res) => {
+        try {
+            const { codigo_material, descricao, tipo, unidade_medida, custo_unitario, estoque_minimo, ativo, ncm, quantidade_estoque } = req.body;
+            if (!codigo_material || !descricao) {
+                return res.status(400).json({ error: 'Código e descrição são obrigatórios' });
+            }
+            // Check if code already exists
+            const [existing] = await pool.query('SELECT id FROM materiais WHERE codigo_material = ?', [codigo_material]);
+            if (existing.length > 0) {
+                return res.status(409).json({ error: 'Código de material já existe' });
+            }
+            const [result] = await pool.query(
+                `INSERT INTO materiais (codigo_material, descricao, tipo, unidade_medida, custo_unitario, estoque_minimo, ativo, ncm, quantidade_estoque, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                [codigo_material, descricao, tipo || null, unidade_medida || 'UN', custo_unitario || null, estoque_minimo || 0, ativo !== undefined ? ativo : 1, ncm || null, quantidade_estoque || 0]
+            );
+            res.json({ success: true, id: result.insertId, message: 'Material criado com sucesso' });
+        } catch (err) {
+            console.error('[COMPRAS] Erro ao criar material:', err);
+            res.status(500).json({ error: 'Erro ao criar material', details: err.message });
+        }
+    });
+
+    // Importar materiais selecionados para estoque_materias_primas
+    router.post('/estoque/materiais-pcp/importar', authenticateToken, async (req, res) => {
+        try {
+            const { ids } = req.body;
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({ message: 'IDs são obrigatórios' });
+            }
+            const placeholders = ids.map(() => '?').join(',');
+            const [materiais] = await pool.query(`SELECT * FROM materiais WHERE id IN (${placeholders})`, ids);
+
+            let importados = 0;
+            let jaExistem = 0;
+            for (const m of materiais) {
+                const codigo = m.codigo_material || `MAT-${m.id}`;
+                const [existing] = await pool.query('SELECT id FROM estoque_materias_primas WHERE codigo = ?', [codigo]);
+                if (existing.length > 0) { jaExistem++; continue; }
+
+                // Mapear tipo
+                const tipoMap = { 'pvc': 'PVC', 'polietileno': 'PE', 'aluminio': 'ALUMINIO', 'cobre': 'COBRE', 'pigmento': 'PIGMENTO' };
+                const tipoMapeado = tipoMap[(m.tipo || '').toLowerCase()] || 'OUTROS';
+                const unidadeMap = { 'kg': 'KG', 'un': 'UN', 'm': 'M', 'l': 'L', 'pc': 'UN' };
+                const unidade = unidadeMap[(m.unidade_medida || 'un').toLowerCase()] || 'UN';
+
+                await pool.query(`
+                    INSERT INTO estoque_materias_primas (codigo, nome, tipo, unidade, quantidade_minima, preco_medio, ativo)
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                `, [codigo, m.descricao, tipoMapeado, unidade, m.estoque_minimo || 0, m.custo_unitario || 0]);
+                importados++;
+            }
+
+            res.json({ success: true, message: `${importados} materiais importados, ${jaExistem} já existiam`, importados, jaExistem });
+        } catch (err) {
+            console.error('[COMPRAS] Erro ao importar materiais:', err);
+            res.status(500).json({ message: 'Erro ao importar materiais', error: err.message });
+        }
+    });
+
     // Materiais com entrada (para Gestão de Estoque MP)
     router.get('/estoque/materiais-com-entrada', authenticateToken, async (req, res) => {
         try {
@@ -536,7 +723,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             );
             // Atualizar estoque atual
             await pool.query(
-                'UPDATE materias_primas SET quantidade_atual = COALESCE(quantidade_atual, 0) + ? WHERE id = ?',
+                'UPDATE materias_primas SET estoque_atual = COALESCE(estoque_atual, 0) + ? WHERE id = ?',
                 [quantidade, material_id]
             );
             res.json({ success: true, message: 'Entrada registrada com sucesso' });
@@ -554,8 +741,8 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 return res.status(400).json({ message: 'Material e quantidade são obrigatórios' });
             }
             // Verificar estoque disponível
-            const [mat] = await pool.query('SELECT quantidade_atual FROM materias_primas WHERE id = ?', [material_id]);
-            if (!mat.length || (mat[0].quantidade_atual || 0) < quantidade) {
+            const [mat] = await pool.query('SELECT estoque_atual FROM materias_primas WHERE id = ?', [material_id]);
+            if (!mat.length || (mat[0].estoque_atual || 0) < quantidade) {
                 return res.status(400).json({ message: 'Estoque insuficiente' });
             }
             // Registrar movimentação
@@ -566,7 +753,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             );
             // Atualizar estoque atual
             await pool.query(
-                'UPDATE materias_primas SET quantidade_atual = COALESCE(quantidade_atual, 0) - ? WHERE id = ?',
+                'UPDATE materias_primas SET estoque_atual = COALESCE(estoque_atual, 0) - ? WHERE id = ?',
                 [quantidade, material_id]
             );
             res.json({ success: true, message: 'Saída registrada com sucesso' });
@@ -584,8 +771,8 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 return res.status(400).json({ message: 'Material e quantidade são obrigatórios' });
             }
             // Buscar quantidade atual
-            const [mat] = await pool.query('SELECT quantidade_atual FROM materias_primas WHERE id = ?', [material_id]);
-            const qtdAtual = mat.length ? (mat[0].quantidade_atual || 0) : 0;
+            const [mat] = await pool.query('SELECT estoque_atual FROM materias_primas WHERE id = ?', [material_id]);
+            const qtdAtual = mat.length ? (mat[0].estoque_atual || 0) : 0;
             const diferenca = quantidade_nova - qtdAtual;
             // Registrar movimentação
             await pool.query(
@@ -595,7 +782,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             );
             // Atualizar estoque
             await pool.query(
-                'UPDATE materias_primas SET quantidade_atual = ? WHERE id = ?',
+                'UPDATE materias_primas SET estoque_atual = ? WHERE id = ?',
                 [quantidade_nova, material_id]
             );
             res.json({ success: true, message: 'Ajuste registrado com sucesso', diferenca });
@@ -905,11 +1092,15 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 [req.user.id, req.params.id]
             );
 
-            await connection.query(
-                `INSERT INTO historico_aprovacoes (pedido_id, usuario_id, acao, observacoes)
-                 VALUES (?, ?, 'aprovado', ?)`,
-                [req.params.id, req.user.id, observacoes]
-            );
+            try {
+                await connection.query(
+                    `INSERT INTO historico_aprovacoes (pedido_id, usuario_id, acao, observacoes)
+                     VALUES (?, ?, 'aprovado', ?)`,
+                    [req.params.id, req.user.id, observacoes]
+                );
+            } catch (histErr) {
+                console.log('[COMPRAS] Tabela historico_aprovacoes não disponível, pulando registro:', histErr.code);
+            }
 
             // === INTEGRAÇÃO FINANCEIRO ===
             // Buscar dados do pedido para criar conta a pagar
@@ -928,11 +1119,15 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 // Determinar categoria automaticamente se não fornecida
                 let categoriaId = categoria_financeira_id;
                 if (!categoriaId) {
-                    const [catResult] = await connection.query(
-                        `SELECT id FROM categorias_financeiras WHERE nome LIKE '%Compra%' AND tipo = 'despesa' LIMIT 1`
-                    );
-                    if (catResult.length > 0) {
-                        categoriaId = catResult[0].id;
+                    try {
+                        const [catResult] = await connection.query(
+                            `SELECT id FROM categorias_financeiras WHERE nome LIKE '%Compra%' AND tipo = 'despesa' LIMIT 1`
+                        );
+                        if (catResult.length > 0) {
+                            categoriaId = catResult[0].id;
+                        }
+                    } catch (catErr) {
+                        console.log('[COMPRAS] Tabela categorias_financeiras não disponível:', catErr.code);
                     }
                 }
 
@@ -941,23 +1136,20 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
                 const [contaResult] = await connection.query(
                     `INSERT INTO contas_pagar (
-                        descricao, fornecedor, valor_original, valor_restante,
+                        descricao, fornecedor_nome, valor,
                         data_vencimento, data_emissao, categoria_id, forma_pagamento,
-                        status, numero_documento, observacoes, pedido_compra_id,
-                        criado_por, criado_em
-                    ) VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, 'pendente', ?, ?, ?, ?, NOW())`,
+                        status, numero_documento, observacoes, pedido_compra_id
+                    ) VALUES (?, ?, ?, ?, NOW(), ?, ?, 'pendente', ?, ?, ?)`,
                     [
                         descricaoCompleta,
                         pedido.fornecedor_nome || `Fornecedor ID ${pedido.fornecedor_id}`,
-                        pedido.valor_final || pedido.valor_total,
                         pedido.valor_final || pedido.valor_total,
                         dataVencimento.toISOString().split('T')[0],
                         categoriaId,
                         forma_pagamento || 'boleto',
                         pedido.numero_pedido || `PC-${pedido.id}`,
                         observacoes,
-                        pedido.id,
-                        req.user.id
+                        pedido.id
                     ]
                 );
 
@@ -965,26 +1157,30 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
                 // Se houver parcelamento, gerar parcelas
                 if (parcelas > 1) {
-                    const valorParcela = (pedido.valor_final || pedido.valor_total) / parcelas;
+                    try {
+                        const valorParcela = parseFloat(pedido.valor_final || pedido.valor_total) / parcelas;
 
-                    for (let i = 1; i <= parcelas; i++) {
-                        const dataVencParcela = new Date();
-                        dataVencParcela.setDate(dataVencParcela.getDate() + (prazo_pagamento * i));
+                        for (let i = 1; i <= parcelas; i++) {
+                            const dataVencParcela = new Date();
+                            dataVencParcela.setDate(dataVencParcela.getDate() + (prazo_pagamento * i));
 
+                            await connection.query(
+                                `INSERT INTO parcelas_financeiras (
+                                    conta_pagar_id, numero_parcela, valor_parcela,
+                                    data_vencimento, status, criado_em
+                                ) VALUES (?, ?, ?, ?, 'pendente', NOW())`,
+                                [contaId, i, valorParcela, dataVencParcela.toISOString().split('T')[0]]
+                            );
+                        }
+
+                        // Atualizar conta para indicar parcelamento
                         await connection.query(
-                            `INSERT INTO parcelas_financeiras (
-                                conta_pagar_id, numero_parcela, valor_parcela,
-                                data_vencimento, status, criado_em
-                            ) VALUES (?, ?, ?, ?, 'pendente', NOW())`,
-                            [contaId, i, valorParcela, dataVencParcela.toISOString().split('T')[0]]
+                            `UPDATE contas_pagar SET observacoes = CONCAT(COALESCE(observacoes, ''), ' [Parcelado em ${parcelas}x]') WHERE id = ?`,
+                            [contaId]
                         );
+                    } catch (parcErr) {
+                        console.log('[COMPRAS] Tabela parcelas_financeiras não disponível:', parcErr.code);
                     }
-
-                    // Atualizar conta para indicar parcelamento
-                    await connection.query(
-                        `UPDATE contas_pagar SET observacoes = CONCAT(COALESCE(observacoes, ''), ' [Parcelado em ${parcelas}x]') WHERE id = ?`,
-                        [contaId]
-                    );
                 }
 
                 console.log(`[INTEGRAÇÃO] Conta a pagar #${contaId} criada automaticamente para Pedido de Compra #${pedido.id}`);
@@ -1057,18 +1253,22 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 }
             }
 
-            console.log(`[COMPRAS-AUDIT] Pedido ${pedidoId} CANCELADO por usuário ${req.user.id} (${req.user.nome || req.user.email}) - Motivo: ${motivo} - Valor: R$ ${(pedidoInfo.valor_total || 0).toFixed(2)}`);
+            console.log(`[COMPRAS-AUDIT] Pedido ${pedidoId} CANCELADO por usuário ${req.user.id} (${req.user.nome || req.user.email}) - Motivo: ${motivo} - Valor: R$ ${parseFloat(pedidoInfo.valor_total || 0).toFixed(2)}`);
 
             await pool.query(
                 'UPDATE pedidos_compra SET status = \'cancelado\', motivo_cancelamento = ? WHERE id = ?',
                 [motivo.trim(), pedidoId]
             );
 
-            await pool.query(
-                `INSERT INTO historico_aprovacoes (pedido_id, usuario_id, acao, observacoes)
-                 VALUES (?, ?, 'rejeitado', ?)`,
-                [pedidoId, req.user.id, motivo.trim()]
-            );
+            try {
+                await pool.query(
+                    `INSERT INTO historico_aprovacoes (pedido_id, usuario_id, acao, observacoes)
+                     VALUES (?, ?, 'rejeitado', ?)`,
+                    [pedidoId, req.user.id, motivo.trim()]
+                );
+            } catch (histErr) {
+                console.log('[COMPRAS] Tabela historico_aprovacoes não disponível, pulando registro:', histErr.code);
+            }
 
             res.json({ success: true, message: 'Pedido cancelado com sucesso' });
         } catch (err) {
@@ -1123,7 +1323,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 const novoStatus = tipo === 'parcial' ? 'parcial' : 'recebido';
 
                 await connection.query(`
-                    UPDATE pedidos_compra SET 
+                    UPDATE pedidos_compra SET
                         data_recebimento = COALESCE(?, data_recebimento),
                         data_entrega_real = COALESCE(?, data_entrega_real),
                         numero_nfe = COALESCE(?, numero_nfe),
@@ -1300,24 +1500,25 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
     // Listar NFs de entrada importadas
     router.get('/nf-entrada', authenticateToken, async (req, res) => {
+        await initTabelaNfEntrada; // Garantir que tabela existe
         try {
             const { status, fornecedor, pagina = 1, limite = 50 } = req.query;
             let query = `
-                SELECT id, chave_acesso, numero_nfe, serie,
-                    fornecedor_cnpj, fornecedor_razao_social, fornecedor_uf,
+                SELECT id, chave_nfe, numero_nfe, serie,
+                    emitente_cnpj, emitente_razao, emitente_uf,
                     valor_total, valor_icms, valor_ipi, valor_pis, valor_cofins,
-                    data_emissao, data_entrada, status, natureza_operacao
+                    data_emissao, data_entrada, status
                 FROM nf_entrada WHERE 1=1
             `;
             const params = [];
 
             if (status) { query += ' AND status = ?'; params.push(status); }
             if (fornecedor) {
-                query += ' AND (fornecedor_cnpj LIKE ? OR fornecedor_razao_social LIKE ?)';
+                query += ' AND (emitente_cnpj LIKE ? OR emitente_razao LIKE ?)';
                 params.push(`%${fornecedor}%`, `%${fornecedor}%`);
             }
 
-            const countQuery = query.replace(/SELECT .+ FROM/, 'SELECT COUNT(*) as total FROM');
+            const countQuery = query.replace(/SELECT id, chave_nfe.*?FROM/s, 'SELECT COUNT(*) as total FROM');
             const [countRows] = await pool.query(countQuery, params);
 
             query += ' ORDER BY data_emissao DESC LIMIT ? OFFSET ?';
@@ -1333,6 +1534,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
     // Consultar NF-e por chave de acesso (simula SEFAZ — busca no banco local)
     router.get('/nfe/consultar/:chave', authenticateToken, async (req, res) => {
+        await initTabelaNfEntrada; // Garantir que tabela existe
         try {
             const chave = req.params.chave.replace(/\D/g, '');
             if (chave.length !== 44) {
@@ -1341,7 +1543,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
 
             // Buscar na tabela nf_entrada
             const [nfs] = await pool.query(
-                'SELECT * FROM nf_entrada WHERE chave_acesso = ?', [chave]
+                'SELECT * FROM nf_entrada WHERE chave_nfe = ?', [chave]
             );
 
             if (nfs.length > 0) {
@@ -1352,8 +1554,8 @@ module.exports = function createComprasExtendedRoutes(deps) {
                     serie: nf.serie,
                     data_emissao: nf.data_emissao,
                     emitente: {
-                        razao_social: nf.fornecedor_razao_social,
-                        cnpj: nf.fornecedor_cnpj
+                        razao_social: nf.emitente_razao,
+                        cnpj: nf.emitente_cnpj
                     },
                     valor_total: nf.valor_total,
                     status: nf.status
@@ -1560,6 +1762,39 @@ module.exports = function createComprasExtendedRoutes(deps) {
         }
     })();
 
+    // Criar tabela nf_entrada se não existir
+    const initTabelaNfEntrada = (async () => {
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS nf_entrada (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    chave_acesso VARCHAR(44) UNIQUE,
+                    numero_nfe VARCHAR(20),
+                    serie VARCHAR(5),
+                    fornecedor_cnpj VARCHAR(20),
+                    fornecedor_razao_social VARCHAR(255),
+                    fornecedor_uf CHAR(2),
+                    valor_total DECIMAL(15,2) DEFAULT 0,
+                    valor_icms DECIMAL(15,2) DEFAULT 0,
+                    valor_ipi DECIMAL(15,2) DEFAULT 0,
+                    valor_pis DECIMAL(15,2) DEFAULT 0,
+                    valor_cofins DECIMAL(15,2) DEFAULT 0,
+                    data_emissao DATE,
+                    data_entrada TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status ENUM('pendente','conferida','aprovada','rejeitada') DEFAULT 'pendente',
+                    natureza_operacao VARCHAR(255),
+                    xml_content LONGTEXT,
+                    usuario_id INT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            `);
+            console.log('✅ Tabela nf_entrada verificada/criada');
+        } catch (err) {
+            console.error('❌ Erro ao criar tabela nf_entrada:', err);
+        }
+    })();
+
     // Listar todas as requisições
     router.get('/requisicoes', authenticateToken, async (req, res) => {
         try {
@@ -1699,6 +1934,18 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 ? data_solicitacao
                 : new Date().toISOString().split('T')[0];
 
+            // Sanitizar prioridade para ENUM válido
+            const prioridadesValidas = ['baixa', 'normal', 'alta', 'urgente'];
+            const prioridadeSanitizada = prioridadesValidas.includes((prioridade || '').toLowerCase())
+                ? prioridade.toLowerCase()
+                : 'normal';
+
+            // Sanitizar status para ENUM válido
+            const statusValidos = ['rascunho', 'pendente', 'aprovado', 'rejeitado', 'cotacao', 'cancelado'];
+            const statusSanitizado = statusValidos.includes((status || '').toLowerCase())
+                ? status.toLowerCase()
+                : 'pendente';
+
             // Inserir requisição
             const [result] = await connection.query(
                 `INSERT INTO requisicoes_compra (
@@ -1708,9 +1955,9 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     numero, solicitante, solicitante_id || null, centro_custo_id || null, centro_custo || null,
-                    dataSolicitacao, data_necessidade || null, prioridade || 'normal', projeto || null,
+                    dataSolicitacao, data_necessidade || null, prioridadeSanitizada, projeto || null,
                     justificativa || null, observacoes || null, fornecedores_sugeridos || null,
-                    status || 'pendente', valor_estimado
+                    statusSanitizado, valor_estimado
                 ]
             );
 
@@ -1892,7 +2139,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
             const novoStatus = aprovado ? 'aprovado' : 'rejeitado';
 
             // AUDITORIA ENTERPRISE: Log de aprovação
-            console.log(`[COMPRAS-AUDIT] Requisição ${reqId} ${novoStatus} por usuário ${req.user.id} (${req.user.nome || req.user.email}) - Valor estimado: R$ ${(requisicaoInfo.valor_estimado || 0).toFixed(2)}`);
+            console.log(`[COMPRAS-AUDIT] Requisição ${reqId} ${novoStatus} por usuário ${req.user.id} (${req.user.nome || req.user.email}) - Valor estimado: R$ ${parseFloat(requisicaoInfo.valor_estimado || 0).toFixed(2)}`);
 
             await pool.query(
                 `UPDATE requisicoes_compra SET
@@ -2130,6 +2377,13 @@ module.exports = function createComprasExtendedRoutes(deps) {
                 return res.status(404).json({ message: 'Cotação não encontrada' });
             }
 
+            // Sanitizar status para ENUM válido
+            const statusCotacaoValidos = ['aberta', 'analise', 'finalizada', 'cancelada'];
+            const statusMap = { 'em_analise': 'analise', 'rascunho': 'aberta', 'encerrada': 'finalizada' };
+            let statusFinal = (status || existing[0].status || '').toLowerCase();
+            if (statusMap[statusFinal]) statusFinal = statusMap[statusFinal];
+            if (!statusCotacaoValidos.includes(statusFinal)) statusFinal = existing[0].status;
+
             // Calcular valor médio e melhor preço
             let valorMedio = 0, melhorPreco = 0, fornecedorVencedor = null;
             if (fornecedores && fornecedores.length > 0) {
@@ -2152,7 +2406,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
                     descricao || existing[0].descricao, data_validade || existing[0].data_validade,
                     quantidade || existing[0].quantidade, unidade || existing[0].unidade,
                     especificacoes || existing[0].especificacoes, observacoes || existing[0].observacoes,
-                    status || existing[0].status, valorMedio, melhorPreco, fornecedorVencedor, req.params.id
+                    statusFinal, valorMedio, melhorPreco, fornecedorVencedor, req.params.id
                 ]
             );
 
@@ -2167,7 +2421,7 @@ module.exports = function createComprasExtendedRoutes(deps) {
                         [
                             forn.valor_unitario || 0, forn.valor_total || 0, forn.prazo_entrega || null,
                             forn.condicao_pagamento || null, forn.observacoes || null,
-                            forn.data_resposta || null, forn.selecionado || false,
+                            forn.data_resposta || null, forn.selecionado ? 1 : 0,
                             req.params.id, forn.fornecedor_id
                         ]
                     );
@@ -2202,6 +2456,35 @@ module.exports = function createComprasExtendedRoutes(deps) {
         } catch (err) {
             console.error('[COMPRAS] Erro ao excluir cotação:', err);
             res.status(500).json({ message: 'Erro ao excluir cotação' });
+        }
+    });
+
+    // Aprovar proposta de cotação
+    router.post('/cotacoes/:id/aprovar-proposta', authenticateToken, async (req, res) => {
+        try {
+            const { proposta_id, fornecedor_id } = req.body;
+            if (!proposta_id) {
+                return res.status(400).json({ message: 'ID da proposta é obrigatório' });
+            }
+
+            const [cotacao] = await pool.query('SELECT * FROM cotacoes_compra WHERE id = ?', [req.params.id]);
+            if (cotacao.length === 0) {
+                return res.status(404).json({ message: 'Cotação não encontrada' });
+            }
+
+            if (cotacao[0].status === 'finalizada') {
+                return res.status(400).json({ message: 'Cotação já finalizada' });
+            }
+
+            await pool.query(
+                `UPDATE cotacoes_compra SET status = 'finalizada', fornecedor_vencedor_id = ?, melhor_preco = COALESCE(melhor_preco, 0), updated_at = NOW() WHERE id = ?`,
+                [fornecedor_id || null, req.params.id]
+            );
+
+            res.json({ success: true, message: 'Proposta aprovada com sucesso' });
+        } catch (err) {
+            console.error('[COMPRAS] Erro ao aprovar proposta:', err);
+            res.status(500).json({ message: 'Erro ao aprovar proposta' });
         }
     });
 
@@ -2547,7 +2830,7 @@ async function processarXMLEntradaCompras(pool, xmlContent, userId) {
     }
 
     // Verificar duplicidade
-    const [existe] = await pool.query('SELECT id FROM nf_entrada WHERE chave_acesso = ?', [chaveAcesso]);
+    const [existe] = await pool.query('SELECT id FROM nf_entrada WHERE chave_nfe = ?', [chaveAcesso]);
     if (existe.length > 0) {
         return { success: false, error: 'NF já importada', id: existe[0].id, duplicada: true };
     }
@@ -2593,22 +2876,18 @@ async function processarXMLEntradaCompras(pool, xmlContent, userId) {
     // Inserir NF de entrada
     const [insertResult] = await pool.query(`
         INSERT INTO nf_entrada (
-            chave_acesso, numero_nfe, serie, modelo,
-            fornecedor_cnpj, fornecedor_razao_social, fornecedor_nome_fantasia,
-            fornecedor_ie, fornecedor_uf, fornecedor_municipio, fornecedor_codigo_municipio,
-            valor_produtos, valor_frete, valor_seguro, valor_desconto, valor_outros, valor_total,
-            bc_icms, valor_icms, bc_icms_st, valor_icms_st, valor_ipi, valor_pis, valor_cofins,
-            data_emissao, data_saida, protocolo_autorizacao, data_autorizacao,
-            natureza_operacao, status, xml_completo, importado_por
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'importada', ?, ?)
+            chave_nfe, numero_nfe, serie,
+            emitente_cnpj, emitente_razao, emitente_uf,
+            valor_produtos, valor_frete, valor_seguro, valor_desconto, valor_outras_despesas, valor_total,
+            base_icms, valor_icms, base_icms_st, valor_icms_st, valor_ipi, valor_pis, valor_cofins,
+            data_emissao, data_entrada, status, xml_conteudo
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'pendente', ?)
     `, [
-        chaveAcesso, parseInt(nNF) || 0, parseInt(serie) || 1, mod || '55',
-        fornecedorCNPJ, fornecedorRazao, fornecedorFantasia || fornecedorRazao,
-        fornecedorIE, fornecedorUF, fornecedorMun, fornecedorCodMun,
+        chaveAcesso, parseInt(nNF) || 0, parseInt(serie) || 1,
+        fornecedorCNPJ, fornecedorRazao, fornecedorUF,
         valorProd, valorFrete, valorSeg, valorDesc, valorOutro, valorNF,
         bcICMS, valorICMS, bcST, valorST, valorIPI, valorPIS, valorCOFINS,
-        dhEmi || new Date(), dhSaiEnt || null, nProt || null, dhRecbto || null,
-        natOp || '', xmlContent, userId
+        dhEmi || new Date(), xmlContent
     ]);
 
     const nfEntradaId = insertResult.insertId;
@@ -2649,13 +2928,13 @@ async function processarXMLEntradaCompras(pool, xmlContent, userId) {
         try {
             await pool.query(`
                 INSERT INTO nf_entrada_itens (
-                    nf_entrada_id, numero_item, codigo_produto, descricao, ncm, cest, cfop,
-                    unidade, quantidade, valor_unitario, valor_total, ean,
+                    nf_entrada_id, numero_item, codigo_produto, descricao, ncm, cfop,
+                    unidade, quantidade, valor_unitario, valor_total,
                     cst_icms, aliquota_icms, valor_icms, valor_ipi, valor_pis, valor_cofins
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                nfEntradaId, nItem, cProd, xProd, ncm, cest || null, cfop,
-                uCom || 'UN', qCom, vUnCom, vProd, cEAN || null,
+                nfEntradaId, nItem, cProd, xProd, ncm, cfop,
+                uCom || 'UN', qCom, vUnCom, vProd,
                 cstICMS, aliqICMS, valorICMSItem, valorIPIItem, valorPISItem, valorCOFINSItem
             ]);
         } catch (e) {
@@ -2667,10 +2946,10 @@ async function processarXMLEntradaCompras(pool, xmlContent, userId) {
     // Auto-cadastrar fornecedor
     try {
         await pool.query(`
-            INSERT INTO fornecedores (cnpj, razao_social, nome_fantasia, inscricao_estadual, uf, cidade, codigo_municipio)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO fornecedores (cnpj, razao_social, nome_fantasia, ie, estado, cidade)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE razao_social = VALUES(razao_social), nome_fantasia = VALUES(nome_fantasia)
-        `, [fornecedorCNPJ, fornecedorRazao, fornecedorFantasia, fornecedorIE, fornecedorUF, fornecedorMun, fornecedorCodMun]);
+        `, [fornecedorCNPJ, fornecedorRazao, fornecedorFantasia, fornecedorIE, fornecedorUF, fornecedorMun]);
     } catch (e) {
         console.warn('[COMPRAS] Erro ao auto-cadastrar fornecedor:', e.message);
     }

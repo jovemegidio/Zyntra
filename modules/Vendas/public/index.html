@@ -15,6 +15,9 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>Aluforce: Vendas e NF-e</title>
 
+    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    <script src="/js/auth-unified.js?v=20260301" defer></script>
+
     <!-- Favicon e Ícones PWA -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
@@ -25,7 +28,7 @@
     <link rel="manifest" href="/manifest.json">
 
     <!-- CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Performance: Skeleton Loaders -->
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
@@ -5455,6 +5458,10 @@
     </script>
     <script src="/js/anti-copy-protection.js"></script>
     <script src="js/vendas-admin-check.js"></script>
+
+    <!-- Controle de Acesso por Permissões -->
+    <script src="js/vendas-access-control.js?v=20260114" defer></script>
+
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
 
     <!-- Tooltips Profissionais -->
@@ -5464,6 +5471,8 @@
     <!-- Chat Widget BOB AI - DESATIVADO -->
     <!-- <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
     <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+    <!-- Chat Corporativo (Teams) -->
+    <link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260615">
 
 </head>
 <body>
@@ -15256,7 +15265,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
         async function buscarClientesEditAPI(query) {
             try {
-                const resp = await fetch(`/api/vendas/empresas/buscar?termo=${encodeURIComponent(query)}&limit=15`, { credentials: 'include' });
+                const resp = await fetch(`/api/vendas/empresas/buscar?termo=${encodeURIComponent(query)}&limit=15`, {
+                    credentials: 'include',
+                    headers: getAuthHeaders()
+                });
                 if (!resp.ok) throw new Error('Erro na busca');
 
                 const empresas = await resp.json();
@@ -15594,7 +15606,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
         async function buscarClientesAPI(query) {
             try {
-                const resp = await fetch(`/api/vendas/empresas/search?q=${encodeURIComponent(query)}`, { credentials: 'include' });
+                const resp = await fetch(`/api/vendas/empresas/search?q=${encodeURIComponent(query)}`, {
+                    credentials: 'include',
+                    headers: getAuthHeaders()
+                });
                 if (!resp.ok) throw new Error('Erro na busca');
 
                 const empresas = await resp.json();
@@ -18403,7 +18418,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             try {
                 // Buscar clientes no banco de dados
                 const response = await fetch(`/api/vendas/clientes?search=${encodeURIComponent(termo)}`, {
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: getAuthHeaders()
                 });
 
                 if (!response.ok) throw new Error('Erro na pesquisa');
@@ -18478,7 +18494,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         async function selecionarClientePesquisa(clienteId) {
             try {
                 const response = await fetch(`/api/vendas/clientes/${clienteId}`, {
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: getAuthHeaders()
                 });
 
                 if (!response.ok) throw new Error('Erro ao carregar cliente');
@@ -18585,7 +18602,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             try {
                 const response = await fetch('/api/vendas/clientes', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     credentials: 'include',
                     body: JSON.stringify(cliente)
                 });
@@ -18686,7 +18703,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             try {
                 const response = await fetch('/api/vendas/clientes', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     credentials: 'include',
                     body: JSON.stringify(cliente)
                 });
@@ -19186,7 +19203,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         // Marcar todas como lidas
         async function marcarTodasLidas() {
             try {
-                await fetch('/api/notifications/read-all', { method: 'POST', credentials: 'include' });
+                await fetch('/api/notifications/read-all', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: getAuthHeaders()
+                });
                 notificacoes.forEach(n => n.lida = true);
                 renderizarNotificacoes();
                 atualizarContador(0);
@@ -19301,7 +19322,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 onConfirm: async () => {
                     try {
                         for (const notif of notificacoes) {
-                            await fetch(`/api/notifications/${notif.id}`, { method: 'DELETE' });
+                            await fetch(`/api/notifications/${notif.id}`, {
+                                method: 'DELETE',
+                                credentials: 'include',
+                                headers: getAuthHeaders()
+                            });
                         }
                         notificacoes = [];
                         renderizarNotificacoes();
@@ -20875,9 +20900,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         });
     </script>
 
-    <!-- Font Awesome para ícones do chat/suporte -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-
     <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
 
     <!-- Sistema de Monitoramento de Conexão -->
@@ -20900,7 +20922,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
     <!-- Sidebar Click Animation -->
     <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="js/mobile-sidebar.js"></script>
     <script src="/_shared/accessibility-widget.js?v=20260225"></script>
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
 </body>
 </html>
 

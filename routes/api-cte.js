@@ -241,6 +241,256 @@ function createCTeRouter(pool, authenticateToken) {
     });
 
     // ============================================================
+    // DASHBOARD RESUMO CT-e
+    // ============================================================
+
+    router.get('/dashboard/resumo', authenticateToken, async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'autorizado' THEN 1 ELSE 0 END) as autorizada,
+                    SUM(CASE WHEN status = 'cancelado' THEN 1 ELSE 0 END) as cancelada,
+                    SUM(CASE WHEN status = 'rascunho' THEN 1 ELSE 0 END) as rascunho,
+                    SUM(CASE WHEN status = 'validado' THEN 1 ELSE 0 END) as validado,
+                    COALESCE(SUM(CASE WHEN status != 'cancelado' THEN valor_total_servico ELSE 0 END), 0) as valor_total
+                FROM cte_emitidos
+            `);
+            const stats = rows[0] || {};
+            res.json({
+                sucesso: true,
+                total: Number(stats.total || 0),
+                valor_total: Number(stats.valor_total || 0),
+                por_status: {
+                    autorizada: Number(stats.autorizada || 0),
+                    cancelada: Number(stats.cancelada || 0),
+                    rascunho: Number(stats.rascunho || 0),
+                    validado: Number(stats.validado || 0)
+                }
+            });
+        } catch (error) {
+            console.error('❌ Erro no dashboard CT-e:', error);
+            res.json({ sucesso: false, total: 0, valor_total: 0, por_status: {} });
+        }
+    });
+
+    // ============================================================
+    // EMITIR CT-e (cria rascunho + gera XML em um passo)
+    // ============================================================
+
+    router.post('/emitir', authenticateToken, async (req, res) => {
+        try {
+            const dados = req.body;
+
+            // Validar dados
+            const validacao = CTeService.validar(dados);
+            if (!validacao.valido) {
+                return res.status(400).json({ sucesso: false, erro: 'Dados inválidos', erros: validacao.erros });
+            }
+
+            // Buscar config
+            const [config] = await pool.query('SELECT * FROM empresa_config WHERE id = 1');
+            const empresa = config[0] || {};
+            const regime = empresa.regime_tributario || 'simples';
+
+            // Calcular ICMS
+            const icms = CTeService.calcularICMS(dados, regime);
+
+            // Próximo número
+            const [numRows] = await pool.query('SELECT cte_proximo_numero, cte_serie FROM empresa_config WHERE id = 1');
+            const proximoNum = numRows[0]?.cte_proximo_numero || 1;
+            const serie = numRows[0]?.cte_serie || 1;
+
+            // Inserir CT-e como rascunho
+            const [result] = await pool.query(`
+                INSERT INTO cte_emitidos (
+                    numero_cte, serie, modelo, cfop, natureza_operacao,
+                    tipo_cte, tipo_servico, modal, tomador_tipo,
+                    rem_cnpj, rem_razao_social, rem_ie, rem_uf, rem_municipio, rem_codigo_municipio,
+                    dest_cnpj, dest_razao_social, dest_ie, dest_uf, dest_municipio, dest_codigo_municipio,
+                    valor_total_servico, valor_receber, valor_carga,
+                    valor_frete_peso, valor_frete_valor, valor_pedagio, valor_outros,
+                    cst_icms, bc_icms, aliquota_icms, valor_icms, reducao_bc,
+                    produto_predominante, carga_peso_bruto, carga_volume,
+                    uf_inicio, uf_fim, municipio_inicio, municipio_fim,
+                    codigo_municipio_inicio, codigo_municipio_fim,
+                    placa_veiculo, renavam, uf_veiculo, rntrc,
+                    motorista_cpf, motorista_nome,
+                    ambiente, status, data_emissao, created_by
+                ) VALUES (?, ?, '57', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho', NOW(), ?)
+            `, [
+                proximoNum, serie, dados.cfop, dados.natureza_operacao || 'PRESTACAO DE SERVICO DE TRANSPORTE',
+                dados.tipo_cte || 'normal', dados.tipo_servico || 'normal',
+                dados.modal || 'rodoviario', dados.tomador_tipo || 'remetente',
+                dados.rem_cnpj, dados.rem_razao_social, dados.rem_ie, dados.rem_uf, dados.rem_municipio, dados.rem_codigo_municipio,
+                dados.dest_cnpj, dados.dest_razao_social, dados.dest_ie, dados.dest_uf, dados.dest_municipio, dados.dest_codigo_municipio,
+                dados.valor_total_servico, dados.valor_receber || dados.valor_total_servico, dados.valor_carga || 0,
+                dados.valor_frete_peso || 0, dados.valor_frete_valor || 0, dados.valor_pedagio || 0, dados.valor_outros || 0,
+                icms.cst_icms, icms.bc_icms, icms.aliquota_icms, icms.valor_icms, icms.reducao_bc,
+                dados.produto_predominante || '', dados.carga_peso_bruto || 0, dados.carga_volume || 0,
+                dados.uf_inicio, dados.uf_fim, dados.municipio_inicio, dados.municipio_fim,
+                dados.codigo_municipio_inicio, dados.codigo_municipio_fim,
+                dados.placa_veiculo, dados.renavam, dados.uf_veiculo, dados.rntrc,
+                dados.motorista_cpf, dados.motorista_nome,
+                empresa.nfe_ambiente || 2,
+                req.user.id
+            ]);
+            const cteId = result.insertId;
+
+            // Incrementar numeração
+            await pool.query('UPDATE empresa_config SET cte_proximo_numero = ? WHERE id = 1', [proximoNum + 1]);
+
+            // Inserir componentes e documentos
+            if (dados.componentes && dados.componentes.length > 0) {
+                for (const comp of dados.componentes) {
+                    await pool.query('INSERT INTO cte_componentes_valor (cte_id, nome, valor) VALUES (?, ?, ?)', [cteId, comp.nome, comp.valor]);
+                }
+            }
+            if (dados.documentos && dados.documentos.length > 0) {
+                for (const doc of dados.documentos) {
+                    await pool.query('INSERT INTO cte_documentos (cte_id, tipo_documento, chave_nfe, numero_nf, serie, data_emissao, valor, peso) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        [cteId, doc.tipo_documento || 'nfe', doc.chave_nfe, doc.numero_nf, doc.serie, doc.data_emissao, doc.valor || 0, doc.peso || 0]);
+                }
+            }
+
+            // Gerar XML automaticamente
+            const [ctes] = await pool.query('SELECT * FROM cte_emitidos WHERE id = ?', [cteId]);
+            const [comps] = await pool.query('SELECT * FROM cte_componentes_valor WHERE cte_id = ?', [cteId]);
+            const [docs] = await pool.query('SELECT * FROM cte_documentos WHERE cte_id = ?', [cteId]);
+            ctes[0].componentes = comps;
+            ctes[0].documentos = docs;
+
+            let chaveAcesso = '';
+            try {
+                const resultado = CTeService.gerarXML(ctes[0], empresa);
+                chaveAcesso = resultado.chave;
+                await pool.query('UPDATE cte_emitidos SET xml_envio = ?, chave_acesso = ?, status = ? WHERE id = ?',
+                    [resultado.xml, resultado.chave, 'validado', cteId]);
+            } catch (xmlErr) {
+                console.error('⚠️ XML gerado com erro, CT-e salvo como rascunho:', xmlErr.message);
+            }
+
+            res.status(201).json({
+                sucesso: true,
+                id: cteId,
+                numero: proximoNum,
+                chave_acesso: chaveAcesso,
+                message: `CT-e ${proximoNum} emitido com sucesso`
+            });
+        } catch (error) {
+            console.error('❌ Erro ao emitir CT-e:', error);
+            res.status(500).json({ sucesso: false, erro: 'Erro ao emitir CT-e: ' + error.message });
+        }
+    });
+
+    // ============================================================
+    // DACTE - Gerar representação visual do CT-e (HTML)
+    // ============================================================
+
+    router.get('/:id/dacte', authenticateToken, async (req, res) => {
+        try {
+            const [ctes] = await pool.query('SELECT * FROM cte_emitidos WHERE id = ?', [req.params.id]);
+            if (ctes.length === 0) return res.status(404).json({ error: 'CT-e não encontrado' });
+
+            const cte = ctes[0];
+            const formatMoeda = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const formatData = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '';
+
+            const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>DACTE - CT-e ${cte.numero_cte || ''}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; font-size: 10px; padding: 15px; }
+        .dacte { border: 2px solid #000; max-width: 800px; margin: 0 auto; }
+        .header { display: flex; border-bottom: 2px solid #000; }
+        .header-cell { padding: 5px; border-right: 1px solid #000; }
+        .header-cell:last-child { border-right: none; }
+        .row { display: flex; border-bottom: 1px solid #000; }
+        .cell { padding: 4px 6px; border-right: 1px solid #000; flex: 1; }
+        .cell:last-child { border-right: none; }
+        .cell label { display: block; font-size: 7px; color: #666; text-transform: uppercase; }
+        .cell span { display: block; font-size: 10px; font-weight: bold; margin-top: 2px; }
+        .section-title { background: #eee; padding: 4px 8px; font-weight: bold; font-size: 9px; border-bottom: 1px solid #000; }
+        h2 { text-align: center; font-size: 16px; margin: 5px 0; }
+        @media print { body { padding: 0; } .no-print { display: none; } }
+    </style>
+</head>
+<body>
+    <div class="no-print" style="text-align:center;margin-bottom:10px;">
+        <button onclick="window.print()" style="padding:8px 20px;cursor:pointer;">Imprimir DACTE</button>
+    </div>
+    <div class="dacte">
+        <div class="header">
+            <div class="header-cell" style="flex:2;text-align:center;padding:10px;">
+                <h2>DACTE</h2>
+                <div style="font-size:8px;">Documento Auxiliar do CT-e</div>
+            </div>
+            <div class="header-cell" style="flex:1;">
+                <div><label>MODELO</label><span>57</span></div>
+                <div><label>SÉRIE</label><span>${cte.serie || ''}</span></div>
+                <div><label>NÚMERO</label><span>${cte.numero_cte || ''}</span></div>
+            </div>
+            <div class="header-cell" style="flex:1;">
+                <div><label>MODAL</label><span>${(cte.modal || 'rodoviário').toUpperCase()}</span></div>
+                <div><label>DATA EMISSÃO</label><span>${formatData(cte.data_emissao)}</span></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="cell" style="flex:3;"><label>CHAVE DE ACESSO</label><span style="font-size:9px;letter-spacing:1px;">${cte.chave_acesso || 'Não gerada'}</span></div>
+            <div class="cell" style="flex:1;"><label>STATUS</label><span>${(cte.status || '').toUpperCase()}</span></div>
+        </div>
+        <div class="section-title">REMETENTE</div>
+        <div class="row">
+            <div class="cell" style="flex:2;"><label>RAZÃO SOCIAL</label><span>${cte.rem_razao_social || ''}</span></div>
+            <div class="cell"><label>CNPJ</label><span>${cte.rem_cnpj || ''}</span></div>
+            <div class="cell"><label>IE</label><span>${cte.rem_ie || ''}</span></div>
+            <div class="cell"><label>UF</label><span>${cte.rem_uf || ''}</span></div>
+        </div>
+        <div class="section-title">DESTINATÁRIO</div>
+        <div class="row">
+            <div class="cell" style="flex:2;"><label>RAZÃO SOCIAL</label><span>${cte.dest_razao_social || ''}</span></div>
+            <div class="cell"><label>CNPJ</label><span>${cte.dest_cnpj || ''}</span></div>
+            <div class="cell"><label>IE</label><span>${cte.dest_ie || ''}</span></div>
+            <div class="cell"><label>UF</label><span>${cte.dest_uf || ''}</span></div>
+        </div>
+        <div class="section-title">VALORES</div>
+        <div class="row">
+            <div class="cell"><label>VALOR SERVIÇO</label><span>${formatMoeda(cte.valor_total_servico)}</span></div>
+            <div class="cell"><label>VALOR CARGA</label><span>${formatMoeda(cte.valor_carga)}</span></div>
+            <div class="cell"><label>BASE ICMS</label><span>${formatMoeda(cte.bc_icms)}</span></div>
+            <div class="cell"><label>ALÍQ. ICMS</label><span>${Number(cte.aliquota_icms || 0).toFixed(2)}%</span></div>
+            <div class="cell"><label>VALOR ICMS</label><span>${formatMoeda(cte.valor_icms)}</span></div>
+        </div>
+        <div class="section-title">PERCURSO</div>
+        <div class="row">
+            <div class="cell"><label>ORIGEM</label><span>${cte.municipio_inicio || ''} - ${cte.uf_inicio || ''}</span></div>
+            <div class="cell"><label>DESTINO</label><span>${cte.municipio_fim || ''} - ${cte.uf_fim || ''}</span></div>
+            <div class="cell"><label>PLACA</label><span>${cte.placa_veiculo || ''}</span></div>
+            <div class="cell"><label>MOTORISTA</label><span>${cte.motorista_nome || ''}</span></div>
+        </div>
+        <div class="section-title">INFORMAÇÕES DA CARGA</div>
+        <div class="row">
+            <div class="cell"><label>PRODUTO PREDOMINANTE</label><span>${cte.produto_predominante || ''}</span></div>
+            <div class="cell"><label>PESO BRUTO (kg)</label><span>${Number(cte.carga_peso_bruto || 0).toFixed(2)}</span></div>
+            <div class="cell"><label>VOLUME</label><span>${cte.carga_volume || 0}</span></div>
+            <div class="cell"><label>CFOP</label><span>${cte.cfop || ''}</span></div>
+        </div>
+    </div>
+</body>
+</html>`;
+
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.send(html);
+        } catch (error) {
+            console.error('❌ Erro ao gerar DACTE:', error);
+            res.status(500).json({ error: 'Erro ao gerar DACTE' });
+        }
+    });
+
+    // ============================================================
     // VEÍCULOS CRUD
     // ============================================================
 

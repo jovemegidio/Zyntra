@@ -1,6 +1,6 @@
-﻿/**
- * API INTEGRAÇÍO COMPRAS-FINANCEIRO - ALUFORCE V.2
- * Integração entre módulos de Compras e Financeiro
+/**
+ * API INTEGRA??O COMPRAS-FINANCEIRO - ALUFORCE V.2
+ * Integra??o entre m?dulos de Compras e Financeiro
  */
 
 const express = require('express');
@@ -8,6 +8,15 @@ const router = express.Router();
 
 let pool;
 let authenticateToken;
+
+// Aplicar autentica??o em todas as rotas
+router.use((req, res, next) => {
+    if (authenticateToken) {
+        authenticateToken(req, res, next);
+    } else {
+        next();
+    }
+});
 
 /**
  * POST /api/integracao-compras-financeiro/gerar-financeiro
@@ -18,7 +27,7 @@ router.post('/gerar-financeiro', async (req, res) => {
         const { ordem_compra_id, parcelas = 1, primeiro_vencimento, intervalo_dias = 30 } = req.body;
 
         if (!ordem_compra_id) {
-            return res.status(400).json({ success: false, error: 'ID da ordem de compra é obrigatório' });
+            return res.status(400).json({ success: false, error: 'ID da ordem de compra ? obrigat?rio' });
         }
 
         // Buscar ordem de compra
@@ -30,7 +39,7 @@ router.post('/gerar-financeiro', async (req, res) => {
         `, [ordem_compra_id]);
 
         if (!ordens.length) {
-            return res.status(404).json({ success: false, error: 'Ordem de compra não encontrada' });
+            return res.status(404).json({ success: false, error: 'Ordem de compra n?o encontrada' });
         }
 
         const ordem = ordens[0];
@@ -65,13 +74,13 @@ router.post('/gerar-financeiro', async (req, res) => {
             UPDATE ordens_compra SET financeiro_gerado = 1 WHERE id = ?
         `, [ordem_compra_id]).catch(() => {});
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: `${parcelas} parcela(s) gerada(s) com sucesso`,
             data: contasCriadas
         });
     } catch (error) {
-        console.error('[INTEGRAÇÍO C-F] Erro ao gerar financeiro:', error);
+        console.error('[INTEGRA??O C-F] Erro ao gerar financeiro:', error);
         res.status(500).json({ success: false, error: 'Erro ao gerar financeiro' });
     }
 });
@@ -85,16 +94,16 @@ router.post('/pedido/gerar-financeiro', async (req, res) => {
         const { pedido_id, parcelas = 1, primeiro_vencimento, intervalo_dias = 30 } = req.body;
 
         if (!pedido_id) {
-            return res.status(400).json({ success: false, error: 'ID do pedido de compra é obrigatório' });
+            return res.status(400).json({ success: false, error: 'ID do pedido de compra ? obrigat?rio' });
         }
 
-        // Verificar se já existe conta para este pedido
+        // Verificar se j? existe conta para este pedido
         const [existente] = await pool.query(`
             SELECT id FROM contas_pagar WHERE descricao LIKE ? LIMIT 1
         `, [`%Pedido Compra #${pedido_id}%`]);
-        
+
         if (existente.length > 0) {
-            return res.status(400).json({ success: false, error: 'Já existe conta a pagar para este pedido' });
+            return res.status(400).json({ success: false, error: 'J? existe conta a pagar para este pedido' });
         }
 
         // Buscar pedido de compra
@@ -106,15 +115,15 @@ router.post('/pedido/gerar-financeiro', async (req, res) => {
         `, [pedido_id]);
 
         if (!pedidos.length) {
-            return res.status(404).json({ success: false, error: 'Pedido de compra não encontrado' });
+            return res.status(404).json({ success: false, error: 'Pedido de compra n?o encontrado' });
         }
 
         const pedido = pedidos[0];
-        
+
         if (!['aprovado', 'recebido'].includes(pedido.status)) {
             return res.status(400).json({ success: false, error: 'Pedido precisa estar aprovado ou recebido' });
         }
-        
+
         const valorTotal = parseFloat(pedido.valor_final) || parseFloat(pedido.valor_total) || 0;
         const valorParcela = valorTotal / parcelas;
         const dataBase = primeiro_vencimento ? new Date(primeiro_vencimento) : new Date();
@@ -142,18 +151,18 @@ router.post('/pedido/gerar-financeiro', async (req, res) => {
 
         // Registrar atividade
         await pool.query(`
-            INSERT INTO compras_atividades (tipo, descricao, created_at) 
+            INSERT INTO compras_atividades (tipo, descricao, created_at)
             VALUES ('financeiro', ?, NOW())
         `, [`Conta a pagar gerada para pedido ${pedido.numero_pedido} - R$ ${valorTotal.toFixed(2)}`]).catch(() => {});
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: `${parcelas} parcela(s) gerada(s) com sucesso para pedido ${pedido.numero_pedido}`,
             data: contasCriadas,
             valor_total: valorTotal
         });
     } catch (error) {
-        console.error('[INTEGRAÇÍO C-F] Erro ao gerar financeiro de pedido:', error);
+        console.error('[INTEGRA??O C-F] Erro ao gerar financeiro de pedido:', error);
         res.status(500).json({ success: false, error: 'Erro ao gerar financeiro' });
     }
 });
@@ -165,7 +174,7 @@ router.post('/pedido/gerar-financeiro', async (req, res) => {
 router.get('/pedidos-pendentes', async (req, res) => {
     try {
         const [pedidos] = await pool.query(`
-            SELECT 
+            SELECT
                 pc.id, pc.numero_pedido, pc.status, pc.valor_total, pc.valor_final,
                 pc.data_pedido, pc.data_entrega_prevista, pc.data_recebimento,
                 f.razao_social as fornecedor_nome, f.nome_fantasia as fornecedor_fantasia
@@ -174,7 +183,7 @@ router.get('/pedidos-pendentes', async (req, res) => {
             WHERE pc.status IN ('aprovado', 'recebido')
             AND pc.id NOT IN (
                 SELECT DISTINCT CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(descricao, '#', -1), ' ', 1) AS UNSIGNED)
-                FROM contas_pagar 
+                FROM contas_pagar
                 WHERE descricao LIKE '%Pedido Compra #%'
             )
             ORDER BY pc.created_at DESC
@@ -182,7 +191,7 @@ router.get('/pedidos-pendentes', async (req, res) => {
 
         res.json({ success: true, data: pedidos });
     } catch (error) {
-        console.error('[INTEGRAÇÍO C-F] Erro ao buscar pedidos pendentes:', error);
+        console.error('[INTEGRA??O C-F] Erro ao buscar pedidos pendentes:', error);
         res.json({ success: true, data: [] });
     }
 });
@@ -243,7 +252,7 @@ router.post('/sincronizar', async (req, res) => {
 
         res.json({ success: true, message: `${atualizados} ordem(ns) atualizada(s)` });
     } catch (error) {
-        console.error('[INTEGRAÇÍO C-F] Erro ao sincronizar:', error);
+        console.error('[INTEGRA??O C-F] Erro ao sincronizar:', error);
         res.status(500).json({ success: false, error: 'Erro ao sincronizar' });
     }
 });
@@ -279,13 +288,13 @@ router.get('/fornecedor/:id/resumo', async (req, res) => {
         const { id } = req.params;
 
         const [resumo] = await pool.query(`
-            SELECT 
+            SELECT
                 COUNT(*) as total_contas,
                 COALESCE(SUM(valor), 0) as valor_total,
                 COALESCE(SUM(CASE WHEN status = 'pago' THEN valor ELSE 0 END), 0) as valor_pago,
                 COALESCE(SUM(CASE WHEN status = 'pendente' THEN valor ELSE 0 END), 0) as valor_pendente,
                 COALESCE(SUM(CASE WHEN status = 'pendente' AND data_vencimento < CURDATE() THEN valor ELSE 0 END), 0) as valor_vencido
-            FROM contas_pagar 
+            FROM contas_pagar
             WHERE fornecedor_id = ?
         `, [id]);
 
@@ -300,3 +309,4 @@ module.exports = function(deps) {
     authenticateToken = deps.authenticateToken;
     return router;
 };
+
