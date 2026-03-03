@@ -115,7 +115,6 @@
                 <div class="ct-sidebar-header">
                     <div class="ct-sidebar-title">
                         <img src="/images/zyntra-branco.png" class="ct-logo" alt="Zyntra" onerror="this.style.display='none'">
-                        <span>Zyntra</span>
                     </div>
                     <button class="ct-btn-close" id="ct-close" title="Fechar">✕</button>
                 </div>
@@ -178,12 +177,18 @@
                         <button class="ct-rec-send" id="ct-rec-send">Enviar</button>
                     </div>
                     <div class="ct-input-wrap">
-                        <button class="ct-toolbar-btn" id="ct-btn-file" title="Enviar arquivo">📎</button>
+                        <button class="ct-toolbar-btn ct-btn-attach-icon" id="ct-btn-file" title="Enviar arquivo">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.49"/></svg>
+                        </button>
                         <textarea id="ct-input" placeholder="Escreva uma mensagem..." rows="1"></textarea>
-                        <button class="ct-toolbar-btn" id="ct-btn-emoji" title="Emoji">😊</button>
-                        <button class="ct-toolbar-btn" id="ct-btn-mic" title="Gravar áudio">🎤</button>
+                        <button class="ct-toolbar-btn ct-btn-emoji-icon" id="ct-btn-emoji" title="Emoji">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                        </button>
+                        <button class="ct-toolbar-btn ct-btn-mic-icon" id="ct-btn-mic" title="Gravar áudio">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                        </button>
                         <button class="ct-btn-send" id="ct-btn-send" title="Enviar">
-                            <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                         </button>
                     </div>
                     <input type="file" id="ct-file-input" style="display:none" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.zip,.rar" />
@@ -196,7 +201,23 @@
         // Modal novo canal
         const modal = document.createElement('div');
         modal.className = 'ct-modal-overlay hidden'; modal.id = 'ct-modal';
-        modal.innerHTML = `<div class="ct-modal"><h4>Novo Canal</h4><input type="text" id="ct-new-ch-name" placeholder="Nome do canal" /><input type="text" id="ct-new-ch-desc" placeholder="Descrição (opcional)" /><div class="ct-modal-actions"><button class="ct-btn-cancel" id="ct-modal-cancel">Cancelar</button><button class="ct-btn-confirm" id="ct-modal-create">Criar</button></div></div>`;
+        modal.innerHTML = `<div class="ct-modal"><h4>Novo Canal</h4>
+            <input type="text" id="ct-new-ch-name" placeholder="Nome do canal" />
+            <input type="text" id="ct-new-ch-desc" placeholder="Descrição (opcional)" />
+            <label class="ct-modal-label">Departamento (privacidade)</label>
+            <select id="ct-new-ch-dept" class="ct-modal-select">
+                <option value="todos">Todos</option>
+                <option value="financeiro">Financeiro</option>
+                <option value="comercial">Comercial</option>
+                <option value="ti">TI</option>
+                <option value="rh">RH</option>
+                <option value="pcp">PCP / Produção</option>
+                <option value="faturamento">Faturamento</option>
+                <option value="compras">Compras</option>
+                <option value="consultoria">Consultoria</option>
+            </select>
+            <label class="ct-modal-check"><input type="checkbox" id="ct-new-ch-admin" /> Somente admins podem enviar</label>
+            <div class="ct-modal-actions"><button class="ct-btn-cancel" id="ct-modal-cancel">Cancelar</button><button class="ct-btn-confirm" id="ct-modal-create">Criar</button></div></div>`;
         document.body.appendChild(modal);
 
         // Image preview overlay
@@ -299,10 +320,22 @@
     // ═══════════════════════════════════════════════════════
 
     function togglePanel() {
-        isOpen = !isOpen;
-        document.getElementById('ct-panel').classList.toggle('open', isOpen);
-        document.getElementById('ct-backdrop').classList.toggle('open', isOpen);
+        const panel = document.getElementById('ct-panel');
+        const backdrop = document.getElementById('ct-backdrop');
         if (isOpen) {
+            // Closing with animation
+            panel.classList.add('closing');
+            backdrop.classList.add('closing');
+            panel.addEventListener('animationend', function onEnd() {
+                panel.removeEventListener('animationend', onEnd);
+                panel.classList.remove('open', 'closing');
+                backdrop.classList.remove('open', 'closing');
+                isOpen = false;
+            }, { once: true });
+        } else {
+            isOpen = true;
+            panel.classList.add('open');
+            backdrop.classList.add('open');
             if (!socket) initSocket();
             if (!currentUser) loadCurrentUser();
         }
@@ -382,6 +415,24 @@
         socket.on('chat:user:status', data => { if (data.userId && data.status) { userStatuses[data.userId] = data.status; renderDMList(); updateChatHeader(); } });
         socket.on('chat:channel:created', ch => { if (!channels.find(c => c.id === ch.id)) { channels.push(ch); renderChannelList(); } });
 
+        // Edit/delete events
+        socket.on('chat:message:edited', data => {
+            const msgEl = document.querySelector(`.ct-message[data-msg-id="${data.msgId}"]`);
+            if (msgEl) {
+                const contentEl = msgEl.querySelector('.ct-msg-content');
+                if (contentEl) contentEl.innerHTML = esc(data.content) + ' <span class="ct-msg-edited">(editado)</span>';
+            }
+        });
+        socket.on('chat:message:deleted', data => {
+            const msgEl = document.querySelector(`.ct-message[data-msg-id="${data.msgId}"]`);
+            if (msgEl) msgEl.remove();
+        });
+        // Channel updated (name/settings)
+        socket.on('chat:channel:updated', data => {
+            const ch = channels.find(c => c.id === data.id);
+            if (ch) { Object.assign(ch, data); renderChannelList(); if (activeView.type === 'channel' && activeView.id === data.id) { updateChatHeader(); updateInputState(); } }
+        });
+
         const typingUsers = new Set();
         socket.on('chat:typing:start', data => {
             if (data.user === currentUser?.displayName) return;
@@ -425,16 +476,39 @@
     function renderChannelList() {
         const list = document.getElementById('ct-channel-list');
         if (!list) return;
-        const filtered = searchQuery ? channels.filter(c => c.nome.includes(searchQuery)) : channels;
-        list.innerHTML = filtered.map(ch => `
-            <li data-channel-id="${ch.id}" class="${activeView.type === 'channel' && activeView.id === ch.id ? 'active' : ''}">
+        // Filter by search and by department (private channels)
+        let filtered = searchQuery ? channels.filter(c => c.nome.includes(searchQuery)) : channels;
+        // Private channel: user must be admin OR belong to the channel's department
+        if (currentUser && !isAdmin()) {
+            const myDept = (currentUser.department || '').toLowerCase();
+            filtered = filtered.filter(ch => {
+                if (!ch.departamento || ch.departamento === 'todos') return true;
+                return ch.departamento.toLowerCase() === myDept || ch.nome === 'geral';
+            });
+        }
+        const lockIcon = '<svg class="ct-lock-icon" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+        list.innerHTML = filtered.map(ch => {
+            const adminBtns = isAdmin() ? `<button class="ct-ch-edit-btn" data-ch-id="${ch.id}" title="Editar canal">✎</button>` : '';
+            const lock = ch.somente_admin ? lockIcon : '';
+            return `<li data-channel-id="${ch.id}" class="${activeView.type === 'channel' && activeView.id === ch.id ? 'active' : ''}">
                 <span class="ct-channel-hash">#</span>
-                <span class="ct-nav-name">${esc(ch.nome)}</span>
-            </li>`).join('');
-        list.querySelectorAll('li').forEach(li => li.addEventListener('click', () => {
+                <span class="ct-nav-name">${esc(ch.nome)}</span>${lock}
+                <span class="ct-ch-actions">${adminBtns}</span>
+            </li>`;
+        }).join('');
+        list.querySelectorAll('li').forEach(li => li.addEventListener('click', e => {
+            if (e.target.closest('.ct-ch-edit-btn')) return;
             const ch = channels.find(c => c.id == li.dataset.channelId);
             if (ch) selectChannel(ch);
         }));
+        // Bind edit channel buttons
+        list.querySelectorAll('.ct-ch-edit-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                const ch = channels.find(c => c.id == btn.dataset.chId);
+                if (ch) showEditChannelModal(ch);
+            });
+        });
     }
 
     function selectChannel(channel) {
@@ -445,6 +519,7 @@
         document.getElementById('ct-input').placeholder = `Mensagem em #${channel.nome}`;
         renderChannelList(); renderDMList();
         loadChannelMessages(channel.id);
+        updateInputState();
     }
 
     async function loadChannelMessages(channelId) {
@@ -454,14 +529,66 @@
     async function createChannel() {
         const name = document.getElementById('ct-new-ch-name').value.trim();
         const desc = document.getElementById('ct-new-ch-desc').value.trim();
+        const dept = document.getElementById('ct-new-ch-dept')?.value || 'todos';
+        const adminOnly = document.getElementById('ct-new-ch-admin')?.checked || false;
         if (!name) return;
         try {
-            const data = await apiFetch('/api/chat/canais', { method: 'POST', body: JSON.stringify({ nome: name, descricao: desc }) });
+            const data = await apiFetch('/api/chat/canais', { method: 'POST', body: JSON.stringify({ nome: name, descricao: desc, departamento: dept, somente_admin: adminOnly }) });
             document.getElementById('ct-modal').classList.add('hidden');
             await loadChannels();
             const ch = channels.find(c => c.id === data.channel.id);
             if (ch) selectChannel(ch);
         } catch (err) { console.error('[CHAT]', err); }
+    }
+
+    function showEditChannelModal(ch) {
+        let modal = document.getElementById('ct-edit-ch-modal');
+        if (modal) modal.remove();
+        modal = document.createElement('div');
+        modal.className = 'ct-modal-overlay'; modal.id = 'ct-edit-ch-modal';
+        modal.innerHTML = `<div class="ct-modal">
+            <h4>✎ Editar Canal</h4>
+            <label class="ct-modal-label">Nome</label>
+            <input type="text" id="ct-edit-ch-name" value="${esc(ch.nome)}" />
+            <label class="ct-modal-label">Descrição</label>
+            <input type="text" id="ct-edit-ch-desc" value="${esc(ch.descricao || '')}" />
+            <label class="ct-modal-label">Departamento (privacidade)</label>
+            <select id="ct-edit-ch-dept" class="ct-modal-select">
+                <option value="todos" ${(!ch.departamento || ch.departamento === 'todos') ? 'selected' : ''}>Todos</option>
+                <option value="financeiro" ${ch.departamento === 'financeiro' ? 'selected' : ''}>Financeiro</option>
+                <option value="comercial" ${ch.departamento === 'comercial' ? 'selected' : ''}>Comercial</option>
+                <option value="ti" ${ch.departamento === 'ti' ? 'selected' : ''}>TI</option>
+                <option value="rh" ${ch.departamento === 'rh' ? 'selected' : ''}>RH</option>
+                <option value="pcp" ${ch.departamento === 'pcp' ? 'selected' : ''}>PCP / Produção</option>
+                <option value="faturamento" ${ch.departamento === 'faturamento' ? 'selected' : ''}>Faturamento</option>
+                <option value="compras" ${ch.departamento === 'compras' ? 'selected' : ''}>Compras</option>
+                <option value="consultoria" ${ch.departamento === 'consultoria' ? 'selected' : ''}>Consultoria</option>
+            </select>
+            <label class="ct-modal-check"><input type="checkbox" id="ct-edit-ch-admin" ${ch.somente_admin ? 'checked' : ''} /> Somente admins podem enviar</label>
+            <div class="ct-modal-actions">
+                <button class="ct-btn-cancel" id="ct-edit-ch-cancel">Cancelar</button>
+                <button class="ct-btn-confirm" id="ct-edit-ch-save">Salvar</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+        document.getElementById('ct-edit-ch-cancel').addEventListener('click', () => modal.remove());
+        document.getElementById('ct-edit-ch-save').addEventListener('click', async () => {
+            const newName = document.getElementById('ct-edit-ch-name').value.trim();
+            const newDesc = document.getElementById('ct-edit-ch-desc').value.trim();
+            const newDept = document.getElementById('ct-edit-ch-dept').value;
+            const newAdminOnly = document.getElementById('ct-edit-ch-admin').checked;
+            if (!newName) return;
+            try {
+                await apiFetch(`/api/chat/canais/${ch.id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ nome: newName, descricao: newDesc, departamento: newDept, somente_admin: newAdminOnly })
+                });
+                modal.remove();
+                await loadChannels();
+                if (activeView.type === 'channel' && activeView.id === ch.id) updateChatHeader();
+            } catch (err) { console.error('[CHAT] Erro ao editar canal:', err); alert('Erro ao salvar alterações do canal.'); }
+        });
     }
 
     // ═══════════════════════════════════════════════════════
@@ -485,7 +612,7 @@
         botList.innerHTML = bots.map(u => {
             const isActive = activeView.type === 'dm' && activeView.id === u.id;
             return `<div class="ct-dm-item ${isActive ? 'active' : ''}" data-user-id="${u.id}">
-                <div class="ct-dm-avatar bot-dm-avatar" style="background:linear-gradient(135deg,#a855f7,#6366f1)">🤖<span class="ct-status-dot bot"></span></div>
+                <div class="ct-dm-avatar bot-dm-avatar" style="background:linear-gradient(135deg,#a855f7,#6366f1)"><img src="/chat-teams/BobAI.png" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.textContent='🤖'" /><span class="ct-status-dot bot"></span></div>
                 <div class="ct-dm-info"><span class="ct-dm-name">BOB I.A.</span><span class="ct-dm-dept">Assistente Virtual • TI</span></div>
             </div>`;
         }).join('');
@@ -520,6 +647,7 @@
         renderChannelList(); renderDMList();
         loadDMMessages(user.id);
         unreadCount = Math.max(0, unreadCount - 1); updateFabBadge();
+        updateInputState();
     }
 
     async function loadDMMessages(otherId) {
@@ -540,9 +668,14 @@
             const ch = channels.find(c => c.id === activeView.id);
             avatarEl.className = 'ct-header-avatar channel-avatar';
             avatarEl.innerHTML = '#';
-            titleEl.textContent = `#${ch?.nome || 'geral'}`;
+            const lockTag = ch?.somente_admin ? ' 🔒' : '';
+            titleEl.textContent = `#${ch?.nome || 'geral'}${lockTag}`;
             descEl.textContent = ch?.descricao || '';
-            rightEl.innerHTML = `<span class="ct-online-badge" id="ct-online-count">${onlineUserIds.length} online</span>`;
+            const editBtn = isAdmin() ? `<button class="ct-header-edit-btn" id="ct-header-edit-ch" title="Editar canal">✎</button>` : '';
+            rightEl.innerHTML = `${editBtn}<span class="ct-online-badge" id="ct-online-count">${onlineUserIds.length} online</span>`;
+            // Bind edit button
+            const editEl = document.getElementById('ct-header-edit-ch');
+            if (editEl && ch) editEl.addEventListener('click', () => showEditChannelModal(ch));
         } else {
             const user = users.find(u => u.id === activeView.id);
             if (!user) return;
@@ -551,7 +684,7 @@
             if (user.isBot) {
                 avatarEl.className = 'ct-header-avatar';
                 avatarEl.style.background = 'linear-gradient(135deg,#a855f7,#6366f1)';
-                avatarEl.innerHTML = '🤖';
+                avatarEl.innerHTML = `<img src="/chat-teams/BobAI.png" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.textContent='🤖'" />`;
                 titleEl.innerHTML = `BOB I.A. <span class="ct-bot-badge">🤖 Assistente</span>`;
                 descEl.textContent = 'Suporte automático 24/7 • Departamento TI';
                 rightEl.innerHTML = `<span class="ct-status-text bot" style="color:var(--ct-purple);background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.12)">Sempre Online</span>`;
@@ -578,7 +711,8 @@
         if (messages.length === 0) {
             const targetUser = activeView.type === 'dm' ? users.find(u => u.id === activeView.id) : null;
             const isBot = targetUser?.isBot;
-            container.innerHTML = `<div class="ct-welcome"><span class="ct-welcome-icon">${isBot ? '🤖' : '👋'}</span><h4>${isBot ? 'BOB I.A.' : 'Bem-vindo!'}</h4><p>${isBot ? 'Assistente virtual do TI.<br>Descreva seu problema!' : 'Início da conversa. Diga olá!'}</p></div>`;
+            const welcomeIcon = isBot ? '<img src="/chat-teams/BobAI.png" style="width:64px;height:64px;border-radius:50%;object-fit:cover" onerror="this.textContent=\'🤖\'" />' : '👋';
+            container.innerHTML = `<div class="ct-welcome"><span class="ct-welcome-icon">${welcomeIcon}</span><h4>${isBot ? 'BOB I.A.' : 'Bem-vindo!'}</h4><p>${isBot ? 'Assistente virtual do TI.<br>Descreva seu problema!' : 'Início da conversa. Diga olá!'}</p></div>`;
             scrollBottom(); return;
         }
         let html = '', lastDate = '';
@@ -590,6 +724,7 @@
         container.innerHTML = html;
         bindImageClicks();
         bindAudioPlayers();
+        bindMsgActions();
         scrollBottom();
     }
 
@@ -619,12 +754,20 @@
 
         // Avatar
         let avatarHtml;
-        if (isBot) avatarHtml = `<div class="ct-msg-avatar bot-avatar" style="background:linear-gradient(135deg,#a855f7,#6366f1)">🤖</div>`;
+        if (isBot) avatarHtml = `<div class="ct-msg-avatar bot-avatar" style="background:linear-gradient(135deg,#a855f7,#6366f1)"><img src="/chat-teams/BobAI.png" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.textContent='🤖'" /></div>`;
         else if (msg.foto) { const url = msg.foto.startsWith('/') ? msg.foto : `/avatars/${msg.foto}`; avatarHtml = `<div class="ct-msg-avatar" style="background:${color}"><img src="${url}" onerror="this.parentElement.textContent='${initials(name)}'" /></div>`; }
         else avatarHtml = `<div class="ct-msg-avatar" style="background:${color}">${initials(name)}</div>`;
 
         const displayName = isBot ? 'BOB I.A.' : name;
-        return `<div class="ct-message${botClass}">${avatarHtml}<div class="ct-msg-body"><div class="ct-msg-header"><span class="ct-msg-author${authorCls}">${esc(displayName)}</span>${badge}<span class="ct-msg-time">${time}</span></div>${content ? `<div class="ct-msg-content">${content}</div>` : ''}${attachmentHtml}</div></div>`;
+        const isMine = !isBot && (msg.userId === currentUser?.id || msg.fromId === currentUser?.id);
+        const editedTag = msg.editado ? '<span class="ct-msg-edited">(editado)</span>' : '';
+        const msgType = activeView.type;
+        // Context menu for own messages (not bot)
+        let ctxBtn = '';
+        if (isMine) {
+            ctxBtn = `<div class="ct-msg-actions"><button class="ct-msg-action-btn" data-msg-id="${msg.id}" data-msg-type="${msgType}" title="Opções">⋯</button></div>`;
+        }
+        return `<div class="ct-message${botClass}" data-msg-id="${msg.id}" data-msg-type="${msgType}" data-msg-user="${msg.userId || msg.fromId}">${ctxBtn}${avatarHtml}<div class="ct-msg-body"><div class="ct-msg-header"><span class="ct-msg-author${authorCls}">${esc(displayName)}</span>${badge}<span class="ct-msg-time">${time}</span>${editedTag}</div>${content ? `<div class="ct-msg-content">${content}</div>` : ''}${attachmentHtml}</div></div>`;
     }
 
     function renderAudioPlayer(url, name) {
@@ -639,6 +782,7 @@
         container.insertAdjacentHTML('beforeend', renderMsg(msg));
         bindImageClicks();
         bindAudioPlayers();
+        bindMsgActions();
         scrollBottom();
     }
 
@@ -677,6 +821,9 @@
     async function sendMessage() {
         const input = document.getElementById('ct-input');
         const content = input.value.trim();
+
+        // Check channel permission
+        if (activeView.type === 'channel' && !canSendInChannel()) return;
 
         // Upload file first if pending
         if (pendingFile) {
@@ -768,31 +915,52 @@
     // AUDIO RECORDING
     // ═══════════════════════════════════════════════════════
 
+    function getSupportedAudioMime() {
+        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4', 'audio/mpeg'];
+        for (const type of types) { if (MediaRecorder.isTypeSupported(type)) return type; }
+        return '';
+    }
+
     async function toggleRecording() {
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             cancelRecording();
             return;
         }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Seu navegador não suporta gravação de áudio. Use Chrome, Edge ou Firefox.');
+            return;
+        }
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } });
             audioChunks = [];
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            const mimeType = getSupportedAudioMime();
+            const recOptions = mimeType ? { mimeType } : {};
+            mediaRecorder = new MediaRecorder(stream, recOptions);
             mediaRecorder.addEventListener('dataavailable', e => { if (e.data.size > 0) audioChunks.push(e.data); });
-            mediaRecorder.start();
+            mediaRecorder.addEventListener('error', err => { console.error('[CHAT] Erro no gravador:', err); cancelRecording(); });
+            mediaRecorder.start(250); // collect data every 250ms for smoother waves
             recStartTime = Date.now();
             document.getElementById('ct-recording-bar').classList.add('visible');
             document.getElementById('ct-btn-mic').classList.add('recording');
 
-            // Timer
+            // Timer + wave animation
             recInterval = setInterval(() => {
                 const elapsed = Math.floor((Date.now() - recStartTime) / 1000);
                 document.getElementById('ct-rec-timer').textContent = formatDuration(elapsed);
-                // Animate wave bars
                 document.querySelectorAll('#ct-rec-waves .ct-rec-bar').forEach(bar => {
                     bar.style.height = (3 + Math.random() * 18) + 'px';
                 });
             }, 150);
-        } catch (err) { console.error('[CHAT] Erro no microfone:', err); alert('Não foi possível acessar o microfone.'); }
+        } catch (err) {
+            console.error('[CHAT] Erro no microfone:', err);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                alert('Permissão do microfone negada. Clique no ícone de cadeado na barra de endereço e permita o acesso ao microfone.');
+            } else if (err.name === 'NotFoundError') {
+                alert('Nenhum microfone encontrado. Conecte um microfone e tente novamente.');
+            } else {
+                alert('Não foi possível acessar o microfone: ' + (err.message || 'Erro desconhecido'));
+            }
+        }
     }
 
     function cancelRecording() {
@@ -805,29 +973,161 @@
 
     function sendRecording() {
         if (!mediaRecorder) return;
+        const recMime = mediaRecorder.mimeType || 'audio/webm';
         mediaRecorder.addEventListener('stop', async () => {
-            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            const blob = new Blob(audioChunks, { type: recMime });
             audioChunks = [];
             clearInterval(recInterval);
             document.getElementById('ct-recording-bar').classList.remove('visible');
             document.getElementById('ct-btn-mic').classList.remove('recording');
 
+            if (blob.size === 0) { console.warn('[CHAT] Áudio vazio, ignorando.'); return; }
+
+            // Determine file extension from MIME type
+            const extMap = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3' };
+            const ext = extMap[recMime.split(';')[0]] || 'webm';
+
             try {
                 const formData = new FormData();
-                formData.append('audio', blob, `audio-${Date.now()}.webm`);
+                formData.append('audio', blob, `audio-${Date.now()}.${ext}`);
                 const token = getAuthToken();
                 const res = await fetch('/api/chat/upload-audio', { method: 'POST', body: formData, headers: token ? { 'Authorization': `Bearer ${token}` } : {}, credentials: 'include' });
-                if (!res.ok) throw new Error('Upload áudio falhou');
+                if (!res.ok) { const errText = await res.text().catch(() => ''); throw new Error(`Upload áudio falhou (${res.status}): ${errText}`); }
                 const data = await res.json();
 
-                const msgData = { content: '', fileUrl: data.url, fileName: data.originalName || 'Áudio', fileSize: data.size || blob.size, fileMime: 'audio/webm' };
+                const msgData = { content: '', fileUrl: data.url, fileName: data.originalName || 'Áudio', fileSize: data.size || blob.size, fileMime: recMime };
                 if (activeView.type === 'channel') socket.emit('chat:channel:message', { channelId: activeView.id, userId: currentUser.id, ...msgData });
                 else socket.emit('chat:dm:message', { fromId: currentUser.id, toId: activeView.id, ...msgData });
-            } catch (err) { console.error('[CHAT] Erro upload áudio:', err); }
+            } catch (err) { console.error('[CHAT] Erro upload áudio:', err); alert('Erro ao enviar áudio. Tente novamente.'); }
         });
         mediaRecorder.stop();
         mediaRecorder.stream.getTracks().forEach(t => t.stop());
         mediaRecorder = null;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // MESSAGE ACTIONS (Edit / Delete)
+    // ═══════════════════════════════════════════════════════
+
+    function bindMsgActions() {
+        document.querySelectorAll('.ct-msg-action-btn').forEach(btn => {
+            if (btn.dataset.bound) return; btn.dataset.bound = '1';
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                closeContextMenu();
+                const msgId = parseInt(btn.dataset.msgId);
+                const msgType = btn.dataset.msgType;
+                const msgEl = btn.closest('.ct-message');
+                const contentEl = msgEl?.querySelector('.ct-msg-content');
+                const rect = btn.getBoundingClientRect();
+                showContextMenu(msgId, msgType, contentEl?.textContent || '', rect);
+            });
+        });
+    }
+
+    function showContextMenu(msgId, msgType, currentText, rect) {
+        closeContextMenu();
+        const menu = document.createElement('div');
+        menu.className = 'ct-context-menu';
+        menu.id = 'ct-context-menu';
+        const hasText = currentText.trim().length > 0;
+        menu.innerHTML = `
+            ${hasText ? `<button class="ct-ctx-item" data-action="edit"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Editar</button>` : ''}
+            <button class="ct-ctx-item" data-action="delete-me"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Apagar para mim</button>
+            <button class="ct-ctx-item ct-ctx-danger" data-action="delete-all"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Excluir para todos</button>
+        `;
+        document.body.appendChild(menu);
+        // Position
+        const panelRect = document.getElementById('ct-panel').getBoundingClientRect();
+        menu.style.top = Math.min(rect.bottom + 4, panelRect.bottom - menu.offsetHeight - 8) + 'px';
+        menu.style.left = Math.min(rect.left, panelRect.right - menu.offsetWidth - 8) + 'px';
+
+        // Bind actions
+        menu.querySelectorAll('.ct-ctx-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const action = item.dataset.action;
+                if (action === 'edit') startEditMessage(msgId, msgType, currentText);
+                else if (action === 'delete-me') deleteMessage(msgId, msgType, 'me');
+                else if (action === 'delete-all') deleteMessage(msgId, msgType, 'all');
+                closeContextMenu();
+            });
+        });
+
+        // Close on outside click
+        setTimeout(() => document.addEventListener('click', closeContextMenu, { once: true }), 10);
+    }
+
+    function closeContextMenu() {
+        const existing = document.getElementById('ct-context-menu');
+        if (existing) existing.remove();
+    }
+
+    function startEditMessage(msgId, msgType, currentText) {
+        const msgEl = document.querySelector(`.ct-message[data-msg-id="${msgId}"]`);
+        if (!msgEl) return;
+        const contentEl = msgEl.querySelector('.ct-msg-content');
+        if (!contentEl) return;
+        const originalText = currentText;
+        contentEl.innerHTML = `<div class="ct-edit-wrap"><textarea class="ct-edit-input">${esc(originalText)}</textarea><div class="ct-edit-actions"><button class="ct-edit-cancel">Cancelar</button><button class="ct-edit-save">Salvar</button></div></div>`;
+        const textarea = contentEl.querySelector('.ct-edit-input');
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+
+        contentEl.querySelector('.ct-edit-cancel').addEventListener('click', () => {
+            contentEl.textContent = originalText;
+        });
+        contentEl.querySelector('.ct-edit-save').addEventListener('click', () => {
+            const newText = textarea.value.trim();
+            if (!newText || newText === originalText) { contentEl.textContent = originalText; return; }
+            socket.emit('chat:message:edit', { msgId, msgType, newContent: newText, userId: currentUser.id });
+            contentEl.innerHTML = esc(newText) + ' <span class="ct-msg-edited">(editado)</span>';
+        });
+        textarea.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); contentEl.querySelector('.ct-edit-save').click(); }
+            if (e.key === 'Escape') contentEl.querySelector('.ct-edit-cancel').click();
+        });
+    }
+
+    function deleteMessage(msgId, msgType, scope) {
+        if (scope === 'all') {
+            socket.emit('chat:message:delete', { msgId, msgType, userId: currentUser.id, scope: 'all' });
+        } else {
+            // Delete for me — just hide locally
+            const msgEl = document.querySelector(`.ct-message[data-msg-id="${msgId}"]`);
+            if (msgEl) msgEl.remove();
+            socket.emit('chat:message:delete', { msgId, msgType, userId: currentUser.id, scope: 'me' });
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CHANNEL MANAGEMENT (edit name, admin-only, private)
+    // ═══════════════════════════════════════════════════════
+
+    function isAdmin() {
+        return currentUser && (currentUser.role === 'admin' || currentUser.role === 'Admin' || currentUser.role === 'Administrador');
+    }
+
+    function canSendInChannel() {
+        if (!activeView || activeView.type !== 'channel') return true;
+        const ch = channels.find(c => c.id === activeView.id);
+        if (!ch) return true;
+        if (ch.somente_admin && !isAdmin()) return false;
+        return true;
+    }
+
+    function updateInputState() {
+        const inputArea = document.querySelector('.ct-input-area');
+        if (!inputArea) return;
+        if (activeView.type === 'channel' && !canSendInChannel()) {
+            inputArea.classList.add('ct-disabled');
+            document.getElementById('ct-input').placeholder = '🔒 Somente administradores podem enviar mensagens neste canal';
+            document.getElementById('ct-input').disabled = true;
+        } else {
+            inputArea.classList.remove('ct-disabled');
+            document.getElementById('ct-input').disabled = false;
+        }
     }
 
     // ═══════════════════════════════════════════════════════

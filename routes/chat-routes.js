@@ -77,7 +77,7 @@ module.exports = function registerChatRoutes(app, deps) {
                 email: 'bot@aluforce.com',
                 department: 'TI',
                 avatarColor: '#A855F7',
-                foto: null,
+                foto: '/chat-teams/BobAI.png',
                 role: 'bot',
                 isBot: true
             });
@@ -90,15 +90,46 @@ module.exports = function registerChatRoutes(app, deps) {
     });
 
     /**
-     * GET /api/chat/canais — Lista todos os canais
+     * GET /api/chat/canais — Lista canais (filtrado por departamento do usuário)
      */
     app.get('/api/chat/canais', authenticateToken, async (req, res) => {
         try {
-            const [rows] = await pool.query(`
-                SELECT id, nome, descricao FROM chat_canais
-                WHERE ativo = 1
-                ORDER BY nome ASC
-            `);
+            let rows;
+            try {
+                [rows] = await pool.query(`
+                    SELECT id, nome, descricao, departamento, somente_admin FROM chat_canais
+                    WHERE ativo = 1
+                    ORDER BY nome ASC
+                `);
+            } catch (colErr) {
+                [rows] = await pool.query(`
+                    SELECT id, nome, descricao FROM chat_canais
+                    WHERE ativo = 1
+                    ORDER BY nome ASC
+                `);
+                // add defaults
+                rows = rows.map(r => ({ ...r, departamento: 'todos', somente_admin: 0 }));
+            }
+
+            // Filter by user department (admins see all)
+            const userRole = (req.user.role || '').toLowerCase();
+            const isAdmin = userRole === 'admin' || userRole === 'administrador';
+            if (!isAdmin) {
+                let userDept = '';
+                try {
+                    const [uRows] = await pool.query(
+                        'SELECT COALESCE(departamento, role, \'Geral\') as departamento FROM usuarios WHERE id = ?', [req.user.id]
+                    );
+                    userDept = (uRows[0]?.departamento || '').toLowerCase();
+                } catch(e) { userDept = (req.user.role || '').toLowerCase(); }
+
+                rows = rows.filter(ch => {
+                    if (!ch.departamento || ch.departamento === 'todos') return true;
+                    if (ch.nome === 'geral') return true;
+                    return ch.departamento.toLowerCase() === userDept;
+                });
+            }
+
             res.json(rows);
         } catch (err) {
             console.error('[CHAT] Erro ao listar canais:', err.message);
@@ -107,11 +138,11 @@ module.exports = function registerChatRoutes(app, deps) {
     });
 
     /**
-     * POST /api/chat/canais — Cria um novo canal
+     * POST /api/chat/canais — Cria um novo canal (com departamento e somente_admin)
      */
     app.post('/api/chat/canais', authenticateToken, async (req, res) => {
         try {
-            const { nome, descricao } = req.body;
+            const { nome, descricao, departamento, somente_admin } = req.body;
             const cleanName = (nome || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
             if (!cleanName) return res.status(400).json({ error: 'Nome do canal é obrigatório' });
 
@@ -119,12 +150,20 @@ module.exports = function registerChatRoutes(app, deps) {
             const [existing] = await pool.query('SELECT id FROM chat_canais WHERE nome = ?', [cleanName]);
             if (existing.length > 0) return res.status(409).json({ error: 'Canal já existe' });
 
-            const [result] = await pool.query(
-                'INSERT INTO chat_canais (nome, descricao, criado_por) VALUES (?, ?, ?)',
-                [cleanName, descricao || '', req.user.id]
-            );
+            let result;
+            try {
+                [result] = await pool.query(
+                    'INSERT INTO chat_canais (nome, descricao, criado_por, departamento, somente_admin) VALUES (?, ?, ?, ?, ?)',
+                    [cleanName, descricao || '', req.user.id, departamento || 'todos', somente_admin ? 1 : 0]
+                );
+            } catch (colErr) {
+                [result] = await pool.query(
+                    'INSERT INTO chat_canais (nome, descricao, criado_por) VALUES (?, ?, ?)',
+                    [cleanName, descricao || '', req.user.id]
+                );
+            }
 
-            const channel = { id: result.insertId, nome: cleanName, descricao: descricao || '' };
+            const channel = { id: result.insertId, nome: cleanName, descricao: descricao || '', departamento: departamento || 'todos', somente_admin: somente_admin ? 1 : 0 };
 
             // Notificar todos via Socket.IO
             if (global.io) {
@@ -135,6 +174,50 @@ module.exports = function registerChatRoutes(app, deps) {
         } catch (err) {
             console.error('[CHAT] Erro ao criar canal:', err.message);
             res.status(500).json({ error: 'Erro ao criar canal' });
+        }
+    });
+
+    /**
+     * PUT /api/chat/canais/:id — Atualiza canal (admin only)
+     */
+    app.put('/api/chat/canais/:id', authenticateToken, async (req, res) => {
+        try {
+            const userRole = (req.user.role || '').toLowerCase();
+            const isAdmin = userRole === 'admin' || userRole === 'administrador';
+            if (!isAdmin) return res.status(403).json({ error: 'Somente administradores podem editar canais' });
+
+            const channelId = parseInt(req.params.id);
+            const { nome, descricao, departamento, somente_admin } = req.body;
+            const cleanName = (nome || '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            if (!cleanName) return res.status(400).json({ error: 'Nome do canal é obrigatório' });
+
+            // Check duplicates (excluding self)
+            const [dup] = await pool.query('SELECT id FROM chat_canais WHERE nome = ? AND id != ?', [cleanName, channelId]);
+            if (dup.length > 0) return res.status(409).json({ error: 'Já existe outro canal com esse nome' });
+
+            try {
+                await pool.query(
+                    'UPDATE chat_canais SET nome = ?, descricao = ?, departamento = ?, somente_admin = ? WHERE id = ?',
+                    [cleanName, descricao || '', departamento || 'todos', somente_admin ? 1 : 0, channelId]
+                );
+            } catch (colErr) {
+                await pool.query(
+                    'UPDATE chat_canais SET nome = ?, descricao = ? WHERE id = ?',
+                    [cleanName, descricao || '', channelId]
+                );
+            }
+
+            const channel = { id: channelId, nome: cleanName, descricao: descricao || '', departamento: departamento || 'todos', somente_admin: somente_admin ? 1 : 0 };
+
+            // Notify all connected clients
+            if (global.io) {
+                global.io.of('/chat-teams').emit('chat:channel:updated', channel);
+            }
+
+            res.json({ channel });
+        } catch (err) {
+            console.error('[CHAT] Erro ao atualizar canal:', err.message);
+            res.status(500).json({ error: 'Erro ao atualizar canal' });
         }
     });
 
@@ -151,10 +234,11 @@ module.exports = function registerChatRoutes(app, deps) {
                 [rows] = await pool.query(`
                     SELECT m.id, m.canal_id, m.usuario_id, m.conteudo, m.criado_em,
                            m.arquivo_url, m.arquivo_nome, m.arquivo_tamanho,
+                           COALESCE(m.editado, 0) as editado, COALESCE(m.excluida, 0) as excluida,
                            u.nome, u.apelido, u.foto, u.avatar
                     FROM chat_mensagens_canal m
                     LEFT JOIN usuarios u ON u.id = m.usuario_id
-                    WHERE m.canal_id = ?
+                    WHERE m.canal_id = ? AND COALESCE(m.excluida, 0) = 0
                     ORDER BY m.criado_em ASC
                     LIMIT ?
                 `, [canalId, limit]);
@@ -181,7 +265,8 @@ module.exports = function registerChatRoutes(app, deps) {
                 foto: r.foto || r.avatar || null,
                 fileUrl: r.arquivo_url || null,
                 fileName: r.arquivo_nome || null,
-                fileSize: r.arquivo_tamanho || null
+                fileSize: r.arquivo_tamanho || null,
+                editado: r.editado || 0
             }));
 
             res.json(messages);
@@ -210,6 +295,8 @@ module.exports = function registerChatRoutes(app, deps) {
                 [rows] = await pool.query(`
                     SELECT m.id, m.de_usuario_id, m.para_usuario_id, m.conteudo, m.criado_em,
                            m.arquivo_url, m.arquivo_nome, m.arquivo_tamanho,
+                           COALESCE(m.editado, 0) as editado, COALESCE(m.excluida, 0) as excluida,
+                           m.excluida_para,
                            u.nome, u.apelido, u.foto, u.avatar
                     FROM chat_mensagens_diretas m
                     LEFT JOIN usuarios u ON u.id = m.de_usuario_id
@@ -231,7 +318,19 @@ module.exports = function registerChatRoutes(app, deps) {
                 `, [myId, otherId, otherId, myId, limit]);
             }
 
-            const messages = rows.map(r => ({
+            // Filter out messages deleted for this user
+            const filtered = rows.filter(r => {
+                if (r.excluida) return false;
+                if (r.excluida_para) {
+                    try {
+                        const delFor = typeof r.excluida_para === 'string' ? JSON.parse(r.excluida_para) : r.excluida_para;
+                        if (Array.isArray(delFor) && delFor.includes(myId)) return false;
+                    } catch(e) {}
+                }
+                return true;
+            });
+
+            const messages = filtered.map(r => ({
                 id: r.id,
                 fromId: r.de_usuario_id,
                 toId: r.para_usuario_id,
@@ -242,7 +341,8 @@ module.exports = function registerChatRoutes(app, deps) {
                 foto: r.foto || r.avatar || null,
                 fileUrl: r.arquivo_url || null,
                 fileName: r.arquivo_nome || null,
-                fileSize: r.arquivo_tamanho || null
+                fileSize: r.arquivo_tamanho || null,
+                editado: r.editado || 0
             }));
 
             // Marcar como lidas
@@ -326,6 +426,19 @@ module.exports.setupChatTeamsSocket = function setupChatTeamsSocket(io, pool) {
             try {
                 const { channelId, userId, content, fileUrl, fileName, fileSize, fileMime } = data;
                 if (!channelId || !userId || (!content && !fileUrl)) return;
+
+                // Check admin-only channel
+                try {
+                    const [chRows] = await pool.query('SELECT somente_admin FROM chat_canais WHERE id = ?', [channelId]);
+                    if (chRows.length && chRows[0].somente_admin) {
+                        const [uRows] = await pool.query('SELECT role FROM usuarios WHERE id = ?', [userId]);
+                        const uRole = (uRows[0]?.role || '').toLowerCase();
+                        if (uRole !== 'admin' && uRole !== 'administrador') {
+                            socket.emit('chat:error', { message: 'Somente administradores podem enviar mensagens neste canal' });
+                            return;
+                        }
+                    }
+                } catch(colErr) { /* column doesn't exist yet, allow */ }
 
                 // Salvar no MySQL (com ou sem arquivo)
                 let result;
@@ -452,6 +565,125 @@ module.exports.setupChatTeamsSocket = function setupChatTeamsSocket(io, pool) {
             } else if (data.toId) {
                 const target = onlineUsers.get(data.toId);
                 if (target) chatNs.to(target.socketId).emit('chat:typing:stop', data);
+            }
+        });
+
+        // ── Editar mensagem ──
+        socket.on('chat:message:edit', async (data) => {
+            try {
+                const { msgId, msgType, newContent, userId } = data;
+                if (!msgId || !newContent || !userId) return;
+
+                const table = msgType === 'channel' ? 'chat_mensagens_canal' : 'chat_mensagens_diretas';
+                const userCol = msgType === 'channel' ? 'usuario_id' : 'de_usuario_id';
+
+                // Verify ownership
+                const [rows] = await pool.query(`SELECT ${userCol} as uid, canal_id FROM ${table} WHERE id = ?`, [msgId]);
+                if (!rows.length || rows[0].uid !== userId) {
+                    socket.emit('chat:error', { message: 'Você só pode editar suas próprias mensagens' });
+                    return;
+                }
+
+                // Update message
+                try {
+                    await pool.query(`UPDATE ${table} SET conteudo = ?, editado = 1, editado_em = NOW() WHERE id = ?`, [newContent, msgId]);
+                } catch(colErr) {
+                    await pool.query(`UPDATE ${table} SET conteudo = ? WHERE id = ?`, [newContent, msgId]);
+                }
+
+                const editedData = { msgId, msgType, newContent, userId };
+
+                if (msgType === 'channel' && rows[0].canal_id) {
+                    chatNs.to(`channel:${rows[0].canal_id}`).emit('chat:message:edited', editedData);
+                    socket.emit('chat:message:edited', editedData);
+                } else {
+                    // DM - notify both parties
+                    socket.emit('chat:message:edited', editedData);
+                    // Find the other user in the DM
+                    const [dmRow] = await pool.query(`SELECT de_usuario_id, para_usuario_id FROM ${table} WHERE id = ?`, [msgId]);
+                    if (dmRow.length) {
+                        const otherId = dmRow[0].de_usuario_id === userId ? dmRow[0].para_usuario_id : dmRow[0].de_usuario_id;
+                        const target = onlineUsers.get(otherId);
+                        if (target) chatNs.to(target.socketId).emit('chat:message:edited', editedData);
+                    }
+                }
+
+                console.log(`[CHAT] ✏️ Mensagem ${msgId} editada por user ${userId}`);
+            } catch (err) {
+                console.error('[CHAT] Erro ao editar mensagem:', err.message);
+            }
+        });
+
+        // ── Excluir mensagem ──
+        socket.on('chat:message:delete', async (data) => {
+            try {
+                const { msgId, msgType, userId, scope } = data;
+                if (!msgId || !userId) return;
+
+                const table = msgType === 'channel' ? 'chat_mensagens_canal' : 'chat_mensagens_diretas';
+                const userCol = msgType === 'channel' ? 'usuario_id' : 'de_usuario_id';
+
+                // Verify ownership
+                const [rows] = await pool.query(`SELECT ${userCol} as uid, canal_id FROM ${table} WHERE id = ?`, [msgId]);
+                if (!rows.length || rows[0].uid !== userId) {
+                    socket.emit('chat:error', { message: 'Você só pode excluir suas próprias mensagens' });
+                    return;
+                }
+
+                if (scope === 'all') {
+                    // Excluir para todos - soft delete
+                    try {
+                        await pool.query(`UPDATE ${table} SET excluida = 1 WHERE id = ?`, [msgId]);
+                    } catch(colErr) {
+                        await pool.query(`DELETE FROM ${table} WHERE id = ?`, [msgId]);
+                    }
+
+                    const deleteData = { msgId, msgType, scope: 'all' };
+                    if (msgType === 'channel' && rows[0].canal_id) {
+                        chatNs.to(`channel:${rows[0].canal_id}`).emit('chat:message:deleted', deleteData);
+                        socket.emit('chat:message:deleted', deleteData);
+                    } else {
+                        socket.emit('chat:message:deleted', deleteData);
+                        const [dmRow] = await pool.query(`SELECT de_usuario_id, para_usuario_id FROM ${table} WHERE id = ?`, [msgId]);
+                        if (dmRow.length) {
+                            const otherId = dmRow[0].de_usuario_id === userId ? dmRow[0].para_usuario_id : dmRow[0].de_usuario_id;
+                            const target = onlineUsers.get(otherId);
+                            if (target) chatNs.to(target.socketId).emit('chat:message:deleted', deleteData);
+                        }
+                    }
+                    console.log(`[CHAT] 🗑️ Mensagem ${msgId} excluída para todos por user ${userId}`);
+                } else {
+                    // Apagar para mim only (DMs only)
+                    if (msgType === 'dm') {
+                        try {
+                            // Get current excluida_para
+                            const [epRows] = await pool.query(`SELECT excluida_para FROM ${table} WHERE id = ?`, [msgId]);
+                            let delFor = [];
+                            if (epRows.length && epRows[0].excluida_para) {
+                                try { delFor = JSON.parse(epRows[0].excluida_para); } catch(e) { delFor = []; }
+                            }
+                            if (!delFor.includes(userId)) delFor.push(userId);
+                            await pool.query(`UPDATE ${table} SET excluida_para = ? WHERE id = ?`, [JSON.stringify(delFor), msgId]);
+                        } catch(colErr) {
+                            // Column doesn't exist yet, just soft delete
+                            await pool.query(`DELETE FROM ${table} WHERE id = ?`, [msgId]);
+                        }
+                        socket.emit('chat:message:deleted', { msgId, msgType, scope: 'me' });
+                    } else {
+                        // In channels, "delete for me" acts like delete for all (since it's a group)
+                        try {
+                            await pool.query(`UPDATE ${table} SET excluida = 1 WHERE id = ?`, [msgId]);
+                        } catch(colErr) {
+                            await pool.query(`DELETE FROM ${table} WHERE id = ?`, [msgId]);
+                        }
+                        const deleteData = { msgId, msgType, scope: 'all' };
+                        chatNs.to(`channel:${rows[0].canal_id}`).emit('chat:message:deleted', deleteData);
+                        socket.emit('chat:message:deleted', deleteData);
+                    }
+                    console.log(`[CHAT] 🗑️ Mensagem ${msgId} apagada para user ${userId}`);
+                }
+            } catch (err) {
+                console.error('[CHAT] Erro ao excluir mensagem:', err.message);
             }
         });
 
