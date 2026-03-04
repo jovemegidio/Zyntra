@@ -342,17 +342,17 @@
                 <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber">
                     <i class="fas fa-hand-holding-usd"></i>
                 </a>
-                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa">
-                    <i class="fas fa-chart-area"></i>
-                </a>
                 <a href="bancos.html" class="sidebar-btn" title="Bancos">
                     <i class="fas fa-university"></i>
                 </a>
-                <a href="plano-contas.html" class="sidebar-btn" title="Plano de Contas">
-                    <i class="fas fa-list-alt"></i>
+                <a href="boletos.html" class="sidebar-btn" title="Boletos">
+                    <i class="fas fa-barcode"></i>
                 </a>
-                <a href="orcamentos.html" class="sidebar-btn" title="Orçamentos">
-                    <i class="fas fa-calculator"></i>
+                <a href="nfse.html" class="sidebar-btn" title="NFS-e">
+                    <i class="fas fa-file-invoice"></i>
+                </a>
+                <a href="recorrencias.html" class="sidebar-btn" title="Recorrências">
+                    <i class="fas fa-redo"></i>
                 </a>
                 <a href="conciliacao.html" class="sidebar-btn active" title="Conciliação">
                     <i class="fas fa-balance-scale"></i>
@@ -609,365 +609,308 @@
     </div>
 
     <script>
-        // Toast notification profissional
+        const API = '/api/financeiro';
+        function getToken() { return localStorage.getItem('token') || sessionStorage.getItem('token'); }
+        function hdrs() { return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }; }
+
         function mostrarToastFinanceiro(mensagem, tipo) {
-            if (typeof window.mostrarToastFinanceiro === 'function' && window.mostrarToastFinanceiro !== mostrarToastFinanceiro) {
-                window.mostrarToastFinanceiro(mensagem, tipo);
-                return;
-            }
             const existing = document.querySelector('.toast-financeiro-inline');
             if (existing) existing.remove();
             const colors = { success: '#10b981', error: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
             const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
-            const c = colors[tipo] || colors.info;
-            const ic = icons[tipo] || icons.info;
             const toast = document.createElement('div');
             toast.className = 'toast-financeiro-inline';
-            toast.innerHTML = `<i class="fas ${ic}"></i> ${mensagem}`;
+            toast.innerHTML = `<i class="fas ${icons[tipo]||icons.info}"></i> ${mensagem}`;
             Object.assign(toast.style, {
                 position: 'fixed', bottom: '24px', right: '24px', zIndex: '999999',
-                background: c, color: '#fff', padding: '14px 22px', borderRadius: '12px',
+                background: colors[tipo]||colors.info, color: '#fff', padding: '14px 22px', borderRadius: '12px',
                 fontSize: '13px', fontFamily: 'Inter, sans-serif', fontWeight: '500',
                 boxShadow: '0 8px 24px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center',
-                gap: '10px', opacity: '0', transform: 'translateY(10px)', transition: 'all 0.3s ease',
-                maxWidth: '420px'
+                gap: '10px', opacity: '0', transform: 'translateY(10px)', transition: 'all 0.3s ease', maxWidth: '420px'
             });
             document.body.appendChild(toast);
             requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; });
             setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; setTimeout(() => toast.remove(), 300); }, 4000);
         }
 
-        // Dados
-        let lancamentosSistema = [
-            { id: 1, data: '2024-12-20', descricao: 'Recebimento Cliente ABC', tipo: 'entrada', valor: 15000, conciliado: false },
-            { id: 2, data: '2024-12-19', descricao: 'Pagamento Fornecedor XYZ', tipo: 'saida', valor: 8500, conciliado: true, extratoId: 2 },
-            { id: 3, data: '2024-12-18', descricao: 'Venda Projeto Residencial', tipo: 'entrada', valor: 22000, conciliado: true, extratoId: 3 },
-            { id: 4, data: '2024-12-17', descricao: 'Conta de Energia', tipo: 'saida', valor: 1850, conciliado: false },
-            { id: 5, data: '2024-12-16', descricao: 'Folha de Pagamento', tipo: 'saida', valor: 28750, conciliado: true, extratoId: 5 },
-            { id: 6, data: '2024-12-15', descricao: 'Recebimento Parcela', tipo: 'entrada', valor: 8500, conciliado: false },
-            { id: 7, data: '2024-12-14', descricao: 'Material de Escritório', tipo: 'saida', valor: 450, conciliado: false },
-        ];
+        function formatarMoeda(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
+        function formatarData(d) {
+            if (!d) return '-';
+            try { const dt = new Date(d); return !isNaN(dt.getTime()) ? dt.toLocaleDateString('pt-BR') : '-'; } catch { return '-'; }
+        }
 
-        let lancamentosExtrato = [
-            { id: 1, data: '2024-12-20', descricao: 'TED RECEBIDA - CLIENTE ABC LTDA', tipo: 'entrada', valor: 15000, conciliado: false },
-            { id: 2, data: '2024-12-19', descricao: 'PAG FORNEC XYZ', tipo: 'saida', valor: 8500, conciliado: true, sistemaId: 2 },
-            { id: 3, data: '2024-12-18', descricao: 'DEP CHEQUE', tipo: 'entrada', valor: 22000, conciliado: true, sistemaId: 3 },
-            { id: 4, data: '2024-12-17', descricao: 'DEB AUT ELETROPAULO', tipo: 'saida', valor: 1850, conciliado: false },
-            { id: 5, data: '2024-12-16', descricao: 'TRANSF SALARIOS', tipo: 'saida', valor: 28750, conciliado: true, sistemaId: 5 },
-            { id: 6, data: '2024-12-15', descricao: 'TAXA DOC/TED', tipo: 'saida', valor: 12.50, conciliado: false },
-            { id: 7, data: '2024-12-14', descricao: 'IOF', tipo: 'saida', valor: 35.80, conciliado: false },
-        ];
-
-        let historico = [
-            { id: 1, data: '2024-12-19', sistemaDesc: 'Pagamento Fornecedor XYZ', extratoDesc: 'PAG FORNEC XYZ', valor: 8500, status: 'conciliado' },
-            { id: 2, data: '2024-12-18', sistemaDesc: 'Venda Projeto Residencial', extratoDesc: 'DEP CHEQUE', valor: 22000, status: 'conciliado' },
-            { id: 3, data: '2024-12-16', sistemaDesc: 'Folha de Pagamento', extratoDesc: 'TRANSF SALARIOS', valor: 28750, status: 'conciliado' },
-        ];
-
+        // === State ===
+        let lancamentosSistema = []; // contas_pagar + contas_receber pendentes
+        let lancamentosExtrato = []; // extratos_importados
+        let historico = []; // conciliacoes_bancarias
         let sistemasSelecionados = [];
         let extratosSelecionados = [];
+        let contaBancariaAtual = '';
 
-        // Init
+        // === Init ===
         document.addEventListener('DOMContentLoaded', function() {
-            // Set date filters to current month
             const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+            const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+            const lastDay = new Date(y, now.getMonth()+1, 0).getDate();
             document.getElementById('dataInicio').value = `${y}-${m}-01`;
-            document.getElementById('dataFim').value = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
-
+            document.getElementById('dataFim').value = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
             carregarUsuario();
-            atualizarKPIs();
-            renderizarListas();
-            renderizarHistorico();
+            carregarBancos();
+            carregarTudo();
         });
 
         async function carregarUsuario() {
             try {
-                const response = await fetch('/api/me', { credentials: 'include' });
-                if (response.ok) {
-                    const user = await response.json();
-                    // Usar apelido se disponível, senão primeiro nome
-                    const userName = user.apelido || user.nome || 'Usuário';
-                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
-
-                    // Atualizar Saudação dinâmica baseada na hora
-                    const greetingTextEl = document.getElementById('greeting-text');
-                    if (greetingTextEl) {
-                        const hour = new Date().getHours();
-                        let greeting = 'Bom dia';
-                        if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
-                        else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
-                        greetingTextEl.textContent = greeting;
-                    }
-                    document.getElementById('user-name').textContent = primeiroNome;
-                    document.getElementById('user-initials').textContent = primeiroNome.charAt(0).toUpperCase();
-
-                    const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                const r = await fetch('/api/me', { credentials: 'include' });
+                if (r.ok) {
+                    const u = await r.json();
+                    const nome = u.apelido || (u.nome ? u.nome.split(' ')[0] : 'Usuário');
+                    const h = new Date().getHours();
+                    const el = document.getElementById('greeting-text');
+                    if (el) el.textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                    document.getElementById('user-name').textContent = nome;
+                    document.getElementById('user-initials').textContent = nome.charAt(0).toUpperCase();
+                    const fotoUrl = u.avatar || u.foto || u.foto_perfil_url;
                     const foto = document.getElementById('user-photo');
                     const inicialEl = document.getElementById('user-initials');
                     if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
                         foto.src = fotoUrl;
-                        foto.onload = () => { foto.style.display = 'block'; foto.classList.add('visible'); if (inicialEl) inicialEl.style.display = 'none'; };
-                        foto.onerror = () => { foto.style.display = 'none'; if (inicialEl) { inicialEl.textContent = primeiroNome.charAt(0).toUpperCase(); inicialEl.style.display = 'flex'; } };
+                        foto.onload = () => { foto.style.display = 'block'; if (inicialEl) inicialEl.style.display = 'none'; };
+                        foto.onerror = () => { foto.style.display = 'none'; };
                     }
                 }
-            } catch (e) { console.log('Erro ao carregar usuário'); }
+            } catch (e) {}
         }
 
-        function formatarMoeda(valor) {
-            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
-        }
-
-        function formatarData(data) {
-            if (!data) return '-';
+        async function carregarBancos() {
             try {
-                const d = new Date(data);
-                if (!isNaN(d.getTime())) {
-                    return d.toLocaleDateString('pt-BR');
-                }
-                const d2 = new Date(data + 'T00:00:00');
-                if (!isNaN(d2.getTime())) {
-                    return d2.toLocaleDateString('pt-BR');
-                }
-                return '-';
-            } catch (e) {
-                return '-';
-            }
+                const r = await fetch(`${API}/contas-bancarias`, { headers: hdrs() });
+                const data = await r.json();
+                const sel = document.getElementById('filtroBanco');
+                const bancos = data.data || data || [];
+                sel.innerHTML = '<option value="">Todos os bancos</option>';
+                bancos.forEach(b => {
+                    sel.innerHTML += `<option value="${b.id}">${b.banco} - ${b.apelido || b.tipo_conta || 'Conta'}</option>`;
+                });
+            } catch (e) { console.error('Erro bancos:', e); }
+        }
+
+        async function carregarTudo() {
+            await Promise.all([carregarSistema(), carregarExtrato(), carregarHistorico()]);
+            atualizarKPIs();
+            renderizarListas();
+            renderizarHistorico();
+        }
+
+        async function carregarSistema() {
+            // Carrega contas a pagar e receber recentes (representam lançamentos do sistema)
+            try {
+                const ini = document.getElementById('dataInicio').value;
+                const fim = document.getElementById('dataFim').value;
+                const [rPagar, rReceber] = await Promise.all([
+                    fetch(`${API}/contas-pagar?limit=100&data_inicio=${ini}&data_fim=${fim}`, { headers: hdrs() }),
+                    fetch(`${API}/contas-receber?limit=100&data_inicio=${ini}&data_fim=${fim}`, { headers: hdrs() })
+                ]);
+                const pagar = await rPagar.json();
+                const receber = await rReceber.json();
+                const itensPagar = (pagar.data || []).map(c => ({
+                    id: 'p_' + c.id, dbId: c.id, tabela: 'contas_pagar',
+                    data: c.data_vencimento || c.data_emissao, descricao: c.descricao || c.fornecedor,
+                    tipo: 'saida', valor: Number(c.valor), conciliado: false
+                }));
+                const itensReceber = (receber.data || []).map(c => ({
+                    id: 'r_' + c.id, dbId: c.id, tabela: 'contas_receber',
+                    data: c.data_vencimento || c.data_emissao, descricao: c.descricao || c.cliente,
+                    tipo: 'entrada', valor: Number(c.valor), conciliado: false
+                }));
+                lancamentosSistema = [...itensPagar, ...itensReceber].sort((a, b) => new Date(b.data) - new Date(a.data));
+            } catch (e) { console.error('Erro sistema:', e); lancamentosSistema = []; }
+        }
+
+        async function carregarExtrato() {
+            try {
+                const contaId = document.getElementById('filtroBanco').value;
+                contaBancariaAtual = contaId;
+                let url = `${API}/conciliacao?tipo=extrato`;
+                if (contaId) url += `&conta_id=${contaId}`;
+                const r = await fetch(url, { headers: hdrs() });
+                const data = await r.json();
+                lancamentosExtrato = (data.data || []).map(e => ({
+                    id: 'e_' + e.id, dbId: e.id,
+                    data: e.data, descricao: e.descricao,
+                    tipo: Number(e.valor) >= 0 ? 'entrada' : 'saida',
+                    valor: Math.abs(Number(e.valor)),
+                    conciliado: e.conciliado == 1
+                }));
+            } catch (e) { console.error('Erro extrato:', e); lancamentosExtrato = []; }
+        }
+
+        async function carregarHistorico() {
+            try {
+                const contaId = document.getElementById('filtroBanco').value;
+                let url = `${API}/conciliacao?tipo=conciliacoes`;
+                if (contaId) url += `&conta_id=${contaId}`;
+                const r = await fetch(url, { headers: hdrs() });
+                const data = await r.json();
+                historico = (data.data || []).map(c => ({
+                    id: c.id, data: c.created_at || c.data,
+                    sistemaDesc: c.movimentacao_sistema_id ? `Mov #${c.movimentacao_sistema_id}` : '-',
+                    extratoDesc: c.extrato_id ? `Extrato #${c.extrato_id}` : '-',
+                    valor: Number(c.valor), status: 'conciliado'
+                }));
+            } catch (e) { console.error('Erro histórico:', e); historico = []; }
         }
 
         function atualizarKPIs() {
-            const conciliados = lancamentosSistema.filter(l => l.conciliado).length;
-            const pendentesSistema = lancamentosSistema.filter(l => !l.conciliado).length;
-            const pendentesExtrato = lancamentosExtrato.filter(l => !l.conciliado).length;
-
-            // Calcular divergências (itens no extrato sem correspondente no sistema)
-            const divergencias = lancamentosExtrato.filter(e => !e.conciliado && !lancamentosSistema.some(s => s.valor === e.valor && !s.conciliado)).length;
-
+            const conciliados = historico.length;
+            const pendentesSis = lancamentosSistema.filter(l => !l.conciliado).length;
+            const pendentesExt = lancamentosExtrato.filter(l => !l.conciliado).length;
+            const divergencias = lancamentosExtrato.filter(e => !e.conciliado && !lancamentosSistema.some(s => Math.abs(s.valor - e.valor) < 0.01 && !s.conciliado)).length;
             document.getElementById('totalConciliados').textContent = conciliados;
-            document.getElementById('pendentesSistema').textContent = pendentesSistema;
-            document.getElementById('pendentesExtrato').textContent = pendentesExtrato;
+            document.getElementById('pendentesSistema').textContent = pendentesSis;
+            document.getElementById('pendentesExtrato').textContent = pendentesExt;
             document.getElementById('divergencias').textContent = divergencias;
+
+            const saldoSis = lancamentosSistema.reduce((s, l) => s + (l.tipo === 'entrada' ? l.valor : -l.valor), 0);
+            const saldoExt = lancamentosExtrato.reduce((s, l) => s + (l.tipo === 'entrada' ? l.valor : -l.valor), 0);
+            const elSis = document.getElementById('saldoSistema');
+            const elExt = document.getElementById('saldoExtrato');
+            elSis.textContent = formatarMoeda(saldoSis);
+            elSis.className = `saldo ${saldoSis >= 0 ? 'positivo' : 'negativo'}`;
+            elExt.textContent = formatarMoeda(saldoExt);
+            elExt.className = `saldo ${saldoExt >= 0 ? 'positivo' : 'negativo'}`;
         }
 
         function renderizarListas() {
-            // Sistema
             const listaSistema = document.getElementById('listaSistema');
-            listaSistema.innerHTML = lancamentosSistema.map(item => `
-                <li class="item-row ${item.conciliado ? 'conciliado' : ''} ${sistemasSelecionados.includes(item.id) ? 'selected' : ''}"
-                    onclick="toggleSelecaoSistema(${item.id})" style="position: relative;">
-                    <div class="item-check ${sistemasSelecionados.includes(item.id) ? 'checked' : ''}">
-                        ${sistemasSelecionados.includes(item.id) ? '<i class="fas fa-check" style="font-size:12px;"></i>' : ''}
-                    </div>
-                    <div class="item-info">
-                        <div class="data">${formatarData(item.data)}</div>
-                        <div class="descricao">${item.descricao}</div>
-                    </div>
-                    <div class="item-valor ${item.tipo}">
-                        ${item.tipo === 'entrada' ? '+' : '-'}${formatarMoeda(item.valor)}
-                    </div>
-                </li>
-            `).join('');
+            if (lancamentosSistema.length === 0) {
+                listaSistema.innerHTML = '<li style="padding:40px;text-align:center;color:var(--text-secondary)"><i class="fas fa-inbox" style="font-size:32px;margin-bottom:12px;display:block;color:#cbd5e1"></i>Nenhum lançamento no período</li>';
+            } else {
+                listaSistema.innerHTML = lancamentosSistema.map(item => `
+                    <li class="item-row ${item.conciliado ? 'conciliado' : ''} ${sistemasSelecionados.includes(item.id) ? 'selected' : ''}"
+                        onclick="toggleSelecaoSistema('${item.id}')" style="position:relative;">
+                        <div class="item-check ${sistemasSelecionados.includes(item.id) ? 'checked' : ''}">
+                            ${sistemasSelecionados.includes(item.id) ? '<i class="fas fa-check" style="font-size:12px;"></i>' : ''}
+                        </div>
+                        <div class="item-info"><div class="data">${formatarData(item.data)}</div><div class="descricao">${item.descricao}</div></div>
+                        <div class="item-valor ${item.tipo}">${item.tipo === 'entrada' ? '+' : '-'}${formatarMoeda(item.valor)}</div>
+                    </li>
+                `).join('');
+            }
 
-            // Extrato
             const listaExtrato = document.getElementById('listaExtrato');
-            listaExtrato.innerHTML = lancamentosExtrato.map(item => `
-                <li class="item-row ${item.conciliado ? 'conciliado' : ''} ${extratosSelecionados.includes(item.id) ? 'selected' : ''}"
-                    onclick="toggleSelecaoExtrato(${item.id})" style="position: relative;">
-                    <div class="item-check ${extratosSelecionados.includes(item.id) ? 'checked' : ''}">
-                        ${extratosSelecionados.includes(item.id) ? '<i class="fas fa-check" style="font-size:12px;"></i>' : ''}
-                    </div>
-                    <div class="item-info">
-                        <div class="data">${formatarData(item.data)}</div>
-                        <div class="descricao">${item.descricao}</div>
-                    </div>
-                    <div class="item-valor ${item.tipo}">
-                        ${item.tipo === 'entrada' ? '+' : '-'}${formatarMoeda(item.valor)}
-                    </div>
-                </li>
-            `).join('');
+            if (lancamentosExtrato.length === 0) {
+                listaExtrato.innerHTML = '<li style="padding:40px;text-align:center;color:var(--text-secondary)"><i class="fas fa-file-import" style="font-size:32px;margin-bottom:12px;display:block;color:#cbd5e1"></i>Importe um extrato OFX para começar</li>';
+            } else {
+                listaExtrato.innerHTML = lancamentosExtrato.map(item => `
+                    <li class="item-row ${item.conciliado ? 'conciliado' : ''} ${extratosSelecionados.includes(item.id) ? 'selected' : ''}"
+                        onclick="toggleSelecaoExtrato('${item.id}')" style="position:relative;">
+                        <div class="item-check ${extratosSelecionados.includes(item.id) ? 'checked' : ''}">
+                            ${extratosSelecionados.includes(item.id) ? '<i class="fas fa-check" style="font-size:12px;"></i>' : ''}
+                        </div>
+                        <div class="item-info"><div class="data">${formatarData(item.data)}</div><div class="descricao">${item.descricao}</div></div>
+                        <div class="item-valor ${item.tipo}">${item.tipo === 'entrada' ? '+' : '-'}${formatarMoeda(item.valor)}</div>
+                    </li>
+                `).join('');
+            }
         }
 
         function renderizarHistorico() {
             const tbody = document.getElementById('historicoConciliacoes');
+            if (historico.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-secondary)">Nenhuma conciliação realizada</td></tr>';
+                return;
+            }
             tbody.innerHTML = historico.map(item => `
                 <tr>
                     <td>${formatarData(item.data)}</td>
                     <td>${item.sistemaDesc}</td>
                     <td>${item.extratoDesc}</td>
                     <td><strong>${formatarMoeda(item.valor)}</strong></td>
-                    <td><span class="status-badge ${item.status}">${item.status === 'conciliado' ? 'Conciliado' : 'Divergente'}</span></td>
-                    <td>
-                        <button class="btn btn-secondary btn-sm" onclick="desconciliar(${item.id})">
-                            <i class="fas fa-unlink"></i>
-                        </button>
-                    </td>
+                    <td><span class="status-badge conciliado">Conciliado</span></td>
+                    <td><button class="btn btn-secondary btn-sm" onclick="desconciliar(${item.id})"><i class="fas fa-unlink"></i></button></td>
                 </tr>
             `).join('');
         }
 
         function toggleSelecaoSistema(id) {
             const item = lancamentosSistema.find(l => l.id === id);
-            if (item.conciliado) return;
-
-            const index = sistemasSelecionados.indexOf(id);
-            if (index > -1) {
-                sistemasSelecionados.splice(index, 1);
-            } else {
-                sistemasSelecionados.push(id);
-            }
+            if (!item || item.conciliado) return;
+            const idx = sistemasSelecionados.indexOf(id);
+            if (idx > -1) sistemasSelecionados.splice(idx, 1); else sistemasSelecionados.push(id);
             renderizarListas();
         }
 
         function toggleSelecaoExtrato(id) {
             const item = lancamentosExtrato.find(l => l.id === id);
-            if (item.conciliado) return;
-
-            const index = extratosSelecionados.indexOf(id);
-            if (index > -1) {
-                extratosSelecionados.splice(index, 1);
-            } else {
-                extratosSelecionados.push(id);
-            }
+            if (!item || item.conciliado) return;
+            const idx = extratosSelecionados.indexOf(id);
+            if (idx > -1) extratosSelecionados.splice(idx, 1); else extratosSelecionados.push(id);
             renderizarListas();
         }
 
-        function conciliarSelecionados() {
+        async function conciliarSelecionados() {
             if (sistemasSelecionados.length === 0 || extratosSelecionados.length === 0) {
-                mostrarToastFinanceiro('Selecione pelo menos um item de cada lado para conciliar', 'warning');
-                return;
+                mostrarToastFinanceiro('Selecione pelo menos um item de cada lado', 'warning'); return;
             }
-
-            // Conciliar os itens selecionados
-            sistemasSelecionados.forEach(sId => {
-                const sis = lancamentosSistema.find(l => l.id === sId);
-                if (sis) {
-                    sis.conciliado = true;
-                    sis.extratoId = extratosSelecionados[0];
-                }
-            });
-
-            extratosSelecionados.forEach(eId => {
-                const ext = lancamentosExtrato.find(l => l.id === eId);
-                if (ext) {
-                    ext.conciliado = true;
-                    ext.sistemaId = sistemasSelecionados[0];
-                }
-            });
-
-            // Adicionar ao historico
-            const sis = lancamentosSistema.find(l => l.id === sistemasSelecionados[0]);
-            const ext = lancamentosExtrato.find(l => l.id === extratosSelecionados[0]);
-            if (sis && ext) {
-                historico.unshift({
-                    id: historico.length + 1,
-                    data: new Date().toISOString().split('T')[0],
-                    sistemaDesc: sis.descricao,
-                    extratoDesc: ext.descricao,
-                    valor: sis.valor,
-                    status: 'conciliado'
-                });
-            }
-
-            // Limpar seleções
-            sistemasSelecionados = [];
-            extratosSelecionados = [];
-
-            atualizarKPIs();
-            renderizarListas();
-            renderizarHistorico();
-            mostrarToastFinanceiro('Lançamentos conciliados com sucesso!', 'success');
+            try {
+                const sisItem = lancamentosSistema.find(l => l.id === sistemasSelecionados[0]);
+                const extItem = lancamentosExtrato.find(l => l.id === extratosSelecionados[0]);
+                if (!sisItem || !extItem) return;
+                const payload = {
+                    conta_id: contaBancariaAtual || null,
+                    movimentacao_sistema_id: sisItem.dbId,
+                    extrato_id: extItem.dbId,
+                    valor: sisItem.valor,
+                    tipo_match: 'manual'
+                };
+                const r = await fetch(`${API}/conciliacao`, { method: 'POST', headers: hdrs(), body: JSON.stringify(payload) });
+                const data = await r.json();
+                if (data.success) {
+                    mostrarToastFinanceiro('Conciliação manual realizada!', 'success');
+                    sistemasSelecionados = [];
+                    extratosSelecionados = [];
+                    await carregarTudo();
+                } else { mostrarToastFinanceiro(data.message || 'Erro', 'error'); }
+            } catch (e) { mostrarToastFinanceiro('Erro de conexão', 'error'); }
         }
 
         function desconciliarSelecionados() {
-            mostrarToastFinanceiro('Selecione um item conciliado no histórico para desfazer', 'info');
+            mostrarToastFinanceiro('Clique no ícone de desfazer no histórico abaixo', 'info');
         }
 
-        function conciliarAutomatico() {
-            let conciliados = 0;
-
-            // Encontrar correspondências por valor e data próxima
-            lancamentosSistema.filter(s => !s.conciliado).forEach(sis => {
-                const match = lancamentosExtrato.find(ext =>
-                    !ext.conciliado &&
-                    ext.valor === sis.valor &&
-                    ext.tipo === sis.tipo
-                );
-
-                if (match) {
-                    sis.conciliado = true;
-                    sis.extratoId = match.id;
-                    match.conciliado = true;
-                    match.sistemaId = sis.id;
-
-                    historico.unshift({
-                        id: historico.length + 1,
-                        data: new Date().toISOString().split('T')[0],
-                        sistemaDesc: sis.descricao,
-                        extratoDesc: match.descricao,
-                        valor: sis.valor,
-                        status: 'conciliado'
-                    });
-
-                    conciliados++;
-                }
-            });
-
-            atualizarKPIs();
-            renderizarListas();
-            renderizarHistorico();
-            mostrarToastFinanceiro(`Conciliação automática concluída! ${conciliados} lançamento(s) conciliado(s).`, conciliados > 0 ? 'success' : 'info');
+        async function conciliarAutomatico() {
+            try {
+                const contaId = document.getElementById('filtroBanco').value;
+                const payload = {};
+                if (contaId) payload.conta_id = contaId;
+                const r = await fetch(`${API}/conciliacao/automatica`, { method: 'POST', headers: hdrs(), body: JSON.stringify(payload) });
+                const data = await r.json();
+                if (data.success) {
+                    const total = data.conciliados || 0;
+                    mostrarToastFinanceiro(`Conciliação automática: ${total} item(ns) conciliado(s)!`, total > 0 ? 'success' : 'info');
+                    await carregarTudo();
+                } else { mostrarToastFinanceiro(data.message || 'Erro', 'error'); }
+            } catch (e) { mostrarToastFinanceiro('Erro ao conciliar', 'error'); }
         }
 
         async function desconciliar(id) {
-            // Modal de confirmação profissional
-            const confirmado = await showConfirmModal({
-                type: 'warning',
-                title: 'Desfazer Conciliação',
-                message: 'Deseja realmente desfazer esta conciliação?',
-                confirmText: 'Desfazer',
-                cancelText: 'Cancelar'
-            });
-            if (confirmado) {
-                const item = historico.find(h => h.id === id);
-                if (item) {
-                    // Encontrar e desconciliar
-                    const sis = lancamentosSistema.find(s => s.descricao === item.sistemaDesc);
-                    const ext = lancamentosExtrato.find(e => e.descricao === item.extratoDesc);
-
-                    if (sis) {
-                        sis.conciliado = false;
-                        delete sis.extratoId;
-                    }
-                    if (ext) {
-                        ext.conciliado = false;
-                        delete ext.sistemaId;
-                    }
-
-                    // Remover do historico
-                    historico = historico.filter(h => h.id !== id);
-
-                    atualizarKPIs();
-                    renderizarListas();
-                    renderizarHistorico();
-                }
-            }
+            const confirmado = typeof showConfirmModal === 'function'
+                ? await showConfirmModal({ type:'warning', title:'Desfazer Conciliação', message:'Deseja realmente desfazer esta conciliação?', confirmText:'Desfazer', cancelText:'Cancelar' })
+                : confirm('Deseja desfazer esta conciliação?');
+            if (!confirmado) return;
+            try {
+                const r = await fetch(`${API}/conciliacao/${id}`, { method: 'DELETE', headers: hdrs() });
+                const data = await r.json();
+                if (data.success) { mostrarToastFinanceiro('Conciliação desfeita', 'success'); await carregarTudo(); }
+                else { mostrarToastFinanceiro(data.message || 'Erro', 'error'); }
+            } catch (e) { mostrarToastFinanceiro('Erro', 'error'); }
         }
 
-        function aplicarFiltros() {
-            // Implementar filtros
-            console.log('Filtros aplicados');
-            renderizarListas();
-        }
+        function aplicarFiltros() { carregarTudo(); }
 
-        function abrirModalImportar() {
-            document.getElementById('modalImportar').classList.add('active');
-        }
-
-        function fecharModal(id) {
-            document.getElementById(id).classList.remove('active');
-        }
+        function abrirModalImportar() { document.getElementById('modalImportar').classList.add('active'); }
+        function fecharModal(id) { document.getElementById(id).classList.remove('active'); }
 
         function processarArquivo(input) {
             if (input.files.length > 0) {
@@ -976,28 +919,27 @@
             }
         }
 
-        function importarExtrato() {
+        async function importarExtrato() {
             const arquivo = document.getElementById('arquivoOFX').files[0];
-            if (!arquivo) {
-                mostrarToastFinanceiro('Selecione um arquivo para importar', 'warning');
-                return;
-            }
-
-            // Simular importação
-            fecharModal('modalImportar');
-            mostrarToastFinanceiro('Extrato importado com sucesso!', 'success');
-
-            // Adicionar alguns lançamentos de exemplo
-            lancamentosExtrato.push(
-                { id: 8, data: '2024-12-21', descricao: 'PIX RECEBIDO', tipo: 'entrada', valor: 3500, conciliado: false },
-                { id: 9, data: '2024-12-21', descricao: 'TARIFA MANUT CONTA', tipo: 'saida', valor: 28.50, conciliado: false }
-            );
-
-            atualizarKPIs();
-            renderizarListas();
+            if (!arquivo) { mostrarToastFinanceiro('Selecione um arquivo', 'warning'); return; }
+            try {
+                const contaId = document.getElementById('filtroBanco').value;
+                // Ler arquivo e enviar como texto (OFX/CSV)
+                const texto = await arquivo.text();
+                const payload = { conta_id: contaId || null, conteudo: texto, nome_arquivo: arquivo.name };
+                const r = await fetch(`${API}/conciliacao/importar-ofx`, {
+                    method: 'POST',
+                    headers: hdrs(),
+                    body: JSON.stringify(payload)
+                });
+                const data = await r.json();
+                if (data.success) {
+                    mostrarToastFinanceiro(`Extrato importado! ${data.importados || 0} lançamento(s) novos, ${data.duplicados || 0} duplicado(s)`, 'success');
+                    fecharModal('modalImportar');
+                    await carregarTudo();
+                } else { mostrarToastFinanceiro(data.message || 'Erro na importação', 'error'); }
+            } catch (e) { mostrarToastFinanceiro('Erro ao importar extrato', 'error'); }
         }
-
-        // Sistema de Notificações gerenciado pelo NotificationsManager global
     </script>
 
     <script src="financeiro.js"></script>

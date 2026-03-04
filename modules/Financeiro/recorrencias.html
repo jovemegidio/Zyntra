@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Aluforce: Recorrências</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <script src="/js/auth-unified.js?v=20260211" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
+    <link rel="stylesheet" href="css/fin-components.css?v=20260215">
+    <style>
+        :root { --primary-blue:#3b82f6; --primary-orange:#3b82f6; --success:#22c55e; --danger:#ef4444; --warning:#f59e0b; --info:#3b82f6; --text-primary:#1e293b; --text-secondary:#64748b; --bg-gray:#f8fafc; --border-color:#e2e8f0; --primary-dark:#1a1a2e; --sidebar-width:48px; --header-height:42px; }
+
+        .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; margin-bottom:24px; }
+        .kpi-card { background:white; border-radius:16px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+        .kpi-card.highlight { background:linear-gradient(135deg,#225cfa 0%,#1a47c4 100%); color:white; }
+        .kpi-card.highlight .kpi-content h3 { color:rgba(255,255,255,0.8); }
+        .kpi-card.highlight .kpi-icon { background:rgba(255,255,255,0.2); color:white; }
+        .kpi-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+        .kpi-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; }
+        .kpi-icon.blue { background:rgba(59,130,246,0.1); color:var(--info); }
+        .kpi-icon.green { background:rgba(34,197,94,0.1); color:var(--success); }
+        .kpi-icon.orange { background:rgba(245,158,11,0.1); color:var(--warning); }
+        .kpi-icon.red { background:rgba(239,68,68,0.1); color:var(--danger); }
+        .kpi-content h3 { font-size:13px; color:var(--text-secondary); margin-bottom:8px; }
+        .kpi-value { font-size:28px; font-weight:700; }
+        .kpi-sub { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+        .kpi-card.highlight .kpi-sub { color:rgba(255,255,255,0.7); }
+
+        .filters-bar { display:flex; gap:12px; margin-bottom:24px; background:white; padding:16px 20px; border-radius:14px; flex-wrap:wrap; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.04); }
+        .filters-bar select { padding:8px 12px; border:1.5px solid var(--border-color); border-radius:8px; font-size:13px; background:var(--bg-gray); font-family:inherit; }
+        .filters-bar select:focus { outline:none; border-color:var(--primary-blue); box-shadow:0 0 0 3px rgba(34,92,250,0.1); }
+        .filters-bar label { font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; white-space:nowrap; }
+
+        .card { background:white; border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05); overflow:hidden; }
+        .card-header { padding:20px 24px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center; }
+        .card-header h3 { font-size:16px; font-weight:600; display:flex; align-items:center; gap:10px; }
+        .card-header h3 i { color:var(--primary-blue); }
+        .data-table { width:100%; border-collapse:collapse; }
+        .data-table th { background:var(--bg-gray); padding:14px 16px; text-align:left; font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; }
+        .data-table td { padding:14px 16px; border-bottom:1px solid #f1f5f9; font-size:13px; }
+        .data-table tr:hover { background:var(--bg-gray); }
+        .data-table .valor { font-family:'JetBrains Mono',monospace; font-weight:600; }
+
+        .badge { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:600; }
+        .badge-pagar { background:rgba(239,68,68,0.1); color:#ef4444; }
+        .badge-receber { background:rgba(34,197,94,0.1); color:#22c55e; }
+        .badge-ativo { background:rgba(34,197,94,0.1); color:#22c55e; }
+        .badge-inativo { background:rgba(107,114,128,0.1); color:#6b7280; }
+
+        .freq-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:600; background:rgba(59,130,246,0.08); color:#3b82f6; }
+
+        .btn-icon { width:32px; height:32px; border:none; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:13px; transition:all 0.2s; }
+        .btn-icon:hover { transform:translateY(-1px); }
+        .btn-icon.edit { background:rgba(245,158,11,0.1); color:#f59e0b; }
+        .btn-icon.delete { background:rgba(239,68,68,0.1); color:#ef4444; }
+        .btn-icon.view { background:rgba(59,130,246,0.1); color:#3b82f6; }
+
+        .modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.7); display:none; align-items:center; justify-content:center; z-index:99999; backdrop-filter:blur(8px); }
+        .modal-overlay.active { display:flex !important; }
+        .modal { background:white; border-radius:20px; width:100%; max-width:680px; max-height:90vh; overflow:hidden; box-shadow:0 25px 80px rgba(0,0,0,0.25); animation:modalIn 0.25s ease-out; margin:16px; }
+        @keyframes modalIn { from { opacity:0; transform:scale(0.95) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+        .modal-header { padding:24px 32px; background:linear-gradient(135deg,#225cfa 0%,#1a47c4 100%); color:white; display:flex; justify-content:space-between; align-items:center; }
+        .modal-header h2 { font-size:18px; font-weight:700; display:flex; align-items:center; gap:12px; }
+        .modal-close { width:36px; height:36px; border:none; background:rgba(255,255,255,0.2); border-radius:10px; cursor:pointer; color:white; font-size:16px; transition:all 0.2s; display:flex; align-items:center; justify-content:center; }
+        .modal-close:hover { background:rgba(255,255,255,0.3); transform:rotate(90deg); }
+        .modal-body { padding:28px 32px; overflow-y:auto; max-height:calc(90vh - 200px); background:#f9fafb; }
+        .modal-footer { padding:20px 32px; border-top:1px solid #e5e7eb; display:flex; justify-content:flex-end; gap:12px; background:white; }
+
+        .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+        .form-group { margin-bottom:16px; }
+        .form-group:last-child { margin-bottom:0; }
+        .form-group.full { grid-column:1 / -1; }
+        .form-group label { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:#374151; margin-bottom:8px; }
+        .form-group label i { color:#225cfa; font-size:13px; }
+        .form-group label .req { color:#ef4444; }
+        .form-group input, .form-group select, .form-group textarea { width:100%; padding:12px 14px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; transition:all 0.2s; background:white; font-family:inherit; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline:none; border-color:#225cfa; box-shadow:0 0 0 3px rgba(34,92,250,0.1); }
+        .form-section { background:white; border-radius:14px; padding:20px; border:1px solid #e5e7eb; margin-bottom:16px; }
+        .form-section h4 { font-size:14px; font-weight:600; color:var(--text-primary); margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+        .form-section h4 i { color:#225cfa; }
+
+        .btn-ghost { display:inline-flex; align-items:center; gap:8px; padding:12px 24px; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; border:1px solid #e5e7eb; background:white; color:#6b7280; transition:all 0.2s; }
+        .btn-ghost:hover { background:#f3f4f6; }
+        .btn-action { display:inline-flex; align-items:center; gap:8px; padding:12px 24px; border-radius:12px; font-size:14px; font-weight:600; cursor:pointer; border:none; background:linear-gradient(135deg,#225cfa 0%,#1a47c4 100%); color:white; box-shadow:0 4px 12px rgba(34,92,250,0.35); transition:all 0.2s; }
+        .btn-action:hover { transform:translateY(-1px); box-shadow:0 6px 16px rgba(34,92,250,0.4); }
+        .btn-processar { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:none; background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%); color:white; box-shadow:0 3px 10px rgba(34,197,94,0.3); transition:all 0.2s; }
+        .btn-processar:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(34,197,94,0.35); }
+
+        .alert-info { background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.15); border-radius:12px; padding:16px 20px; margin-bottom:20px; display:flex; gap:12px; align-items:flex-start; font-size:13px; color:#1e40af; }
+        .alert-info i { font-size:18px; margin-top:2px; flex-shrink:0; }
+
+        .empty-state { text-align:center; padding:60px 20px; color:var(--text-secondary); }
+        .empty-state i { font-size:48px; color:#cbd5e1; margin-bottom:16px; }
+        .empty-state h4 { font-size:16px; margin-bottom:8px; color:var(--text-primary); }
+
+        @media (max-width:1200px) { .kpi-grid { grid-template-columns:repeat(2,1fr); } }
+        @media (max-width:768px) { .kpi-grid { grid-template-columns:1fr; } .form-grid { grid-template-columns:1fr; } }
+    </style>
+    <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260211">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-line"></i></a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="contas-receber.html" class="sidebar-btn" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos"><i class="fas fa-university"></i></a>
+                <a href="boletos.html" class="sidebar-btn" title="Boletos"><i class="fas fa-barcode"></i></a>
+                <a href="nfse.html" class="sidebar-btn" title="NFS-e"><i class="fas fa-file-invoice"></i></a>
+                <a href="recorrencias.html" class="sidebar-btn active" title="Recorrências"><i class="fas fa-redo"></i></a>
+                <a href="conciliacao.html" class="sidebar-btn" title="Conciliação"><i class="fas fa-balance-scale"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <a href="centros-custo.html" class="sidebar-btn" title="Centros de Custo"><i class="fas fa-sitemap"></i></a>
+                <a href="impostos.html" class="sidebar-btn" title="Impostos"><i class="fas fa-percent"></i></a>
+            </div>
+        </aside>
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;margin-left:6px;">Recorrências</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <div class="user-avatar" id="user-avatar"><img alt="Foto" id="user-photo" style="display:none"><span id="user-initials">U</span></div>
+                    </div>
+                </div>
+            </header>
+            <div class="main-content">
+                <div class="page-content">
+                    <div class="page-header">
+                        <div class="page-title-section">
+                            <h1><i class="fas fa-redo"></i> Transações Recorrentes</h1>
+                            <p>Gerencie cobranças e pagamentos automáticos recorrentes</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn-processar" onclick="processarPendentes()" title="Gera os lançamentos de todas as recorrências vencidas"><i class="fas fa-play-circle"></i> Processar Pendentes</button>
+                            <button class="btn btn-primary" onclick="abrirModalCriar()"><i class="fas fa-plus"></i> Nova Recorrência</button>
+                        </div>
+                    </div>
+
+                    <div class="kpi-grid">
+                        <div class="kpi-card highlight">
+                            <div class="kpi-header"><div class="kpi-icon"><i class="fas fa-redo"></i></div></div>
+                            <div class="kpi-content"><h3>Total Ativas</h3><div class="kpi-value" id="kpi-ativas">0</div></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-header"><div class="kpi-icon red"><i class="fas fa-arrow-up"></i></div></div>
+                            <div class="kpi-content"><h3>A Pagar / mês</h3><div class="kpi-value" id="kpi-pagar">R$ 0</div><div class="kpi-sub">despesas recorrentes</div></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-header"><div class="kpi-icon green"><i class="fas fa-arrow-down"></i></div></div>
+                            <div class="kpi-content"><h3>A Receber / mês</h3><div class="kpi-value" id="kpi-receber">R$ 0</div><div class="kpi-sub">receitas recorrentes</div></div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-header"><div class="kpi-icon orange"><i class="fas fa-clock"></i></div></div>
+                            <div class="kpi-content"><h3>Próximos 7 dias</h3><div class="kpi-value" id="kpi-proximas">0</div><div class="kpi-sub">vencimentos</div></div>
+                        </div>
+                    </div>
+
+                    <div class="alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <div><strong>Processamento automático:</strong> Clique em "Processar Pendentes" para gerar lançamentos de todas as recorrências com próximo vencimento já passado. Cada recorrência gerará um Conta a Pagar ou Conta a Receber automaticamente.</div>
+                    </div>
+
+                    <div class="filters-bar">
+                        <label>Tipo</label>
+                        <select id="filtro-tipo" onchange="carregarRecorrencias()">
+                            <option value="">Todos</option>
+                            <option value="pagar">A Pagar</option>
+                            <option value="receber">A Receber</option>
+                        </select>
+                        <label>Status</label>
+                        <select id="filtro-status" onchange="carregarRecorrencias()">
+                            <option value="">Todos</option>
+                            <option value="1">Ativas</option>
+                            <option value="0">Inativas</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="carregarRecorrencias()" style="margin-left:auto"><i class="fas fa-filter"></i> Filtrar</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-list"></i> Recorrências Cadastradas</h3>
+                            <span id="count-rec" style="font-size:13px;color:var(--text-secondary)">0 registros</span>
+                        </div>
+                        <div style="overflow-x:auto">
+                            <table class="data-table">
+                                <thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Frequência</th><th>Dia Venc.</th><th>Próximo Venc.</th><th>Geradas</th><th>Status</th><th style="width:100px">Ações</th></tr></thead>
+                                <tbody id="tbody-rec">
+                                    <tr><td colspan="9"><div class="empty-state"><i class="fas fa-redo"></i><h4>Nenhuma recorrência</h4><p>Crie sua primeira recorrência clicando no botão acima</p></div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Criar/Editar -->
+    <div class="modal-overlay" id="modal-criar">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-titulo"><i class="fas fa-redo"></i> Nova Recorrência</h2>
+                <button class="modal-close" onclick="fecharModal('modal-criar')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="rec-id">
+                <div class="form-section">
+                    <h4><i class="fas fa-info-circle"></i> Dados Gerais</h4>
+                    <div class="form-grid">
+                        <div class="form-group full"><label><i class="fas fa-tag"></i> Descrição <span class="req">*</span></label><input type="text" id="rec-descricao" placeholder="Ex: Aluguel do galpão, Mensalidade cliente X"></div>
+                        <div class="form-group"><label><i class="fas fa-exchange-alt"></i> Tipo <span class="req">*</span></label>
+                            <select id="rec-tipo"><option value="pagar">A Pagar (despesa)</option><option value="receber">A Receber (receita)</option></select>
+                        </div>
+                        <div class="form-group"><label><i class="fas fa-dollar-sign"></i> Valor <span class="req">*</span></label><input type="number" id="rec-valor" step="0.01" min="0.01" placeholder="0,00"></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h4><i class="fas fa-calendar-alt"></i> Periodicidade</h4>
+                    <div class="form-grid">
+                        <div class="form-group"><label><i class="fas fa-sync"></i> Frequência <span class="req">*</span></label>
+                            <select id="rec-frequencia">
+                                <option value="semanal">Semanal</option>
+                                <option value="quinzenal">Quinzenal</option>
+                                <option value="mensal" selected>Mensal</option>
+                                <option value="bimestral">Bimestral</option>
+                                <option value="trimestral">Trimestral</option>
+                                <option value="semestral">Semestral</option>
+                                <option value="anual">Anual</option>
+                            </select>
+                        </div>
+                        <div class="form-group"><label><i class="fas fa-calendar-day"></i> Dia Vencimento</label><input type="number" id="rec-dia" min="1" max="31" value="1" placeholder="1-31"></div>
+                        <div class="form-group"><label><i class="fas fa-play"></i> Data Início</label><input type="date" id="rec-inicio"></div>
+                        <div class="form-group"><label><i class="fas fa-stop"></i> Data Fim (opcional)</label><input type="date" id="rec-fim"></div>
+                    </div>
+                </div>
+                <div class="form-section">
+                    <h4><i class="fas fa-building"></i> Entidade</h4>
+                    <div class="form-grid">
+                        <div class="form-group"><label><i class="fas fa-user"></i> Fornecedor / Cliente</label><input type="text" id="rec-entidade" placeholder="Nome da entidade"></div>
+                        <div class="form-group"><label><i class="fas fa-layer-group"></i> Categoria</label><input type="text" id="rec-categoria" placeholder="Ex: Aluguel, Assinatura"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-ghost" onclick="fecharModal('modal-criar')">Cancelar</button>
+                <button class="btn-action" onclick="salvarRecorrencia()"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/financeiro';
+        function getToken() { return localStorage.getItem('token') || sessionStorage.getItem('token'); }
+        function hdrs() { return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }; }
+        function fmtMoeda(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v); }
+        function fmtData(d) { if (!d) return '-'; try { return new Date(d).toLocaleDateString('pt-BR'); } catch { return '-'; } }
+
+        const freqLabels = { semanal:'Semanal', quinzenal:'Quinzenal', mensal:'Mensal', bimestral:'Bimestral', trimestral:'Trimestral', semestral:'Semestral', anual:'Anual' };
+        const freqIcons = { semanal:'fa-calendar-week', quinzenal:'fa-calendar-check', mensal:'fa-calendar', bimestral:'fa-calendar-plus', trimestral:'fa-calendar-alt', semestral:'fa-calendar-minus', anual:'fa-calendar-day' };
+
+        let recorrencias = [];
+
+        function mostrarToast(msg, tipo) {
+            const colors = { success:'#10b981', error:'#ef4444', warning:'#f59e0b', info:'#3b82f6' };
+            const icons = { success:'fa-check-circle', error:'fa-times-circle', warning:'fa-exclamation-triangle', info:'fa-info-circle' };
+            const existing = document.querySelector('.toast-rec');
+            if (existing) existing.remove();
+            const t = document.createElement('div');
+            t.className = 'toast-rec';
+            t.innerHTML = `<i class="fas ${icons[tipo]||icons.info}"></i> ${msg}`;
+            Object.assign(t.style, { position:'fixed',bottom:'24px',right:'24px',zIndex:'999999',background:colors[tipo]||colors.info,color:'#fff',padding:'14px 22px',borderRadius:'12px',fontSize:'13px',fontFamily:'Inter,sans-serif',fontWeight:'500',boxShadow:'0 8px 24px rgba(0,0,0,0.2)',display:'flex',alignItems:'center',gap:'10px',opacity:'0',transform:'translateY(10px)',transition:'all 0.3s ease',maxWidth:'480px' });
+            document.body.appendChild(t);
+            requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+            setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(10px)'; setTimeout(() => t.remove(), 300); }, 4500);
+        }
+
+        async function carregarRecorrencias() {
+            try {
+                const tipo = document.getElementById('filtro-tipo').value;
+                const ativo = document.getElementById('filtro-status').value;
+                let url = `${API}/transacoes-recorrentes?`;
+                if (tipo) url += `tipo=${tipo}&`;
+                if (ativo) url += `ativo=${ativo}&`;
+                const r = await fetch(url, { headers: hdrs() });
+                const data = await r.json();
+                recorrencias = data.data || [];
+                renderizar();
+                atualizarKPIs();
+            } catch (e) { console.error('Erro:', e); }
+        }
+
+        function atualizarKPIs() {
+            const ativas = recorrencias.filter(r => r.ativo == 1);
+            document.getElementById('kpi-ativas').textContent = ativas.length;
+            const pagar = ativas.filter(r => r.tipo === 'pagar').reduce((s, r) => s + Number(r.valor), 0);
+            document.getElementById('kpi-pagar').textContent = fmtMoeda(pagar);
+            const receber = ativas.filter(r => r.tipo === 'receber').reduce((s, r) => s + Number(r.valor), 0);
+            document.getElementById('kpi-receber').textContent = fmtMoeda(receber);
+            const em7d = new Date(); em7d.setDate(em7d.getDate() + 7);
+            const prox = ativas.filter(r => {
+                if (!r.proximo_vencimento) return false;
+                const d = new Date(r.proximo_vencimento);
+                return d <= em7d;
+            }).length;
+            document.getElementById('kpi-proximas').textContent = prox;
+        }
+
+        function renderizar() {
+            const tb = document.getElementById('tbody-rec');
+            document.getElementById('count-rec').textContent = `${recorrencias.length} registro(s)`;
+            if (recorrencias.length === 0) {
+                tb.innerHTML = '<tr><td colspan="9"><div class="empty-state"><i class="fas fa-redo"></i><h4>Nenhuma recorrência</h4><p>Crie sua primeira recorrência</p></div></td></tr>';
+                return;
+            }
+            tb.innerHTML = recorrencias.map(r => {
+                const proxDate = r.proximo_vencimento ? new Date(r.proximo_vencimento) : null;
+                const isVencido = proxDate && proxDate < new Date();
+                return `
+                <tr>
+                    <td><strong>${r.descricao}</strong>${r.fornecedor_cliente ? `<br><small style="color:var(--text-secondary)">${r.fornecedor_cliente}</small>` : ''}</td>
+                    <td><span class="badge badge-${r.tipo}">${r.tipo === 'pagar' ? '↑ Pagar' : '↓ Receber'}</span></td>
+                    <td class="valor" style="color:${r.tipo === 'pagar' ? 'var(--danger)' : 'var(--success)'}">${fmtMoeda(r.valor)}</td>
+                    <td><span class="freq-badge"><i class="fas ${freqIcons[r.frequencia]||'fa-calendar'}"></i> ${freqLabels[r.frequencia]||r.frequencia}</span></td>
+                    <td>${r.dia_vencimento || '-'}</td>
+                    <td style="${isVencido ? 'color:var(--danger);font-weight:600' : ''}">${fmtData(r.proximo_vencimento)}${isVencido ? ' <i class="fas fa-exclamation-circle" style="color:var(--danger)"></i>' : ''}</td>
+                    <td>${r.total_geradas || 0}</td>
+                    <td><span class="badge badge-${r.ativo == 1 ? 'ativo' : 'inativo'}">${r.ativo == 1 ? 'Ativa' : 'Inativa'}</span></td>
+                    <td>
+                        <button class="btn-icon edit" onclick="editarRecorrencia(${r.id})" title="Editar"><i class="fas fa-pen"></i></button>
+                        <button class="btn-icon delete" onclick="excluirRecorrencia(${r.id})" title="Desativar"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function abrirModalCriar() {
+            document.getElementById('modal-titulo').innerHTML = '<i class="fas fa-redo"></i> Nova Recorrência';
+            document.getElementById('rec-id').value = '';
+            document.querySelectorAll('#modal-criar input[type="text"], #modal-criar input[type="number"]').forEach(el => el.value = '');
+            document.getElementById('rec-tipo').value = 'pagar';
+            document.getElementById('rec-frequencia').value = 'mensal';
+            document.getElementById('rec-dia').value = '1';
+            document.getElementById('rec-inicio').value = new Date().toISOString().slice(0,10);
+            document.getElementById('rec-fim').value = '';
+            document.getElementById('modal-criar').classList.add('active');
+        }
+
+        function editarRecorrencia(id) {
+            const r = recorrencias.find(x => x.id === id);
+            if (!r) return;
+            document.getElementById('modal-titulo').innerHTML = '<i class="fas fa-pen"></i> Editar Recorrência';
+            document.getElementById('rec-id').value = r.id;
+            document.getElementById('rec-descricao').value = r.descricao || '';
+            document.getElementById('rec-tipo').value = r.tipo || 'pagar';
+            document.getElementById('rec-valor').value = r.valor || '';
+            document.getElementById('rec-frequencia').value = r.frequencia || 'mensal';
+            document.getElementById('rec-dia').value = r.dia_vencimento || 1;
+            document.getElementById('rec-inicio').value = r.data_inicio ? r.data_inicio.slice(0,10) : '';
+            document.getElementById('rec-fim').value = r.data_fim ? r.data_fim.slice(0,10) : '';
+            document.getElementById('rec-entidade').value = r.fornecedor_cliente || '';
+            document.getElementById('rec-categoria').value = r.categoria || '';
+            document.getElementById('modal-criar').classList.add('active');
+        }
+
+        async function salvarRecorrencia() {
+            const id = document.getElementById('rec-id').value;
+            const payload = {
+                descricao: document.getElementById('rec-descricao').value,
+                tipo: document.getElementById('rec-tipo').value,
+                valor: parseFloat(document.getElementById('rec-valor').value),
+                frequencia: document.getElementById('rec-frequencia').value,
+                dia_vencimento: parseInt(document.getElementById('rec-dia').value) || 1,
+                data_inicio: document.getElementById('rec-inicio').value,
+                data_fim: document.getElementById('rec-fim').value || null,
+                fornecedor_cliente: document.getElementById('rec-entidade').value,
+                categoria: document.getElementById('rec-categoria').value
+            };
+            if (!payload.descricao || !payload.valor) {
+                mostrarToast('Preencha descrição e valor', 'warning'); return;
+            }
+            try {
+                const url = id ? `${API}/transacoes-recorrentes/${id}` : `${API}/transacoes-recorrentes`;
+                const method = id ? 'PUT' : 'POST';
+                const r = await fetch(url, { method, headers: hdrs(), body: JSON.stringify(payload) });
+                const data = await r.json();
+                if (data.success) {
+                    mostrarToast(id ? 'Recorrência atualizada!' : 'Recorrência criada!', 'success');
+                    fecharModal('modal-criar');
+                    carregarRecorrencias();
+                } else { mostrarToast(data.message || 'Erro', 'error'); }
+            } catch (e) { mostrarToast('Erro de conexão', 'error'); }
+        }
+
+        async function excluirRecorrencia(id) {
+            if (!confirm('Deseja desativar esta recorrência?')) return;
+            try {
+                const r = await fetch(`${API}/transacoes-recorrentes/${id}`, { method: 'DELETE', headers: hdrs() });
+                const data = await r.json();
+                if (data.success) { mostrarToast('Recorrência desativada', 'success'); carregarRecorrencias(); }
+            } catch (e) { mostrarToast('Erro', 'error'); }
+        }
+
+        async function processarPendentes() {
+            if (!confirm('Isso gerará lançamentos (Contas a Pagar/Receber) para todas as recorrências com vencimento passado.\n\nDeseja continuar?')) return;
+            try {
+                const r = await fetch(`${API}/transacoes-recorrentes/processar`, { method: 'POST', headers: hdrs() });
+                const data = await r.json();
+                if (data.success) {
+                    const total = data.processados || 0;
+                    if (total > 0) {
+                        mostrarToast(`${total} lançamento(s) gerado(s) com sucesso!`, 'success');
+                    } else {
+                        mostrarToast('Nenhuma recorrência pendente para processar', 'info');
+                    }
+                    carregarRecorrencias();
+                } else { mostrarToast(data.message || 'Erro', 'error'); }
+            } catch (e) { mostrarToast('Erro ao processar', 'error'); }
+        }
+
+        function fecharModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        async function carregarUsuario() {
+            try {
+                const r = await fetch('/api/me', { credentials: 'include' });
+                if (r.ok) {
+                    const u = await r.json();
+                    const nome = u.apelido || (u.nome ? u.nome.split(' ')[0] : 'Usuário');
+                    const h = new Date().getHours();
+                    document.getElementById('greeting-text').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                    document.getElementById('user-name').textContent = nome;
+                    document.getElementById('user-initials').textContent = nome.charAt(0).toUpperCase();
+                }
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarUsuario();
+            carregarRecorrencias();
+        });
+    </script>
+    <script src="public/js/financeiro-shared.js?v=20260217"></script>
+    <script src="js/financeiro-sidebar.js?v=20260211"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+    <script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+</body>
+</html>

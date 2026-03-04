@@ -141,7 +141,7 @@
     // ========================================================
 
     window.toggleMobileSidebar = function () {
-        const sidebar = document.getElementById('financeiro-sidebar');
+        const sidebar = document.getElementById('mobile-sidebar') || document.getElementById('financeiro-sidebar');
         const overlay = document.getElementById('sidebar-overlay');
         if (sidebar) sidebar.classList.toggle('open');
         if (overlay) overlay.classList.toggle('active');
