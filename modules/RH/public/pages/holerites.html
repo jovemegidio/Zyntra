@@ -52,6 +52,7 @@
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
+        <!-- Sidebar Admin -->
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
@@ -60,13 +61,13 @@
                 <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="gestao-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
                 <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
                 <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="aplicar-avaliacoes.html" class="sidebar-btn" title="Aplicar Avaliações"><i class="fas fa-clipboard-check"></i></a>
                 <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
             </div>
         </aside>
@@ -98,20 +99,23 @@
             <div class="page-content">
         <!-- Toolbar de Ações -->
         <div class="section-toolbar">
-            <div class="section-search">
+            <div class="section-search" style="display:flex;gap:10px;align-items:center;">
                 <i class="fas fa-calendar"></i>
-                <select id="competencia-select" style="width: 200px; padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;">
-                    <option value="2024-09">Setembro 2024</option>
-                    <option value="2024-08">Agosto 2024</option>
-                    <option value="2024-07">Julho 2024</option>
+                <select id="mes-select" style="width:140px;padding:10px 12px;border:2px solid #e5e7eb;border-radius:8px;font-size:13px;">
+                    <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option>
+                    <option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option>
+                    <option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option>
+                    <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
                 </select>
+                <select id="ano-select" style="width:100px;padding:10px 12px;border:2px solid #e5e7eb;border-radius:8px;font-size:13px;"></select>
+                <button class="btn-action btn-outline" onclick="carregarHolerites()" title="Buscar"><i class="fas fa-search"></i></button>
             </div>
             <div class="section-actions">
                 <button class="btn-action btn-outline" onclick="exportarFolha()">
                     <i class="fas fa-download"></i>
                     Exportar Folha
                 </button>
-                <button class="btn-action btn-outline" onclick="relatórioPagamento()">
+                <button class="btn-action btn-outline" onclick="relatorioPagamento()">
                     <i class="fas fa-chart-bar"></i>
                     Relatório
                 </button>
@@ -119,7 +123,7 @@
                     <i class="fas fa-calculator"></i>
                     Gerar Folha
                 </button>
-                <button class="btn-action btn-success" onclick="gerarHolerites()">
+                <button class="btn-action btn-success" onclick="gerarHoleritesImpressao()">
                     <i class="fas fa-file-invoice"></i>
                     Gerar Holerites
                 </button>
@@ -131,195 +135,42 @@
             <div class="stat-card blue">
                 <div class="stat-header">
                     <h3 class="stat-title">Holerites Gerados</h3>
-                    <div class="stat-icon">
-                        <i class="fas fa-file-invoice"></i>
-                    </div>
+                    <div class="stat-icon"><i class="fas fa-file-invoice"></i></div>
                 </div>
-                <div class="stat-value">6</div>
-                <div class="stat-subtitle">Setembro 2024</div>
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-subtitle" id="stat-periodo">Carregando...</div>
             </div>
             <div class="stat-card green">
                 <div class="stat-header">
                     <h3 class="stat-title">Total Bruto</h3>
-                    <div class="stat-icon">
-                        <i class="fas fa-money-bill"></i>
-                    </div>
+                    <div class="stat-icon"><i class="fas fa-money-bill"></i></div>
                 </div>
-                <div class="stat-value">R$ 45.670</div>
+                <div class="stat-value" id="stat-bruto">R$ 0</div>
                 <div class="stat-subtitle">Folha mensal</div>
             </div>
             <div class="stat-card yellow">
                 <div class="stat-header">
                     <h3 class="stat-title">Descontos</h3>
-                    <div class="stat-icon">
-                        <i class="fas fa-minus-circle"></i>
-                    </div>
+                    <div class="stat-icon"><i class="fas fa-minus-circle"></i></div>
                 </div>
-                <div class="stat-value">R$ 8.420</div>
+                <div class="stat-value" id="stat-descontos">R$ 0</div>
                 <div class="stat-subtitle">INSS + IRRF</div>
             </div>
             <div class="stat-card red">
                 <div class="stat-header">
                     <h3 class="stat-title">Líquido</h3>
-                    <div class="stat-icon">
-                        <i class="fas fa-hand-holding-usd"></i>
-                    </div>
+                    <div class="stat-icon"><i class="fas fa-hand-holding-usd"></i></div>
                 </div>
-                <div class="stat-value">R$ 37.250</div>
+                <div class="stat-value" id="stat-liquido">R$ 0</div>
                 <div class="stat-subtitle">A pagar</div>
             </div>
         </div>
 
         <!-- Lista de Holerites -->
         <div class="items-grid" id="holerites-grid">
-            <div class="item-card">
-                <div class="item-header">
-                    <img src="../Interativo-Aluforce.jpg" alt="Andreia Silva" class="item-avatar">
-                    <div class="item-info">
-                        <h4>Andreia Silva</h4>
-                        <p>Competência: Set/2024</p>
-                        <p>Bruto: R$ 8.500,00 | Líquido: R$ 6.800,00</p>
-                    </div>
-                </div>
-                <div class="item-status">
-                    <span class="status-badge active">Processado</span>
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Andreia Silva')">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
-                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Andreia Silva')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Andreia Silva')">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div class="item-card">
-                <div class="item-header">
-                    <img src="../Interativo-Aluforce.jpg" alt="Douglas Santos" class="item-avatar">
-                    <div class="item-info">
-                        <h4>Douglas Santos</h4>
-                        <p>Competência: Set/2024</p>
-                        <p>Bruto: R$ 7.200,00 | Líquido: R$ 5.940,00</p>
-                    </div>
-                </div>
-                <div class="item-status">
-                    <span class="status-badge active">Processado</span>
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Douglas Santos')">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
-                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Douglas Santos')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Douglas Santos')">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div class="item-card">
-                <div class="item-header">
-                    <img src="../Interativo-Aluforce.jpg" alt="Hellen Costa" class="item-avatar">
-                    <div class="item-info">
-                        <h4>Hellen Costa</h4>
-                        <p>Competência: Set/2024</p>
-                        <p>Bruto: R$ 6.800,00 | Líquido: R$ 5.610,00</p>
-                    </div>
-                </div>
-                <div class="item-status">
-                    <span class="status-badge active">Processado</span>
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Hellen Costa')">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
-                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Hellen Costa')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Hellen Costa')">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div class="item-card">
-                <div class="item-header">
-                    <img src="../Interativo-Aluforce.jpg" alt="Junior Oliveira" class="item-avatar">
-                    <div class="item-info">
-                        <h4>Junior Oliveira</h4>
-                        <p>Competência: Set/2024</p>
-                        <p>Bruto: R$ 6.200,00 | Líquido: R$ 5.100,00</p>
-                    </div>
-                </div>
-                <div class="item-status">
-                    <span class="status-badge pending">Pendente</span>
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('Junior Oliveira')">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
-                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('Junior Oliveira')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn view" title="Download" onclick="downloadHolerite('Junior Oliveira')">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div class="item-card">
-                <div class="item-header">
-                    <img src="../Interativo-Aluforce.jpg" alt="RH Assistente" class="item-avatar">
-                    <div class="item-info">
-                        <h4>RH Assistente</h4>
-                        <p>Competência: Set/2024</p>
-                        <p>Bruto: R$ 4.500,00 | Líquido: R$ 3.870,00</p>
-                    </div>
-                </div>
-                <div class="item-status">
-                    <span class="status-badge active">Processado</span>
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('RH Assistente')">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
-                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('RH Assistente')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn view" title="Download" onclick="downloadHolerite('RH Assistente')">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div class="item-card">
-                <div class="item-header">
-                    <img src="../Interativo-Aluforce.jpg" alt="TI Suporte" class="item-avatar">
-                    <div class="item-info">
-                        <h4>TI Suporte</h4>
-                        <p>Competência: Set/2024</p>
-                        <p>Bruto: R$ 5.200,00 | Líquido: R$ 4.290,00</p>
-                    </div>
-                </div>
-                <div class="item-status">
-                    <span class="status-badge active">Processado</span>
-                </div>
-                <div class="item-actions">
-                    <button class="action-btn view" title="Visualizar Holerite" onclick="visualizarHolerite('TI Suporte')">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
-                    <button class="action-btn edit" title="Editar" onclick="editarHolerite('TI Suporte')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="action-btn view" title="Download" onclick="downloadHolerite('TI Suporte')">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </div>
+            <div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#94a3b8;">
+                <i class="fas fa-spinner fa-spin" style="font-size:32px;margin-bottom:12px;display:block;"></i>
+                Carregando holerites...
             </div>
         </div>
             </div><!-- /page-content -->
@@ -327,469 +178,313 @@
     </div><!-- /app-container -->
 
     <script>
-        // Dados mock dos funcionários (em produção viriam da API)
-        let funcionariosData = [
-            { id: 1, nome: 'Andreia Silva', cargo: 'Gerente', salarioBase: 8500, departamento: 'Administração' },
-            { id: 2, nome: 'Douglas Lima', cargo: 'Supervisor', salarioBase: 7200, departamento: 'Produção' },
-            { id: 3, nome: 'Emilia Costa', cargo: 'Analista', salarioBase: 5800, departamento: 'Financeiro' },
-            { id: 4, nome: 'Maicon Santos', cargo: 'Desenvolvedor', salarioBase: 6500, departamento: 'TI' },
-            { id: 5, nome: 'RH Assistente', cargo: 'Assistente', salarioBase: 3800, departamento: 'RH' },
-            { id: 6, nome: 'TI Suporte', cargo: 'Técnico', salarioBase: 5200, departamento: 'TI' }
-        ];
+        // =============================================
+        // HOLERITES - DADOS REAIS VIA API
+        // =============================================
+        let holeritesList = [];
+        let funcionariosList = [];
 
-        // Calcular descontos
-        function calcularINSS(salarioBruto) {
-            if (salarioBruto <= 1412.00) return salarioBruto * 0.075;
-            if (salarioBruto <= 2666.68) return salarioBruto * 0.09;
-            if (salarioBruto <= 4000.03) return salarioBruto * 0.12;
-            return salarioBruto * 0.14;
+        const fmt = v => parseFloat(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const fmtShort = v => 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+        // Inicializar selects de mês/ano
+        function initSelects() {
+            const hoje = new Date();
+            const mesSelect = document.getElementById('mes-select');
+            const anoSelect = document.getElementById('ano-select');
+            mesSelect.value = hoje.getMonth() + 1;
+            for (let y = hoje.getFullYear(); y >= hoje.getFullYear() - 3; y--) {
+                const opt = document.createElement('option');
+                opt.value = y; opt.textContent = y;
+                anoSelect.appendChild(opt);
+            }
+            anoSelect.value = hoje.getFullYear();
         }
 
-        function calcularIRRF(salarioBruto, inss) {
-            const base = salarioBruto - inss;
-            if (base <= 2259.20) return 0;
-            if (base <= 2826.65) return base * 0.075 - 169.44;
-            if (base <= 3751.05) return base * 0.15 - 381.44;
-            if (base <= 4664.68) return base * 0.225 - 662.77;
-            return base * 0.275 - 896.00;
+        // Carregar usuário logado
+        async function carregarUsuario() {
+            try {
+                const res = await fetch('/api/me', { credentials: 'include' });
+                if (!res.ok) return;
+                const user = await res.json();
+                const nome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                const hour = new Date().getHours();
+                const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+                document.getElementById('greeting-text').textContent = greeting;
+                document.getElementById('user-name').textContent = nome;
+                document.getElementById('user-initials').textContent = nome.charAt(0).toUpperCase();
+                const fotoUrl = user.avatar || user.foto || user.foto_perfil_url;
+                if (fotoUrl && fotoUrl !== '/avatars/default.webp') {
+                    const fotoEl = document.getElementById('user-photo');
+                    fotoEl.src = fotoUrl;
+                    fotoEl.onload = () => { fotoEl.style.display = 'block'; fotoEl.classList.add('visible'); document.getElementById('user-initials').style.display = 'none'; };
+                    fotoEl.onerror = () => { fotoEl.style.display = 'none'; };
+                }
+            } catch (e) { console.error('Erro ao carregar usuário:', e); }
         }
 
-        function gerarFolha() {
-            const competencia = document.getElementById('competencia-select').value;
-            const [ano, mes] = competencia.split('-');
-            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        // Carregar funcionários da API
+        async function carregarFuncionarios() {
+            try {
+                const res = await fetch('/api/rh/funcionarios', { credentials: 'include' });
+                if (!res.ok) throw new Error('Status ' + res.status);
+                const data = await res.json();
+                funcionariosList = data.funcionarios || data.data || data || [];
+                if (!Array.isArray(funcionariosList)) funcionariosList = [];
+            } catch (e) {
+                console.error('Erro ao carregar funcionários:', e);
+                funcionariosList = [];
+            }
+        }
 
-            if (!confirm(`Gerar folha de pagamento para ${mesNome}?\n\nIsso irá calcular todos os valores de salário, descontos e benefícios.`)) {
+        // Carregar holerites da API
+        async function carregarHolerites() {
+            const mes = document.getElementById('mes-select').value;
+            const ano = document.getElementById('ano-select').value;
+            const grid = document.getElementById('holerites-grid');
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size:32px;margin-bottom:12px;display:block;"></i>Carregando holerites...</div>';
+
+            try {
+                const res = await fetch(`/api/rh/holerites?mes=${mes}&ano=${ano}`, { credentials: 'include' });
+                if (!res.ok) throw new Error('Status ' + res.status);
+                const data = await res.json();
+                holeritesList = data.holerites || data.data || data || [];
+                if (!Array.isArray(holeritesList)) holeritesList = [];
+                const stats = data.stats || {};
+                atualizarEstatisticas(stats);
+            } catch (e) {
+                console.error('Erro ao carregar holerites:', e);
+                holeritesList = [];
+                if (funcionariosList.length > 0) {
+                    montarHoleritesDeFuncionarios(mes, ano);
+                    return;
+                }
+            }
+            renderizarGrid(mes, ano);
+        }
+
+        // Montar cards a partir de funcionários (quando não há holerites gerados)
+        function montarHoleritesDeFuncionarios(mes, ano) {
+            const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const grid = document.getElementById('holerites-grid');
+            if (funcionariosList.length === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#94a3b8;"><i class="fas fa-inbox" style="font-size:40px;margin-bottom:12px;display:block;"></i><p style="font-size:16px;margin-bottom:8px;">Nenhum holerite gerado</p><p style="font-size:13px;">Use "Gerar Folha" para processar</p></div>';
+                atualizarEstatisticas({});
                 return;
             }
-
-            // Calcular folha
-            let totalBruto = 0;
-            let totalDescontos = 0;
-            let totalLiquido = 0;
-
-            funcionariosData.forEach(func => {
-                const inss = calcularINSS(func.salarioBase);
-                const irrf = calcularIRRF(func.salarioBase, inss);
-                const liquido = func.salarioBase - inss - irrf;
-
-                totalBruto += func.salarioBase;
-                totalDescontos += (inss + irrf);
-                totalLiquido += liquido;
-            });
-
-            // Atualizar cards de estatísticas
-            document.querySelector('.stat-card.green .stat-value').textContent = `R$ ${totalBruto.toLocaleString('pt-BR', {minimumFractionDigits: 0})}`;
-            document.querySelector('.stat-card.yellow .stat-value').textContent = `R$ ${totalDescontos.toLocaleString('pt-BR', {minimumFractionDigits: 0})}`;
-            document.querySelector('.stat-card.red .stat-value').textContent = `R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 0})}`;
-
-            alert(`âœ… Folha de pagamento gerada!\n\nTotal Bruto: R$ ${totalBruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\nDescontos: R$ ${totalDescontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\nLíquido: R$ ${totalLiquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
-        }
-
-        function gerarHolerites() {
-            const competencia = document.getElementById('competencia-select').value;
-            const [ano, mes] = competencia.split('-');
-            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-            // Gerar um holerite modelo para visualização
-            const printWindow = window.open('', '_blank');
-
-            let holeriteHtml = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Holerites - ${mesNome}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-                        .holerite { background: white; max-width: 800px; margin: 0 auto 30px; padding: 30px; border: 2px solid #1a1a2e; page-break-after: always; }
-                        .holerite:last-child { page-break-after: avoid; }
-                        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1a1a2e; padding-bottom: 15px; margin-bottom: 20px; }
-                        .empresa { font-weight: bold; font-size: 18px; color: #1a1a2e; }
-                        .documento { text-align: right; font-size: 12px; color: #666; }
-                        .funcionario { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; }
-                        .funcionario p { margin: 5px 0; font-size: 13px; }
-                        .funcionario strong { color: #1a1a2e; }
-                        .tabela { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; }
-                        .tabela th { background: #1a1a2e; color: white; padding: 10px; text-align: left; }
-                        .tabela td { padding: 8px 10px; border-bottom: 1px solid #eee; }
-                        .tabela .valor { text-align: right; }
-                        .totais { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
-                        .total-box { padding: 15px; border-radius: 8px; text-align: center; }
-                        .total-box.bruto { background: #dcfce7; color: #166534; }
-                        .total-box.descontos { background: #fee2e2; color: #991b1b; }
-                        .total-box.liquido { background: #dbeafe; color: #1e40af; }
-                        .total-box h4 { margin: 0 0 5px 0; font-size: 12px; opacity: 0.8; }
-                        .total-box .valor { font-size: 20px; font-weight: bold; }
-                        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #ccc; display: flex; justify-content: space-between; font-size: 11px; color: #999; }
-                        @media print { body { background: white; padding: 0; } .holerite { border: 1px solid #ccc; margin: 0; } }
-                    </style>
-</head>
-                <body>
-            `;
-
-            funcionariosData.forEach(func => {
-                const inss = calcularINSS(func.salarioBase);
-                const irrf = calcularIRRF(func.salarioBase, inss);
-                const vt = func.salarioBase * 0.06;
-                const vr = 400;
-                const totalDescontos = inss + irrf + vt;
-                const totalProventos = func.salarioBase + vr;
-                const liquido = totalProventos - totalDescontos;
-
-                holeriteHtml += `
-                    <div class="holerite">
-                        <div class="header">
-                            <div class="empresa">
-                                ALUFORCE INDÚSTRIA E COMÉRCIO LTDA<br>
-                                <small style="font-weight: normal; color: #666;">CNPJ: 00.000.000/0001-00</small>
-                            </div>
-                            <div class="documento">
-                                <strong>HOLERITE DE PAGAMENTO</strong><br>
-                                Competência: ${mesNome.toUpperCase()}<br>
-                                Emissão: ${new Date().toLocaleDateString('pt-BR')}
-                            </div>
+            let totalBruto = 0, totalDesc = 0, totalLiq = 0;
+            grid.innerHTML = funcionariosList.map(f => {
+                const salario = parseFloat(f.salario_base || f.salario || 0);
+                const inss = calcularINSS(salario);
+                const irrf = calcularIRRF(salario, inss);
+                const liq = salario - inss - irrf;
+                totalBruto += salario; totalDesc += (inss + irrf); totalLiq += liq;
+                const fotoUrl = f.foto_perfil_url || f.foto || '../Interativo-Aluforce.jpg';
+                const inicial = (f.nome_completo || f.nome || '?').charAt(0).toUpperCase();
+                return `<div class="item-card">
+                    <div class="item-header">
+                        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#ec4899,#db2777);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;flex-shrink:0;overflow:hidden;">
+                            <img src="${fotoUrl}" alt="${f.nome_completo||f.nome}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                            <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;">${inicial}</span>
                         </div>
-
-                        <div class="funcionario">
-                            <div>
-                                <p><strong>Funcionário:</strong> ${func.nome}</p>
-                                <p><strong>Cargo:</strong> ${func.cargo}</p>
-                                <p><strong>Departamento:</strong> ${func.departamento}</p>
-                            </div>
-                            <div>
-                                <p><strong>Matrícula:</strong> ${String(func.id).padStart(6, '0')}</p>
-                                <p><strong>Admissão:</strong> 01/01/2024</p>
-                                <p><strong>Salário Base:</strong> R$ ${func.salarioBase.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-                            </div>
-                        </div>
-
-                        <table class="tabela">
-                            <thead>
-                                <tr>
-                                    <th>Cód</th>
-                                    <th>Descrição</th>
-                                    <th>Referência</th>
-                                    <th class="valor">Proventos</th>
-                                    <th class="valor">Descontos</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>001</td>
-                                    <td>Salário Base</td>
-                                    <td>30 dias</td>
-                                    <td class="valor">R$ ${func.salarioBase.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                    <td class="valor">-</td>
-                                </tr>
-                                <tr>
-                                    <td>002</td>
-                                    <td>Vale Refeição</td>
-                                    <td>22 dias</td>
-                                    <td class="valor">R$ ${vr.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                    <td class="valor">-</td>
-                                </tr>
-                                <tr>
-                                    <td>101</td>
-                                    <td>INSS</td>
-                                    <td>${(inss / func.salarioBase * 100).toFixed(2)}%</td>
-                                    <td class="valor">-</td>
-                                    <td class="valor">R$ ${inss.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                </tr>
-                                <tr>
-                                    <td>102</td>
-                                    <td>IRRF</td>
-                                    <td>${irrf > 0 ? (irrf / func.salarioBase * 100).toFixed(2) + '%' : 'Isento'}</td>
-                                    <td class="valor">-</td>
-                                    <td class="valor">${irrf > 0 ? 'R$ ' + irrf.toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</td>
-                                </tr>
-                                <tr>
-                                    <td>103</td>
-                                    <td>Vale Transporte (Desc.)</td>
-                                    <td>6%</td>
-                                    <td class="valor">-</td>
-                                    <td class="valor">R$ ${vt.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-
-                        <div class="totais">
-                            <div class="total-box bruto">
-                                <h4>TOTAL PROVENTOS</h4>
-                                <div class="valor">R$ ${totalProventos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-                            </div>
-                            <div class="total-box descontos">
-                                <h4>TOTAL DESCONTOS</h4>
-                                <div class="valor">R$ ${totalDescontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-                            </div>
-                            <div class="total-box liquido">
-                                <h4>VALOR LÍQUIDO</h4>
-                                <div class="valor">R$ ${liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</div>
-                            </div>
-                        </div>
-
-                        <div class="footer">
-                            <div>Assinatura do Funcionário: _________________________________</div>
-                            <div>ALUFORCE ERP - Sistema de Gestão</div>
+                        <div class="item-info">
+                            <h4>${f.nome_completo || f.nome || 'Sem nome'}</h4>
+                            <p>${f.cargo || 'Sem cargo'} — ${f.departamento || 'Sem depto'}</p>
+                            <p>Bruto: ${fmt(salario)} | Líquido: ${fmt(liq)}</p>
                         </div>
                     </div>
-                `;
-            });
-
-            holeriteHtml += '
-<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
-    <!-- Chat Widget BOB AI -->
-    <script src="/chat/widget.js?v=20260218" defer></script>
-
-    <!-- Chat Corporativo (Teams) -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
-</body></html>';
-
-            printWindow.document.write(holeriteHtml);
-            printWindow.document.close();
-            setTimeout(() => printWindow.print(), 500);
+                    <div class="item-status"><span class="status-badge pending">Pendente</span></div>
+                    <div class="item-actions">
+                        <button class="action-btn view" title="Sem holerite" disabled style="opacity:.4"><i class="fas fa-file-pdf"></i></button>
+                        <button class="action-btn view" title="Sem holerite" disabled style="opacity:.4"><i class="fas fa-download"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+            document.getElementById('stat-total').textContent = funcionariosList.length;
+            document.getElementById('stat-periodo').textContent = `${meses[parseInt(mes)]} ${ano} (pendentes)`;
+            document.getElementById('stat-bruto').textContent = fmtShort(totalBruto);
+            document.getElementById('stat-descontos').textContent = fmtShort(totalDesc);
+            document.getElementById('stat-liquido').textContent = fmtShort(totalLiq);
         }
 
+        // Renderizar grid de holerites
+        function renderizarGrid(mes, ano) {
+            const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+            const grid = document.getElementById('holerites-grid');
+            const compLabel = meses[parseInt(mes)] ? `${meses[parseInt(mes)].substring(0,3)}/${ano}` : `${mes}/${ano}`;
+            if (holeritesList.length === 0) {
+                if (funcionariosList.length > 0) { montarHoleritesDeFuncionarios(mes, ano); }
+                else { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:#94a3b8;"><i class="fas fa-inbox" style="font-size:40px;margin-bottom:12px;display:block;"></i><p style="font-size:16px;">Nenhum holerite encontrado</p><p style="font-size:13px;">Selecione outro período ou gere a folha</p></div>'; }
+                return;
+            }
+            grid.innerHTML = holeritesList.map(h => {
+                const nome = h.funcionario_nome || h.nome || 'Funcionário';
+                const inicial = nome.charAt(0).toUpperCase();
+                const bruto = parseFloat(h.salario_bruto || h.total_proventos || 0);
+                const liq = parseFloat(h.salario_liquido || h.total_liquido || 0);
+                const status = h.status || 'rascunho';
+                const statusClass = status === 'publicado' ? 'active' : 'pending';
+                const statusLabel = status === 'publicado' ? 'Publicado' : status === 'confirmado' ? 'Confirmado' : 'Rascunho';
+                return `<div class="item-card">
+                    <div class="item-header">
+                        <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#ec4899,#db2777);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;flex-shrink:0;"><span>${inicial}</span></div>
+                        <div class="item-info">
+                            <h4>${nome}</h4>
+                            <p>Competência: ${compLabel}</p>
+                            <p>Bruto: ${fmt(bruto)} | Líquido: ${fmt(liq)}</p>
+                        </div>
+                    </div>
+                    <div class="item-status"><span class="status-badge ${statusClass}">${statusLabel}</span></div>
+                    <div class="item-actions">
+                        <button class="action-btn view" title="Visualizar" onclick="visualizarHolerite(${h.id})"><i class="fas fa-file-pdf"></i></button>
+                        <button class="action-btn edit" title="Editar" onclick="editarHolerite(${h.id})"><i class="fas fa-edit"></i></button>
+                        <button class="action-btn view" title="Download" onclick="downloadHolerite(${h.id})"><i class="fas fa-download"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+            document.getElementById('stat-periodo').textContent = `${meses[parseInt(mes)]} ${ano}`;
+        }
+
+        function atualizarEstatisticas(stats) {
+            document.getElementById('stat-total').textContent = (stats && stats.total != null) ? stats.total : holeritesList.length;
+            let totalBruto = 0, totalDesc = 0, totalLiq = 0;
+            holeritesList.forEach(h => {
+                totalBruto += parseFloat(h.salario_bruto || h.total_proventos || 0);
+                totalDesc += parseFloat(h.total_descontos || 0);
+                totalLiq += parseFloat(h.salario_liquido || h.total_liquido || 0);
+            });
+            document.getElementById('stat-bruto').textContent = fmtShort(totalBruto);
+            document.getElementById('stat-descontos').textContent = fmtShort(totalDesc);
+            document.getElementById('stat-liquido').textContent = fmtShort(totalLiq);
+        }
+
+        // Cálculos INSS/IRRF (tabelas 2024)
+        function calcularINSS(s) { return s <= 1412 ? s*0.075 : s <= 2666.68 ? s*0.09 : s <= 4000.03 ? s*0.12 : s*0.14; }
+        function calcularIRRF(s, inss) { const b = s - inss; return b <= 2259.20 ? 0 : b <= 2826.65 ? b*0.075-169.44 : b <= 3751.05 ? b*0.15-381.44 : b <= 4664.68 ? b*0.225-662.77 : b*0.275-896; }
+
+        // Visualizar holerite por ID
+        async function visualizarHolerite(id) {
+            try {
+                const res = await fetch(`/api/rh/holerites/${id}`, { credentials: 'include' });
+                if (!res.ok) throw new Error('Status ' + res.status);
+                const raw = await res.json();
+                const data = raw.data || raw;
+                const proventos = Array.isArray(data.proventos) ? data.proventos : [];
+                const descontos = Array.isArray(data.descontos) ? data.descontos : [];
+                const meses = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                const comp = `${meses[data.mes]||data.mes}/${data.ano}`;
+                const pw = window.open('', '_blank');
+                pw.document.write(`<!DOCTYPE html><html><head><title>Holerite - ${data.funcionario_nome||'Funcionário'}</title><style>body{font-family:Arial,sans-serif;padding:20px;background:#f5f5f5;}.holerite{background:white;max-width:800px;margin:auto;padding:30px;border:2px solid #1a1a2e;}.header{display:flex;justify-content:space-between;border-bottom:2px solid #1a1a2e;padding-bottom:15px;margin-bottom:20px;}.empresa{font-weight:bold;font-size:18px;color:#1a1a2e;}.func-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;padding:15px;background:#f8fafc;border-radius:8px;}.func-grid p{margin:5px 0;font-size:13px;}.func-grid strong{color:#1a1a2e;}.tabela{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}.tabela th{background:#1a1a2e;color:white;padding:10px;text-align:left;}.tabela td{padding:8px 10px;border-bottom:1px solid #eee;}.tabela .valor{text-align:right;}.totais{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;}.total-box{padding:15px;border-radius:8px;text-align:center;}.total-box.bruto{background:#dcfce7;color:#166534;}.total-box.desc{background:#fee2e2;color:#991b1b;}.total-box.liq{background:#dbeafe;color:#1e40af;}.total-box h4{margin:0 0 5px;font-size:12px;opacity:.8;}.total-box .v{font-size:20px;font-weight:bold;}.footer{margin-top:30px;padding-top:20px;border-top:1px dashed #ccc;display:flex;justify-content:space-between;font-size:11px;color:#999;}@media print{body{background:white;padding:0;}.holerite{border:1px solid #ccc;}}</style></head><body><div class="holerite"><div class="header"><div class="empresa">ALUFORCE INDÚSTRIA E COMÉRCIO LTDA<br><small style="font-weight:normal;color:#666">CNPJ: 00.000.000/0001-00</small></div><div style="text-align:right;font-size:12px;color:#666"><strong>HOLERITE</strong><br>Competência: ${comp}<br>${new Date().toLocaleDateString('pt-BR')}</div></div><div class="func-grid"><div><p><strong>Funcionário:</strong> ${data.funcionario_nome||'-'}</p><p><strong>Cargo:</strong> ${data.cargo||'-'}</p><p><strong>Depto:</strong> ${data.departamento||'-'}</p></div><div><p><strong>CPF:</strong> ${data.cpf||'-'}</p><p><strong>Salário Base:</strong> ${fmt(data.salario_bruto||data.salario_base)}</p></div></div><table class="tabela"><thead><tr><th>Cód</th><th>Descrição</th><th>Ref.</th><th class="valor">Proventos</th><th class="valor">Descontos</th></tr></thead><tbody>${proventos.map((p,i)=>`<tr><td>${String(i+1).padStart(3,'0')}</td><td>${p.descricao||p.nome||'-'}</td><td>${p.referencia||'-'}</td><td class="valor">${fmt(p.valor)}</td><td class="valor">-</td></tr>`).join('')}${descontos.map((d,i)=>`<tr><td>${String(100+i+1)}</td><td>${d.descricao||d.nome||'-'}</td><td>${d.referencia||'-'}</td><td class="valor">-</td><td class="valor">${fmt(d.valor)}</td></tr>`).join('')}${proventos.length===0&&descontos.length===0?'<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Detalhamento não disponível</td></tr>':''}</tbody></table><div class="totais"><div class="total-box bruto"><h4>PROVENTOS</h4><div class="v">${fmt(data.total_proventos||data.salario_bruto)}</div></div><div class="total-box desc"><h4>DESCONTOS</h4><div class="v">${fmt(data.total_descontos)}</div></div><div class="total-box liq"><h4>LÍQUIDO</h4><div class="v">${fmt(data.total_liquido||data.salario_liquido)}</div></div></div><div class="footer"><div>Assinatura: _________________________________</div><div>ALUFORCE ERP</div></div></div></body></html>`);
+                pw.document.close();
+                setTimeout(() => pw.print(), 500);
+            } catch (e) {
+                console.error('Erro ao visualizar:', e);
+                showToast('Erro ao carregar holerite.', 'error');
+            }
+        }
+
+        function editarHolerite(id) { window.location.href = `../gestao-holerites.html?editar=${id}`; }
+
+        async function downloadHolerite(id) {
+            try {
+                const res = await fetch(`/api/rh/holerites/${id}/download-pdf`, { credentials: 'include' });
+                if (res.ok) { const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `holerite_${id}.pdf`; a.click(); URL.revokeObjectURL(url); }
+                else { visualizarHolerite(id); }
+            } catch (e) { visualizarHolerite(id); }
+        }
+
+        // Gerar folha via API
+        async function gerarFolha() {
+            const mes = document.getElementById('mes-select').value;
+            const ano = document.getElementById('ano-select').value;
+            const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            if (!confirm(`Gerar folha de pagamento para ${meses[parseInt(mes)]} ${ano}?`)) return;
+            try {
+                const res = await fetch('/api/rh/folha/processar', { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({ mes: parseInt(mes), ano: parseInt(ano) }) });
+                if (res.ok) { const data = await res.json(); showToast('Folha processada! ' + (data.message||'Holerites gerados.'), 'success'); carregarHolerites(); }
+                else if (res.status === 404) { gerarFolhaLocal(); }
+                else { const err = await res.json().catch(()=>({})); showToast('Erro: '+(err.message||'Falha ao processar'), 'error'); }
+            } catch (e) { gerarFolhaLocal(); }
+        }
+
+        function gerarFolhaLocal() {
+            if (funcionariosList.length === 0) { showToast('Nenhum funcionário cadastrado.', 'warning'); return; }
+            let tb=0,td=0,tl=0;
+            funcionariosList.forEach(f => { const s=parseFloat(f.salario_base||f.salario||0), i=calcularINSS(s), r=calcularIRRF(s,i); tb+=s; td+=(i+r); tl+=(s-i-r); });
+            document.getElementById('stat-bruto').textContent = fmtShort(tb);
+            document.getElementById('stat-descontos').textContent = fmtShort(td);
+            document.getElementById('stat-liquido').textContent = fmtShort(tl);
+            showToast('Folha calculada (' + funcionariosList.length + ' funcs) - Bruto: ' + fmt(tb) + ' | Descontos: ' + fmt(td) + ' | Líquido: ' + fmt(tl), 'success');
+        }
+
+        // Gerar holerites para impressão
+        function gerarHoleritesImpressao() {
+            const mes = document.getElementById('mes-select').value;
+            const ano = document.getElementById('ano-select').value;
+            const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            const mesNome = meses[parseInt(mes)] + ' ' + ano;
+            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionario_nome||'Func', cargo: h.cargo||'-', departamento: h.departamento||'-', salarioBase: parseFloat(h.salario_bruto||0), id: h.funcionario_id||h.id }))
+                : funcionariosList.map(f => ({ nome: f.nome_completo||f.nome||'Func', cargo: f.cargo||'-', departamento: f.departamento||'-', salarioBase: parseFloat(f.salario_base||f.salario||0), id: f.id }));
+            if (!dados.length) { showToast('Nenhum dado disponível.', 'warning'); return; }
+            const pw = window.open('', '_blank');
+            let html = `<!DOCTYPE html><html><head><title>Holerites - ${mesNome}</title><style>body{font-family:Arial,sans-serif;padding:20px;background:#f5f5f5;}.holerite{background:white;max-width:800px;margin:0 auto 30px;padding:30px;border:2px solid #1a1a2e;page-break-after:always;}.holerite:last-child{page-break-after:avoid;}.header{display:flex;justify-content:space-between;border-bottom:2px solid #1a1a2e;padding-bottom:15px;margin-bottom:20px;}.empresa{font-weight:bold;font-size:18px;color:#1a1a2e;}.func-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;padding:15px;background:#f8fafc;border-radius:8px;}.func-grid p{margin:5px 0;font-size:13px;}.func-grid strong{color:#1a1a2e;}.tabela{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;}.tabela th{background:#1a1a2e;color:white;padding:10px;text-align:left;}.tabela td{padding:8px 10px;border-bottom:1px solid #eee;}.tabela .valor{text-align:right;}.totais{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;}.total-box{padding:15px;border-radius:8px;text-align:center;}.total-box.bruto{background:#dcfce7;color:#166534;}.total-box.desc{background:#fee2e2;color:#991b1b;}.total-box.liq{background:#dbeafe;color:#1e40af;}.total-box h4{margin:0 0 5px;font-size:12px;opacity:.8;}.total-box .v{font-size:20px;font-weight:bold;}.footer{margin-top:30px;padding-top:20px;border-top:1px dashed #ccc;display:flex;justify-content:space-between;font-size:11px;color:#999;}@media print{body{background:white;padding:0;}.holerite{border:1px solid #ccc;margin:0;}}</style></head><body>`;
+            dados.forEach(func => {
+                const inss=calcularINSS(func.salarioBase), irrf=calcularIRRF(func.salarioBase,inss), vt=func.salarioBase*0.06, vr=400;
+                const tDesc=inss+irrf+vt, tProv=func.salarioBase+vr, liq=tProv-tDesc;
+                html += `<div class="holerite"><div class="header"><div class="empresa">ALUFORCE INDÚSTRIA E COMÉRCIO LTDA<br><small style="font-weight:normal;color:#666">CNPJ: 00.000.000/0001-00</small></div><div style="text-align:right;font-size:12px;color:#666"><strong>HOLERITE</strong><br>${mesNome.toUpperCase()}<br>${new Date().toLocaleDateString('pt-BR')}</div></div><div class="func-grid"><div><p><strong>Funcionário:</strong> ${func.nome}</p><p><strong>Cargo:</strong> ${func.cargo}</p><p><strong>Depto:</strong> ${func.departamento}</p></div><div><p><strong>Matrícula:</strong> ${String(func.id).padStart(6,'0')}</p><p><strong>Salário Base:</strong> ${fmt(func.salarioBase)}</p></div></div><table class="tabela"><thead><tr><th>Cód</th><th>Descrição</th><th>Ref.</th><th class="valor">Proventos</th><th class="valor">Descontos</th></tr></thead><tbody><tr><td>001</td><td>Salário Base</td><td>30d</td><td class="valor">${fmt(func.salarioBase)}</td><td class="valor">-</td></tr><tr><td>002</td><td>Vale Refeição</td><td>22d</td><td class="valor">${fmt(vr)}</td><td class="valor">-</td></tr><tr><td>101</td><td>INSS</td><td>${(inss/func.salarioBase*100).toFixed(2)}%</td><td class="valor">-</td><td class="valor">${fmt(inss)}</td></tr><tr><td>102</td><td>IRRF</td><td>${irrf>0?(irrf/func.salarioBase*100).toFixed(2)+'%':'Isento'}</td><td class="valor">-</td><td class="valor">${irrf>0?fmt(irrf):'-'}</td></tr><tr><td>103</td><td>VT (Desc.)</td><td>6%</td><td class="valor">-</td><td class="valor">${fmt(vt)}</td></tr></tbody></table><div class="totais"><div class="total-box bruto"><h4>PROVENTOS</h4><div class="v">${fmt(tProv)}</div></div><div class="total-box desc"><h4>DESCONTOS</h4><div class="v">${fmt(tDesc)}</div></div><div class="total-box liq"><h4>LÍQUIDO</h4><div class="v">${fmt(liq)}</div></div></div><div class="footer"><div>Assinatura: _________________________________</div><div>ALUFORCE ERP</div></div></div>`;
+            });
+            html += '</body></html>';
+            pw.document.write(html); pw.document.close(); setTimeout(() => pw.print(), 500);
+        }
+
+        // Exportar folha CSV
         function exportarFolha() {
-            const competencia = document.getElementById('competencia-select').value;
-            const [ano, mes] = competencia.split('-');
-            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-            // Gerar CSV da folha
-            let csv = 'Folha de Pagamento - ' + mesNome + '\n\n';
-            csv += 'Matrícula;Nome;Cargo;Departamento;Salário Base;INSS;IRRF;Vale Transporte;Total Descontos;Líquido\n';
-
-            let totalBruto = 0, totalDescontos = 0, totalLiquido = 0;
-
-            funcionariosData.forEach(func => {
-                const inss = calcularINSS(func.salarioBase);
-                const irrf = calcularIRRF(func.salarioBase, inss);
-                const vt = func.salarioBase * 0.06;
-                const descontos = inss + irrf + vt;
-                const liquido = func.salarioBase - descontos;
-
-                csv += `${String(func.id).padStart(6, '0')};${func.nome};${func.cargo};${func.departamento};`;
-                csv += `${func.salarioBase.toFixed(2)};${inss.toFixed(2)};${irrf.toFixed(2)};${vt.toFixed(2)};`;
-                csv += `${descontos.toFixed(2)};${liquido.toFixed(2)}\n`;
-
-                totalBruto += func.salarioBase;
-                totalDescontos += descontos;
-                totalLiquido += liquido;
-            });
-
-            csv += `\n;TOTAIS;;;;;;;;;${totalBruto.toFixed(2)};${totalDescontos.toFixed(2)};${totalLiquido.toFixed(2)}\n`;
-
-            // Download
-            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `Folha_Pagamento_${ano}_${mes}.csv`;
-            link.click();
-
-            alert('âœ… Folha exportada com sucesso!');
+            const mes = document.getElementById('mes-select').value, ano = document.getElementById('ano-select').value;
+            const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionario_nome||'Func', cargo: h.cargo||'-', departamento: h.departamento||'-', salarioBase: parseFloat(h.salario_bruto||0), id: h.funcionario_id||h.id }))
+                : funcionariosList.map(f => ({ nome: f.nome_completo||f.nome||'Func', cargo: f.cargo||'-', departamento: f.departamento||'-', salarioBase: parseFloat(f.salario_base||f.salario||0), id: f.id }));
+            if (!dados.length) { showToast('Nenhum dado para exportar.', 'warning'); return; }
+            let csv = `Folha de Pagamento - ${meses[parseInt(mes)]} ${ano}\n\nMatrícula;Nome;Cargo;Departamento;Salário Base;INSS;IRRF;VT;Total Descontos;Líquido\n`;
+            let tb=0,td=0,tl=0;
+            dados.forEach(f => { const i=calcularINSS(f.salarioBase), r=calcularIRRF(f.salarioBase,i), vt=f.salarioBase*0.06, d=i+r+vt, l=f.salarioBase-d; csv+=`${String(f.id).padStart(6,'0')};${f.nome};${f.cargo};${f.departamento};${f.salarioBase.toFixed(2)};${i.toFixed(2)};${r.toFixed(2)};${vt.toFixed(2)};${d.toFixed(2)};${l.toFixed(2)}\n`; tb+=f.salarioBase; td+=d; tl+=l; });
+            csv += `\n;TOTAIS;;;;${tb.toFixed(2)};;;;${td.toFixed(2)};${tl.toFixed(2)}\n`;
+            const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8;'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Folha_${ano}_${mes}.csv`; a.click();
+            showToast('Folha exportada!', 'success');
         }
 
-        function relatórioPagamento() {
-            const competencia = document.getElementById('competencia-select').value;
-            const [ano, mes] = competencia.split('-');
-            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-            // Calcular totais por departamento
-            const porDepartamento = {};
-            let totalGeral = { bruto: 0, descontos: 0, liquido: 0, funcionarios: 0 };
-
-            funcionariosData.forEach(func => {
-                const inss = calcularINSS(func.salarioBase);
-                const irrf = calcularIRRF(func.salarioBase, inss);
-                const descontos = inss + irrf;
-                const liquido = func.salarioBase - descontos;
-
-                if (!porDepartamento[func.departamento]) {
-                    porDepartamento[func.departamento] = { bruto: 0, descontos: 0, liquido: 0, funcionarios: 0 };
-                }
-
-                porDepartamento[func.departamento].bruto += func.salarioBase;
-                porDepartamento[func.departamento].descontos += descontos;
-                porDepartamento[func.departamento].liquido += liquido;
-                porDepartamento[func.departamento].funcionarios++;
-
-                totalGeral.bruto += func.salarioBase;
-                totalGeral.descontos += descontos;
-                totalGeral.liquido += liquido;
-                totalGeral.funcionarios++;
-            });
-
-            // Gerar relatório visual
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Relatório de Pagamento - ${mesNome}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 30px; max-width: 900px; margin: 0 auto; }
-                        .header { text-align: center; border-bottom: 3px solid #1a1a2e; padding-bottom: 20px; margin-bottom: 30px; }
-                        .header h1 { color: #1a1a2e; margin: 0 0 5px 0; font-size: 24px; }
-                        .header p { color: #666; margin: 5px 0; }
-                        .resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
-                        .resumo-card { padding: 20px; border-radius: 10px; text-align: center; }
-                        .resumo-card.azul { background: #dbeafe; border: 1px solid #3b82f6; }
-                        .resumo-card.verde { background: #dcfce7; border: 1px solid #22c55e; }
-                        .resumo-card.amarelo { background: #fef3c7; border: 1px solid #f59e0b; }
-                        .resumo-card.vermelho { background: #fee2e2; border: 1px solid #ef4444; }
-                        .resumo-card h3 { margin: 0 0 5px 0; font-size: 12px; opacity: 0.8; }
-                        .resumo-card .valor { font-size: 22px; font-weight: bold; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        th { background: #1a1a2e; color: white; padding: 12px; text-align: left; }
-                        td { padding: 10px 12px; border-bottom: 1px solid #eee; }
-                        tr:hover { background: #f8fafc; }
-                        .valor { text-align: right; }
-                        .total-row { background: #f1f5f9; font-weight: bold; }
-                        .footer { margin-top: 30px; text-align: center; color: #999; font-size: 11px; }
-                    </style>
-</head>
-                <body>
-                    <div class="header">
-                        <h1>ALUFORCE - Relatório de Pagamento</h1>
-                        <p>Competência: ${mesNome.toUpperCase()}</p>
-                        <p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p>
-                    </div>
-
-                    <div class="resumo">
-                        <div class="resumo-card azul">
-                            <h3>FUNCIONÃRIOS</h3>
-                            <div class="valor">${totalGeral.funcionarios}</div>
-                        </div>
-                        <div class="resumo-card verde">
-                            <h3>TOTAL BRUTO</h3>
-                            <div class="valor">R$ ${totalGeral.bruto.toLocaleString('pt-BR', {minimumFractionDigits: 0})}</div>
-                        </div>
-                        <div class="resumo-card amarelo">
-                            <h3>DESCONTOS</h3>
-                            <div class="valor">R$ ${totalGeral.descontos.toLocaleString('pt-BR', {minimumFractionDigits: 0})}</div>
-                        </div>
-                        <div class="resumo-card vermelho">
-                            <h3>LÍQUIDO</h3>
-                            <div class="valor">R$ ${totalGeral.liquido.toLocaleString('pt-BR', {minimumFractionDigits: 0})}</div>
-                        </div>
-                    </div>
-
-                    <h3 style="color: #1a1a2e; margin-top: 40px;">ðŸ“Š Resumo por Departamento</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Departamento</th>
-                                <th class="valor">Funcionários</th>
-                                <th class="valor">Total Bruto</th>
-                                <th class="valor">Descontos</th>
-                                <th class="valor">Líquido</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${Object.entries(porDepartamento).map(([dept, dados]) => `
-                                <tr>
-                                    <td>${dept}</td>
-                                    <td class="valor">${dados.funcionarios}</td>
-                                    <td class="valor">R$ ${dados.bruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                    <td class="valor">R$ ${dados.descontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                    <td class="valor">R$ ${dados.liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                </tr>
-                            `).join('')}
-                            <tr class="total-row">
-                                <td>TOTAL GERAL</td>
-                                <td class="valor">${totalGeral.funcionarios}</td>
-                                <td class="valor">R$ ${totalGeral.bruto.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                <td class="valor">R$ ${totalGeral.descontos.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                                <td class="valor">R$ ${totalGeral.liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <div class="footer">
-                        <p>ALUFORCE ERP - Sistema de Gestão Empresarial</p>
-                    </div>
-
-<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
-
-    <!-- Chat Corporativo (Teams) -->
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
-</body>
-                </html>
-            `);
-            printWindow.document.close();
-            setTimeout(() => printWindow.print(), 500);
+        // Relatório de pagamento
+        function relatorioPagamento() {
+            const mes = document.getElementById('mes-select').value, ano = document.getElementById('ano-select').value;
+            const meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            const mesNome = meses[parseInt(mes)] + ' ' + ano;
+            const dados = holeritesList.length > 0 ? holeritesList.map(h => ({ nome: h.funcionario_nome, departamento: h.departamento||'Sem depto', salarioBase: parseFloat(h.salario_bruto||0) }))
+                : funcionariosList.map(f => ({ nome: f.nome_completo||f.nome, departamento: f.departamento||'Sem depto', salarioBase: parseFloat(f.salario_base||f.salario||0) }));
+            const porDept = {}; let tg = { bruto:0, descontos:0, liquido:0, funcionarios:0 };
+            dados.forEach(f => { const i=calcularINSS(f.salarioBase), r=calcularIRRF(f.salarioBase,i), d=i+r, l=f.salarioBase-d; if(!porDept[f.departamento]) porDept[f.departamento]={bruto:0,descontos:0,liquido:0,funcionarios:0}; porDept[f.departamento].bruto+=f.salarioBase; porDept[f.departamento].descontos+=d; porDept[f.departamento].liquido+=l; porDept[f.departamento].funcionarios++; tg.bruto+=f.salarioBase; tg.descontos+=d; tg.liquido+=l; tg.funcionarios++; });
+            const pw = window.open('', '_blank');
+            pw.document.write(`<!DOCTYPE html><html><head><title>Relatório - ${mesNome}</title><style>body{font-family:Arial,sans-serif;padding:30px;max-width:900px;margin:0 auto;}.header{text-align:center;border-bottom:3px solid #1a1a2e;padding-bottom:20px;margin-bottom:30px;}.header h1{color:#1a1a2e;margin:0 0 5px;font-size:24px;}.header p{color:#666;margin:5px 0;}.resumo{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin-bottom:30px;}.rc{padding:20px;border-radius:10px;text-align:center;}.rc.az{background:#dbeafe;border:1px solid #3b82f6;}.rc.vd{background:#dcfce7;border:1px solid #22c55e;}.rc.am{background:#fef3c7;border:1px solid #f59e0b;}.rc.vm{background:#fee2e2;border:1px solid #ef4444;}.rc h3{margin:0 0 5px;font-size:12px;opacity:.8;}.rc .v{font-size:22px;font-weight:bold;}table{width:100%;border-collapse:collapse;margin-top:20px;}th{background:#1a1a2e;color:white;padding:12px;text-align:left;}td{padding:10px 12px;border-bottom:1px solid #eee;}.valor{text-align:right;}.total-row{background:#f1f5f9;font-weight:bold;}</style></head><body><div class="header"><h1>ALUFORCE - Relatório de Pagamento</h1><p>${mesNome.toUpperCase()}</p><p>${new Date().toLocaleString('pt-BR')}</p></div><div class="resumo"><div class="rc az"><h3>FUNCIONÁRIOS</h3><div class="v">${tg.funcionarios}</div></div><div class="rc vd"><h3>BRUTO</h3><div class="v">${fmtShort(tg.bruto)}</div></div><div class="rc am"><h3>DESCONTOS</h3><div class="v">${fmtShort(tg.descontos)}</div></div><div class="rc vm"><h3>LÍQUIDO</h3><div class="v">${fmtShort(tg.liquido)}</div></div></div><h3 style="color:#1a1a2e;margin-top:40px;">📊 Resumo por Departamento</h3><table><thead><tr><th>Departamento</th><th class="valor">Funcs.</th><th class="valor">Bruto</th><th class="valor">Descontos</th><th class="valor">Líquido</th></tr></thead><tbody>${Object.entries(porDept).map(([dept,d])=>`<tr><td>${dept}</td><td class="valor">${d.funcionarios}</td><td class="valor">${fmt(d.bruto)}</td><td class="valor">${fmt(d.descontos)}</td><td class="valor">${fmt(d.liquido)}</td></tr>`).join('')}<tr class="total-row"><td>TOTAL</td><td class="valor">${tg.funcionarios}</td><td class="valor">${fmt(tg.bruto)}</td><td class="valor">${fmt(tg.descontos)}</td><td class="valor">${fmt(tg.liquido)}</td></tr></tbody></table><div style="margin-top:30px;text-align:center;color:#999;font-size:11px;">ALUFORCE ERP</div></body></html>`);
+            pw.document.close(); setTimeout(() => pw.print(), 500);
         }
 
-        function visualizarHolerite(funcionario) {
-            const func = funcionariosData.find(f => f.nome === funcionario) || funcionariosData[0];
-            const competencia = document.getElementById('competencia-select').value;
-            const [ano, mes] = competencia.split('-');
-            const mesNome = new Date(ano, mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-            const inss = calcularINSS(func.salarioBase);
-            const irrf = calcularIRRF(func.salarioBase, inss);
-            const vt = func.salarioBase * 0.06;
-            const vr = 400;
-            const totalDescontos = inss + irrf + vt;
-            const totalProventos = func.salarioBase + vr;
-            const liquido = totalProventos - totalDescontos;
-
-            alert(`ðŸ“„ HOLERITE - ${func.nome}\n` +
-                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
-                `Competência: ${mesNome}\n` +
-                `Cargo: ${func.cargo}\n` +
-                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
-                `PROVENTOS:\n` +
-                `  Salário Base: R$ ${func.salarioBase.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
-                `  Vale Refeição: R$ ${vr.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
-                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
-                `DESCONTOS:\n` +
-                `  INSS: R$ ${inss.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
-                `  IRRF: R$ ${irrf.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
-                `  VT: R$ ${vt.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
-                `â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n` +
-                `LÍQUIDO: R$ ${liquido.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`);
-        }
-
-        function editarHolerite(funcionario) {
-            alert(`✏️ Edição de holerite: ${funcionario}\n\nPara editar valores individuais, utilize a página de Folha de Pagamento.`);
-        }
-
-        function downloadHolerite(funcionario) {
-            // Gerar holerite individual para download
-            const func = funcionariosData.find(f => f.nome === funcionario) || funcionariosData[0];
-            funcionariosData = [func]; // Temporariamente só esse
-            gerarHolerites(); // Usa a mesma função mas só com um
-            funcionariosData = [ // Restaurar
-                { id: 1, nome: 'Andreia Silva', cargo: 'Gerente', salarioBase: 8500, departamento: 'Administração' },
-                { id: 2, nome: 'Douglas Lima', cargo: 'Supervisor', salarioBase: 7200, departamento: 'Produção' },
-                { id: 3, nome: 'Emilia Costa', cargo: 'Analista', salarioBase: 5800, departamento: 'Financeiro' },
-                { id: 4, nome: 'Maicon Santos', cargo: 'Desenvolvedor', salarioBase: 6500, departamento: 'TI' },
-                { id: 5, nome: 'RH Assistente', cargo: 'Assistente', salarioBase: 3800, departamento: 'RH' },
-                { id: 6, nome: 'TI Suporte', cargo: 'Técnico', salarioBase: 5200, departamento: 'TI' }
-            ];
-        }
-
-        // Mudança de competência
-        document.getElementById('competencia-select').addEventListener('change', function(e) {
-            const competencia = e.target.value;
-            console.log(`Carregando holerites para: ${competencia}`);
-
-            // Simular carregamento
-            const cards = document.querySelectorAll('.item-card');
-            cards.forEach(card => {
-                card.style.opacity = '0.5';
-            });
-
-            setTimeout(() => {
-                cards.forEach(card => {
-                    card.style.opacity = '1';
-                });
-            }, 500);
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async () => {
+            initSelects();
+            carregarUsuario();
+            await carregarFuncionarios();
+            carregarHolerites();
         });
-    </script>
 
+        function showToast(message, type) {
+            type = type || 'info';
+            var toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:400px;';
+            toast.style.background = type==='success'?'#10b981':type==='error'?'#ef4444':type==='warning'?'#f59e0b':'#3b82f6';
+            toast.innerHTML = '<span>' + message + '</span>';
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 4000);
+        }
+    </script>
 <!-- Sistema de Chat e Suporte (widgets condicionais por usuário) -->
 <!-- ti@aluforce.ind.br = Central de Suporte | Outros usuários = Chat normal -->
     <!-- Sistema de Monitoramento de Conexão -->

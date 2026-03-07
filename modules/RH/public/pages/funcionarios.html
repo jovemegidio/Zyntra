@@ -1432,6 +1432,7 @@
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
+        <!-- Sidebar Admin -->
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
@@ -1440,13 +1441,13 @@
                 <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="gestao-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
                 <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
                 <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="aplicar-avaliacoes.html" class="sidebar-btn" title="Aplicar Avaliações"><i class="fas fa-clipboard-check"></i></a>
                 <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
             </div>
         </aside>
@@ -1666,7 +1667,10 @@
                         <div class="view-section">
                             <div class="view-section-title"><i class="fas fa-map-marker-alt"></i> Endereço</div>
                             <div class="view-grid">
-                                <div class="view-item" style="grid-column: span 3;"><label>Endereço Completo</label><span id="viewEndereco">-</span></div>
+                                <div class="view-item" style="grid-column: span 3;"><label>Logradouro</label><span id="viewEndereco">-</span></div>
+                                <div class="view-item"><label>Bairro</label><span id="viewBairro">-</span></div>
+                                <div class="view-item"><label>Cidade / UF</label><span id="viewCidadeUF">-</span></div>
+                                <div class="view-item"><label>CEP</label><span id="viewCep">-</span></div>
                             </div>
                         </div>
 
@@ -1786,11 +1790,11 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label>CPF <span class="required">*</span></label>
-                                <input type="text" id="editCpf" class="form-input" required placeholder="000.000.000-00">
+                                <input type="text" id="editCpf" class="form-input" required placeholder="000.000.000-00" maxlength="14">
                             </div>
                             <div class="form-group">
                                 <label>RG</label>
-                                <input type="text" id="editRg" class="form-input" placeholder="00.000.000-0">
+                                <input type="text" id="editRg" class="form-input" placeholder="00.000.000-0" maxlength="14">
                             </div>
                             <div class="form-group">
                                 <label>Data de Nascimento</label>
@@ -1800,7 +1804,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Telefone</label>
-                                <input type="tel" id="editTelefone" class="form-input" placeholder="(00) 00000-0000">
+                                <input type="tel" id="editTelefone" class="form-input" placeholder="(00) 00000-0000" maxlength="15">
                             </div>
                             <div class="form-group">
                                 <label>Estado Civil</label>
@@ -1959,9 +1963,44 @@
                     <div class="modal-section">
                         <div class="modal-section-title"><i class="fas fa-map-marker-alt"></i> Endereço</div>
                         <div class="form-row">
-                            <div class="form-group full-width">
-                                <label>Endereço Completo</label>
-                                <input type="text" id="editEndereco" class="form-input" placeholder="Rua, número, complemento, bairro, cidade - UF, CEP">
+                            <div class="form-group" style="flex: 3;">
+                                <label>Logradouro</label>
+                                <input type="text" id="editEndereco" class="form-input" placeholder="Ex: Travessa Padre Cláudio Jung" oninput="this.value = this.value.replace(/[0-9]/g, '')">
+                            </div>
+                            <div class="form-group" style="max-width: 80px;">
+                                <label>Nº</label>
+                                <input type="text" id="editNumero" class="form-input" placeholder="33" maxlength="6" oninput="this.value = this.value.replace(/\D/g, '')">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Complemento</label>
+                                <input type="text" id="editComplemento" class="form-input" placeholder="Apto, Bloco...">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Bairro</label>
+                                <input type="text" id="editBairro" class="form-input" placeholder="Ex: Centro" oninput="this.value = this.value.replace(/[0-9]/g, '')">
+                            </div>
+                            <div class="form-group">
+                                <label>Cidade</label>
+                                <input type="text" id="editCidade" class="form-input" placeholder="Ex: São Paulo" oninput="this.value = this.value.replace(/[0-9]/g, '')">
+                            </div>
+                            <div class="form-group" style="max-width: 100px;">
+                                <label>UF</label>
+                                <select id="editEstado" class="form-input">
+                                    <option value="">--</option>
+                                    <option value="AC">AC</option><option value="AL">AL</option><option value="AM">AM</option><option value="AP">AP</option>
+                                    <option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option>
+                                    <option value="GO">GO</option><option value="MA">MA</option><option value="MG">MG</option><option value="MS">MS</option>
+                                    <option value="MT">MT</option><option value="PA">PA</option><option value="PB">PB</option><option value="PE">PE</option>
+                                    <option value="PI">PI</option><option value="PR">PR</option><option value="RJ">RJ</option><option value="RN">RN</option>
+                                    <option value="RO">RO</option><option value="RR">RR</option><option value="RS">RS</option><option value="SC">SC</option>
+                                    <option value="SE">SE</option><option value="SP">SP</option><option value="TO">TO</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="max-width: 140px;">
+                                <label>CEP</label>
+                                <input type="text" id="editCep" class="form-input" placeholder="00000-000" maxlength="9">
                             </div>
                         </div>
                     </div>
@@ -2032,10 +2071,10 @@
                                 <label><i class="fas fa-bus"></i> Tipo de Transporte</label>
                                 <select id="editVtTipoTransporte" class="form-input">
                                     <option value="">Selecione...</option>
-                                    <option value="onibus">Ã”nibus Urbano</option>
+                                    <option value="onibus">Ônibus Urbano</option>
                                     <option value="metro">Metrô</option>
                                     <option value="trem">Trem</option>
-                                    <option value="integracao">Integração (Ã”nibus + Metrô/Trem)</option>
+                                    <option value="integracao">Integração (Ônibus + Metrô/Trem)</option>
                                     <option value="brt">BRT</option>
                                     <option value="vlt">VLT</option>
                                     <option value="intermunicipal">Intermunicipal</option>
@@ -2116,11 +2155,11 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label>CPF <span class="required">*</span></label>
-                                <input type="text" id="novoCpf" class="form-input" required placeholder="000.000.000-00">
+                                <input type="text" id="novoCpf" class="form-input" required placeholder="000.000.000-00" maxlength="14">
                             </div>
                             <div class="form-group">
                                 <label>RG</label>
-                                <input type="text" id="novoRg" class="form-input" placeholder="00.000.000-0">
+                                <input type="text" id="novoRg" class="form-input" placeholder="00.000.000-0" maxlength="14">
                             </div>
                             <div class="form-group">
                                 <label>Data Nascimento</label>
@@ -2130,7 +2169,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Telefone</label>
-                                <input type="tel" id="novoTelefone" class="form-input" placeholder="(00) 00000-0000">
+                                <input type="tel" id="novoTelefone" class="form-input" placeholder="(00) 00000-0000" maxlength="15">
                             </div>
                             <div class="form-group">
                                 <label>Estado Civil</label>
@@ -2253,9 +2292,44 @@
                     <div class="modal-section">
                         <div class="modal-section-title"><i class="fas fa-map-marker-alt"></i> Endereço</div>
                         <div class="form-row">
-                            <div class="form-group full-width">
-                                <label>Endereço Completo</label>
-                                <input type="text" id="novoEndereco" class="form-input" placeholder="Rua, número, complemento, bairro, cidade - UF">
+                            <div class="form-group" style="flex: 3;">
+                                <label>Logradouro</label>
+                                <input type="text" id="novoEndereco" class="form-input" placeholder="Ex: Travessa Padre Cláudio Jung" oninput="this.value = this.value.replace(/[0-9]/g, '')">
+                            </div>
+                            <div class="form-group" style="max-width: 80px;">
+                                <label>Nº</label>
+                                <input type="text" id="novoNumero" class="form-input" placeholder="33" maxlength="6" oninput="this.value = this.value.replace(/\D/g, '')">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>Complemento</label>
+                                <input type="text" id="novoComplemento" class="form-input" placeholder="Apto, Bloco...">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Bairro</label>
+                                <input type="text" id="novoBairro" class="form-input" placeholder="Ex: Centro" oninput="this.value = this.value.replace(/[0-9]/g, '')">
+                            </div>
+                            <div class="form-group">
+                                <label>Cidade</label>
+                                <input type="text" id="novoCidade" class="form-input" placeholder="Ex: São Paulo" oninput="this.value = this.value.replace(/[0-9]/g, '')">
+                            </div>
+                            <div class="form-group" style="max-width: 100px;">
+                                <label>UF</label>
+                                <select id="novoEstado" class="form-input">
+                                    <option value="">--</option>
+                                    <option value="AC">AC</option><option value="AL">AL</option><option value="AM">AM</option><option value="AP">AP</option>
+                                    <option value="BA">BA</option><option value="CE">CE</option><option value="DF">DF</option><option value="ES">ES</option>
+                                    <option value="GO">GO</option><option value="MA">MA</option><option value="MG">MG</option><option value="MS">MS</option>
+                                    <option value="MT">MT</option><option value="PA">PA</option><option value="PB">PB</option><option value="PE">PE</option>
+                                    <option value="PI">PI</option><option value="PR">PR</option><option value="RJ">RJ</option><option value="RN">RN</option>
+                                    <option value="RO">RO</option><option value="RR">RR</option><option value="RS">RS</option><option value="SC">SC</option>
+                                    <option value="SE">SE</option><option value="SP">SP</option><option value="TO">TO</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="max-width: 140px;">
+                                <label>CEP</label>
+                                <input type="text" id="novoCep" class="form-input" placeholder="00000-000" maxlength="9">
                             </div>
                         </div>
                     </div>
@@ -2346,7 +2420,7 @@
                     </div>
                 </div>
 
-                <!-- Ãrea de Upload -->
+                <!-- Área de Upload -->
                 <div class="import-dropzone" id="importDropzone" onclick="document.getElementById('importFile').click()" style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.3s;">
                     <i class="fas fa-cloud-upload-alt" style="font-size: 48px; color: #10b981; margin-bottom: 12px;"></i>
                     <p style="margin: 0; color: #475569;">Arraste o arquivo Excel ou CSV aqui<br><span style="color: #94a3b8; font-size: 13px;">ou clique para selecionar</span></p>
@@ -2531,6 +2605,73 @@
             const d = new Date(data);
             return d.toLocaleDateString('pt-BR');
         }
+
+        // ========== MÁSCARAS DE PONTUAÇÃO ==========
+        function mascaraCPF(v) {
+            v = v.replace(/\D/g, '').substring(0, 11);
+            v = v.replace(/(\d{3})(\d)/, '$1.$2');
+            v = v.replace(/(\d{3})(\d)/, '$1.$2');
+            v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            return v;
+        }
+        function mascaraRG(v) {
+            // Formato genérico: 00.000.000-X (aceita letra no final)
+            v = v.replace(/[^\dXx]/gi, '').substring(0, 10);
+            if (v.length > 2) v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+            if (v.length > 6) v = v.replace(/^(\d{2}\.\d{3})(\d)/, '$1.$2');
+            if (v.length > 10) v = v.replace(/^(\d{2}\.\d{3}\.\d{3})([\dXx]{1,2})$/, '$1-$2');
+            else if (v.length >= 9) v = v.replace(/^(\d{2}\.?\d{3}\.?\d{3})([\dXx])/, '$1-$2');
+            return v;
+        }
+        function mascaraTelefone(v) {
+            v = v.replace(/\D/g, '').substring(0, 11);
+            if (v.length > 10) {
+                v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+            } else if (v.length > 6) {
+                v = v.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+            } else if (v.length > 2) {
+                v = v.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+            }
+            return v;
+        }
+        function mascaraCEP(v) {
+            v = v.replace(/\D/g, '').substring(0, 8);
+            if (v.length > 5) {
+                v = v.replace(/(\d{5})(\d{0,3})/, '$1-$2');
+            }
+            return v;
+        }
+        function formatarCPFDisplay(cpf) {
+            if (!cpf) return '-';
+            const d = cpf.replace(/\D/g, '');
+            if (d.length !== 11) return cpf;
+            return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        }
+        function formatarRGDisplay(rg) {
+            if (!rg) return '-';
+            return rg; // RG já pode vir formatado ou com letra
+        }
+        function formatarTelefoneDisplay(tel) {
+            if (!tel) return '-';
+            const d = tel.replace(/\D/g, '');
+            if (d.length === 11) return d.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+            if (d.length === 10) return d.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+            return tel;
+        }
+        // Aplicar máscara ao digitar
+        function aplicarMascara(inputId, maskFn) {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            el.addEventListener('input', function() {
+                const pos = this.selectionStart;
+                const oldLen = this.value.length;
+                this.value = maskFn(this.value);
+                const newLen = this.value.length;
+                const newPos = pos + (newLen - oldLen);
+                this.setSelectionRange(newPos, newPos);
+            });
+        }
+        // ========== FIM MÁSCARAS ==========
 
         function formatarMoedaDisplay(valor) {
             if (!valor && valor !== 0) return '-';
@@ -2879,9 +3020,9 @@
                 // CPF: tratar valores null, ENC: (criptografado irrecuperável), ou ENCRYPTED
                 const cpfRaw = f.cpf || '';
                 const cpfClean = cpfRaw.startsWith('ENC:') || cpfRaw.includes('ENCRYPTED') || cpfRaw.startsWith('$2') ? '' : cpfRaw;
-                document.getElementById('viewCpf').textContent = cpfClean || 'Não informado';
+                document.getElementById('viewCpf').textContent = formatarCPFDisplay(cpfClean) || 'Não informado';
                 document.getElementById('viewRg').textContent = f.rg || '-';
-                document.getElementById('viewTelefone').textContent = f.telefone || '-';
+                document.getElementById('viewTelefone').textContent = formatarTelefoneDisplay(f.telefone) || '-';
                 document.getElementById('viewDataNascimento').textContent = formatarData(f.data_nascimento);
                 document.getElementById('viewEstadoCivil').textContent = f.estado_civil || '-';
                 document.getElementById('viewNacionalidade').textContent = f.nacionalidade || '-';
@@ -2891,7 +3032,39 @@
                 document.getElementById('viewCtpsNumero').textContent = f.ctps_numero || '-';
                 document.getElementById('viewCtpsSerie').textContent = f.ctps_serie || '-';
                 document.getElementById('viewDependentes').textContent = f.dependentes || '0';
-                document.getElementById('viewEndereco').textContent = f.endereco || '-';
+                // Endereço - exibir campos separados com formatação Title Case
+                const _tc = (s) => s ? s.replace(/\S+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : '';
+                if (f.endereco) {
+                    // Tentar extrair CEP do final do endereço (padrão 00000-000 ou 00000000)
+                    const cepMatch = f.endereco.match(/(\d{5}-?\d{3})\s*$/);
+                    const cepFromEnd = cepMatch ? cepMatch[1] : null;
+                    let endSemCep = cepFromEnd ? f.endereco.replace(cepMatch[0], '').trim() : f.endereco;
+
+                    // Se temos campos separados do banco, usar eles
+                    const bairro = f.bairro || '';
+                    const cidade = f.cidade || '';
+                    const estado = f.estado || '';
+                    const cep = f.cep || cepFromEnd || '';
+
+                    // Limpar logradouro: remover bairro/cidade/cep se já vieram embutidos
+                    let logradouro = endSemCep;
+                    if (bairro && logradouro.toUpperCase().includes(bairro.toUpperCase())) {
+                        logradouro = logradouro.replace(new RegExp(bairro.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '').replace(/,\s*$/, '').trim();
+                    }
+                    if (cidade && logradouro.toUpperCase().includes(cidade.toUpperCase())) {
+                        logradouro = logradouro.replace(new RegExp(cidade.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '').replace(/,\s*$/, '').trim();
+                    }
+
+                    document.getElementById('viewEndereco').textContent = _tc(logradouro) || '-';
+                    document.getElementById('viewBairro').textContent = _tc(bairro) || '-';
+                    document.getElementById('viewCidadeUF').textContent = (cidade || estado) ? `${_tc(cidade)}${estado ? ' - ' + estado.toUpperCase() : ''}` : '-';
+                    document.getElementById('viewCep').textContent = cep ? cep.replace(/(\d{5})(\d{3})/, '$1-$2') : '-';
+                } else {
+                    document.getElementById('viewEndereco').textContent = '-';
+                    document.getElementById('viewBairro').textContent = '-';
+                    document.getElementById('viewCidadeUF').textContent = '-';
+                    document.getElementById('viewCep').textContent = '-';
+                }
 
                 // Dados Bancários/PIX
                 document.getElementById('viewBanco').textContent = f.banco || '-';
@@ -3417,6 +3590,17 @@
             const vtQtdPassagens = document.getElementById('editVtQtdPassagens');
             if (vtValorDiario) vtValorDiario.addEventListener('input', calcularEstimativaVt);
             if (vtQtdPassagens) vtQtdPassagens.addEventListener('input', calcularEstimativaVt);
+
+            // Máscaras de pontuação nos campos de edição
+            aplicarMascara('editCpf', mascaraCPF);
+            aplicarMascara('editRg', mascaraRG);
+            aplicarMascara('editTelefone', mascaraTelefone);
+            aplicarMascara('editCep', mascaraCEP);
+            // Máscaras nos campos de novo funcionário
+            aplicarMascara('novoCpf', mascaraCPF);
+            aplicarMascara('novoRg', mascaraRG);
+            aplicarMascara('novoTelefone', mascaraTelefone);
+            aplicarMascara('novoCep', mascaraCEP);
         });
 
         // Função para preview da foto no edit
@@ -3474,10 +3658,10 @@
                 document.getElementById('editFotoPreview').onerror = function() { this.src = '/avatars/default.webp'; };
                 document.getElementById('editFoto').value = ''; // Limpar input de arquivo
 
-                document.getElementById('editCpf').value = f.cpf || '';
-                document.getElementById('editRg').value = f.rg || '';
+                document.getElementById('editCpf').value = mascaraCPF(f.cpf || '');
+                document.getElementById('editRg').value = mascaraRG(f.rg || '');
                 document.getElementById('editDataNascimento').value = f.data_nascimento?.split('T')[0] || '';
-                document.getElementById('editTelefone').value = f.telefone || '';
+                document.getElementById('editTelefone').value = mascaraTelefone(f.telefone || '');
                 document.getElementById('editEstadoCivil').value = f.estado_civil || '';
                 document.getElementById('editNacionalidade').value = f.nacionalidade || 'Brasileira';
                 document.getElementById('editNaturalidade').value = f.naturalidade || '';
@@ -3505,7 +3689,22 @@
                 document.getElementById('editTituloEleitor').value = f.titulo_eleitor || '';
                 document.getElementById('editCnh').value = f.cnh || '';
                 document.getElementById('editCertificadoReservista').value = f.certificado_reservista || '';
-                document.getElementById('editEndereco').value = f.endereco || '';
+                // Endereço: separar logradouro, número e complemento
+                const endRaw = f.endereco || '';
+                const endMatch = endRaw.match(/^(.+?),\s*(\d+)\s*(?:,\s*(.+))?$/);
+                if (endMatch) {
+                    document.getElementById('editEndereco').value = endMatch[1].trim();
+                    document.getElementById('editNumero').value = endMatch[2];
+                    document.getElementById('editComplemento').value = (endMatch[3] || '').trim();
+                } else {
+                    document.getElementById('editEndereco').value = endRaw.replace(/[0-9]/g, '').replace(/,\s*$/, '').trim();
+                    document.getElementById('editNumero').value = (endRaw.match(/(\d+)/) || ['',''])[1];
+                    document.getElementById('editComplemento').value = '';
+                }
+                document.getElementById('editBairro').value = f.bairro || '';
+                document.getElementById('editCidade').value = f.cidade || '';
+                document.getElementById('editEstado').value = f.estado || '';
+                document.getElementById('editCep').value = mascaraCEP(f.cep || '');
                 document.getElementById('editBanco').value = f.banco || '';
                 document.getElementById('editTipoChavePix').value = f.tipo_chave_pix || '';
                 document.getElementById('editChavePix').value = f.chave_pix || '';
@@ -3565,7 +3764,11 @@
                 titulo_eleitor: document.getElementById('editTituloEleitor').value,
                 cnh: document.getElementById('editCnh').value,
                 certificado_reservista: document.getElementById('editCertificadoReservista').value,
-                endereco: document.getElementById('editEndereco').value,
+                endereco: [document.getElementById('editEndereco').value, document.getElementById('editNumero').value].filter(Boolean).join(', ') + (document.getElementById('editComplemento').value ? ', ' + document.getElementById('editComplemento').value : ''),
+                bairro: document.getElementById('editBairro').value,
+                cidade: document.getElementById('editCidade').value,
+                estado: document.getElementById('editEstado').value,
+                cep: document.getElementById('editCep').value.replace(/\D/g, ''),
                 banco: document.getElementById('editBanco').value,
                 tipo_chave_pix: document.getElementById('editTipoChavePix').value,
                 chave_pix: document.getElementById('editChavePix').value,
@@ -3705,7 +3908,11 @@
                 titulo_eleitor: document.getElementById('novoTituloEleitor').value,
                 cnh: document.getElementById('novoCnh').value,
                 certificado_reservista: document.getElementById('novoCertificadoReservista').value,
-                endereco: document.getElementById('novoEndereco').value,
+                endereco: [document.getElementById('novoEndereco').value, document.getElementById('novoNumero').value].filter(Boolean).join(', ') + (document.getElementById('novoComplemento').value ? ', ' + document.getElementById('novoComplemento').value : ''),
+                bairro: document.getElementById('novoBairro').value,
+                cidade: document.getElementById('novoCidade').value,
+                estado: document.getElementById('novoEstado').value,
+                cep: document.getElementById('novoCep').value.replace(/\D/g, ''),
                 banco: document.getElementById('novoBanco').value,
                 tipo_chave_pix: document.getElementById('novoTipoChavePix').value,
                 chave_pix: document.getElementById('novoChavePix').value

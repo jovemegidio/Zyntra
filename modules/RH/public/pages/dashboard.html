@@ -791,13 +791,13 @@
                 <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="gestao-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
                 <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
                 <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="aplicar-avaliacoes.html" class="sidebar-btn" title="Aplicar Avaliações"><i class="fas fa-clipboard-check"></i></a>
                 <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
             </div>
         </aside>
@@ -1429,16 +1429,22 @@ Equipe de Recursos Humanos
         // Carregar lista de funcionários
         async function carregarFuncionarios() {
             try {
-                const response = await fetch('/api/funcionarios');
+                const response = await fetch('/api/rh/funcionarios?limit=500', {
+                    headers: rhUiCommon.getAuthHeaders(),
+                    credentials: 'include'
+                });
                 if (response.ok) {
-                    const funcionarios = await response.json();
+                    const payload = await response.json();
+                    const funcionarios = Array.isArray(payload)
+                        ? payload
+                        : (payload.funcionarios || payload.data || []);
                     const select = document.getElementById('filtro_funcionario');
                     select.innerHTML = '<option value="">Selecione o funcionário...</option>';
                     
                     funcionarios.forEach(func => {
                         const option = document.createElement('option');
                         option.value = func.id;
-                        option.textContent = `${func.nome} - ${func.cargo}`;
+                        option.textContent = `${func.nome_completo || func.nome || 'Sem nome'} - ${func.cargo || ''}`;
                         select.appendChild(option);
                     });
                 }
@@ -1603,7 +1609,7 @@ Equipe de Recursos Humanos
             });
             
             if (!isValid) {
-                alert('Por favor, preencha todos os campos obrigatórios.');
+                showToast('Por favor, preencha todos os campos obrigatórios.', 'warning');
                 return;
             }
 
@@ -1624,17 +1630,16 @@ Equipe de Recursos Humanos
             btnSalvar.disabled = true;
             
             try {
-                const response = await fetch('/api/funcionarios', {
+                const response = await fetch('/api/rh/funcionarios/novo', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: rhUiCommon.getAuthHeaders({ 'Content-Type': 'application/json' }),
+                    credentials: 'include',
                     body: JSON.stringify(funcionarioData)
                 });
                 
                 if (response.ok) {
                     const resultado = await response.json();
-                    alert('âœ… Funcionário cadastrado com sucesso!');
+                    showToast('Funcionário cadastrado com sucesso!', 'success');
                     closeNovoFuncionarioModal();
                     
                     // Atualizar contador se existir
@@ -1645,11 +1650,11 @@ Equipe de Recursos Humanos
                     }
                 } else {
                     const error = await response.json();
-                    alert('âŒ Erro ao cadastrar funcionário: ' + (error.message || 'Erro desconhecido'));
+                    showToast('Erro ao cadastrar funcionário: ' + (error.message || 'Erro desconhecido'), 'error');
                 }
             } catch (error) {
                 console.error('Erro:', error);
-                alert('âŒ Erro de conexão. Verifique sua internet e tente novamente.');
+                showToast('Erro de conexão. Verifique sua internet e tente novamente.', 'error');
             } finally {
                 // Remover loading
                 btnSalvar.classList.remove('loading');
@@ -1781,18 +1786,18 @@ Equipe de Recursos Humanos
             const formatoSaida = document.getElementById('formato_saida').value;
             
             if (!competencia || !tipoGeracao || !formatoSaida) {
-                alert('Por favor, preencha todos os campos obrigatórios.');
+                showToast('Por favor, preencha todos os campos obrigatórios.', 'warning');
                 return;
             }
 
             // Validar filtros específicos
             if (tipoGeracao === 'departamento' && !document.getElementById('filtro_departamento').value) {
-                alert('Por favor, selecione um departamento.');
+                showToast('Por favor, selecione um departamento.', 'warning');
                 return;
             }
             
             if (tipoGeracao === 'funcionario' && !document.getElementById('filtro_funcionario').value) {
-                alert('Por favor, selecione um funcionário.');
+                showToast('Por favor, selecione um funcionário.', 'warning');
                 return;
             }
 
@@ -1813,11 +1818,10 @@ Equipe de Recursos Humanos
             btnGerar.disabled = true;
             
             try {
-                const response = await fetch('/api/holerites/gerar', {
+                const response = await fetch('/api/rh/holerites/gerar', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: rhUiCommon.getAuthHeaders({ 'Content-Type': 'application/json' }),
+                    credentials: 'include',
                     body: JSON.stringify(holeritesData)
                 });
                 
@@ -1825,9 +1829,9 @@ Equipe de Recursos Humanos
                     const resultado = await response.json();
                     
                     if (formatoSaida === 'email') {
-                        alert(`âœ… Holerites enviados por email com sucesso!ðŸ“§ ${resultado.emails_enviados || 0} emails enviados`);
+                        showToast('Holerites enviados por email com sucesso! ' + (resultado.emails_enviados || 0) + ' emails enviados', 'success');
                     } else {
-                        alert(`âœ… Holerites gerados com sucesso!ðŸ“„ ${resultado.arquivos_gerados || 0} arquivos criados`);
+                        showToast('Holerites gerados com sucesso! ' + (resultado.arquivos_gerados || 0) + ' arquivos criados', 'success');
                         
                         // Se houver arquivo para download
                         if (resultado.download_url) {
@@ -1838,17 +1842,27 @@ Equipe de Recursos Humanos
                     closeGerarHoleritesModal();
                 } else {
                     const error = await response.json();
-                    alert('âŒ Erro ao gerar holerites: ' + (error.message || 'Erro desconhecido'));
+                    showToast('Erro ao gerar holerites: ' + (error.message || 'Erro desconhecido'), 'error');
                 }
             } catch (error) {
                 console.error('Erro:', error);
-                alert('âŒ Erro de conexão. Verifique sua internet e tente novamente.');
+                showToast('Erro de conexão. Verifique sua internet e tente novamente.', 'error');
             } finally {
                 // Remover loading
                 btnGerar.classList.remove('loading');
                 btnGerar.innerHTML = originalText;
                 btnGerar.disabled = false;
             }
+        }
+
+        function showToast(message, type) {
+            type = type || 'info';
+            var toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:400px;';
+            toast.style.background = type==='success'?'#10b981':type==='error'?'#ef4444':type==='warning'?'#f59e0b':'#3b82f6';
+            toast.innerHTML = '<span>' + message + '</span>';
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 4000);
         }
     </script>
     

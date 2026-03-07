@@ -215,7 +215,7 @@
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-        <!-- Sidebar -->
+        <!-- Sidebar Admin -->
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
@@ -224,13 +224,13 @@
                 <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="gestao-ponto.html" class="sidebar-btn active" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="gestao-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
                 <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
                 <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="aplicar-avaliacoes.html" class="sidebar-btn" title="Aplicar Avaliações"><i class="fas fa-clipboard-check"></i></a>
                 <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
             </div>
         </aside>
@@ -772,15 +772,26 @@
             if (origem === 'manual') return 'pendente';
             return 'folga';
         }
+        function toTitleCase(str) {
+            if (!str) return '';
+            var preps = ['de', 'da', 'do', 'dos', 'das', 'e', 'em', 'com'];
+            return str.toLowerCase().split(' ').map(function(word, index) {
+                if (index > 0 && preps.indexOf(word) >= 0) return word;
+                return word.charAt(0).toUpperCase() + word.slice(1);
+            }).join(' ');
+        }
         function getFuncName(id) {
+            if (id === null || id === undefined) return null;
             var f = funcionariosList.find(function(x) { return x.id == id; });
-            return f ? (f.nome_completo || f.nome || ('#' + id)) : ('#' + id);
+            return f ? toTitleCase(f.nome_completo || f.nome || ('Funcionário #' + id)) : ('Funcionário #' + id);
         }
         function getFuncDept(id) {
+            if (id === null || id === undefined) return '';
             var f = funcionariosList.find(function(x) { return x.id == id; });
             return f ? (f.departamento || f.cargo || '') : '';
         }
         function getFuncPhoto(id) {
+            if (id === null || id === undefined) return null;
             var f = funcionariosList.find(function(x) { return x.id == id; });
             if (!f) return null;
             // 1. foto_perfil_url do banco
@@ -840,7 +851,15 @@
 
             tbody.innerHTML = marcacoes.map(function(m) {
                 var nome = m.funcionario_nome || getFuncName(m.funcionario_id);
+                // Fallback: extrair nome da observação (RHiD importa como "RHiD: NOME")
+                if (!nome && m.observacao) {
+                    var rhidMatch = m.observacao.match(/^RHi?D:\s*(.+)/i);
+                    if (rhidMatch) nome = rhidMatch[1].trim();
+                }
+                if (!nome) nome = 'Não identificado';
+                nome = toTitleCase(nome);
                 var dept = m.departamento || m.cargo || getFuncDept(m.funcionario_id);
+                if (!dept && m.observacao && m.observacao.match(/^RHi?D:/i)) dept = 'Pendente de vínculo';
                 var initial = nome.charAt(0).toUpperCase();
                 var foto = getFuncPhoto(m.funcionario_id);
                 var avatarHtml = foto

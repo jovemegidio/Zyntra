@@ -304,23 +304,24 @@
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-        <!-- Sidebar -->
+        <!-- Sidebar - Portal do Funcionário -->
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
-                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
-                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
-                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
-                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
-                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-home"></i></a>
+                <a href="meus-holerites.html" class="sidebar-btn" title="Meus Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="dados-cadastrais.html" class="sidebar-btn" title="Dados Cadastrais"><i class="fas fa-id-card"></i></a>
+                <a href="beneficios.html" class="sidebar-btn" title="Meus Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="minhas-ferias.html" class="sidebar-btn" title="Minhas Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="espelho-ponto.html" class="sidebar-btn" title="Espelho de Ponto"><i class="fas fa-list-check"></i></a>
+                <a href="enviar-atestado.html" class="sidebar-btn active" title="Enviar Atestado"><i class="fas fa-file-medical"></i></a>
+                <a href="autoavaliacao.html" class="sidebar-btn" title="Autoavaliação"><i class="fas fa-user-check"></i></a>
+                <a href="avaliacoes-recebidas.html" class="sidebar-btn" title="Avaliações Recebidas"><i class="fas fa-inbox"></i></a>
+                <a href="manual-colaborador.html" class="sidebar-btn" title="Manual do Colaborador"><i class="fas fa-book"></i></a>
             </nav>
             <div class="sidebar-bottom">
-                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
-                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+                <a href="/ajuda/index.html" class="sidebar-btn" title="Ajuda"><i class="fas fa-question-circle"></i></a>
+                <a href="../areaadm.html" class="sidebar-btn" id="btn-voltar-admin" title="Voltar à Área Admin" style="display:none;"><i class="fas fa-shield-alt"></i></a>
             </div>
         </aside>
 
@@ -560,7 +561,7 @@
                     }
                     
                     // Mostrar botão admin apenas para usuários específicos
-                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br', 'adm@aluforce.ind.br'];
                     const btnAdmin = document.getElementById('btn-admin');
                     if (btnAdmin && user.email && adminEmails.includes(user.email.toLowerCase())) {
                         btnAdmin.style.display = 'flex';
@@ -606,7 +607,7 @@
         function handleFile(file) {
             const maxSize = 5 * 1024 * 1024; // 5MB
             if (file.size > maxSize) {
-                alert('Arquivo muito grande. O tamanho máximo é 5MB.');
+                showToast('Arquivo muito grande. O tamanho máximo é 5MB.', 'warning');
                 return;
             }
             fileName.textContent = file.name;
@@ -634,12 +635,12 @@
             const arquivo = fileInput.files[0];
             
             if (!arquivo) {
-                alert('Por favor, anexe o arquivo do atestado.');
+                showToast('Por favor, anexe o arquivo do atestado.', 'warning');
                 return;
             }
             
             if (!dataInicio || !dataFim || !nomeMedico || !crm || !tipoAtestado) {
-                alert('Por favor, preencha todos os campos obrigatórios.');
+                showToast('Por favor, preencha todos os campos obrigatórios.', 'warning');
                 return;
             }
             

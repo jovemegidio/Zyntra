@@ -392,7 +392,15 @@ router.get('/ponto/marcacoes', authenticateToken, async (req, res) => {
         const { funcionario_id, data_inicio, data_fim, status } = req.query;
 
         let sql = `
-            SELECT m.*, f.nome_completo as funcionario_nome, f.cargo, f.departamento
+            SELECT m.*, 
+                   COALESCE(f.nome_completo, 
+                       CASE WHEN m.funcionario_id IS NULL AND m.observacao LIKE 'RHiD:%' 
+                            THEN TRIM(SUBSTRING(m.observacao, 6))
+                            WHEN m.funcionario_id IS NULL AND m.observacao LIKE 'RHID:%'
+                            THEN TRIM(SUBSTRING(m.observacao, 6))
+                            ELSE NULL END
+                   ) as funcionario_nome, 
+                   f.cargo, f.departamento, f.foto_perfil_url as foto_url
             FROM ponto_marcacoes m
             LEFT JOIN funcionarios f ON m.funcionario_id = f.id
             WHERE 1=1
@@ -522,6 +530,38 @@ router.put('/ponto/marcacoes/:id', authenticateToken, async (req, res) => {
 
         console.log('[PONTO-EDIT] Marcação #' + id + ' editada por user #' + editado_por + ': ' + changes.length + ' campos alterados');
 
+        // ==================== HOOK: Sync para RHiD via Browser ====================
+        // Enfileirar atualização automática no RHiD (invisível ao usuário)
+        if (changes.length > 0 && changes.find(c => c.campo === 'hora')) {
+            try {
+                const rhidSync = require('../services/rhid-browser-sync');
+                const status = rhidSync.getStatus();
+                if (status.browserActive) {
+                    // Buscar nome do funcionário para o RHiD
+                    const [funcData] = await pool.query(
+                        'SELECT nome_completo, pis_pasep FROM funcionarios WHERE id = ?',
+                        [old.funcionario_id]
+                    );
+                    if (funcData.length > 0) {
+                        const horaChange = changes.find(c => c.campo === 'hora');
+                        const dataEdit = data || (old.data ? new Date(old.data).toISOString().split('T')[0] : null);
+                        rhidSync.queueMarcacaoEdit(
+                            funcData[0].nome_completo,
+                            funcData[0].pis_pasep,
+                            dataEdit,
+                            horaChange.anterior,
+                            horaChange.novo
+                        );
+                        console.log('[PONTO-EDIT→RHiD] Sync enfileirado para marcação #' + id);
+                    }
+                }
+            } catch (syncErr) {
+                // Nunca bloquear a resposta por erro no sync
+                console.error('[PONTO-EDIT→RHiD] Erro ao enfileirar sync:', syncErr.message);
+            }
+        }
+        // ===========================================================================
+
         res.json({
             success: true,
             changes: changes,
@@ -609,6 +649,34 @@ router.delete('/ponto/marcacoes/:id', authenticateToken, async (req, res) => {
         }
 
         console.log('[PONTO-DELETE] Marcação #' + id + ' excluída por user #' + excluido_por);
+
+        // ==================== HOOK: Sync exclusão para RHiD via Browser ====================
+        try {
+            const rhidSync = require('../services/rhid-browser-sync');
+            const status = rhidSync.getStatus();
+            if (status.browserActive && old.funcionario_id) {
+                const [funcData] = await pool.query(
+                    'SELECT nome_completo, pis_pasep FROM funcionarios WHERE id = ?',
+                    [old.funcionario_id]
+                );
+                if (funcData.length > 0) {
+                    const dataExcl = old.data ? new Date(old.data).toISOString().split('T')[0] : null;
+                    const horaExcl = old.hora ? String(old.hora).substring(0, 5) : null;
+                    if (dataExcl && horaExcl) {
+                        rhidSync.queueMarcacaoDelete(
+                            funcData[0].nome_completo,
+                            funcData[0].pis_pasep,
+                            dataExcl,
+                            horaExcl
+                        );
+                        console.log('[PONTO-DELETE→RHiD] Sync enfileirado para marcação #' + id);
+                    }
+                }
+            }
+        } catch (syncErr) {
+            console.error('[PONTO-DELETE→RHiD] Erro ao enfileirar sync:', syncErr.message);
+        }
+        // ==================================================================================
 
         res.json({ success: true, message: 'Marcação excluída com sucesso' });
 

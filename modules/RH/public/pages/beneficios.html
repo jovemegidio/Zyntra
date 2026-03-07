@@ -490,23 +490,24 @@
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
-        <!-- Sidebar -->
+        <!-- Sidebar - Portal do Funcionário -->
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
-                <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
-                <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
-                <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
-                <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="beneficios.html" class="sidebar-btn active" title="Benefícios"><i class="fas fa-gift"></i></a>
-                <a href="calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-home"></i></a>
+                <a href="meus-holerites.html" class="sidebar-btn" title="Meus Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="dados-cadastrais.html" class="sidebar-btn" title="Dados Cadastrais"><i class="fas fa-id-card"></i></a>
+                <a href="beneficios.html" class="sidebar-btn active" title="Meus Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="minhas-ferias.html" class="sidebar-btn" title="Minhas Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="espelho-ponto.html" class="sidebar-btn" title="Espelho de Ponto"><i class="fas fa-list-check"></i></a>
+                <a href="enviar-atestado.html" class="sidebar-btn" title="Enviar Atestado"><i class="fas fa-file-medical"></i></a>
+                <a href="autoavaliacao.html" class="sidebar-btn" title="Autoavaliação"><i class="fas fa-user-check"></i></a>
+                <a href="avaliacoes-recebidas.html" class="sidebar-btn" title="Avaliações Recebidas"><i class="fas fa-inbox"></i></a>
+                <a href="manual-colaborador.html" class="sidebar-btn" title="Manual do Colaborador"><i class="fas fa-book"></i></a>
             </nav>
             <div class="sidebar-bottom">
-                <a href="avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
-                <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+                <a href="/ajuda/index.html" class="sidebar-btn" title="Ajuda"><i class="fas fa-question-circle"></i></a>
+                <a href="../areaadm.html" class="sidebar-btn" id="btn-voltar-admin" title="Voltar à Área Admin" style="display:none;"><i class="fas fa-shield-alt"></i></a>
             </div>
         </aside>
 
@@ -735,6 +736,18 @@
                 info: 'Telemedicina e consultas',
                 descricao: 'Plataforma de saúde com telemedicina, consultas online e presenciais. Acesse: cssaude.app.br',
                 link: 'https://www.cssaude.app.br/'
+            },
+            {
+                id: 3,
+                nome: 'Cesta Básica',
+                fornecedor: 'Empresa',
+                tipo: 'food',
+                status: 'active',
+                valor: 'Mensal',
+                info: 'Condicionado à pontualidade',
+                descricao: 'Cesta básica mensal concedida aos colaboradores que não possuem atrasos ou saídas antecipadas acima de 20 minutos no mês, com base nos registros de ponto importados do RHiD Cloud.',
+                condicional: true,
+                condicaoTipo: 'pontualidade'
             }
         ];
 
@@ -824,6 +837,14 @@
                 beneficios = [...beneficiosPadrao];
                 salvarBeneficiosLocal();
             }
+            // Garantir que todos os benefícios padrão estão presentes (ex: Cesta Básica adicionada depois)
+            beneficiosPadrao.forEach(bp => {
+                const existe = beneficios.some(b => b.id === bp.id || b.nome === bp.nome);
+                if (!existe) {
+                    beneficios.push({ ...bp });
+                }
+            });
+            salvarBeneficiosLocal();
         }
 
         function salvarBeneficiosLocal() {
@@ -1313,13 +1334,16 @@
                     }
 
                     // Mostrar botões admin apenas para usuários específicos
-                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br'];
+                    const adminEmails = ['rh@aluforce.ind.br', 'ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'fernando@aluforce.ind.br', 'adm@aluforce.ind.br'];
                     if (user.email && adminEmails.includes(user.email.toLowerCase())) {
                         isAdmin = true;
                         const btnAdmin = document.getElementById('btn-admin');
                         if (btnAdmin) btnAdmin.style.display = 'flex';
                         const btnGerenciar = document.getElementById('btn-gerenciar');
                         if (btnGerenciar) btnGerenciar.style.display = 'inline-flex';
+                        // Mostrar botão voltar à área admin na sidebar
+                        const btnVoltarAdmin = document.getElementById('btn-voltar-admin');
+                        if (btnVoltarAdmin) btnVoltarAdmin.style.display = 'flex';
                     }
                 }
             } catch (error) {
@@ -1327,10 +1351,104 @@
             }
         }
 
+        // Verificar elegibilidade da Cesta Básica (sem atrasos/saídas > 20 min)
+        async function verificarElegibilidadeCestaBasica() {
+            try {
+                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+                const headers = { 'Authorization': token ? `Bearer ${token}` : '' };
+
+                // Buscar dados do usuário logado
+                const meResp = await fetch('/api/me', { headers, credentials: 'include' });
+                if (!meResp.ok) return;
+                const me = await meResp.json();
+
+                // Buscar marcações do mês atual para o funcionário
+                const hoje = new Date();
+                const inicioMes = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-01';
+                const fimMes = hoje.toISOString().split('T')[0];
+
+                const pontoResp = await fetch(`/api/rh/ponto/marcacoes?data_inicio=${inicioMes}&data_fim=${fimMes}`, {
+                    headers, credentials: 'include'
+                });
+
+                if (!pontoResp.ok) return;
+                const pontoData = await pontoResp.json();
+                const marcacoes = pontoData.marcacoes || [];
+
+                // Filtrar marcações do funcionário logado
+                const minhasMarcacoes = marcacoes.filter(m => {
+                    if (me.funcionario_id && m.funcionario_id == me.funcionario_id) return true;
+                    const obs = (m.observacao || '').toUpperCase();
+                    const meuNome = (me.nome || '').toUpperCase();
+                    return meuNome && obs.includes(meuNome);
+                });
+
+                // Verificar atrasos ou saídas antecipadas > 20 minutos
+                // Agrupa por dia e verifica se há atraso de entrada ou saída antecipada
+                let possuiIrregularidade = false;
+                const porDia = {};
+                minhasMarcacoes.forEach(m => {
+                    if (!porDia[m.data]) porDia[m.data] = [];
+                    porDia[m.data].push(m);
+                });
+
+                // Horário padrão: entrada 07:30, saída 17:18
+                const horarioEntrada = 7 * 60 + 30; // 450 min
+                const horarioSaida = 17 * 60 + 18;  // 1038 min
+                const toleranciaMax = 20; // 20 minutos
+
+                Object.values(porDia).forEach(marcsDia => {
+                    const horas = marcsDia.map(m => {
+                        const parts = (m.hora || '').split(':');
+                        return parseInt(parts[0] || 0) * 60 + parseInt(parts[1] || 0);
+                    }).sort((a, b) => a - b);
+
+                    if (horas.length > 0) {
+                        // Primeira marcação = entrada
+                        const entrada = horas[0];
+                        const atraso = entrada - horarioEntrada;
+                        if (atraso > toleranciaMax) {
+                            possuiIrregularidade = true;
+                        }
+
+                        // Última marcação = saída (se houver mais de 1)
+                        if (horas.length > 1) {
+                            const saida = horas[horas.length - 1];
+                            const saidaAntecipada = horarioSaida - saida;
+                            if (saidaAntecipada > toleranciaMax) {
+                                possuiIrregularidade = true;
+                            }
+                        }
+                    }
+                });
+
+                // Atualizar status da Cesta Básica conforme elegibilidade
+                const cestaIndex = beneficios.findIndex(b => b.condicional && b.condicaoTipo === 'pontualidade');
+                if (cestaIndex >= 0) {
+                    if (possuiIrregularidade) {
+                        // Não elegível: remover da lista visível para o colaborador (admin continua vendo)
+                        if (!isAdmin) {
+                            beneficios[cestaIndex].status = 'inactive';
+                            beneficios[cestaIndex].info = 'Indisponível — verificar pontualidade';
+                        }
+                    } else {
+                        beneficios[cestaIndex].status = 'active';
+                        beneficios[cestaIndex].info = '✅ Você está elegível este mês!';
+                    }
+                    renderizarBeneficios();
+                }
+
+            } catch (e) {
+                console.warn('[Benefícios] Erro ao verificar elegibilidade cesta básica:', e.message);
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             await carregarBeneficios();
             renderizarBeneficios();
             carregarUsuarioLogado();
+            // Verificar elegibilidade após carregar
+            setTimeout(() => verificarElegibilidadeCestaBasica(), 1000);
         });
 
         // Fechar modais com ESC

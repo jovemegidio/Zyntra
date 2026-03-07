@@ -278,20 +278,24 @@ try {
    if (-not $SemGit) { $etapas += "GitHub ✅ ($commitHash)" }
    $etapasStr = $etapas -join ' | '
 
+   $descricao = if ($Mensagem) { $Mensagem } else { "Deploy de $($arquivosGit.Count) arquivo(s) - $modulosAfetados" }
+   $footerText = "Deploy Completo (VPS+Git) - " + (Get-Date -Format 'dd/MM/yyyy HH:mm:ss')
+   $tsNow = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
    $discordPayload = @{
       embeds = @(@{
-         title       = "🚀 Deploy Realizado — ALUFORCE"
-         description = if ($Mensagem) { $Mensagem } else { "Deploy de $($arquivosGit.Count) arquivo(s) — $modulosAfetados" }
+         title       = "Deploy Realizado - ALUFORCE"
+         description = $descricao
          color       = 3447003
          fields      = @(
-            @{ name = "📦 Módulos"; value = $modulosAfetados; inline = $true }
-            @{ name = "📊 Status"; value = $etapasStr; inline = $true }
-            @{ name = "📁 Arquivos ($($arquivosGit.Count))"; value = $arquivosField; inline = $false }
+            @{ name = "Modulos"; value = $modulosAfetados; inline = $true }
+            @{ name = "Status"; value = $etapasStr; inline = $true }
+            @{ name = "Arquivos ($($arquivosGit.Count))"; value = $arquivosField; inline = $false }
          )
-         footer      = @{ text = "Deploy Completo (VPS+Git) | $(Get-Date -Format 'dd/MM/yyyy HH:mm:ss')" }
-         timestamp   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+         footer      = @{ text = $footerText }
+         timestamp   = $tsNow
       })
-   } | ConvertTo-Json -Depth 10
+   }
+   $discordPayload = $discordPayload | ConvertTo-Json -Depth 10
 
    $bytes = [System.Text.Encoding]::UTF8.GetBytes($discordPayload)
    Invoke-RestMethod -Uri $webhookUrl -Method Post -ContentType "application/json; charset=utf-8" -Body $bytes | Out-Null

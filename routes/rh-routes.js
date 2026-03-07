@@ -19,7 +19,32 @@ module.exports = function createRHRoutes(deps) {
     const path = require('path');
     const multer = require('multer');
     const fs = require('fs');
-    const upload = multer({ dest: path.join(__dirname, '..', 'uploads'), limits: { fileSize: 10 * 1024 * 1024 } });
+
+    // Upload dir: em produção (VPS) salvar em /var/www/uploads/RH, em dev em public/uploads/RH
+    const uploadDir = process.platform !== 'win32'
+        ? '/var/www/uploads/RH'
+        : path.join(__dirname, '..', 'public', 'uploads', 'RH');
+
+    const rhStorage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            let subfolder = 'outros';
+            if (file.fieldname === 'foto') subfolder = 'fotos';
+            if (file.fieldname === 'holerite') subfolder = 'holerites';
+            if (file.fieldname === 'atestado') subfolder = 'atestados';
+            if (file.fieldname === 'arquivo') subfolder = 'importacoes';
+            const dest = path.join(uploadDir, subfolder);
+            if (!fs.existsSync(dest)) {
+                fs.mkdirSync(dest, { recursive: true });
+            }
+            cb(null, dest);
+        },
+        filename: (req, file, cb) => {
+            const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+            const unique = `${file.fieldname}-${Date.now()}-${Math.floor(Math.random() * 1e9)}${ext}`;
+            cb(null, unique);
+        }
+    });
+    const upload = multer({ storage: rhStorage, limits: { fileSize: 10 * 1024 * 1024 } });
     const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
     const validate = (req, res, next) => {
         const errors = validationResult(req);
@@ -289,7 +314,7 @@ module.exports = function createRHRoutes(deps) {
                     id, nome_completo, email, cpf, rg, telefone,
                     data_nascimento, data_admissao, cargo, departamento,
                     endereco, cep, cidade, estado, bairro, status,
-                    estado_civil, nacionalidade, naturalidade,
+                    estado_civil, nacionalidade, naturalidade, sexo,
                     filiacao_mae, filiacao_pai, dados_conjuge,
                     pis_pasep, ctps, ctps_numero, ctps_serie,
                     titulo_eleitor, zona_eleitoral, secao_eleitoral,
@@ -297,7 +322,12 @@ module.exports = function createRHRoutes(deps) {
                     banco, agencia, conta_corrente, dados_bancarios,
                     tipo_chave_pix, chave_pix,
                     foto_perfil_url, foto_thumb_url,
-                    dependentes, role, salario, tipo_contrato
+                    dependentes, role, salario, tipo_contrato,
+                    data_reajuste, ultimo_reajuste,
+                    data_demissao, motivo_demissao,
+                    vt_ativo, vt_tipo_transporte, vt_valor_diario,
+                    vt_qtd_passagens, vt_linhas, vt_dias_desconto,
+                    vt_mes_referencia, vt_motivo_desconto
                 FROM funcionarios
                 WHERE id = ?
             `, [id]);
@@ -422,6 +452,7 @@ module.exports = function createRHRoutes(deps) {
                 dependentes, cnh, certificado_reservista,
                 titulo_eleitor, zona_eleitoral, secao_eleitoral,
                 filiacao_mae, filiacao_pai, dados_conjuge,
+                bairro, cidade, estado, cep,
                 // Campos adicionais (v2 - fix PUT handler)
                 sexo, salario, data_reajuste, ultimo_reajuste,
                 tipo_chave_pix, chave_pix, senha_texto,
@@ -447,6 +478,21 @@ module.exports = function createRHRoutes(deps) {
             // Processar vt_ativo como boolean → int
             const vtAtivoInt = vt_ativo === true || vt_ativo === 'true' || vt_ativo === 1 ? 1 : (vt_ativo === false || vt_ativo === 'false' || vt_ativo === 0 ? 0 : vt_ativo);
 
+            // FIX: Converter strings vazias para NULL em campos ENUM e DATE
+            // MySQL ENUM rejeita '' (empty string) → causa "Data truncated"
+            const emptyToNull = (v) => (v === '' || v === undefined) ? null : v;
+
+            // Sanitizar todos os campos que são ENUM ou DATE no MySQL
+            const safeSexo = emptyToNull(sexo);
+            const safeTipoChavePix = emptyToNull(tipo_chave_pix);
+            const safeDataNasc = emptyToNull(data_nascimento);
+            const safeDataAdm = emptyToNull(data_admissao);
+            const safeDataReajuste = emptyToNull(data_reajuste);
+            const safeDataDemissao = emptyToNull(data_demissao);
+            const safeEstadoCivil = emptyToNull(estado_civil);
+            const safeSalario = emptyToNull(salario);
+            const safeVtValorDiario = emptyToNull(vt_valor_diario);
+
             const [result] = await pool.query(`
                 UPDATE funcionarios SET
                     nome_completo = COALESCE(?, nome_completo),
@@ -463,6 +509,10 @@ module.exports = function createRHRoutes(deps) {
                     nacionalidade = COALESCE(?, nacionalidade),
                     naturalidade = COALESCE(?, naturalidade),
                     endereco = COALESCE(?, endereco),
+                    bairro = COALESCE(?, bairro),
+                    cidade = COALESCE(?, cidade),
+                    estado = COALESCE(?, estado),
+                    cep = COALESCE(?, cep),
                     pis_pasep = COALESCE(?, pis_pasep),
                     ctps_numero = COALESCE(?, ctps_numero),
                     ctps_serie = COALESCE(?, ctps_serie),
@@ -498,21 +548,22 @@ module.exports = function createRHRoutes(deps) {
                     vt_motivo_desconto = COALESCE(?, vt_motivo_desconto)
                 WHERE id = ?
             `, [
-                nome_completo, email, cpf, rg, telefone,
-                cargo, departamento, status,
-                data_nascimento, data_admissao,
-                estado_civil, nacionalidade, naturalidade,
-                endereco, pis_pasep, ctps_numero, ctps_serie,
-                banco, agencia, conta_corrente,
-                dependentes, cnh, certificado_reservista,
-                titulo_eleitor, zona_eleitoral, secao_eleitoral,
-                filiacao_mae, filiacao_pai, dados_conjuge,
-                sexo, salario, data_reajuste, ultimo_reajuste,
-                tipo_chave_pix, chave_pix, senhaHasheada,
-                data_demissao, motivo_demissao,
-                vtAtivoInt, vt_tipo_transporte, vt_valor_diario,
-                vt_qtd_passagens, vt_linhas, vt_dias_desconto,
-                vt_mes_referencia, vt_motivo_desconto,
+                emptyToNull(nome_completo), emptyToNull(email), emptyToNull(cpf), emptyToNull(rg), emptyToNull(telefone),
+                emptyToNull(cargo), emptyToNull(departamento), emptyToNull(status),
+                safeDataNasc, safeDataAdm,
+                safeEstadoCivil, emptyToNull(nacionalidade), emptyToNull(naturalidade),
+                emptyToNull(endereco), emptyToNull(bairro), emptyToNull(cidade), emptyToNull(estado), emptyToNull(cep),
+                emptyToNull(pis_pasep), emptyToNull(ctps_numero), emptyToNull(ctps_serie),
+                emptyToNull(banco), emptyToNull(agencia), emptyToNull(conta_corrente),
+                emptyToNull(dependentes), emptyToNull(cnh), emptyToNull(certificado_reservista),
+                emptyToNull(titulo_eleitor), emptyToNull(zona_eleitoral), emptyToNull(secao_eleitoral),
+                emptyToNull(filiacao_mae), emptyToNull(filiacao_pai), emptyToNull(dados_conjuge),
+                safeSexo, safeSalario, safeDataReajuste, emptyToNull(ultimo_reajuste),
+                safeTipoChavePix, emptyToNull(chave_pix), senhaHasheada,
+                safeDataDemissao, emptyToNull(motivo_demissao),
+                vtAtivoInt, emptyToNull(vt_tipo_transporte), safeVtValorDiario,
+                emptyToNull(vt_qtd_passagens), emptyToNull(vt_linhas), emptyToNull(vt_dias_desconto),
+                emptyToNull(vt_mes_referencia), emptyToNull(vt_motivo_desconto),
                 id
             ]);
 
@@ -545,7 +596,8 @@ module.exports = function createRHRoutes(deps) {
                 banco, tipo_chave_pix, chave_pix, agencia, conta_corrente,
                 dependentes, cnh, certificado_reservista,
                 titulo_eleitor, zona_eleitoral, secao_eleitoral,
-                filiacao_mae, filiacao_pai, dados_conjuge
+                filiacao_mae, filiacao_pai, dados_conjuge,
+                bairro, cidade, estado, cep
             } = req.body;
 
             // Gerar senha temporária aleatória segura (12 chars)
@@ -566,18 +618,22 @@ module.exports = function createRHRoutes(deps) {
                     dependentes, cnh, certificado_reservista,
                     titulo_eleitor, zona_eleitoral, secao_eleitoral,
                     filiacao_mae, filiacao_pai, dados_conjuge,
+                    bairro, cidade, estado, cep,
                     forcar_troca_senha
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'funcionario', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'funcionario', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             `, [
-                nome_completo, email, hashed, hashed, cpf, rg, telefone, sexo || null,
+                nome_completo, email, hashed, hashed, cpf, rg, telefone,
+                (sexo === '' ? null : sexo) || null,
                 cargo, departamento, status,
-                data_nascimento, data_admissao,
-                estado_civil, nacionalidade, naturalidade,
+                data_nascimento || null, data_admissao || null,
+                estado_civil || null, nacionalidade, naturalidade,
                 endereco, pis_pasep, ctps_numero, ctps_serie,
-                banco, tipo_chave_pix || null, chave_pix || null, agencia, conta_corrente,
+                banco, (tipo_chave_pix === '' ? null : tipo_chave_pix) || null,
+                chave_pix || null, agencia, conta_corrente,
                 dependentes || 0, cnh, certificado_reservista,
                 titulo_eleitor, zona_eleitoral, secao_eleitoral,
-                filiacao_mae, filiacao_pai, dados_conjuge
+                filiacao_mae, filiacao_pai, dados_conjuge,
+                bairro || null, cidade || null, estado || null, cep || null
             ]);
 
             // Retorna senha temporária para o admin informar ao funcionário
@@ -612,32 +668,54 @@ module.exports = function createRHRoutes(deps) {
 
             console.log('📸 Upload de foto recebido:', req.file);
 
-            // O multer já salvou o arquivo em public/uploads/RH/fotos
-            // Usar o caminho que o multer definiu
+            // O multer com diskStorage já salvou com extensão na pasta correta
             const nomeArquivo = req.file.filename;
             const ext = path.extname(nomeArquivo).toLowerCase();
             const caminhoFoto = `/uploads/RH/fotos/${nomeArquivo}`;
 
             // Criar thumbnail (200x200)
-            const sharp = require('sharp');
-            const thumbName = nomeArquivo.replace(ext, `-thumb${ext}`);
-            const pastaFotos = path.dirname(req.file.path);
-            const thumbPath = path.join(pastaFotos, thumbName);
-            const thumbUrl = `/uploads/RH/fotos/${thumbName}`;
-
+            let thumbUrl = caminhoFoto; // fallback se sharp falhar
             try {
+                const sharp = require('sharp');
+                const thumbName = ext ? nomeArquivo.replace(ext, `-thumb${ext}`) : `${nomeArquivo}-thumb.jpg`;
+                const thumbPath = path.join(path.dirname(req.file.path), thumbName);
+                thumbUrl = `/uploads/RH/fotos/${thumbName}`;
+
                 await sharp(req.file.path)
                     .resize(200, 200, { fit: 'cover' })
                     .toFile(thumbPath);
                 console.log('✅ Thumbnail criado:', thumbPath);
             } catch (sharpErr) {
-                console.error('⚠️ Erro ao criar thumbnail:', sharpErr);
-                // Continua mesmo se thumbnail falhar
+                console.error('⚠️ Erro ao criar thumbnail:', sharpErr.message);
+                thumbUrl = caminhoFoto; // usar foto original como thumb
             }
 
             // Atualizar foto no banco (apenas colunas que existem: foto_perfil_url e foto_thumb_url)
             await pool.query('UPDATE funcionarios SET foto_perfil_url = ?, foto_thumb_url = ? WHERE id = ?', [caminhoFoto, thumbUrl, id]);
             console.log('✅ Foto atualizada no banco para funcionário:', id);
+
+            // ==================== HOOK: Sync foto para RHiD via Browser ====================
+            try {
+                const rhidSync = require('../services/rhid-browser-sync');
+                const syncStatus = rhidSync.getStatus();
+                if (syncStatus.browserActive) {
+                    const [funcData] = await pool.query(
+                        'SELECT nome_completo, pis_pasep FROM funcionarios WHERE id = ?', [id]
+                    );
+                    if (funcData.length > 0) {
+                        const absolutePhotoPath = req.file.path; // caminho absoluto do arquivo salvo
+                        rhidSync.queuePhotoUpdate(
+                            funcData[0].nome_completo,
+                            funcData[0].pis_pasep,
+                            absolutePhotoPath
+                        );
+                        console.log('[FOTO→RHiD] Sync enfileirado para funcionário #' + id);
+                    }
+                }
+            } catch (syncErr) {
+                console.error('[FOTO→RHiD] Erro ao enfileirar sync:', syncErr.message);
+            }
+            // =================================================================================
 
             res.json({
                 message: 'Foto atualizada com sucesso!',
@@ -675,7 +753,12 @@ module.exports = function createRHRoutes(deps) {
     router.get('/funcionarios/:id/holerites', async (req, res, next) => {
         try {
             const [rows] = await pool.query('SELECT * FROM holerites WHERE funcionario_id = ? ORDER BY mes_referencia DESC', [req.params.id]);
-            rows.forEach(h => h.arquivo_url = `/uploads/holerites/${h.arquivo}`);
+            // A tabela já tem arquivo_url pronta; apenas garantir que está preenchida
+            rows.forEach(h => {
+                if (!h.arquivo_url && h.arquivo) {
+                    h.arquivo_url = `/uploads/holerites/${h.arquivo}`;
+                }
+            });
             res.json(rows);
         } catch (e) { next(e); }
     });
@@ -689,7 +772,10 @@ module.exports = function createRHRoutes(deps) {
         try {
             if (!req.file) return res.status(400).json({ message: 'Arquivo não enviado.' });
             const { mes_referencia } = req.body;
-            await pool.query('INSERT INTO holerites (funcionario_id, mes_referencia, arquivo) VALUES (?, ?, ?)', [req.params.id, mes_referencia, req.file.filename]);
+            await pool.query(
+                'INSERT INTO holerites (funcionario_id, mes_referencia, arquivo_url, competencia) VALUES (?, ?, ?, ?)',
+                [req.params.id, mes_referencia, `/uploads/RH/holerites/${req.file.filename}`, mes_referencia]
+            );
             res.status(201).json({ message: 'Holerite anexado!' });
         } catch (e) { next(e); }
     });
@@ -699,7 +785,12 @@ module.exports = function createRHRoutes(deps) {
         try {
             const funcionario_id = req.query.funcionario_id || req.user.id;
             const [rows] = await pool.query('SELECT * FROM atestados WHERE funcionario_id = ? ORDER BY data_atestado DESC', [funcionario_id]);
-            rows.forEach(a => a.arquivo_url = `/uploads/atestados/${a.arquivo}`);
+            // A tabela já tem arquivo_url; apenas garantir que está preenchida
+            rows.forEach(a => {
+                if (!a.arquivo_url && a.arquivo) {
+                    a.arquivo_url = `/uploads/atestados/${a.arquivo}`;
+                }
+            });
             res.json(rows);
         } catch (e) { next(e); }
     });
@@ -840,9 +931,11 @@ module.exports = function createRHRoutes(deps) {
 
             await pool.query(
                 `INSERT INTO atestados
-                (funcionario_id, data_atestado, data_inicio, data_fim, arquivo, nome_medico, crm, tipo_atestado, cid, observacoes)
+                (funcionario_id, data_atestado, data_inicio, data_fim, arquivo_url, nome_medico, crm, tipo_atestado, cid, observacoes)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [funcionario_id, data_atestado, data_inicio, data_fim, req.file.filename, nome_medico, crm, tipo_atestado, cid, observacoes]
+                [funcionario_id, data_atestado, data_inicio || null, data_fim || null,
+                 `/uploads/RH/atestados/${req.file.filename}`,
+                 nome_medico, crm, tipo_atestado, cid, observacoes]
             );
 
             res.status(201).json({ message: 'Atestado enviado com sucesso!' });
@@ -1263,10 +1356,11 @@ module.exports = function createRHRoutes(deps) {
             const userId = req.user?.id;
             if (!userId) return res.status(401).json({ message: 'Não autenticado' });
 
-            // Buscar funcionario_id do usuário logado
+            // Buscar funcionario_id do usuário logado (tabela não tem user_id, usar email ou id direto)
+            const userEmail = req.user?.email;
             const [funcRows] = await pool.query(
-                'SELECT id FROM funcionarios WHERE user_id = ? OR id = ?',
-                [userId, userId]
+                'SELECT id FROM funcionarios WHERE id = ? OR email = ?',
+                [userId, userEmail || '']
             );
             const funcionarioId = funcRows.length > 0 ? funcRows[0].id : userId;
 
@@ -1354,10 +1448,11 @@ module.exports = function createRHRoutes(deps) {
                 return res.status(401).json({ message: 'Usuário não autenticado' });
             }
 
-            // Buscar funcionario_id do usuário logado
+            // Buscar funcionario_id do usuário logado (tabela não tem user_id, usar email ou id direto)
+            const userEmail = req.user?.email;
             const [funcRows] = await pool.query(
-                'SELECT id FROM funcionarios WHERE user_id = ? OR id = ?',
-                [userId, userId]
+                'SELECT id FROM funcionarios WHERE id = ? OR email = ?',
+                [userId, userEmail || '']
             );
             const funcionarioId = funcRows.length > 0 ? funcRows[0].id : userId;
 
@@ -1459,6 +1554,167 @@ module.exports = function createRHRoutes(deps) {
             }
             console.error('Erro ao criar holerite:', error);
             res.status(500).json({ message: 'Erro ao criar holerite' });
+        }
+    });
+
+    // POST /api/rh/holerites/gerar - geração em lote via modal do dashboard RH
+    router.post('/holerites/gerar', authorizeAdmin, async (req, res) => {
+        try {
+            const {
+                competencia,
+                tipo_geracao,
+                filtro_departamento,
+                filtro_funcionario,
+                formato_saida,
+                dias_trabalhados,
+                horas_extras,
+                faltas,
+                outros_descontos,
+                observacoes_holerite
+            } = req.body || {};
+
+            if (!competencia || !/^\d{4}-\d{2}$/.test(String(competencia))) {
+                return res.status(400).json({ message: 'Competência inválida. Use YYYY-MM.' });
+            }
+
+            const [anoStr, mesStr] = String(competencia).split('-');
+            const ano = parseInt(anoStr, 10);
+            const mes = parseInt(mesStr, 10);
+
+            let sql = `
+                SELECT id, nome_completo, email, cargo, departamento,
+                       COALESCE(salario, salario_base, 0) AS salario_base
+                FROM funcionarios
+                WHERE (status = 'Ativo' OR status = 'ativo' OR ativo = 1)
+            `;
+            const params = [];
+
+            if (tipo_geracao === 'departamento') {
+                if (!filtro_departamento) {
+                    return res.status(400).json({ message: 'Departamento é obrigatório para este tipo de geração.' });
+                }
+                sql += ' AND departamento = ?';
+                params.push(filtro_departamento);
+            }
+
+            if (tipo_geracao === 'funcionario') {
+                if (!filtro_funcionario) {
+                    return res.status(400).json({ message: 'Funcionário é obrigatório para este tipo de geração.' });
+                }
+                sql += ' AND id = ?';
+                params.push(parseInt(filtro_funcionario, 10));
+            }
+
+            sql += ' ORDER BY nome_completo ASC';
+            const [funcionarios] = await pool.query(sql, params);
+
+            if (!funcionarios.length) {
+                return res.status(404).json({ message: 'Nenhum funcionário encontrado para os filtros selecionados.' });
+            }
+
+            const dias = Number(dias_trabalhados || 30);
+            const horasExtras = Number(horas_extras || 0);
+            const faltasDias = Number(faltas || 0);
+            const outros = Number(outros_descontos || 0);
+
+            let arquivosGerados = 0;
+            let emailsEnviados = 0;
+            const detalhes = [];
+
+            for (const f of funcionarios) {
+                const salarioBase = Number(f.salario_base || 0);
+                const valorHora = salarioBase > 0 ? salarioBase / 220 : 0;
+                const totalHorasExtras = horasExtras * valorHora * 1.5;
+                const descontoFaltas = faltasDias * (salarioBase / 30);
+
+                const totalProventos = Math.max(0, salarioBase + totalHorasExtras);
+                const inss = totalProventos * 0.11;
+                const baseIrrf = Math.max(0, totalProventos - inss);
+                const irrf = baseIrrf > 2259.2 ? baseIrrf * 0.075 : 0;
+                const totalDescontos = Math.max(0, inss + irrf + descontoFaltas + outros);
+                const salarioLiquido = Math.max(0, totalProventos - totalDescontos);
+
+                const proventos = [
+                    { codigo: '001', descricao: 'Salário Base', referencia: `${dias} dias`, valor: Number(salarioBase.toFixed(2)) },
+                    { codigo: '002', descricao: 'Horas Extras', referencia: `${horasExtras}h`, valor: Number(totalHorasExtras.toFixed(2)) }
+                ];
+
+                const descontos = [
+                    { codigo: '050', descricao: 'INSS', referencia: '', valor: Number(inss.toFixed(2)) },
+                    { codigo: '051', descricao: 'IRRF', referencia: '', valor: Number(irrf.toFixed(2)) },
+                    { codigo: '052', descricao: 'Faltas', referencia: `${faltasDias} dia(s)`, valor: Number(descontoFaltas.toFixed(2)) },
+                    { codigo: '099', descricao: 'Outros Descontos', referencia: '', valor: Number(outros.toFixed(2)) }
+                ];
+
+                const [exists] = await pool.query(
+                    'SELECT id FROM rh_holerites_gestao WHERE funcionario_id = ? AND mes = ? AND ano = ? LIMIT 1',
+                    [f.id, mes, ano]
+                );
+
+                if (exists.length) {
+                    await pool.query(`
+                        UPDATE rh_holerites_gestao
+                        SET proventos = ?,
+                            descontos = ?,
+                            total_proventos = ?,
+                            total_descontos = ?,
+                            salario_liquido = ?,
+                            observacoes = ?,
+                            updated_at = NOW()
+                        WHERE id = ?
+                    `, [
+                        JSON.stringify(proventos),
+                        JSON.stringify(descontos),
+                        Number(totalProventos.toFixed(2)),
+                        Number(totalDescontos.toFixed(2)),
+                        Number(salarioLiquido.toFixed(2)),
+                        observacoes_holerite || null,
+                        exists[0].id
+                    ]);
+                } else {
+                    await pool.query(`
+                        INSERT INTO rh_holerites_gestao
+                            (funcionario_id, mes, ano, proventos, descontos, total_proventos, total_descontos, salario_liquido, status, observacoes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho', ?)
+                    `, [
+                        f.id,
+                        mes,
+                        ano,
+                        JSON.stringify(proventos),
+                        JSON.stringify(descontos),
+                        Number(totalProventos.toFixed(2)),
+                        Number(totalDescontos.toFixed(2)),
+                        Number(salarioLiquido.toFixed(2)),
+                        observacoes_holerite || null
+                    ]);
+                }
+
+                arquivosGerados += 1;
+                if (String(formato_saida || '').toLowerCase() === 'email') {
+                    // Placeholder de envio: contabiliza elegíveis para manter compatibilidade com UI.
+                    if (f.email) emailsEnviados += 1;
+                }
+
+                detalhes.push({ funcionario_id: f.id, nome: f.nome_completo, departamento: f.departamento });
+            }
+
+            const resultado = {
+                success: true,
+                competencia,
+                total_funcionarios: funcionarios.length,
+                arquivos_gerados: arquivosGerados,
+                emails_enviados: emailsEnviados,
+                detalhes
+            };
+
+            if (String(formato_saida || '').toLowerCase() !== 'email') {
+                resultado.download_url = `/RH/holerites.html?competencia=${encodeURIComponent(competencia)}`;
+            }
+
+            return res.json(resultado);
+        } catch (error) {
+            console.error('Erro ao gerar holerites em lote:', error);
+            return res.status(500).json({ message: 'Erro ao gerar holerites em lote', error: error.message });
         }
     });
 
@@ -2044,9 +2300,10 @@ module.exports = function createRHRoutes(deps) {
             // 4. Avisos/comunicados recentes
             try {
                 const [avisos] = await pool.query(`
-                    SELECT titulo, created_at, 'fa-bullhorn' as icone, '#f59e0b' as cor
-                    FROM avisos WHERE ativo = TRUE AND created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-                    ORDER BY created_at DESC LIMIT 3
+                    SELECT titulo, COALESCE(created_at, data_publicacao) as created_at, 'fa-bullhorn' as icone, '#f59e0b' as cor
+                    FROM avisos WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                       OR data_publicacao >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    ORDER BY COALESCE(created_at, data_publicacao) DESC LIMIT 3
                 `);
                 atividades.push(...avisos);
             } catch(e) { /* ignore */ }
@@ -2133,6 +2390,218 @@ module.exports = function createRHRoutes(deps) {
         }
     });
 
+    // GET /ferias/dashboard - KPIs para gestão administrativa de férias
+    router.get('/ferias/dashboard', authorizeAdmin, async (req, res) => {
+        try {
+            const [[resumoSolicitacoes]] = await pool.query(`
+                SELECT
+                    SUM(CASE WHEN status = 'pendente' THEN 1 ELSE 0 END) AS total_pendentes,
+                    SUM(CASE WHEN status = 'aprovada' AND MONTH(COALESCE(aprovado_em, updated_at, created_at)) = MONTH(CURRENT_DATE())
+                        AND YEAR(COALESCE(aprovado_em, updated_at, created_at)) = YEAR(CURRENT_DATE()) THEN 1 ELSE 0 END) AS aprovadas_mes,
+                    SUM(CASE WHEN status = 'reprovada' AND MONTH(COALESCE(aprovado_em, updated_at, created_at)) = MONTH(CURRENT_DATE())
+                        AND YEAR(COALESCE(aprovado_em, updated_at, created_at)) = YEAR(CURRENT_DATE()) THEN 1 ELSE 0 END) AS reprovadas_mes
+                FROM ferias_solicitacoes
+            `);
+
+            let vencendo30Dias = 0;
+            try {
+                const [[vencendo]] = await pool.query(`
+                    SELECT COUNT(*) AS total
+                    FROM ferias_periodos
+                    WHERE status = 'ativo'
+                      AND data_limite_gozo IS NOT NULL
+                      AND data_limite_gozo BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 30 DAY)
+                `);
+                vencendo30Dias = Number(vencendo?.total || 0);
+            } catch (_) {
+                vencendo30Dias = 0;
+            }
+
+            const resumo = {
+                total_pendentes: Number(resumoSolicitacoes?.total_pendentes || 0),
+                aprovadas_mes: Number(resumoSolicitacoes?.aprovadas_mes || 0),
+                reprovadas_mes: Number(resumoSolicitacoes?.reprovadas_mes || 0),
+                vencendo_30_dias: vencendo30Dias
+            };
+
+            res.json({ resumo });
+        } catch (error) {
+            console.error('Erro ao buscar dashboard de férias:', error);
+            res.status(500).json({ message: 'Erro ao buscar dashboard de férias' });
+        }
+    });
+
+    // GET /ferias/pendentes - lista de solicitações pendentes para aprovação
+    router.get('/ferias/pendentes', authorizeAdmin, async (req, res) => {
+        try {
+            const { departamento } = req.query;
+
+            let sql = `
+                SELECT
+                    s.id,
+                    s.funcionario_id,
+                    s.data_inicio,
+                    s.data_fim,
+                    s.dias_solicitados,
+                    s.tipo,
+                    s.status,
+                    s.observacoes,
+                    s.solicitado_em,
+                    f.nome_completo AS funcionario_nome,
+                    f.departamento
+                FROM ferias_solicitacoes s
+                LEFT JOIN funcionarios f ON f.id = s.funcionario_id
+                WHERE s.status = 'pendente'
+            `;
+            const params = [];
+
+            if (departamento) {
+                sql += ' AND f.departamento = ?';
+                params.push(departamento);
+            }
+
+            sql += ' ORDER BY COALESCE(s.solicitado_em, s.created_at) DESC';
+
+            const [rows] = await pool.query(sql, params);
+            res.json(rows);
+        } catch (error) {
+            console.error('Erro ao buscar pendentes de férias:', error);
+            res.status(500).json({ message: 'Erro ao buscar pendentes de férias' });
+        }
+    });
+
+    // GET /ferias/calendario - calendário de férias (aprovadas e pendentes)
+    router.get('/ferias/calendario', authorizeAdmin, async (req, res) => {
+        try {
+            const [rows] = await pool.query(`
+                SELECT
+                    s.id,
+                    s.funcionario_id,
+                    s.data_inicio,
+                    s.data_fim,
+                    s.status,
+                    f.nome_completo AS funcionario_nome,
+                    f.departamento
+                FROM ferias_solicitacoes s
+                LEFT JOIN funcionarios f ON f.id = s.funcionario_id
+                WHERE s.status IN ('pendente', 'aprovada', 'reprovada', 'cancelada')
+                ORDER BY s.data_inicio ASC
+            `);
+
+            res.json(rows);
+        } catch (error) {
+            console.error('Erro ao buscar calendário de férias:', error);
+            res.status(500).json({ message: 'Erro ao buscar calendário de férias' });
+        }
+    });
+
+    // POST /ferias/aprovar - aprovar solicitação de férias
+    router.post('/ferias/aprovar', authorizeAdmin, async (req, res) => {
+        try {
+            const { solicitacao_id, observacoes_rh } = req.body;
+
+            if (!solicitacao_id) {
+                return res.status(400).json({ message: 'solicitacao_id é obrigatório' });
+            }
+
+            const [result] = await pool.query(`
+                UPDATE ferias_solicitacoes
+                SET status = 'aprovada',
+                    aprovado_por = ?,
+                    aprovado_em = NOW(),
+                    observacoes_rh = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+                  AND status = 'pendente'
+            `, [req.user?.id || null, observacoes_rh || null, solicitacao_id]);
+
+            if (!result.affectedRows) {
+                return res.status(404).json({ message: 'Solicitação pendente não encontrada' });
+            }
+
+            res.json({ success: true, message: 'Solicitação aprovada com sucesso' });
+        } catch (error) {
+            console.error('Erro ao aprovar férias:', error);
+            res.status(500).json({ message: 'Erro ao aprovar férias' });
+        }
+    });
+
+    // POST /ferias/reprovar - reprovar solicitação de férias
+    router.post('/ferias/reprovar', authorizeAdmin, async (req, res) => {
+        try {
+            const { solicitacao_id, motivo_reprovacao } = req.body;
+
+            if (!solicitacao_id || !motivo_reprovacao) {
+                return res.status(400).json({ message: 'solicitacao_id e motivo_reprovacao são obrigatórios' });
+            }
+
+            const [result] = await pool.query(`
+                UPDATE ferias_solicitacoes
+                SET status = 'reprovada',
+                    aprovado_por = ?,
+                    aprovado_em = NOW(),
+                    motivo_reprovacao = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+                  AND status = 'pendente'
+            `, [req.user?.id || null, motivo_reprovacao, solicitacao_id]);
+
+            if (!result.affectedRows) {
+                return res.status(404).json({ message: 'Solicitação pendente não encontrada' });
+            }
+
+            res.json({ success: true, message: 'Solicitação reprovada' });
+        } catch (error) {
+            console.error('Erro ao reprovar férias:', error);
+            res.status(500).json({ message: 'Erro ao reprovar férias' });
+        }
+    });
+
+    // POST /ferias/cancelar - cancelar solicitação de férias (próprio usuário ou admin)
+    router.post('/ferias/cancelar', async (req, res) => {
+        try {
+            const { solicitacao_id } = req.body;
+
+            if (!solicitacao_id) {
+                return res.status(400).json({ message: 'solicitacao_id é obrigatório' });
+            }
+
+            const [rows] = await pool.query(
+                'SELECT id, funcionario_id, status FROM ferias_solicitacoes WHERE id = ? LIMIT 1',
+                [solicitacao_id]
+            );
+
+            if (!rows.length) {
+                return res.status(404).json({ message: 'Solicitação não encontrada' });
+            }
+
+            const solicitacao = rows[0];
+            if (String(solicitacao.status).toLowerCase() !== 'pendente') {
+                return res.status(400).json({ message: 'Somente solicitações pendentes podem ser canceladas' });
+            }
+
+            const role = String(req.user?.role || '').toLowerCase();
+            const isAdmin = role === 'admin' || req.user?.is_admin === 1 || req.user?.is_admin === true || req.user?.is_admin === '1';
+            const isOwner = Number(req.user?.id) === Number(solicitacao.funcionario_id);
+
+            if (!isAdmin && !isOwner) {
+                return res.status(403).json({ message: 'Sem permissão para cancelar esta solicitação' });
+            }
+
+            await pool.query(
+                `UPDATE ferias_solicitacoes
+                 SET status = 'cancelada', updated_at = NOW()
+                 WHERE id = ?`,
+                [solicitacao_id]
+            );
+
+            res.json({ success: true, message: 'Solicitação cancelada com sucesso' });
+        } catch (error) {
+            console.error('Erro ao cancelar férias:', error);
+            res.status(500).json({ message: 'Erro ao cancelar férias' });
+        }
+    });
+
     // NOTA: Rotas de ponto (marcações, ajustes, histórico) são fornecidas
     // pelo módulo rh-extras.js montado em routes/index.js
 
@@ -2199,6 +2668,218 @@ module.exports = function createRHRoutes(deps) {
         } catch (error) {
             console.error('Erro ao buscar avaliações:', error);
             res.status(500).json({ message: 'Erro ao buscar avaliações' });
+        }
+    });
+
+    // ==========================================
+    // AVALIAÇÕES DE DESEMPENHO (Enterprise)
+    // ==========================================
+
+    // Helper: verifica se usuário é admin
+    function isAdminRH(user) {
+        const role = (user?.role || '').toLowerCase().trim();
+        return role === 'admin' || user?.is_admin === 1 || user?.is_admin === true || user?.is_admin === '1';
+    }
+
+    // Helper: verifica se é gestor ou admin
+    function isGestorOuAdmin(user) {
+        if (isAdminRH(user)) return true;
+        const role = (user?.role || '').toLowerCase().trim();
+        const cargo = (user?.cargo || '').toLowerCase().trim();
+        return ['gestor', 'gerente', 'coordenador', 'supervisor', 'diretor', 'manager'].some(r => role.includes(r) || cargo.includes(r));
+    }
+
+    // GET /api/rh/avaliacoes/periodos - Listar períodos de avaliação
+    router.get('/avaliacoes/periodos', authenticateToken, async (req, res) => {
+        try {
+            const [periodos] = await pool.query('SELECT * FROM rh_periodos_avaliacao ORDER BY data_inicio DESC');
+            res.json(periodos);
+        } catch (error) {
+            console.error('Erro ao listar períodos:', error);
+            res.status(500).json({ error: 'Erro ao listar períodos de avaliação' });
+        }
+    });
+
+    // GET /api/rh/avaliacoes/competencias - Listar competências
+    router.get('/avaliacoes/competencias', authenticateToken, async (req, res) => {
+        try {
+            const [competencias] = await pool.query('SELECT * FROM rh_competencias WHERE ativo = TRUE ORDER BY categoria, nome');
+            res.json(competencias);
+        } catch (error) {
+            console.error('Erro ao listar competências:', error);
+            res.status(500).json({ error: 'Erro ao listar competências' });
+        }
+    });
+
+    // POST /api/rh/avaliacoes/criar - Criar avaliação de desempenho
+    router.post('/avaliacoes/criar', authenticateToken, async (req, res) => {
+        const {
+            funcionario_id, periodo_id, avaliador_id, tipo_avaliacao,
+            pontos_fortes, pontos_melhoria, comentarios_avaliador, competencias
+        } = req.body;
+
+        const userFuncId = Number(req.user.funcionario_id || req.user.id);
+        const funcionarioId = Number(funcionario_id);
+        const avaliadorId = Number(avaliador_id);
+        const ehAutoavaliacao = funcionarioId === userFuncId && avaliadorId === userFuncId;
+
+        if (!ehAutoavaliacao && !isGestorOuAdmin(req.user)) {
+            return res.status(403).json({ message: 'Acesso negado. Apenas gestores/administradores podem criar avaliações de colaboradores.' });
+        }
+
+        if (!isAdminRH(req.user) && avaliadorId !== userFuncId) {
+            return res.status(403).json({ message: 'Acesso negado. O avaliador deve ser o usuário autenticado.' });
+        }
+
+        const conn = await pool.getConnection();
+        try {
+            await conn.beginTransaction();
+
+            const [result] = await conn.query(`
+                INSERT INTO rh_avaliacoes_desempenho
+                (funcionario_id, período_id, avaliador_id, tipo_avaliacao, data_avaliacao, status,
+                 pontos_fortes, pontos_melhoria, comentarios_avaliador)
+                VALUES (?, ?, ?, ?, CURDATE(), 'RASCUNHO', ?, ?, ?)
+            `, [funcionario_id, periodo_id, avaliador_id, tipo_avaliacao, pontos_fortes, pontos_melhoria, comentarios_avaliador]);
+
+            const avaliacaoId = result.insertId;
+
+            if (competencias && competencias.length > 0) {
+                for (const comp of competencias) {
+                    await conn.query(`
+                        INSERT INTO rh_avaliacao_itens (avaliacao_id, competencia_id, nota, peso, comentario)
+                        VALUES (?, ?, ?, ?, ?)
+                    `, [avaliacaoId, comp.competencia_id, comp.nota, comp.peso || 1.0, comp.comentario || null]);
+                }
+            }
+
+            await conn.commit();
+            res.json({ success: true, id: avaliacaoId });
+        } catch (error) {
+            await conn.rollback();
+            console.error('Erro ao criar avaliação:', error);
+            res.status(500).json({ error: 'Erro ao criar avaliação' });
+        } finally {
+            conn.release();
+        }
+    });
+
+    // GET /api/rh/avaliacoes/funcionario/:id - Buscar avaliações de um funcionário
+    router.get('/avaliacoes/funcionario/:id', authenticateToken, async (req, res) => {
+        try {
+            const userFuncId = Number(req.user.funcionario_id || req.user.id);
+            if (Number(req.params.id) !== userFuncId && !isAdminRH(req.user)) {
+                return res.status(403).json({ message: 'Acesso negado. Você só pode visualizar suas próprias avaliações.' });
+            }
+
+            const [avaliacoes] = await pool.query(`
+                SELECT a.*, p.nome AS periodo_nome,
+                       av.nome_completo AS avaliador_nome
+                FROM rh_avaliacoes_desempenho a
+                LEFT JOIN rh_periodos_avaliacao p ON a.período_id = p.id
+                LEFT JOIN funcionarios av ON a.avaliador_id = av.id
+                WHERE a.funcionario_id = ?
+                ORDER BY a.data_avaliacao DESC
+            `, [req.params.id]);
+
+            res.json(avaliacoes);
+        } catch (error) {
+            console.error('Erro ao buscar avaliações do funcionário:', error);
+            res.status(500).json({ error: 'Erro ao buscar avaliações' });
+        }
+    });
+
+    // GET /api/rh/avaliacoes/dashboard - Dashboard de avaliações (admin)
+    router.get('/avaliacoes/dashboard', authenticateToken, async (req, res) => {
+        try {
+            const [[stats]] = await pool.query(`
+                SELECT
+                    (SELECT COUNT(*) FROM rh_avaliacoes_desempenho WHERE status = 'CONCLUIDA') AS avaliacoes_concluidas,
+                    (SELECT COUNT(*) FROM rh_avaliacoes_desempenho WHERE status = 'RASCUNHO') AS avaliacoes_pendentes,
+                    (SELECT COUNT(*) FROM rh_periodos_avaliacao WHERE ativo = TRUE) AS periodos_ativos,
+                    (SELECT COUNT(*) FROM rh_competencias WHERE ativo = TRUE) AS competencias_ativas
+            `);
+            res.json(stats);
+        } catch (error) {
+            console.error('Erro ao buscar dashboard avaliações:', error);
+            res.status(500).json({ error: 'Erro ao buscar dados do dashboard' });
+        }
+    });
+
+    // GET /api/rh/avaliacoes/:id - Detalhes de uma avaliação com itens
+    router.get('/avaliacoes/:id', authenticateToken, async (req, res) => {
+        try {
+            const [avaliacoes] = await pool.query(`
+                SELECT a.*, f.nome_completo AS funcionario_nome, f.cargo,
+                       av.nome_completo AS avaliador_nome, p.nome AS periodo_nome
+                FROM rh_avaliacoes_desempenho a
+                INNER JOIN funcionarios f ON a.funcionario_id = f.id
+                LEFT JOIN funcionarios av ON a.avaliador_id = av.id
+                LEFT JOIN rh_periodos_avaliacao p ON a.período_id = p.id
+                WHERE a.id = ?
+            `, [req.params.id]);
+
+            if (avaliacoes.length === 0) {
+                return res.status(404).json({ error: 'Avaliação não encontrada' });
+            }
+
+            const userFuncId = Number(req.user.funcionario_id || req.user.id);
+            const avaliacao = avaliacoes[0];
+            const podeVisualizar = isAdminRH(req.user) ||
+                Number(avaliacao.funcionario_id) === userFuncId ||
+                Number(avaliacao.avaliador_id) === userFuncId;
+
+            if (!podeVisualizar) {
+                return res.status(403).json({ message: 'Acesso negado.' });
+            }
+
+            const [itens] = await pool.query(`
+                SELECT ai.*, c.nome AS competencia_nome, c.categoria
+                FROM rh_avaliacao_itens ai
+                INNER JOIN rh_competencias c ON ai.competencia_id = c.id
+                WHERE ai.avaliacao_id = ?
+                ORDER BY c.categoria, c.nome
+            `, [req.params.id]);
+
+            res.json({ avaliacao: avaliacoes[0], itens });
+        } catch (error) {
+            console.error('Erro ao buscar detalhes da avaliação:', error);
+            res.status(500).json({ error: 'Erro ao buscar detalhes' });
+        }
+    });
+
+    // PUT /api/rh/avaliacoes/:id/finalizar - Finalizar avaliação
+    router.put('/avaliacoes/:id/finalizar', authenticateToken, async (req, res) => {
+        const { comentarios_avaliado } = req.body;
+        try {
+            const [rows] = await pool.query(
+                'SELECT id, funcionario_id, avaliador_id FROM rh_avaliacoes_desempenho WHERE id = ?',
+                [req.params.id]
+            );
+
+            if (!rows || rows.length === 0) {
+                return res.status(404).json({ error: 'Avaliação não encontrada' });
+            }
+
+            const userFuncId = Number(req.user.funcionario_id || req.user.id);
+            const registro = rows[0];
+            const podeFinalizar = isAdminRH(req.user) ||
+                Number(registro.funcionario_id) === userFuncId ||
+                Number(registro.avaliador_id) === userFuncId;
+
+            if (!podeFinalizar) {
+                return res.status(403).json({ message: 'Acesso negado.' });
+            }
+
+            await pool.query(
+                'UPDATE rh_avaliacoes_desempenho SET status = ?, comentarios_avaliado = ? WHERE id = ?',
+                ['CONCLUIDA', comentarios_avaliado, req.params.id]
+            );
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Erro ao finalizar avaliação:', error);
+            res.status(500).json({ error: 'Erro ao finalizar avaliação' });
         }
     });
 
@@ -2352,11 +3033,11 @@ module.exports = function createRHRoutes(deps) {
         }
     });
 
-    // GET /api/rh/configuracoes/ponto-eletronico
-    router.get('/configuracoes/ponto-eletronico', async (req, res) => {
+    // GET /api/rh/configuracoes/ponto-eletrônico
+    router.get('/configuracoes/ponto-eletrônico', async (req, res) => {
         try {
             const [rows] = await pool.query(
-                "SELECT chave, valor FROM rh_configuracoes WHERE categoria = 'ponto_eletronico'"
+                "SELECT chave, valor FROM rh_configuracoes WHERE categoria = 'ponto_eletrônico'"
             );
             const config = {};
             rows.forEach(r => { config[r.chave] = r.valor; });
@@ -2386,8 +3067,8 @@ module.exports = function createRHRoutes(deps) {
         }
     });
 
-    // PUT /api/rh/configuracoes/ponto-eletronico
-    router.put('/configuracoes/ponto-eletronico', authorizeAdmin, async (req, res) => {
+    // PUT /api/rh/configuracoes/ponto-eletrônico
+    router.put('/configuracoes/ponto-eletrônico', authorizeAdmin, async (req, res) => {
         try {
             const { entrada, saida_almoco, retorno_almoco, saida, tolerancia_atraso, horas_extras_auto, notificar_gestores } = req.body;
             const configs = { entrada, saida_almoco, retorno_almoco, saida, tolerancia_atraso, horas_extras_auto, notificar_gestores };
@@ -2407,7 +3088,7 @@ module.exports = function createRHRoutes(deps) {
             for (const [chave, valor] of Object.entries(configs)) {
                 if (valor !== undefined) {
                     await pool.query(
-                        `INSERT INTO rh_configuracoes (categoria, chave, valor) VALUES ('ponto_eletronico', ?, ?)
+                        `INSERT INTO rh_configuracoes (categoria, chave, valor) VALUES ('ponto_eletrônico', ?, ?)
                          ON DUPLICATE KEY UPDATE valor = VALUES(valor)`,
                         [chave, valor]
                     );

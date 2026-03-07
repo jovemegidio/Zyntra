@@ -178,7 +178,6 @@
                 <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
                 <a href="pages/ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
                 <a href="pages/beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
                 <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
@@ -401,6 +400,16 @@
     </div>
     
     <script>
+        function showToast(message, type) {
+            type = type || 'info';
+            var toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:400px;';
+            toast.style.background = type==='success'?'#10b981':type==='error'?'#ef4444':type==='warning'?'#f59e0b':'#3b82f6';
+            toast.innerHTML = '<span>' + message + '</span>';
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 4000);
+        }
+
         let treinamentos = [];
         let categorias = [];
         let filtroStatusAtual = 'todos';
@@ -661,7 +670,7 @@
                     document.getElementById('modalTreinamento').classList.add('active');
                 }
             } catch (error) {
-                alert('Erro ao carregar treinamento');
+                showToast('Erro ao carregar treinamento', 'error');
             }
         }
         
@@ -689,7 +698,7 @@
             };
             
             if (!dados.titulo || !dados.data_inicio) {
-                alert('Preencha o título e data de início');
+                showToast('Preencha o título e data de início', 'warning');
                 return;
             }
             
@@ -703,13 +712,13 @@
                 if (response.ok) {
                     fecharModal();
                     carregarDados();
-                    alert(id ? 'Treinamento atualizado!' : 'Treinamento criado!');
+                    showToast(id ? 'Treinamento atualizado!' : 'Treinamento criado!', 'success');
                 } else {
                     const error = await response.json();
-                    alert('Erro: ' + error.error);
+                    showToast('Erro: ' + error.error, 'error');
                 }
             } catch (error) {
-                alert('Erro ao salvar treinamento');
+                showToast('Erro ao salvar treinamento', 'error');
             }
         }
         
@@ -790,7 +799,7 @@
                     document.getElementById('modalDetalhes').classList.add('active');
                 }
             } catch (error) {
-                alert('Erro ao carregar detalhes');
+                showToast('Erro ao carregar detalhes', 'error');
             }
         }
         

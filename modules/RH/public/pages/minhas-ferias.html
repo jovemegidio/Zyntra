@@ -1,0 +1,204 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aluforce: Minhas Ferias</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/modern-saas.css?v=3.0">
+  <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
+  <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+  <link rel="stylesheet" href="/chat/widget.css?v=20260218">
+  <style>
+    :root{--sidebar-width:48px;--header-height:42px;--primary-dark:#1a1a2e;--primary-accent:#ec4899}
+    *{box-sizing:border-box}body{margin:0;font-family:var(--font-sans);background:var(--gray-100)}
+    .app-container{display:flex;min-height:100vh}.sidebar{width:var(--sidebar-width);background:var(--primary-dark);display:flex;flex-direction:column;align-items:center;padding:12px 0}
+    .sidebar-logo{width:36px;height:36px;border-radius:8px;background:var(--primary-accent);color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;margin-bottom:16px}
+    .sidebar-nav,.sidebar-bottom{display:flex;flex-direction:column;gap:4px}.sidebar-nav{flex:1}.sidebar-btn{width:40px;height:40px;border-radius:10px;color:#8b8b9a;display:flex;align-items:center;justify-content:center;text-decoration:none}.sidebar-btn:hover{background:rgba(255,255,255,.12);color:#fff}.sidebar-btn.active{background:#ec4899;color:#fff}
+    .main-area{flex:1;display:flex;flex-direction:column}.header{height:var(--header-height);background:var(--primary-dark);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+    .header-left,.header-right{display:flex;align-items:center;gap:10px}.header-btn,.mobile-menu-btn{width:34px;height:34px;border:0;background:transparent;color:#8b8b9a;border-radius:8px;cursor:pointer}.header-btn:hover,.mobile-menu-btn:hover{background:rgba(255,255,255,.12);color:#fff}
+    .header-brand{color:#fff;font-size:13px;font-weight:600}.user-greeting{display:flex;align-items:center;gap:10px;color:#8b8b9a;font-size:13px}.user-greeting strong{color:#fff}.user-avatar{width:30px;height:30px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#ec4899,#be185d);color:#fff;display:flex;align-items:center;justify-content:center}.user-avatar img{display:none;width:100%;height:100%;object-fit:cover}.user-avatar img.visible{display:block}
+    .content-area{padding:20px;display:grid;gap:16px}.page-title{margin:0;font-size:1.5rem}.page-subtitle{margin:4px 0 0;color:var(--gray-500)}
+    .grid-4{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:12px}.kpi{padding:14px;border-radius:var(--radius-lg);background:#fff;border:1px solid var(--gray-200)}.kpi span{font-size:.75rem;color:var(--gray-500)}.kpi strong{display:block;margin-top:4px;font-size:1.4rem}
+    .form-grid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:12px}.form-group{display:grid;gap:6px}.form-input,.form-textarea,select{width:100%;border:1px solid var(--gray-300);border-radius:var(--radius-md);padding:10px 12px;font:inherit}.form-textarea{min-height:90px;resize:vertical}
+    .form-group-spacing{margin-top:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.actions-spacing{margin-top:12px}.table-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse}th,td{padding:10px 12px;border-bottom:1px solid var(--gray-200);text-align:left}th{font-size:.75rem;text-transform:uppercase;color:var(--gray-600)}
+    .badge{border-radius:999px;padding:3px 8px;font-size:.75rem;font-weight:600}.badge-pendente{background:#fff7ed;color:#c2410c}.badge-aprovada{background:#ecfdf5;color:#047857}.badge-reprovada{background:#fef2f2;color:#b91c1c}.badge-cancelada{background:#f3f4f6;color:#374151}
+    .toast{position:fixed;right:16px;bottom:16px;background:#111827;color:#fff;border-radius:10px;padding:10px 14px;opacity:0;transform:translateY(8px);transition:all .2s;z-index:9999}.toast.show{opacity:1;transform:translateY(0)}.toast-danger{background:#dc2626}.toast-success{background:#059669}.toast-info{background:#1d4ed8}
+    .sidebar-overlay{display:none}.sidebar-overlay.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50}
+    @media(max-width:900px){.grid-4{grid-template-columns:repeat(2,minmax(140px,1fr))}.form-grid{grid-template-columns:1fr}}
+    @media(max-width:768px){.sidebar{position:fixed;left:-60px;top:0;bottom:0;z-index:60;transition:left .2s}.sidebar.open{left:0}.content-area{padding:14px}}
+  </style>
+</head>
+<body>
+<div class="app-container">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="rhUiCommon.toggleMobileSidebar()"></div>
+  <!-- Sidebar - Portal do Funcionário -->
+  <aside class="sidebar" id="mobile-sidebar">
+    <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
+    <nav class="sidebar-nav">
+      <a href="../funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-home"></i></a>
+      <a href="meus-holerites.html" class="sidebar-btn" title="Meus Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+      <a href="dados-cadastrais.html" class="sidebar-btn" title="Dados Cadastrais"><i class="fas fa-id-card"></i></a>
+      <a href="beneficios.html" class="sidebar-btn" title="Meus Benefícios"><i class="fas fa-gift"></i></a>
+      <a href="minhas-ferias.html" class="sidebar-btn active" title="Minhas Férias"><i class="fas fa-umbrella-beach"></i></a>
+      <a href="espelho-ponto.html" class="sidebar-btn" title="Espelho de Ponto"><i class="fas fa-list-check"></i></a>
+      <a href="enviar-atestado.html" class="sidebar-btn" title="Enviar Atestado"><i class="fas fa-file-medical"></i></a>
+      <a href="autoavaliacao.html" class="sidebar-btn" title="Autoavaliação"><i class="fas fa-user-check"></i></a>
+      <a href="avaliacoes-recebidas.html" class="sidebar-btn" title="Avaliações Recebidas"><i class="fas fa-inbox"></i></a>
+      <a href="manual-colaborador.html" class="sidebar-btn" title="Manual do Colaborador"><i class="fas fa-book"></i></a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a href="/ajuda/index.html" class="sidebar-btn" title="Ajuda"><i class="fas fa-question-circle"></i></a>
+      <a href="../areaadm.html" class="sidebar-btn" id="btn-voltar-admin" title="Voltar à Área Admin" style="display:none;"><i class="fas fa-shield-alt"></i></a>
+    </div>
+  </aside>
+
+  <main class="main-area">
+    <header class="header">
+      <div class="header-left"><button class="mobile-menu-btn" title="Abrir menu" onclick="rhUiCommon.toggleMobileSidebar()"><i class="fas fa-bars"></i></button>
+          <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+              <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+              <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+              <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+              <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+              <span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Minhas Férias</span>
+          </div>
+      </div>
+      <div class="header-right"><button class="header-btn" title="Atualizar" onclick="window.location.reload()"><i class="fas fa-sync-alt"></i></button><div class="user-greeting"><span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuario</strong></span><div class="user-avatar"><img id="user-photo" alt="avatar"><span id="user-initials">U</span></div></div></div>
+    </header>
+
+    <section class="content-area">
+      <div><h1 class="page-title">Minhas Ferias</h1><p class="page-subtitle">Visualize saldo, solicite periodos e acompanhe seu historico.</p></div>
+
+      <div class="grid-4">
+        <div class="kpi"><span>Saldo Disponivel</span><strong id="kpi-saldo">--</strong></div>
+        <div class="kpi"><span>Dias Gozados</span><strong id="kpi-gozado">--</strong></div>
+        <div class="kpi"><span>Periodo Atual</span><strong id="kpi-periodo">--</strong></div>
+        <div class="kpi"><span>Proximo Vencimento</span><strong id="kpi-vencimento">--</strong></div>
+      </div>
+
+      <article class="saas-card">
+        <div class="saas-card-header"><h2 class="saas-card-title">Solicitar Ferias</h2></div>
+        <div class="saas-card-body">
+          <div class="form-grid">
+            <div class="form-group"><label for="periodo">Periodo aquisitivo</label><select id="periodo"></select></div>
+            <div class="form-group"><label for="tipo">Tipo</label><select id="tipo"><option value="integral">Integral</option><option value="fracionada">Fracionada</option></select></div>
+            <div class="form-group"><label for="dataInicio">Data inicio</label><input id="dataInicio" type="date" class="form-input"></div>
+            <div class="form-group"><label for="dataFim">Data fim</label><input id="dataFim" type="date" class="form-input"></div>
+          </div>
+          <div class="form-group form-group-spacing"><label for="observacoes">Observacoes</label><textarea id="observacoes" class="form-textarea"></textarea></div>
+          <div class="actions actions-spacing">
+            <button class="saas-btn saas-btn-primary" onclick="enviarSolicitacao()"><i class="fas fa-paper-plane"></i> Enviar Solicitacao</button>
+            <button class="saas-btn saas-btn-outline" onclick="limparFormulario()"><i class="fas fa-eraser"></i> Limpar</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="saas-card">
+        <div class="saas-card-header"><h2 class="saas-card-title">Historico de Solicitacoes</h2></div>
+        <div class="saas-card-body table-wrap">
+          <table>
+            <thead><tr><th>Periodo</th><th>Inicio</th><th>Fim</th><th>Dias</th><th>Status</th><th>Acoes</th></tr></thead>
+            <tbody id="tbody-historico"><tr><td colspan="6">Carregando...</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"><span id="toast-message"></span></div>
+
+<script src="/js/auth-unified.js?v=20260214" defer></script>
+<script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+<script src="/modules/RH/public/js/rh-ui-common.js"></script>
+<script>
+let userAtual = null;
+let periodosAtivos = [];
+
+function formatarData(v){if(!v) return '--'; const d=new Date(v); if(Number.isNaN(d.getTime())) return '--'; return d.toLocaleDateString('pt-BR');}
+function statusBadge(status){const s=String(status||'').toLowerCase(); if(s.includes('aprova')) return '<span class="badge badge-aprovada">Aprovada</span>'; if(s.includes('reprova')) return '<span class="badge badge-reprovada">Reprovada</span>'; if(s.includes('cancel')) return '<span class="badge badge-cancelada">Cancelada</span>'; return '<span class="badge badge-pendente">Pendente</span>';}
+
+async function carregarSaldo(){
+  const id = userAtual.funcionario_id || userAtual.id;
+  const resp = await fetch(`/api/rh/ferias/saldo/${id}`, {headers: rhUiCommon.getAuthHeaders(), credentials:'include'});
+  if(!resp.ok) throw new Error('Falha ao buscar saldo');
+  const data = await resp.json();
+  const periodos = data.periodos || data['per\u00edodos'] || [];
+  periodosAtivos = periodos.filter(p => Number(p.dias_disponivel||0)>0);
+  const totalGozado = periodos.reduce((a,p)=>a+Number(p.dias_gozados||0),0);
+  const p0 = periodos[0];
+  document.getElementById('kpi-saldo').textContent = Number(data.total_dias_disponivel||0);
+  document.getElementById('kpi-gozado').textContent = totalGozado;
+  document.getElementById('kpi-periodo').textContent = p0 ? `${new Date(p0.data_inicio).getFullYear()}/${new Date(p0.data_fim).getFullYear()}` : '--';
+  document.getElementById('kpi-vencimento').textContent = formatarData(data.proximo_vencimento || data['pr\u00f3ximo_vencimento']);
+  const sel = document.getElementById('periodo');
+  if(!periodosAtivos.length){ sel.innerHTML = '<option value="">Sem periodo disponivel</option>'; return; }
+  sel.innerHTML = periodosAtivos.map(p=>{
+    const i = new Date(p.data_inicio).getFullYear(); const f = new Date(p.data_fim).getFullYear();
+    return `<option value="${rhUiCommon.escapeHtml(p.data_inicio)}|${rhUiCommon.escapeHtml(p.data_fim)}">${rhUiCommon.escapeHtml(`${i}/${f} (${p.dias_disponivel||0} dias)`)}</option>`;
+  }).join('');
+}
+
+async function carregarHistorico(){
+  const id = userAtual.funcionario_id || userAtual.id;
+  const resp = await fetch(`/api/rh/ferias/minhas/${id}`, {headers: rhUiCommon.getAuthHeaders(), credentials:'include'});
+  const payload = await resp.json().catch(()=>[]);
+  const rows = Array.isArray(payload)
+    ? payload
+    : (payload.solicitacoes || payload.data || payload.rows || []);
+  const tb = document.getElementById('tbody-historico');
+  if(!resp.ok || !Array.isArray(rows) || !rows.length){ tb.innerHTML = '<tr><td colspan="6">Nenhuma solicitacao encontrada.</td></tr>'; return; }
+  tb.innerHTML = rows.map(r=>{
+    const pi = r.periodo_aquisitivo_inicio || r['per\u00edodo_aquisitivo_inicio'] || r.data_inicio;
+    const pf = r.periodo_aquisitivo_fim || r['per\u00edodo_aquisitivo_fim'] || r.data_fim;
+    const periodo = `${new Date(pi).getFullYear()}/${new Date(pf).getFullYear()}`;
+    const podeCancelar = String(r.status||'').toLowerCase()==='pendente';
+    return `<tr><td>${rhUiCommon.escapeHtml(periodo)}</td><td>${rhUiCommon.escapeHtml(formatarData(r.data_inicio))}</td><td>${rhUiCommon.escapeHtml(formatarData(r.data_fim))}</td><td>${rhUiCommon.escapeHtml(String(r.dias_solicitados||r.dias_corridos||0))}</td><td>${statusBadge(r.status)}</td><td>${podeCancelar?`<button class='saas-btn saas-btn-outline' onclick='cancelarSolicitacao(${Number(r.id)})'><i class='fas fa-ban'></i> Cancelar</button>`:'-'}</td></tr>`;
+  }).join('');
+}
+
+async function enviarSolicitacao(){
+  const periodo = document.getElementById('periodo').value;
+  const dataInicio = document.getElementById('dataInicio').value;
+  const dataFim = document.getElementById('dataFim').value;
+  if(!periodo || !dataInicio || !dataFim){ rhUiCommon.showToast('Preencha periodo e datas.', 'danger'); return; }
+  if(new Date(dataInicio) >= new Date(dataFim)){ rhUiCommon.showToast('Data inicio deve ser menor que data fim.', 'danger'); return; }
+  const partes = periodo.split('|');
+  const payload = {
+    funcionario_id: userAtual.funcionario_id || userAtual.id,
+    'per\u00edodo_aquisitivo_inicio': partes[0],
+    'per\u00edodo_aquisitivo_fim': partes[1],
+    data_inicio: dataInicio,
+    data_fim: dataFim,
+    tipo: document.getElementById('tipo').value,
+    observacoes: document.getElementById('observacoes').value.trim()
+  };
+  const resp = await fetch('/api/rh/ferias/solicitar', {method:'POST', headers: rhUiCommon.getAuthHeaders({'Content-Type':'application/json'}), credentials:'include', body: JSON.stringify(payload)});
+  const body = await resp.json().catch(()=>({}));
+  if(!resp.ok){ rhUiCommon.showToast(body.message || 'Falha ao enviar.', 'danger'); return; }
+  rhUiCommon.showToast('Solicitacao enviada com sucesso.', 'success');
+  limparFormulario();
+  await carregarTudo();
+}
+
+function limparFormulario(){document.getElementById('dataInicio').value='';document.getElementById('dataFim').value='';document.getElementById('observacoes').value='';document.getElementById('tipo').value='integral';}
+async function cancelarSolicitacao(id){const resp = await fetch('/api/rh/ferias/cancelar',{method:'POST',headers: rhUiCommon.getAuthHeaders({'Content-Type':'application/json'}),credentials:'include',body: JSON.stringify({solicitacao_id:id})}); const body = await resp.json().catch(()=>({})); if(!resp.ok){rhUiCommon.showToast(body.message||'Falha ao cancelar.', 'danger'); return;} rhUiCommon.showToast('Solicitacao cancelada.', 'info'); await carregarHistorico();}
+async function carregarTudo(){await Promise.all([carregarSaldo(),carregarHistorico()]);}
+
+document.addEventListener('DOMContentLoaded', async function(){
+  try{userAtual = await rhUiCommon.getCurrentUser(); rhUiCommon.updateHeaderUser(userAtual); await carregarTudo();}
+  catch(e){rhUiCommon.showToast('Sessao invalida.', 'danger');}
+});
+</script>
+<script src="/js/tooltips-professional.js?v=20260209"></script>
+<script src="/chat/widget.js?v=20260218" defer></script>
+<script src="/_shared/accessibility-widget.js?v=20260226"></script>
+<script src="/modules/_shared/connection-monitor.js?v=20260111"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+</body>
+</html>

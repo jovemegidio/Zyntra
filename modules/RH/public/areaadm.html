@@ -765,7 +765,7 @@
     <div class="app-container">
         <!-- Overlay Mobile -->
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-        <!-- Sidebar Lateral -->
+        <!-- Sidebar Admin -->
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
@@ -774,13 +774,13 @@
                 <a href="gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
                 <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="pages/ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-bill-wave"></i></a>
-                <a href="pages/beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
+                <a href="pages/ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="pages/gestao-solicitacoes.html" class="sidebar-btn" title="Gestão de Solicitações"><i class="fas fa-tasks"></i></a>
                 <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
                 <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
+                <a href="pages/aplicar-avaliacoes.html" class="sidebar-btn" title="Aplicar Avaliações"><i class="fas fa-clipboard-check"></i></a>
                 <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
             </div>
         </aside>
@@ -816,27 +816,14 @@
             <!-- Content Area -->
             <div class="content-area">
                 <!-- Stats Grid -->
-                <div class="stats-grid">
+                <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
                     <div class="stat-card">
                         <div class="stat-header">
                             <div class="stat-icon purple">
                                 <i class="fas fa-users"></i>
                             </div>
-                            <span class="stat-badge up">
-                                <i class="fas fa-arrow-up"></i> 5%
-                            </span>
                         </div>
                         <div class="stat-value" id="stat-funcionarios"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
-                        <div class="stat-label">Total de Funcionários</div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-header">
-                            <div class="stat-icon green">
-                                <i class="fas fa-user-check"></i>
-                            </div>
-                        </div>
-                        <div class="stat-value" id="stat-ativos"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
                         <div class="stat-label">Funcionários Ativos</div>
                     </div>
 
@@ -852,8 +839,8 @@
 
                     <div class="stat-card">
                         <div class="stat-header">
-                            <div class="stat-icon yellow">
-                                <i class="fas fa-file-alt"></i>
+                            <div class="stat-icon green">
+                                <i class="fas fa-user-plus"></i>
                             </div>
                         </div>
                         <div class="stat-value" id="stat-admissoes"><i class="fas fa-spinner fa-spin" style="font-size: 20px;"></i></div>
@@ -865,44 +852,43 @@
                 <div class="content-grid">
                     <!-- Main Column -->
                     <div class="main-column">
-                        <!-- Funcionários Recentes -->
+                        <!-- Marcações em Tempo Real -->
                         <div class="card">
                             <div class="card-header">
-                                <h3 class="card-title">Funcionários Recentes</h3>
-                                <a href="pages/funcionarios.html" class="btn-link">Ver Todos <i class="fas fa-arrow-right"></i></a>
+                                <h3 class="card-title"><i class="fas fa-clock" style="color: var(--primary-pink); margin-right: 8px;"></i>Marcações em Tempo Real</h3>
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <span id="marcacoes-sync-status" style="font-size: 0.75rem; color: #10b981;"><i class="fas fa-circle" style="font-size: 8px; margin-right: 4px;"></i>Atualizado</span>
+                                    <a href="pages/gestao-ponto.html" class="btn-link">Ver Gestão <i class="fas fa-arrow-right"></i></a>
+                                </div>
                             </div>
                             <div class="card-body">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 12px 16px; background: #f8fafc; border-radius: 10px;">
+                                    <div style="display: flex; align-items: center; gap: 16px;">
+                                        <div style="font-size: 0.8rem; color: #64748b;"><strong id="marcacoes-data-label">Hoje</strong> — <span id="marcacoes-count">0</span> marcações</div>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 0.75rem; color: #94a3b8;">Presentes:</span>
+                                        <span id="marcacoes-presentes" style="font-size: 0.875rem; font-weight: 600; color: #10b981;">0</span>
+                                    </div>
+                                </div>
                                 <table class="table-modern">
                                     <thead>
                                         <tr>
-                                            <th>Nome</th>
-                                            <th>Cargo</th>
-                                            <th>Departamento</th>
-                                            <th>Admissão</th>
-                                            <th>Status</th>
+                                            <th>Funcionário</th>
+                                            <th>Hora</th>
+                                            <th>Tipo</th>
+                                            <th>Origem</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="tbody-funcionarios">
+                                    <tbody id="tbody-marcacoes">
                                         <tr>
-                                            <td colspan="5" style="text-align: center; padding: 30px; color: #6b7280;">
+                                            <td colspan="4" style="text-align: center; padding: 30px; color: #6b7280;">
                                                 <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 10px; display: block;"></i>
-                                                Carregando funcionários...
+                                                Carregando marcações do dia...
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
-                            </div>
-                        </div>
-
-                        <!-- Gráfico de Funcionários por Departamento -->
-                        <div class="card" style="margin-top: 24px;">
-                            <div class="card-header">
-                                <h3 class="card-title">Funcionários por Departamento</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="chart-container">
-                                    <canvas id="deptChart"></canvas>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -924,13 +910,25 @@
                                         <i class="fas fa-calendar-check"></i>
                                         <span>Gestão Férias</span>
                                     </a>
-                                    <a href="pages/folha.html" class="quick-action-btn">
-                                        <i class="fas fa-file-invoice-dollar"></i>
-                                        <span>Folha Pagamento</span>
-                                    </a>
                                     <a href="pages/importar-ponto.html" class="quick-action-btn">
-                                        <i class="fas fa-clock"></i>
+                                        <i class="fas fa-upload"></i>
                                         <span>Importar Ponto</span>
+                                    </a>
+                                    <a href="pages/gestao-ponto.html" class="quick-action-btn">
+                                        <i class="fas fa-clock"></i>
+                                        <span>Gestão do Ponto</span>
+                                    </a>
+                                    <a href="pages/beneficios.html" class="quick-action-btn">
+                                        <i class="fas fa-gift"></i>
+                                        <span>Benefícios</span>
+                                    </a>
+                                    <a href="pages/calendario-rh.html" class="quick-action-btn">
+                                        <i class="fas fa-calendar-alt"></i>
+                                        <span>Calendário RH</span>
+                                    </a>
+                                    <a href="gestao-holerites.html" class="quick-action-btn">
+                                        <i class="fas fa-money-bill-wave"></i>
+                                        <span>Holerites</span>
                                     </a>
                                 </div>
                             </div>
@@ -956,6 +954,51 @@
     </div>
 
     <script>
+        // ========================================
+        // HELPER: Normalizar nome para Title Case
+        // ========================================
+        function toTitleCase(str) {
+            if (!str) return '';
+            const preposicoes = ['de', 'da', 'do', 'dos', 'das', 'e', 'em', 'com'];
+            return str.toLowerCase().split(' ').map((word, index) => {
+                if (index > 0 && preposicoes.includes(word)) return word;
+                return word.charAt(0).toUpperCase() + word.slice(1);
+            }).join(' ');
+        }
+
+        // Helper: Resolve foto do funcionário
+        function resolverFoto(marcacao) {
+            // 1. Foto vinda da API (avatar do funcionário)
+            if (marcacao.foto_url && marcacao.foto_url !== '/avatars/default.webp') {
+                return marcacao.foto_url;
+            }
+            // 2. Tentar pelo nome no mapa de avatares
+            const nome = marcacao.funcionario_nome || '';
+            const primeiroNome = nome.split(' ')[0].toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (avatarNameMap[primeiroNome]) return avatarNameMap[primeiroNome];
+            return null;
+        }
+
+        // Helper: Gerar cores consistentes por nome
+        const colorPalette = [
+            'linear-gradient(135deg, #ec4899, #db2777)',
+            'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+            'linear-gradient(135deg, #3b82f6, #2563eb)',
+            'linear-gradient(135deg, #10b981, #059669)',
+            'linear-gradient(135deg, #f59e0b, #d97706)',
+            'linear-gradient(135deg, #ef4444, #dc2626)',
+            'linear-gradient(135deg, #06b6d4, #0891b2)',
+            'linear-gradient(135deg, #6366f1, #4f46e5)'
+        ];
+
+        function getAvatarColor(nome) {
+            if (!nome) return colorPalette[0];
+            let hash = 0;
+            for (let i = 0; i < nome.length; i++) hash = nome.charCodeAt(i) + ((hash << 5) - hash);
+            return colorPalette[Math.abs(hash) % colorPalette.length];
+        }
+
         // ========================================
         // CARREGAR DADOS DO USUÁRIO LOGADO
         // ========================================
@@ -1101,22 +1144,15 @@
                     const stats = data.stats || {};
                     const departamentos = data.departamentos || [];
 
-                    // Usar stats da API
+                    // Usar stats da API — mostrar apenas ativos (consistente com a página de funcionários)
                     const total = stats.total || funcionarios.length;
                     const ativos = stats.ativos || funcionarios.filter(f => f.status === 'Ativo').length;
                     const ferias = stats.ferias || funcionarios.filter(f => f.status === 'Férias').length;
                     const admissoes = stats.admissoes_mes || 0;
 
-                    document.getElementById('stat-funcionarios').textContent = total;
-                    document.getElementById('stat-ativos').textContent = ativos;
+                    document.getElementById('stat-funcionarios').textContent = ativos;
                     document.getElementById('stat-ferias').textContent = ferias;
                     document.getElementById('stat-admissoes').textContent = admissoes;
-
-                    // Carregar funcionarios recentes (últimas 5 admissões)
-                    carregarfuncionariosRecentes(funcionarios);
-
-                    // Carregar gráfico por departamento (sempre usar dados dos funcionários para contagem correta)
-                    carregarGraficoDepartamentos(funcionarios);
                 } else {
                     // Se a API falhar, mostrar erro amigável
                     console.error('Erro na API:', respfuncionarios.status);
@@ -1130,126 +1166,107 @@
 
         function mostrarErroEstatisticas(mensagem) {
             document.getElementById('stat-funcionarios').textContent = '-';
-            document.getElementById('stat-ativos').textContent = '-';
             document.getElementById('stat-ferias').textContent = '-';
             document.getElementById('stat-admissoes').textContent = '-';
-
-            const tbody = document.getElementById('tbody-funcionarios');
-            if (tbody) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ef4444; padding: 30px;"><i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>${mensagem}</td></tr>`;
-            }
         }
 
         // ========================================
-        // CARREGAR Funcionarios RECENTES
+        // CARREGAR MARCAÇÕES EM TEMPO REAL
         // ========================================
-        function carregarfuncionariosRecentes(funcionarios) {
-            const tbody = document.getElementById('tbody-funcionarios');
+        async function carregarMarcacoesTempoReal() {
+            const tbody = document.getElementById('tbody-marcacoes');
             if (!tbody) return;
 
-            // Ordenar por data de admissão (mais recentes primeiro)
-            const recentes = [...funcionarios]
-                .filter(f => f.data_admissao)
-                .sort((a, b) => new Date(b.data_admissao) - new Date(a.data_admissao))
-                .slice(0, 5);
+            try {
+                const token = getAuthToken();
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            if (recentes.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">Nenhum Funcionário encontrado</td></tr>';
-                return;
-            }
+                const hoje = new Date().toISOString().split('T')[0];
+                const resp = await fetch(`/api/rh/ponto/marcacoes?data_inicio=${hoje}&data_fim=${hoje}`, {
+                    credentials: 'include',
+                    headers
+                });
 
-            tbody.innerHTML = recentes.map(f => {
-                const dataAdm = f.data_admissao ? new Date(f.data_admissao).toLocaleDateString('pt-BR') : '-';
-                const statusNorm = (f.status || 'Ativo').trim().toLowerCase();
-                const statusClass = statusNorm === 'ativo' ? 'active' : (statusNorm === 'férias' || statusNorm === 'ferias' ? 'pending' : statusNorm === 'demitido' || statusNorm === 'desligado' ? 'inactive' : 'active');
-                const statusLabel = statusNorm === 'ativo' ? 'Ativo' : statusNorm === 'férias' || statusNorm === 'ferias' ? 'Férias' : statusNorm === 'demitido' ? 'Demitido' : statusNorm === 'desligado' ? 'Desligado' : statusNorm.charAt(0).toUpperCase() + statusNorm.slice(1);
-                return `
-                    <tr>
-                        <td><strong>${f.nome_completo || f.nome || '-'}</strong></td>
-                        <td>${f.cargo || '-'}</td>
-                        <td>${f.departamento || '-'}</td>
-                        <td>${dataAdm}</td>
-                        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-                    </tr>
-                `;
-            }).join('');
-        }
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const data = await resp.json();
+                const marcacoes = data.marcacoes || [];
 
-        // ========================================
-        // GRÁFICO DE DEPARTAMENTOS
-        // ========================================
-        let chartInstance = null;
+                // Atualizar contadores
+                document.getElementById('marcacoes-count').textContent = marcacoes.length;
+                const uniqueFuncs = new Set(marcacoes.filter(m => m.funcionario_id).map(m => m.funcionario_id));
+                document.getElementById('marcacoes-presentes').textContent = uniqueFuncs.size;
 
-        const coresDepartamentos = [
-            '#8b5cf6', '#3b82f6', '#10b981', '#f97316', '#ec4899', '#06b6d4',
-            '#7c3aed', '#84cc16', '#f59e0b', '#6366f1', '#14b8a6', '#ef4444'
-        ];
+                const agora = new Date();
+                const horas = agora.getHours();
+                document.getElementById('marcacoes-data-label').textContent = 
+                    `Hoje, ${String(agora.getDate()).padStart(2,'0')}/${String(agora.getMonth()+1).padStart(2,'0')}`;
 
-        // Função para criar gráfico a partir de dados agregados da API
-        function carregarGraficoDepartamentosAgregado(departamentos) {
-            const labels = departamentos.map(d => d.departamento || 'Não definido');
-            const data = departamentos.map(d => d.quantidade);
-
-            criarGraficoDepartamento(labels, data);
-        }
-
-        function carregarGraficoDepartamentos(funcionarios) {
-            // Agrupar por departamento
-            const departamentos = {};
-            funcionarios.forEach(f => {
-                const dept = f.departamento || 'Não definido';
-                departamentos[dept] = (departamentos[dept] || 0) + 1;
-            });
-
-            const labels = Object.keys(departamentos);
-            const data = Object.values(departamentos);
-
-            criarGraficoDepartamento(labels, data);
-        }
-
-        function criarGraficoDepartamento(labels, data) {
-            const ctx = document.getElementById('deptChart').getContext('2d');
-
-            // Destruir gráfico anterior se existir
-            if (chartInstance) {
-                chartInstance.destroy();
-            }
-
-            chartInstance = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: data,
-                        backgroundColor: coresDepartamentos.slice(0, labels.length),
-                        borderWidth: 2,
-                        borderColor: '#ffffff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'right',
-                            labels: {
-                                usePointStyle: true,
-                                padding: 15,
-                                font: { size: 12 }
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                    const percent = ((context.raw / total) * 100).toFixed(1);
-                                    return `${context.label}: ${context.raw} (${percent}%)`;
-                                }
-                            }
-                        }
-                    }
+                if (marcacoes.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:40px;color:#94a3b8;">
+                        <i class="fas fa-clock" style="font-size:32px;margin-bottom:12px;display:block;opacity:0.5;"></i>
+                        Nenhuma marcação registrada hoje
+                    </td></tr>`;
+                    return;
                 }
-            });
+
+                // Ordenar por hora DESC (mais recente primeiro)
+                marcacoes.sort((a, b) => {
+                    if (a.hora > b.hora) return -1;
+                    if (a.hora < b.hora) return 1;
+                    return 0;
+                });
+
+                tbody.innerHTML = marcacoes.slice(0, 20).map(m => {
+                    let nome = m.funcionario_nome || 'Não identificado';
+                    // Tentar extrair nome da observação se não tem nome
+                    if (nome === 'Não identificado' && m.observacao) {
+                        const match = m.observacao.match(/^RHi?D:\s*(.+)/i);
+                        if (match) nome = match[1].trim();
+                    }
+                    // Normalizar formatação do nome (ALL CAPS → Title Case)
+                    nome = toTitleCase(nome);
+                    const dept = toTitleCase(m.departamento || m.cargo || '');
+                    const initial = nome.charAt(0).toUpperCase();
+                    const hora = m.hora ? m.hora.substring(0, 5) : '--:--';
+                    const tipoLabel = m.tipo === 'marcacao' ? 'Marcação' : m.tipo === 'entrada' ? 'Entrada' : m.tipo === 'saida' ? 'Saída' : (m.tipo || 'Marcação');
+                    const origemLabel = m.origem === 'rhid_cloud' ? 'RHID Cloud' : m.origem === 'control_id' ? 'Control iD' : m.origem === 'manual' ? 'Manual' : (m.origem || '-');
+                    const origemClass = m.origem === 'rhid_cloud' ? 'color:#3b82f6' : m.origem === 'manual' ? 'color:#f59e0b' : 'color:#10b981';
+
+                    // Resolver foto do funcionário
+                    const fotoUrl = resolverFoto(m);
+                    const avatarBg = getAvatarColor(nome);
+                    const avatarHtml = fotoUrl
+                        ? `<img src="${fotoUrl}" alt="${initial}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                           <div style="width:32px;height:32px;border-radius:50%;background:${avatarBg};color:white;display:none;align-items:center;justify-content:center;font-size:0.75rem;font-weight:600;flex-shrink:0;">${initial}</div>`
+                        : `<div style="width:32px;height:32px;border-radius:50%;background:${avatarBg};color:white;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:600;flex-shrink:0;">${initial}</div>`;
+
+                    return `<tr>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                ${avatarHtml}
+                                <div>
+                                    <div style="font-weight:500;font-size:0.85rem;">${nome}</div>
+                                    ${dept ? `<div style="font-size:0.7rem;color:#94a3b8;">${dept}</div>` : ''}
+                                </div>
+                            </div>
+                        </td>
+                        <td><strong style="font-size:0.95rem;">${hora}</strong></td>
+                        <td><span class="status-badge active" style="font-size:0.7rem;">${tipoLabel}</span></td>
+                        <td><span style="font-size:0.8rem;${origemClass};">${origemLabel}</span></td>
+                    </tr>`;
+                }).join('');
+
+                // Atualizar status de sync
+                document.getElementById('marcacoes-sync-status').innerHTML = 
+                    `<i class="fas fa-circle" style="font-size:8px;margin-right:4px;color:#10b981;"></i> Atualizado às ${String(agora.getHours()).padStart(2,'0')}:${String(agora.getMinutes()).padStart(2,'0')}`;
+
+            } catch (error) {
+                console.error('Erro ao carregar marcações:', error);
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:#ef4444;">
+                    <i class="fas fa-exclamation-triangle" style="margin-right:8px;"></i>Erro ao carregar marcações
+                </td></tr>`;
+            }
         }
 
         // ========================================
@@ -1397,6 +1414,12 @@
             carregarUsuarioLogado();
             carregarEstatisticas();
             carregarAtividadesRecentes();
+            carregarMarcacoesTempoReal();
+
+            // Auto-refresh marcações a cada 60 segundos
+            setInterval(() => {
+                carregarMarcacoesTempoReal();
+            }, 60000);
         });
     </script>
 
