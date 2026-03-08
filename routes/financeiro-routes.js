@@ -6,7 +6,7 @@
 const express = require('express');
 
 module.exports = function createFinanceiroRoutes(deps) {
-    const { pool, authenticateToken, authorizeArea, authorizeACL, writeAuditLog, cacheMiddleware, CACHE_CONFIG } = deps;
+    const { pool, authenticateToken, authorizeArea, authorizeACL, writeAuditLog, cacheMiddleware, CACHE_CONFIG, writeGuard } = deps;
     const router = express.Router();
 
     // --- Standard requires for extracted routes ---
@@ -23,8 +23,10 @@ module.exports = function createFinanceiroRoutes(deps) {
     };
     router.use(authenticateToken);
     router.use(authorizeArea('financeiro'));
-    // Dashboard principal do financeiro
-    router.get('/dashboard', async (req, res, next) => {
+    // AUDIT-FIX PERM-004: Block mutations for consultoria/restricted roles
+    router.use(writeGuard || ((req, res, next) => next()));
+    // Dashboard principal do financeiro — AUDIT-FIX PERF-001: Add cache
+    router.get('/dashboard', cacheMiddleware('fin_dashboard', CACHE_CONFIG.dashboardFinan || 300000), async (req, res, next) => {
         try {
             // Faturamento total do mês
             const [faturamento] = await pool.query(`
@@ -357,10 +359,33 @@ module.exports = function createFinanceiroRoutes(deps) {
     // 3. Centro de Custos e de Lucro
     router.get('/centros-custo', async (req, res, next) => {
         try {
-            const [rows] = await pool.query('SELECT id, codigo, nome, departamento, responsavel, orcamento_mensal, utilizado, ativo, created_at, updated_at FROM centros_custo ORDER BY codigo, nome');
+            // Busca centros com utilizado calculado dinamicamente das contas a pagar
+            const [rows] = await pool.query(`
+                SELECT 
+                    cc.id, cc.codigo, cc.nome, cc.departamento, cc.responsavel,
+                    cc.orcamento_mensal, 
+                    COALESCE((
+                        SELECT SUM(cp.valor_pago) 
+                        FROM contas_pagar cp 
+                        WHERE cp.centro_custo_id = cc.id 
+                          AND cp.status = 'pago'
+                          AND MONTH(cp.data_pagamento) = MONTH(CURDATE())
+                          AND YEAR(cp.data_pagamento) = YEAR(CURDATE())
+                    ), cc.utilizado) AS utilizado,
+                    cc.ativo, cc.created_at, cc.updated_at
+                FROM centros_custo cc
+                ORDER BY cc.codigo, cc.nome
+            `);
             res.json({ data: rows });
         } catch (error) {
             console.error('[Financeiro] Erro GET centros-custo:', error.message);
+            // Fallback: query simples se a coluna centro_custo_id não existir
+            if (error.code === 'ER_BAD_FIELD_ERROR') {
+                try {
+                    const [rows] = await pool.query('SELECT * FROM centros_custo ORDER BY codigo, nome');
+                    return res.json({ data: rows });
+                } catch (e2) { /* ignore */ }
+            }
             next(error);
         }
     });
@@ -478,10 +503,18 @@ module.exports = function createFinanceiroRoutes(deps) {
             const fields = req.body;
             delete fields.id; delete fields.created_at;
 
-            if (Object.keys(fields).length === 0) return res.status(400).json({ success: false, message: 'Nada para atualizar' });
+            // SECURITY FIX C-07: Whitelist de colunas permitidas (CWE-89 — previne SQL injection via nomes de colunas)
+            const allowedFields = [
+                'descricao', 'tipo', 'categoria', 'valor', 'frequencia', 'dia_vencimento',
+                'conta_bancaria_id', 'data_inicio', 'data_fim', 'proximo_vencimento',
+                'ativo', 'observacoes', 'forma_pagamento', 'centro_custo'
+            ];
+            const safeKeys = Object.keys(fields).filter(k => allowedFields.includes(k));
 
-            const setClauses = Object.keys(fields).map(k => `${k} = ?`).join(', ');
-            const values = [...Object.values(fields), id];
+            if (safeKeys.length === 0) return res.status(400).json({ success: false, message: 'Nada para atualizar' });
+
+            const setClauses = safeKeys.map(k => `\`${k}\` = ?`).join(', ');
+            const values = [...safeKeys.map(k => fields[k]), id];
             await pool.query(`UPDATE recorrencias SET ${setClauses} WHERE id = ?`, values);
             res.json({ success: true, message: 'Recorrência atualizada' });
         } catch (error) { next(error); }
@@ -941,7 +974,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     });
 
     // 7. Dashboard de Indicadores-Chave (KPIs) - VERSÁO MELHORADA
-    router.get('/dashboard-kpis', async (req, res, next) => {
+    router.get('/dashboard-kpis', cacheMiddleware('fin_dash_kpis', CACHE_CONFIG.dashboardFinan || 300000), async (req, res, next) => {
         try {
             // Receitas do mês atual
             const [receitas] = await pool.query(`
@@ -1012,7 +1045,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     });
 
     // 8. Gestão de Contas a Receber - NOVA FUNCIONALIDADE
-    router.get('/contas-receber', async (req, res, next) => {
+    router.get('/contas-receber', cacheMiddleware('fin_contas_rec', 120000), async (req, res, next) => {
         try {
             const { page = 1, limit = 100, status, vencimento_inicio, vencimento_fim } = req.query;
             const offset = (page - 1) * limit;
@@ -1103,7 +1136,7 @@ module.exports = function createFinanceiroRoutes(deps) {
     });
 
     // 9. Gestão de Contas a Pagar - NOVA FUNCIONALIDADE
-    router.get('/contas-pagar', async (req, res, next) => {
+    router.get('/contas-pagar', cacheMiddleware('fin_contas_pag', 120000), async (req, res, next) => {
         try {
             const { page = 1, limit = 100, status, vencimento_inicio, vencimento_fim } = req.query;
             const offset = (page - 1) * limit;

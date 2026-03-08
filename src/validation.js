@@ -14,11 +14,11 @@ const loginSchema = Joi.object({
       'any.required': 'Email é obrigatório'
     }),
   password: Joi.string()
-    .min(6)
+    .min(10)
     .max(100)
     .required()
     .messages({
-      'string.min': 'Senha deve ter pelo menos 6 caracteres',
+      'string.min': 'Senha deve ter pelo menos 10 caracteres',
       'string.max': 'Senha não pode ter mais de 100 caracteres',
       'any.required': 'Senha é obrigatória'
     })

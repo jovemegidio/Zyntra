@@ -43,6 +43,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
 const cors = require('cors');
+const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const authRouter = require('./src/routes/auth');
 const userPermissions = require('./src/permissions-server');
@@ -69,6 +70,9 @@ const {
 // AUDIT-FIX R-01: Sistema de autenticação unificado
 const authUnified = require('./middleware/auth-unified');
 
+// Zyntra Branding Middleware (ativado via env BRAND=zyntra)
+const { zyntraBrandingMiddleware, zyntraBrandInfo } = require('./middleware/zyntra-branding');
+
 // AUDIT-FIX R-17/R-18/R-19/R-20: Módulo LGPD compliance
 const { createLGPDRouter } = require('./routes/lgpd');
 
@@ -82,6 +86,7 @@ const { v4: uuidv4 } = require('uuid');
 const cacheService = require('./services/cache');
 const { wrapPoolWithTimeout, CircuitBreaker, requestTimeout, createPoolMonitor, createHealthEndpoint } = require('./services/resilience');
 const { initRateLimitRedis } = require('./services/rate-limiter-redis');
+const { smtpBreaker, discordBreaker, n8nBreaker, getAllBreakerStates } = require('./services/external-breakers');
 
 // 📊 ENTERPRISE: Prometheus Metrics (HTTP histograms, DB pool, cache, business KPIs)
 const { metricsMiddleware, createMetricsEndpoint, trackDBQuery, trackCacheHit, trackCacheMiss, trackBusinessEvent, trackError } = require('./services/metrics');
@@ -92,6 +97,25 @@ try {
     discordBot = require('./services/discord-notifier');
 } catch (e) {
     console.warn('[Discord] Notifier não disponível:', e.message);
+}
+
+// 🤖 N8N: Integração com n8n Workflow Automation
+let n8nIntegration;
+try {
+    const { getN8nIntegration } = require('./services/n8n-integration');
+    n8nIntegration = getN8nIntegration();
+} catch (e) {
+    console.warn('[n8n] Integration não disponível:', e.message);
+}
+
+// 📊 N8N: Middleware interceptor de relatórios → notificação email
+let reportInterceptorMiddleware;
+try {
+    const { reportInterceptor } = require('./middleware/report-interceptor');
+    reportInterceptorMiddleware = reportInterceptor();
+    console.log('✅ Report Interceptor n8n carregado');
+} catch (e) {
+    console.warn('[n8n] Report Interceptor não disponível:', e.message);
 }
 
 // Função utilitária para parse seguro de JSON
@@ -214,13 +238,13 @@ async function sendEmail(to, subject, html, text) {
     }
 
     try {
-        const info = await emailTransporter.sendMail({
+        const info = await smtpBreaker.execute(() => emailTransporter.sendMail({
             from: `"ALUFORCE Sistema" <${process.env.SMTP_USER}>`,
             to: to,
             subject: subject,
             text: text || html.replace(/<[^>]*>/g, ''), // Fallback text
             html: html
-        });
+        }));
 
         logger.info(`[EMAIL] ✅ Email enviado: ${subject} → ${to} (ID: ${info.messageId})`);
         return { success: true, messageId: info.messageId };
@@ -353,7 +377,8 @@ const authorizeArea = (area) => {
         if (isConsultoria) {
             logger.info(`[AUTH-AREA] Consultoria ${firstName} autorizado para ${area} (modo leitura)`);
             req.isConsultoria = true;
-            req.canEdit = true;
+            // AUDIT-FIX PERM-004: Consultoria is read-only — no edit, create, delete or approve
+            req.canEdit = false;
             req.canCreate = false;
             req.canDelete = false;
             req.canApprove = false;
@@ -748,6 +773,7 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // Aplicar security middleware centralizado
 app.use(securityHeaders());
+app.use(helmet());
 
 // RATE LIMIT: Isentar assets estáticos (avatars, images, css, js, fonts) para não gastar o limite
 app.use((req, res, next) => {
@@ -762,7 +788,13 @@ app.use((req, res, next) => {
 
 app.use(sanitizeInput);
 
-// CORS configurado para permitir cookies e acesso do app mobile
+// 📊 N8N: Interceptor global — detecta automaticamente quando relatórios
+// (PDF, Excel, CSV, XML, ZIP) são gerados e notifica por email via n8n
+if (reportInterceptorMiddleware) {
+    app.use(reportInterceptorMiddleware);
+}
+
+// CORS configurado para permitir cookies e acesso do app mobile/desktop
 // AUDITORIA 02/02/2026: Restrito a origens autorizadas para segurança
 const allowedOrigins = [
     'http://localhost:3000',
@@ -776,6 +808,9 @@ const allowedOrigins = [
     'https://www.aluforce.ind.br',
     'http://31.97.64.102:3000',
     'http://31.97.64.102',
+    'http://tauri.localhost',        // App Desktop Tauri (ALUFORCE ERP Desktop)
+    'https://tauri.localhost',       // App Desktop Tauri (HTTPS variant)
+    'tauri://localhost',             // App Desktop Tauri (custom scheme)
     process.env.CORS_ORIGIN, // Origem customizada via env
 ].filter(Boolean);
 
@@ -808,31 +843,20 @@ app.use(cors({
 app.use(cookieParser());
 app.use(csrfProtection);
 
+// Zyntra Branding: aplica branding e banner demo em respostas HTML
+app.use(zyntraBrandInfo);
+app.use(zyntraBrandingMiddleware);
+
 // Aplicar middlewares de segurança avançados (Auditoria 30/01/2026)
-// AUDITORIA 02/02/2026: CSRF habilitado para proteção contra ataques
+// FIX: CSRF desabilitado aqui pois já é aplicado acima via security-middleware.js (csrfProtection)
+// O segundo CSRF (src/middleware/csrf.js) usa tokens one-time em server-side store + cookie _csrf,
+// incompatível com o primeiro que usa Double Submit Cookie (csrf_token).
+// Ter dois CRSFs causava 403 quando Bearer token não estava presente.
 applySecurityMiddlewares(app, {
     pool: pool, // AUDIT-FIX R-04: Passar pool real para audit logs funcionarem
-    enableCSRF: true, // AUDITORIA 02/02/2026: CSRF habilitado
+    enableCSRF: false, // FIX: Desabilitado - CSRF já ativo via security-middleware.js acima
     enableRateLimit: true,
-    enableAudit: true,
-    // AUDIT-FIX R-02: CSRF real — apenas rotas de auth/webhook/health isentas
-    // Módulos de negócio (vendas, compras, financeiro, etc.) DEVEM ter proteção CSRF
-    // Requisições com Bearer token já são isentas por design no security-middleware.js
-    csrfIgnorePaths: [
-        '/api/login',
-        '/api/logout',
-        '/api/auth',
-        '/api/verify-2fa',
-        '/api/resend-2fa',
-        '/api/webhook',
-        '/api/callback',
-        '/api/health',
-        '/api/status',
-        '/api/sse',
-        '/api/events',
-        '/api/mobile', // App mobile usa token de dispositivo
-        '/api/discord' // Discord webhooks/notificações
-    ]
+    enableAudit: true
 });
 
 // DEBUG: Log de todos os cookies recebidos
@@ -940,13 +964,13 @@ const GLOBAL_INJECT_SCRIPTS = [
     '<script src="/_shared/confirm-dialog.js?v=20260301"></script>',
     '<!-- ALUFORCE: Offline Sync Manager v4.0 - Sistema completo offline -->',
     '<script src="/js/offline-sync-manager.js?v=20260301"></script>',
-    '<!-- ALUFORCE: Report Viewer v1.0 - Relatorios inline -->',
+    '<!-- ALUFORCE: Report Viewer v1.0 - Relatórios inline -->',
     '<script src="/js/report-viewer.js?v=20260301"></script>',
     '<!-- ALUFORCE: PWA Manager v3.0 -->',
     '<script src="/js/pwa-manager.js?v=20260301"></script>',
     '<!-- ALUFORCE: Zyntra Chat Teams Widget v2.0 -->',
-    '<link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260304">',
-    '<script src="/chat-teams/chat-widget.js?v=20260304" defer></script>\n'
+    '<link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260615">',
+    '<script src="/chat-teams/chat-widget.js?v=20260615" defer></script>\n'
 ].join('\n');
 
 // Paginas que NAO devem receber offline-sync (login precisa de rede)
@@ -956,6 +980,7 @@ app.use((req, res, next) => {
     const _origSendFile = res.sendFile.bind(res);
     res.sendFile = function (filePath, opts, cb) {
         if (typeof filePath === 'string' && filePath.endsWith('.html')) {
+            try {
             fs.readFile(filePath, 'utf8', (err, html) => {
                 if (err || !html) return _origSendFile(filePath, opts, cb);
 
@@ -983,10 +1008,10 @@ app.use((req, res, next) => {
                             missing += '\n<script src="/js/report-viewer.js?v=20260301"></script>';
                         }
                         if (!html.includes('chat-widget.css')) {
-                            missing += '\n<link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260304">';
+                            missing += '\n<link rel="stylesheet" href="/chat-teams/chat-widget.css?v=20260615">';
                         }
                         if (!html.includes('chat-widget.js')) {
-                            missing += '\n<script src="/chat-teams/chat-widget.js?v=20260304" defer></script>';
+                            missing += '\n<script src="/chat-teams/chat-widget.js?v=20260615" defer></script>';
                         }
                         injectTag = missing;
                     }
@@ -1009,6 +1034,10 @@ app.use((req, res, next) => {
                 res.setHeader('Content-Type', 'text/html; charset=utf-8');
                 res.send(html);
             });
+            } catch (readErr) {
+                console.error('[INJECT] Erro ao ler HTML para injeção:', readErr.message);
+                _origSendFile(filePath, opts, cb);
+            }
         } else {
             _origSendFile(filePath, opts, cb);
         }
@@ -1023,7 +1052,7 @@ app.use((req, res, next) => {
 // 🔄 ANTI-CACHE GLOBAL: HTML e arquivos do chat widget nunca ficam em cache
 app.use((req, res, next) => {
     const lp = req.path.toLowerCase();
-    if (lp.endsWith('.html') || lp.startsWith('/chat/widget')) {
+    if (lp.endsWith('.html') || lp.startsWith('/chat/widget') || lp.startsWith('/chat-teams/')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
@@ -1247,77 +1276,56 @@ app.use('/uploads', express.static(path.join(__dirname, 'modules', 'Vendas', 'pu
 // ⚡ HTML INTERCEPTOR: Capturar TODOS os .html de módulos via sendFile
 // Isso garante que o middleware de inject funcione para express.static também
 // ========================================
-app.get('/PCP/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'PCP', req.params[0] + '.html');
+
+// SECURITY FIX C-06: Helper para sanitizar path e prevenir Path Traversal (CWE-22)
+function safeSendModuleHtml(req, res, next, moduleDir) {
+    const rawParam = req.params[0];
+    // Bloquear path traversal: não permitir .. ou barras absolutas
+    if (!rawParam || rawParam.includes('..') || rawParam.includes('\\') || /^[/\\]/.test(rawParam)) {
+        return res.status(400).json({ error: 'Caminho inválido' });
+    }
+    // Extrair apenas o basename (nome do arquivo sem diretório)
+    const safeName = path.basename(rawParam);
+    const htmlPath = path.join(moduleDir, safeName + '.html');
+    // Verificar se o caminho resolvido está dentro do diretório do módulo
+    const resolvedPath = path.resolve(htmlPath);
+    const resolvedDir = path.resolve(moduleDir);
+    if (!resolvedPath.startsWith(resolvedDir + path.sep) && resolvedPath !== resolvedDir) {
+        return res.status(400).json({ error: 'Caminho fora do diretório permitido' });
+    }
     if (fs.existsSync(htmlPath)) {
         res.sendFile(htmlPath);
     } else {
-        next(); // Deixar express.static tentar
+        next();
     }
+}
+
+app.get('/PCP/*.html', (req, res, next) => {
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'PCP'));
 });
 app.get('/modules/PCP/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'PCP', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'PCP'));
 });
 app.get('/NFe/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'NFe', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'NFe'));
 });
 app.get('/e-Nf-e/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'NFe', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'NFe'));
 });
 app.get('/Financeiro/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'Financeiro', 'public', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Financeiro', 'public'));
 });
 app.get('/Compras/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'Compras', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'Compras'));
 });
 app.get('/RecursosHumanos/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'RH', 'public', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'RH', 'public'));
 });
 app.get('/RH/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', 'RH', 'public', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules', 'RH', 'public'));
 });
 app.get('/modules/*.html', (req, res, next) => {
-    const htmlPath = path.join(__dirname, 'modules', req.params[0] + '.html');
-    if (fs.existsSync(htmlPath)) {
-        res.sendFile(htmlPath);
-    } else {
-        next();
-    }
+    safeSendModuleHtml(req, res, next, path.join(__dirname, 'modules'));
 });
 
 // Rotas estáticas do PCP - Cache desabilitado para TODOS os tipos de arquivo
@@ -1433,6 +1441,293 @@ try {
 } catch (e) {
     console.warn('⚠️  Rotas Discord não disponíveis:', e.message);
 }
+
+// =================================================================
+// 🤖 N8N — Rotas de integração com n8n Workflow Automation
+// =================================================================
+try {
+    const n8nRoutes = require('./routes/n8n-webhooks');
+    app.use('/api/n8n', n8nRoutes);
+    // Disponibilizar pool e cache para as rotas n8n
+    app.set('dbPool', pool);
+    app.set('cacheService', cacheService);
+    console.log('✅ Rotas n8n carregadas: /api/n8n/*');
+} catch (e) {
+    console.warn('⚠️  Rotas n8n não disponíveis:', e.message);
+}
+
+// =================================================================
+// 📲 WhatsApp Alertas — Rotas para alertas automáticos via WhatsApp
+// =================================================================
+try {
+    const whatsappAlertasRoutes = require('./routes/whatsapp-alertas');
+    app.use('/api/whatsapp-alertas', whatsappAlertasRoutes);
+    console.log('✅ Rotas WhatsApp Alertas carregadas: /api/whatsapp-alertas/*');
+} catch (e) {
+    console.warn('⚠️  Rotas WhatsApp Alertas não disponíveis:', e.message);
+}
+
+// =================================================================
+// 🚀 Zyntra SGE — Rotas de Teste Grátis / Trials
+// =================================================================
+try {
+    const zyntraTrialsRoutes = require('./routes/zyntra-trials');
+    app.use('/api/zyntra', zyntraTrialsRoutes);
+    console.log('✅ Rotas Zyntra Trials carregadas: /api/zyntra/*');
+} catch (e) {
+    console.warn('⚠️  Rotas Zyntra Trials não disponíveis:', e.message);
+}
+
+// =================================================================
+// 📄 NFe API — Endpoints para emissão manual de NFe (emitir.html)
+// =================================================================
+// POST /api/nfe/preview — Gerar preview XML a partir dos dados do formulário
+app.post('/api/nfe/preview', (req, res, next) => authenticateToken(req, res, next), async (req, res) => {
+    try {
+        const nfeData = req.body;
+        if (!nfeData || !nfeData.itens || !nfeData.itens.length) {
+            return res.status(400).json({ success: false, message: 'Dados da NFe inválidos. Adicione ao menos um item.' });
+        }
+
+        // Gerar XML preview a partir dos dados do formulário
+        const dest = nfeData.destinatario || {};
+        const totalValue = nfeData.totais?.valorTotal || nfeData.itens.reduce((s, i) => s + (i.valorTotal || 0), 0);
+        const now = new Date().toISOString();
+
+        let itensXml = '';
+        (nfeData.itens || []).forEach((item, idx) => {
+            itensXml += `
+    <det nItem="${item.numero || idx + 1}">
+      <prod>
+        <cProd>${item.codigo || ''}</cProd>
+        <xProd>${item.descricao || ''}</xProd>
+        <NCM>${item.ncm || ''}</NCM>
+        <CFOP>${item.cfop || '5102'}</CFOP>
+        <uCom>${item.unidade || 'UN'}</uCom>
+        <qCom>${item.quantidade || 0}</qCom>
+        <vUnCom>${(item.valorUnitario || 0).toFixed(2)}</vUnCom>
+        <vProd>${(item.valorTotal || 0).toFixed(2)}</vProd>
+      </prod>
+      <imposto>
+        <ICMS><ICMS00><orig>0</orig><CST>00</CST></ICMS00></ICMS>
+      </imposto>
+    </det>`;
+        });
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe versao="4.00">
+    <ide>
+      <natOp>${nfeData.naturezaOperacao || 'Venda de mercadoria'}</natOp>
+      <tpNF>${nfeData.tipoOperacao || '1'}</tpNF>
+      <dhEmi>${nfeData.dataEmissao || now}</dhEmi>
+      <tpAmb>2</tpAmb>
+    </ide>
+    <dest>
+      <${dest.tipoDocumento || 'CNPJ'}>${dest.documento || ''}</${dest.tipoDocumento || 'CNPJ'}>
+      <xNome>${dest.nome || ''}</xNome>
+      <enderDest>
+        <xLgr>${dest.endereco || ''}</xLgr>
+        <nro>${dest.numero || ''}</nro>
+        <xCpl>${dest.complemento || ''}</xCpl>
+        <xBairro>${dest.bairro || ''}</xBairro>
+        <cMun>${dest.codigoMunicipio || ''}</cMun>
+        <xMun>${dest.municipio || ''}</xMun>
+        <UF>${dest.uf || ''}</UF>
+        <CEP>${(dest.cep || '').replace(/\D/g, '')}</CEP>
+      </enderDest>
+      <email>${dest.email || ''}</email>
+    </dest>${itensXml}
+    <total>
+      <ICMSTot>
+        <vProd>${(nfeData.totais?.totalProdutos || totalValue).toFixed(2)}</vProd>
+        <vDesc>${(nfeData.totais?.totalDesconto || 0).toFixed(2)}</vDesc>
+        <vFrete>${(nfeData.totais?.totalFrete || 0).toFixed(2)}</vFrete>
+        <vNF>${totalValue.toFixed(2)}</vNF>
+      </ICMSTot>
+    </total>
+  </infNFe>
+</NFe>`;
+
+        res.json({ success: true, xml });
+    } catch (err) {
+        console.error('[NFe Preview] Erro:', err);
+        res.status(500).json({ success: false, message: 'Erro interno ao gerar preview da NFe.' });
+    }
+});
+
+// POST /api/nfe/emitir — Emitir NFe (envio para SEFAZ via Faturamento)
+app.post('/api/nfe/emitir', (req, res, next) => authenticateToken(req, res, next), async (req, res) => {
+    try {
+        const nfeData = req.body;
+        if (!nfeData || !nfeData.itens || !nfeData.itens.length) {
+            return res.status(400).json({ success: false, message: 'Dados da NFe inválidos. Adicione ao menos um item.' });
+        }
+
+        // Tentar encaminhar para o serviço de Faturamento (porta 3003)
+        try {
+            const http = require('http');
+            const payload = JSON.stringify(nfeData);
+            const faturamentoReq = http.request({
+                hostname: 'localhost',
+                port: 3003,
+                path: '/api/faturamento/enviar-sefaz',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payload),
+                    'Authorization': req.headers['authorization'] || ''
+                },
+                timeout: 30000
+            }, (faturamentoRes) => {
+                let body = '';
+                faturamentoRes.on('data', chunk => body += chunk);
+                faturamentoRes.on('end', () => {
+                    try {
+                        const result = JSON.parse(body);
+                        res.status(faturamentoRes.statusCode).json(result);
+                    } catch {
+                        res.status(502).json({ success: false, message: 'Resposta inválida do serviço de faturamento.' });
+                    }
+                });
+            });
+            faturamentoReq.on('error', () => {
+                // Faturamento não disponível — retornar erro informativo
+                res.status(503).json({
+                    success: false,
+                    message: 'Serviço de faturamento (SEFAZ) não está disponível no momento. Verifique se o módulo de Faturamento está em execução (porta 3003) e tente novamente.',
+                    code: 'FATURAMENTO_OFFLINE'
+                });
+            });
+            faturamentoReq.on('timeout', () => {
+                faturamentoReq.destroy();
+                res.status(504).json({ success: false, message: 'Timeout ao conectar com serviço de faturamento.' });
+            });
+            faturamentoReq.write(payload);
+            faturamentoReq.end();
+        } catch (proxyErr) {
+            console.error('[NFe Emitir] Erro de proxy:', proxyErr);
+            res.status(503).json({
+                success: false,
+                message: 'Serviço de faturamento indisponível. Configure o módulo de Faturamento para emissão de NFe.',
+                code: 'FATURAMENTO_OFFLINE'
+            });
+        }
+    } catch (err) {
+        console.error('[NFe Emitir] Erro:', err);
+        res.status(500).json({ success: false, message: 'Erro interno ao emitir NFe.' });
+    }
+});
+
+// POST /api/nfe/validar — Validar dados da NFe antes de emitir
+app.post('/api/nfe/validar', (req, res, next) => authenticateToken(req, res, next), async (req, res) => {
+    try {
+        const nfeData = req.body;
+        const erros = [];
+
+        if (!nfeData) {
+            return res.status(400).json({ valid: false, errors: ['Dados da NFe não fornecidos.'] });
+        }
+
+        // Validações básicas
+        if (!nfeData.naturezaOperacao) erros.push('Natureza da operação é obrigatória.');
+        if (!nfeData.dataEmissao) erros.push('Data de emissão é obrigatória.');
+
+        // Validar destinatário
+        const dest = nfeData.destinatario || {};
+        if (!dest.documento) erros.push('Documento do destinatário (CNPJ/CPF) é obrigatório.');
+        if (!dest.nome) erros.push('Nome/Razão Social do destinatário é obrigatório.');
+        if (!dest.endereco) erros.push('Endereço do destinatário é obrigatório.');
+        if (!dest.numero) erros.push('Número do endereço é obrigatório.');
+        if (!dest.bairro) erros.push('Bairro é obrigatório.');
+        if (!dest.municipio) erros.push('Município é obrigatório.');
+        if (!dest.uf) erros.push('UF é obrigatória.');
+        if (!dest.cep) erros.push('CEP é obrigatório.');
+
+        // Validar documento (CNPJ ou CPF)
+        if (dest.documento) {
+            const doc = dest.documento.replace(/\D/g, '');
+            if (dest.tipoDocumento === 'CNPJ' && doc.length !== 14) erros.push('CNPJ inválido (deve ter 14 dígitos).');
+            if (dest.tipoDocumento === 'CPF' && doc.length !== 11) erros.push('CPF inválido (deve ter 11 dígitos).');
+        }
+
+        // Validar itens
+        if (!nfeData.itens || !nfeData.itens.length) {
+            erros.push('Adicione ao menos um item à NFe.');
+        } else {
+            nfeData.itens.forEach((item, idx) => {
+                const n = idx + 1;
+                if (!item.descricao) erros.push(`Item ${n}: descrição é obrigatória.`);
+                if (!item.ncm) erros.push(`Item ${n}: NCM é obrigatório.`);
+                if (!item.cfop) erros.push(`Item ${n}: CFOP é obrigatório.`);
+                if (!item.quantidade || item.quantidade <= 0) erros.push(`Item ${n}: quantidade deve ser maior que zero.`);
+                if (!item.valorUnitario || item.valorUnitario <= 0) erros.push(`Item ${n}: valor unitário deve ser maior que zero.`);
+            });
+        }
+
+        if (erros.length > 0) {
+            return res.json({ valid: false, success: false, errors: erros });
+        }
+
+        res.json({ valid: true, success: true, message: 'XML validado com sucesso! Nenhum erro encontrado.' });
+    } catch (err) {
+        console.error('[NFe Validar] Erro:', err);
+        res.status(500).json({ valid: false, errors: ['Erro interno ao validar NFe.'] });
+    }
+});
+
+// GET /api/nfe/configuracoes — Retornar configurações do emitente
+app.get('/api/nfe/configuracoes', (req, res, next) => authenticateToken(req, res, next), async (req, res) => {
+    try {
+        // Tentar buscar configurações do banco de dados
+        let emitente = {};
+        try {
+            const [rows] = await pool.query(
+                "SELECT * FROM configuracoes_nfe WHERE ativo = 1 ORDER BY id DESC LIMIT 1"
+            );
+            if (rows && rows.length > 0) {
+                emitente = rows[0];
+            }
+        } catch (dbErr) {
+            // Tabela pode não existir ainda — usar fallback
+            console.warn('[NFe Config] Tabela configuracoes_nfe não encontrada, usando fallback.');
+        }
+
+        // Fallback: buscar dados da empresa da tabela empresa
+        if (!emitente.cnpj) {
+            try {
+                const [empresaRows] = await pool.query(
+                    "SELECT * FROM empresa ORDER BY id LIMIT 1"
+                );
+                if (empresaRows && empresaRows.length > 0) {
+                    const emp = empresaRows[0];
+                    emitente = {
+                        cnpj: emp.cnpj || '',
+                        razao_social: emp.razao_social || emp.nome || '',
+                        nome_fantasia: emp.nome_fantasia || emp.fantasia || '',
+                        inscricao_estadual: emp.inscricao_estadual || emp.ie || '',
+                        endereco: emp.endereco || emp.logradouro || '',
+                        numero: emp.numero || '',
+                        bairro: emp.bairro || '',
+                        municipio: emp.municipio || emp.cidade || '',
+                        uf: emp.uf || emp.estado || '',
+                        cep: emp.cep || '',
+                        ambiente: 2 // Homologação por padrão
+                    };
+                }
+            } catch {
+                console.warn('[NFe Config] Tabela empresa não encontrada.');
+            }
+        }
+
+        res.json({ success: true, emitente });
+    } catch (err) {
+        console.error('[NFe Config] Erro:', err);
+        res.status(500).json({ success: false, message: 'Erro ao carregar configurações NFe.' });
+    }
+});
+
+console.log('✅ Rotas NFe API carregadas: /api/nfe/preview, /api/nfe/emitir, /api/nfe/validar, /api/nfe/configuracoes');
 
 // 📊 ENTERPRISE: Prometheus /metrics endpoint (protected at app level + nginx)
 app.get('/metrics', (req, res, next) => {
@@ -1761,251 +2056,82 @@ app.get('/RH/admin-beneficios.html', authenticatePage, (req, res) => {
     res.sendFile(path.join(__dirname, 'modules', 'RH', 'public', 'admin-beneficios.html'));
 });
 
-// ===== ROTAS DO MÓDULO DE VENDAS =====
-// Rota principal: /Vendas/ - requer autenticação e permissão
-app.get('/Vendas/', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'index.html'));
+// ===== FACTORY: Rota protegida por módulo (DRY) =====
+function modulePageHandler(moduleName, filePath, opts = {}) {
+    return (req, res) => {
+        if (req.user && (req.user.nome || req.user.email)) {
+            const firstName = req.user.nome
+                ? req.user.nome.split(' ')[0].toLowerCase()
+                : (req.user.email || '').split('@')[0].toLowerCase();
+            if (userPermissions.hasAccess(firstName, moduleName)) {
+                if (opts.noCache) {
+                    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                    res.setHeader('Pragma', 'no-cache');
+                    res.setHeader('Expires', '0');
+                }
+                res.sendFile(path.join(__dirname, filePath));
+            } else {
+                res.status(403).send(`<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de ${moduleName}.</p>`);
+            }
         } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
+            res.redirect('/login.html');
         }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+    };
+}
 
-// Rota Kanban (redireciona para principal)
+function adminPageHandler(filePath) {
+    return (req, res) => {
+        if (req.user && (req.user.nome || req.user.email)) {
+            const firstName = req.user.nome ? req.user.nome.split(' ')[0].toLowerCase() : '';
+            const emailPrefix = (req.user.email || '').split('@')[0].toLowerCase();
+            if (userPermissions.isAdmin(firstName) || userPermissions.isAdmin(emailPrefix)) {
+                res.sendFile(path.join(__dirname, filePath));
+            } else {
+                res.status(403).send('<h1>Acesso Negado</h1><p>Esta página é restrita a administradores.</p>');
+            }
+        } else {
+            res.redirect('/login.html');
+        }
+    };
+}
+
+// ===== ROTAS DO MÓDULO DE VENDAS (via factory) =====
+app.get('/Vendas/', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/index.html'));
+
+// Redirects
 app.get('/Vendas/kanban.html', authenticatePage, (req, res) => res.redirect('/Vendas/'));
-
-// Rotas alternativas redirecionam para /Vendas/
 app.get('/Vendas/index.html', authenticatePage, (req, res) => res.redirect('/Vendas/'));
 app.get('/Vendas/vendas.html', authenticatePage, (req, res) => res.redirect('/Vendas/'));
 
-// Rotas das páginas do módulo Vendas
-app.get('/Vendas/pedidos.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'pedidos.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/clientes.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'clientes.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/dashboard.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'dashboard.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/dashboard-admin.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        const emailPrefix = (req.user.email || '').split('@')[0].toLowerCase();
-        // Dashboard Admin - somente administradores
-        if (userPermissions.isAdmin(firstName) || userPermissions.isAdmin(emailPrefix)) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'dashboard-admin.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Esta página é restrita a administradores.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/relatorios.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'relatorios.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/prospeccao.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'prospeccao.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/estoque.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'estoque.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/comissoes.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'comissoes.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-app.get('/Vendas/cte.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'vendas')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Vendas', 'public', 'cte.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Vendas.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+// Páginas de Vendas
+app.get('/Vendas/pedidos.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/pedidos.html'));
+app.get('/Vendas/clientes.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/clientes.html'));
+app.get('/Vendas/dashboard.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/dashboard.html'));
+app.get('/Vendas/dashboard-admin.html', authenticatePage, adminPageHandler('modules/Vendas/public/dashboard-admin.html'));
+app.get('/Vendas/relatorios.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/relatorios.html'));
+app.get('/Vendas/prospeccao.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/prospeccao.html'));
+app.get('/Vendas/estoque.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/estoque.html'));
+app.get('/Vendas/comissoes.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/comissoes.html'));
+app.get('/Vendas/cte.html', authenticatePage, modulePageHandler('vendas', 'modules/Vendas/public/cte.html'));
 
 // Rota /modules/Vendas/ - redireciona para /Vendas/
 app.get('/modules/Vendas/', authenticatePage, (req, res) => res.redirect('/Vendas/'));
 app.get('/modules/Vendas/index.html', authenticatePage, (req, res) => res.redirect('/Vendas/'));
 
-// Rotas protegidas para PCP - requer autenticação e permissão
-app.get('/PCP/index.html', authenticatePage, (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'pcp')) {
-            res.sendFile(path.join(__dirname, 'modules', 'PCP', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de PCP.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+// Rotas protegidas para PCP (via factory)
+app.get('/PCP/index.html', authenticatePage, modulePageHandler('pcp', 'modules/PCP/index.html', { noCache: true }));
+app.get('/modules/PCP/index.html', authenticatePage, modulePageHandler('pcp', 'modules/PCP/index.html'));
 
-app.get('/modules/PCP/index.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'pcp')) {
-            res.sendFile(path.join(__dirname, 'modules', 'PCP', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de PCP.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+// Rotas protegidas para CRM (via factory)
+app.get('/CRM/crm.html', authenticatePage, modulePageHandler('crm', 'modules/CRM/crm.html'));
 
-// Rotas protegidas para CRM - requer autenticação e permissão
-app.get('/CRM/crm.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'crm')) {
-            res.sendFile(path.join(__dirname, 'modules', 'CRM', 'crm.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de CRM.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+// Rotas protegidas para NFe (via factory)
+app.get('/NFe/nfe.html', authenticatePage, modulePageHandler('nfe', 'modules/NFe/index.html'));
 
-// Rotas protegidas para NFe - requer autenticação e permissão
-app.get('/NFe/nfe.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'nfe')) {
-            res.sendFile(path.join(__dirname, 'modules', 'NFe', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de NF-e.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-// Rotas protegidas para Compras - requer autenticação e permissão
-app.get('/Compras/compras.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'compras')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Compras', 'public', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Compras.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-// Rota principal do módulo Compras
-app.get('/Compras', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'compras')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Compras', 'public', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Compras.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
-
-// Todas as rotas de Compras agora servem o novo index.html unificado
-app.get('/Compras/:page', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'compras')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Compras', 'public', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Compras.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+// Rotas protegidas para Compras (via factory)
+app.get('/Compras/compras.html', authenticatePage, modulePageHandler('compras', 'modules/Compras/public/index.html'));
+app.get('/Compras', authenticatePage, modulePageHandler('compras', 'modules/Compras/public/index.html'));
+app.get('/Compras/:page', authenticatePage, modulePageHandler('compras', 'modules/Compras/public/index.html'));
 
 // Rotas de acesso direto aos módulos (redirecionam para login se não autenticado)
 app.get('/modules/RH/public/areaadm.html', authenticatePage, (req, res) => {
@@ -2046,35 +2172,13 @@ app.get('/modules/Compras/', authenticatePage, (req, res) => {
     res.redirect('/Compras/compras.html');
 });
 
-app.get('/modules/Compras/index.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'compras')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Compras', 'public', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Compras.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+app.get('/modules/Compras/index.html', authenticatePage, modulePageHandler('compras', 'modules/Compras/public/index.html'));
 
 app.get('/modules/Compras/public/', authenticatePage, (req, res) => {
     res.redirect('/Compras/compras.html');
 });
 
-app.get('/modules/Compras/public/index.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'compras')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Compras', 'public', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de Compras.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+app.get('/modules/Compras/public/index.html', authenticatePage, modulePageHandler('compras', 'modules/Compras/public/index.html'));
 
 // Rotas para Financeiro (COM autenticação)
 app.get('/modules/Financeiro/', authenticatePage, (req, res) => {
@@ -2111,18 +2215,7 @@ app.get('/modules/Financeiro/public/relatorios.html', authenticatePage, (req, re
     res.redirect('/modules/Financeiro/relatorios.html');
 });
 
-app.get('/modules/Financeiro/index.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'financeiro')) {
-            res.sendFile(path.join(__dirname, 'modules', 'Financeiro', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo Financeiro.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+app.get('/modules/Financeiro/index.html', authenticatePage, modulePageHandler('financeiro', 'modules/Financeiro/index.html'));
 
 // Rota curinga para redirecionar qualquer arquivo .html da pasta public do Financeiro
 app.get('/modules/Financeiro/public/*.html', authenticatePage, (req, res) => {
@@ -2150,18 +2243,7 @@ app.get('/modules/NFe/public/', authenticatePage, (req, res) => {
     res.redirect('/NFe/nfe.html');
 });
 
-app.get('/modules/NFe/index.html', authenticatePage, (req, res) => {
-    if (req.user && req.user.nome) {
-        const firstName = req.user.nome.split(' ')[0].toLowerCase();
-        if (userPermissions.hasAccess(firstName, 'nfe')) {
-            res.sendFile(path.join(__dirname, 'modules', 'NFe', 'index.html'));
-        } else {
-            res.status(403).send('<h1>Acesso Negado</h1><p>Você não tem permissão para acessar o módulo de NF-e.</p>');
-        }
-    } else {
-        res.redirect('/login.html');
-    }
-});
+app.get('/modules/NFe/index.html', authenticatePage, modulePageHandler('nfe', 'modules/NFe/index.html'));
 
 app.get('/modules/PCP/index.html', authenticatePage, (req, res) => {
     res.redirect('/PCP/index.html');
@@ -2225,327 +2307,18 @@ app.get([
     return res.redirect('/login.html');
 });
 
-// =================== AUTOMAÇÁO DE TAREFAS (NODE-CRON) ===================
-// Inicialização assíncrona de cron jobs após servidor iniciar
+// =================== AUTOMAÇÃO DE TAREFAS (NODE-CRON) ===================
+// AUDIT-FIX ARCH-002: Cron jobs extracted to services/scheduler.service.js
+const { initScheduler } = require('./services/scheduler.service');
 const initCronJobs = () => {
-    logger.info('⏰ Inicializando cron jobs...');
-
-    // 1. Agendamento de envio de relatório diário por email
-    cron.schedule('0 7 * * *', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            const [rows] = await pool.query('SELECT COUNT(*) AS total, SUM(valor) AS faturado FROM vendas WHERE DATE(data) = CURDATE()');
-            const texto = `Relatório diário:\nTotal de vendas: ${rows[0].total}\nFaturamento: R$ ${rows[0].faturado}`;
-            const destinatario = process.env.EMAIL_RELATORIO_DIARIO || process.env.EMAIL_ADMIN;
-            if (destinatario) {
-                await enviarEmail(destinatario, 'Relatório Diário de Vendas', texto);
-                logger.info('Relatório diário enviado por email.');
-            } else {
-                logger.info('Relatório diário gerado mas sem destinatário configurado (EMAIL_RELATORIO_DIARIO).');
-            }
-        } catch (err) {
-            console.warn('Erro no cron diário:', err && err.message ? err.message : err);
-        }
+    initScheduler({
+        pool,
+        logger,
+        enviarEmail: typeof enviarEmail === 'function' ? enviarEmail : null,
+        sendEmail: typeof sendEmail === 'function' ? sendEmail : null,
+        emailTransporter: typeof emailTransporter !== 'undefined' ? emailTransporter : null,
+        DB_AVAILABLE_FN: () => DB_AVAILABLE
     });
-
-    // 2. Backup automático do banco de dados — SECURITY-FIX: use spawn instead of shell interpolation
-    cron.schedule('0 2 * * *', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            const { spawnSync } = require('child_process');
-            const backupDir = path.join(__dirname, 'backups', 'db');
-            if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-            const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-            const backupFile = path.join(backupDir, `aluforce_vendas_${ts}.sql.gz`);
-            const dbHost = process.env.DB_HOST || 'localhost';
-            const dbUser = process.env.DB_USER || 'aluforce';
-            const dbPass = process.env.DB_PASSWORD || '';
-            const dbName = process.env.DB_NAME || 'aluforce_vendas';
-            // Safe: use spawnSync with argument arrays — no shell interpolation
-            const mysqldump = spawnSync('mysqldump', [
-                '-h', dbHost, '-u', dbUser, `--password=${dbPass}`,
-                '--single-transaction', '--routines', '--triggers', dbName
-            ], { timeout: 120000, maxBuffer: 100 * 1024 * 1024 });
-            if (mysqldump.error) throw mysqldump.error;
-            if (mysqldump.status !== 0) throw new Error(`mysqldump exited with code ${mysqldump.status}: ${(mysqldump.stderr || '').toString().slice(0, 500)}`);
-            const zlib = require('zlib');
-            const compressed = zlib.gzipSync(mysqldump.stdout);
-            fs.writeFileSync(backupFile, compressed);
-            // Limpar backups com mais de 30 dias
-            const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-            for (const f of fs.readdirSync(backupDir)) {
-                const fp = path.join(backupDir, f);
-                if (fs.statSync(fp).mtimeMs < cutoff) fs.unlinkSync(fp);
-            }
-            console.log(`✅ Backup DB realizado: ${backupFile}`);
-        } catch (err) {
-            console.warn('Erro no cron de backup:', err && err.message ? err.message : err);
-        }
-    });
-
-    // 3. Notificação automática de cobranças
-    cron.schedule('0 8 * * *', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            const [rows] = await pool.query('SELECT email, nome, valor FROM contas_receber WHERE status = "pendente" AND vencimento = CURDATE()');
-            for (const cliente of rows) {
-                await enviarEmail(cliente.email, 'Cobrança Pendente', `Olá ${cliente.nome}, sua cobrança de R$ ${cliente.valor} vence hoje.`);
-            }
-            console.log('Notificações de cobrança enviadas.');
-        } catch (err) {
-            console.warn('Erro no cron de cobranças:', err && err.message ? err.message : err);
-        }
-    });
-
-    // =================== CRON JOBS DO MÓDULO DE COMPRAS ===================
-
-    // 4. Verificar estoque mínimo e criar requisições automáticas (a cada 6 horas)
-    cron.schedule('0 */6 * * *', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            logger.info('[COMPRAS-CRON] Verificando estoque mínimo...');
-            await pool.query('CALL sp_verificar_estoque_minimo()');
-            logger.info('[COMPRAS-CRON] ✅ Verificação de estoque concluída');
-        } catch (err) {
-            logger.error('[COMPRAS-CRON] Erro ao verificar estoque:', err);
-        }
-    });
-
-    // 5. Alertar sobre pedidos atrasados (todos os dias às 9h)
-    cron.schedule('0 9 * * *', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            logger.info('[COMPRAS-CRON] Verificando pedidos atrasados...');
-
-            const [pedidosAtrasados] = await pool.query(`
-                SELECT pc.id, pc.numero_pedido, pc.data_entrega_prevista,
-                       f.razao_social as fornecedor,
-                       u.id as solicitante_id, u.email as solicitante_email,
-                       DATEDIFF(CURDATE(), pc.data_entrega_prevista) as dias_atraso
-                FROM pedidos_compra pc
-                JOIN fornecedores f ON pc.fornecedor_id = f.id
-                JOIN usuarios u ON pc.usuario_solicitante = u.id
-                WHERE pc.data_entrega_prevista < CURDATE()
-                  AND pc.status NOT IN ('recebido', 'cancelado')
-            `);
-
-            for (const pedido of pedidosAtrasados) {
-                // Criar notificação
-                await pool.execute(
-                    `INSERT INTO compras_notificacoes
-                    (usuario_id, tipo, titulo, mensagem, entidade_tipo, entidade_id, prioridade, enviar_email)
-                    VALUES (?, 'entrega_atrasada', ?, ?, 'pedido_compra', ?, 'alta', TRUE)`,
-                    [
-                        pedido.solicitante_id,
-                        'Pedido com entrega atrasada',
-                        `O pedido ${pedido.numero_pedido} do fornecedor ${pedido.fornecedor} está ${pedido.dias_atraso} dias atrasado.`,
-                        pedido.id
-                    ]
-                );
-
-                // Enviar email se configurado
-                if (pedido.solicitante_email && emailTransporter) {
-                    await sendEmail(
-                        pedido.solicitante_email,
-                        'Alerta: Pedido de compra atrasado',
-                        `<h2>Pedido Atrasado</h2>
-                        <p>O pedido <strong>${pedido.numero_pedido}</strong> está com <strong>${pedido.dias_atraso} dias</strong> de atraso.</p>
-                        <p><strong>Fornecedor:</strong> ${pedido.fornecedor}</p>
-                        <p><strong>Data prevista:</strong> ${pedido.data_entrega_prevista}</p>
-                        <p>Por favor, entre em contato com o fornecedor.</p>`
-                    );
-                }
-            }
-
-            logger.info(`[COMPRAS-CRON] ✅ Verificados ${pedidosAtrasados.length} pedidos atrasados`);
-        } catch (err) {
-            logger.error('[COMPRAS-CRON] Erro ao verificar pedidos atrasados:', err);
-        }
-    });
-
-    // 6. Alertar sobre documentação de fornecedores vencendo (toda segunda-feira às 8h)
-    cron.schedule('0 8 * * 1', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            logger.info('[COMPRAS-CRON] Verificando documentação de fornecedores...');
-
-            const [fornecedores] = await pool.query(`
-                SELECT id, razao_social, cnpj,
-                       data_vencimento_certidao_federal,
-                       data_vencimento_certidao_estadual,
-                       data_vencimento_certidao_municipal,
-                       data_vencimento_certidao_fgts,
-                       data_vencimento_certidao_trabalhista
-                FROM fornecedores
-                WHERE status = 'ativo'
-                  AND (
-                      data_vencimento_certidao_federal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-                      OR data_vencimento_certidao_estadual BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-                      OR data_vencimento_certidao_municipal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-                      OR data_vencimento_certidao_fgts BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-                      OR data_vencimento_certidao_trabalhista BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
-                  )
-            `);
-
-            // Buscar responsável por compras para notificar
-            const [comprador] = await pool.query(`
-                SELECT id, email FROM usuarios
-                WHERE area = 'compras' AND ativo = 1
-                ORDER BY id LIMIT 1
-            `);
-
-            if (comprador.length > 0) {
-                for (const fornecedor of fornecedores) {
-                    const docsVencendo = [];
-
-                    if (fornecedor.data_vencimento_certidao_federal) docsVencendo.push('Certidão Federal');
-                    if (fornecedor.data_vencimento_certidao_estadual) docsVencendo.push('Certidão Estadual');
-                    if (fornecedor.data_vencimento_certidao_municipal) docsVencendo.push('Certidão Municipal');
-                    if (fornecedor.data_vencimento_certidao_fgts) docsVencendo.push('Certidão FGTS');
-                    if (fornecedor.data_vencimento_certidao_trabalhista) docsVencendo.push('Certidão Trabalhista');
-
-                    await pool.execute(
-                        `INSERT INTO compras_notificacoes
-                        (usuario_id, tipo, titulo, mensagem, entidade_tipo, entidade_id, prioridade, enviar_email)
-                        VALUES (?, 'documentacao_vencendo', ?, ?, 'fornecedor', ?, 'normal', TRUE)`,
-                        [
-                            comprador[0].id,
-                            'Documentação de fornecedor vencendo',
-                            `Fornecedor ${fornecedor.razao_social} com documentação vencendo em até 30 dias: ${docsVencendo.join(', ')}`,
-                            fornecedor.id
-                        ]
-                    );
-                }
-            }
-
-            logger.info(`[COMPRAS-CRON] ✅ Verificados ${fornecedores.length} fornecedores com documentação vencendo`);
-        } catch (err) {
-            logger.error('[COMPRAS-CRON] Erro ao verificar documentação:', err);
-        }
-    });
-
-    // 7. Enviar lembretes de aprovações pendentes (todos os dias às 10h)
-    cron.schedule('0 10 * * *', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            logger.info('[COMPRAS-CRON] Verificando aprovações pendentes...');
-
-            const [aprovacoesAtrasadas] = await pool.query(`
-                SELECT wa.id, wa.aprovador_id, wa.entidade_tipo, wa.entidade_id,
-                       u.email as aprovador_email,
-                       pc.numero_pedido, pc.valor_total,
-                       DATEDIFF(CURDATE(), wa.data_solicitacao) as dias_pendente
-                FROM workflow_aprovacoes wa
-                JOIN usuarios u ON wa.aprovador_id = u.id
-                LEFT JOIN pedidos_compra pc ON wa.entidade_id = pc.id AND wa.entidade_tipo = 'pedido_compra'
-                WHERE wa.status = 'pendente'
-                  AND wa.lembrete_enviado = FALSE
-                  AND DATEDIFF(CURDATE(), wa.data_solicitacao) >= 2
-            `);
-
-            for (const aprovacao of aprovacoesAtrasadas) {
-                // Enviar email de lembrete
-                if (aprovacao.aprovador_email && emailTransporter) {
-                    await sendEmail(
-                        aprovacao.aprovador_email,
-                        'Lembrete: Aprovação pendente',
-                        `<h2>Aprovação Pendente</h2>
-                        <p>Você tem uma aprovação pendente há <strong>${aprovacao.dias_pendente} dias</strong>.</p>
-                        <p><strong>Pedido:</strong> ${aprovacao.numero_pedido}</p>
-                        <p><strong>Valor:</strong> R$ ${aprovacao.valor_total}</p>
-                        <p>Por favor, acesse o sistema e faça a aprovação.</p>`
-                    );
-                }
-
-                // Marcar lembrete como enviado
-                await pool.execute(
-                    'UPDATE workflow_aprovacoes SET lembrete_enviado = TRUE, data_lembrete = NOW() WHERE id = ?',
-                    [aprovacao.id]
-                );
-            }
-
-            logger.info(`[COMPRAS-CRON] ✅ Enviados ${aprovacoesAtrasadas.length} lembretes de aprovação`);
-        } catch (err) {
-            logger.error('[COMPRAS-CRON] Erro ao enviar lembretes:', err);
-        }
-    });
-
-    // 8. Atualizar avaliações médias dos fornecedores (todos os domingos às 3h)
-    cron.schedule('0 3 * * 0', async () => {
-        if (!DB_AVAILABLE) return;
-        try {
-            logger.info('[COMPRAS-CRON] Atualizando avaliações de fornecedores...');
-
-            await pool.query(`
-                UPDATE fornecedores f
-                SET
-                    nota_qualidade = (SELECT AVG(nota_qualidade) FROM fornecedor_avaliacoes WHERE fornecedor_id = f.id),
-                    nota_prazo = (SELECT AVG(nota_prazo) FROM fornecedor_avaliacoes WHERE fornecedor_id = f.id),
-                    nota_preco = (SELECT AVG(nota_preco) FROM fornecedor_avaliacoes WHERE fornecedor_id = f.id),
-                    nota_atendimento = (SELECT AVG(nota_atendimento) FROM fornecedor_avaliacoes WHERE fornecedor_id = f.id),
-                    avaliacao_geral = (
-                        SELECT AVG((nota_qualidade + nota_prazo + nota_preco + nota_atendimento + IFNULL(nota_entrega, 0)) / 5)
-                        FROM fornecedor_avaliacoes WHERE fornecedor_id = f.id
-                    ),
-                    total_pedidos = (SELECT COUNT(*) FROM pedidos_compra WHERE fornecedor_id = f.id AND status != 'cancelado'),
-                    total_compras = (SELECT SUM(valor_total) FROM pedidos_compra WHERE fornecedor_id = f.id AND status = 'recebido')
-                WHERE id IN (SELECT DISTINCT fornecedor_id FROM fornecedor_avaliacoes)
-            `);
-
-            logger.info('[COMPRAS-CRON] ✅ Avaliações de fornecedores atualizadas');
-        } catch (err) {
-            logger.error('[COMPRAS-CRON] Erro ao atualizar avaliações:', err);
-        }
-    });
-
-    // =================== CRON JOBS DO ESTOQUE E RESERVAS ===================
-
-    // Job diário: Expirar reservas e alertas de estoque (executa às 3h da manhã)
-    cron.schedule('0 3 * * *', async () => {
-        try {
-            logger.info('[ESTOQUE-CRON] Executando jobs de estoque...');
-            const { expirarReservas, alertasEstoqueBaixo } = require('./cron_jobs_estoque');
-
-            await expirarReservas();
-            await alertasEstoqueBaixo();
-
-            logger.info('[ESTOQUE-CRON] ✅ Jobs de estoque executados');
-        } catch (err) {
-            logger.error('[ESTOQUE-CRON] Erro ao executar jobs de estoque:', err);
-        }
-    });
-
-    // =================== CRON JOB INATIVAÇÃO DE CLIENTES (90 dias sem movimentação) ===================
-    // Executa diariamente às 4h da manhã
-    cron.schedule('0 4 * * *', async () => {
-        try {
-            logger.info('[CLIENTES-CRON] Verificando clientes para inativação automática...');
-
-            // Buscar clientes ativos sem movimentação há mais de 90 dias
-            const [clientesInativos] = await pool.query(`
-                UPDATE empresas
-                SET status_cliente = 'inativo',
-                    data_inativacao = NOW(),
-                    vendedor_id = NULL
-                WHERE status_cliente = 'ativo'
-                AND (
-                    (ultima_movimentacao IS NOT NULL AND ultima_movimentacao < DATE_SUB(NOW(), INTERVAL 90 DAY))
-                    OR
-                    (ultima_movimentacao IS NULL AND created_at < DATE_SUB(NOW(), INTERVAL 90 DAY))
-                )
-            `);
-
-            if (clientesInativos.affectedRows > 0) {
-                logger.info(`[CLIENTES-CRON] ✅ ${clientesInativos.affectedRows} clientes inativados por falta de movimentação`);
-            } else {
-                logger.info('[CLIENTES-CRON] ✅ Nenhum cliente para inativar');
-            }
-        } catch (err) {
-            logger.error('[CLIENTES-CRON] Erro ao inativar clientes:', err);
-        }
-    });
-
-    logger.info('✅ Todos os cron jobs configurados (incluindo Compras e Estoque)');
 };
 
 // =================================================================
@@ -2713,6 +2486,10 @@ registerAllRoutes(app, {
     writeAuditLog,
     cacheMiddleware,
     CACHE_CONFIG,
+    // AUDIT-FIX SEC-001: Pass checkOwnership for IDOR protection on data endpoints
+    checkOwnership: authUnified.checkOwnership,
+    // AUDIT-FIX PERM-004: Write-guard blocks consultoria/restricted roles from mutations
+    writeGuard: authUnified.writeGuard,
     VENDAS_DB_CONFIG: {
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT) || 3306,
@@ -2883,6 +2660,11 @@ app.get('/status', async (req, res) => {
     return res.json(info);
 });
 
+// Circuit breaker status (admin-only)
+app.get('/api/admin/circuit-breakers', authenticateToken, (req, res) => {
+    res.json(getAllBreakerStates());
+});
+
 // 7. TRATAMENTO DE ERROS E INICIALIZAÇÁO DO SERVIDOR
 // =================================================================
 
@@ -2901,23 +2683,59 @@ app.use((req, res, next) => {
     });
 });
 
-// Middleware para tratamento de erros (deve ser o último middleware)
+// AUDIT-FIX ARCH-003: Centralized error handler with structured logging
 app.use((err, req, res, next) => {
-    // Log detalhado do erro com rota e método
-    console.error(`❌ ERRO NO SERVIDOR [${req.method} ${req.path}]:`, err.message || err);
-    if (err.stack) console.error('Stack:', err.stack);
+    // Determine error type and severity
+    const statusCode = err.statusCode || err.status || 500;
+    const isServerError = statusCode >= 500;
+
+    // Structured error logging via logger
+    const errorContext = {
+        method: req.method,
+        path: req.path,
+        ip: req.ip,
+        userId: req.user?.id || 'anonymous',
+        statusCode,
+        message: err.message
+    };
+
+    if (isServerError) {
+        logger.error(`[ERROR-HANDLER] ${req.method} ${req.path}:`, err.message);
+        if (err.stack) logger.error('[ERROR-HANDLER] Stack:', err.stack);
+    } else {
+        logger.warn(`[ERROR-HANDLER] ${req.method} ${req.path}: ${err.message}`);
+    }
 
     if (!res.headersSent) {
-        // Erros de CORS: retornar 403 com mensagem clara
+        // CORS errors
         if (err.message && err.message.includes('CORS')) {
             return res.status(403).json({
                 message: 'Origem não autorizada (CORS).',
-                error: process.env.NODE_ENV === 'development' ? err.message : {}
+                code: 'CORS_ERROR'
             });
         }
-        res.status(500).json({
-            message: 'Ocorreu um erro inesperado no servidor.',
-            error: process.env.NODE_ENV === 'development' ? err.message : {}
+
+        // Validation errors (express-validator)
+        if (err.type === 'entity.parse.failed') {
+            return res.status(400).json({
+                message: 'JSON malformado no corpo da requisição.',
+                code: 'INVALID_JSON'
+            });
+        }
+
+        // Multer file size errors
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({
+                message: 'Arquivo muito grande.',
+                code: 'FILE_TOO_LARGE'
+            });
+        }
+
+        res.status(statusCode).json({
+            message: isServerError ? 'Ocorreu um erro inesperado no servidor.' : err.message,
+            code: err.code || 'INTERNAL_ERROR',
+            // Only expose details in development
+            ...(process.env.NODE_ENV === 'development' ? { error: err.message, stack: err.stack } : {})
         });
     }
 });
@@ -3073,20 +2891,21 @@ const startServer = async () => {
                 try {
                     const [rows] = await pool.query('SELECT COUNT(*) as count FROM funcionarios WHERE id = 6');
                     if (rows[0].count === 0) {
-                        // Inserir funcionário exemplo com senha e cpf obrigatórios usando INSERT IGNORE para evitar duplicação
-                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, departamento, cargo, data_nascimento, cpf) VALUES (6, 'Funcionário Exemplo', 'exemplo@aluforce.ind.br', 'aluvendas01', 'comercial', 'vendedor', '1990-01-01', '00000000000')`);
+                        // Inserir funcionário exemplo com senha hash e cpf obrigatórios usando INSERT IGNORE para evitar duplicação
+                        const bcryptAdmin = require('bcryptjs');
+                        const exemploHash = await bcryptAdmin.hash('aluvendas01', 10);
+                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf) VALUES (6, 'Funcionário Exemplo', 'exemplo@aluforce.ind.br', '', ?, 'comercial', 'vendedor', '1990-01-01', '00000000000')`, [exemploHash]);
                         console.log('✅ Funcionário id=6 criado automaticamente.');
 
                         // Inserir usuário admin para testes
-                        const bcryptAdmin = require('bcryptjs');
                         const adminHash = await bcryptAdmin.hash('admin123', 10);
-                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf, role, is_admin) VALUES (1, 'Administrador', 'admin@aluforce.com', 'admin123', ?, 'ti', 'administrador', '1985-01-01', '11111111111', 'admin', 1)`, [adminHash]);
+                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf, role, is_admin) VALUES (1, 'Administrador', 'admin@aluforce.com', '', ?, 'ti', 'administrador', '1985-01-01', '11111111111', 'admin', 1)`, [adminHash]);
                         console.log('✅ Usuário admin criado automaticamente.');
 
                         // Inserir usuários de teste adicionais
                         const testHash = await bcryptAdmin.hash('123456', 10);
-                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf, role, is_admin) VALUES (2, 'Thiago Scarcella', 'thiago@aluforce.com', '123456', ?, 'gestao', 'gerente', '1990-05-15', '22222222222', 'user', 0)`, [testHash]);
-                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf, role, is_admin) VALUES (3, 'Guilherme Silva', 'guilherme@aluforce.com', '123456', ?, 'pcp', 'analista', '1992-08-20', '33333333333', 'user', 0)`, [testHash]);
+                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf, role, is_admin) VALUES (2, 'Thiago Scarcella', 'thiago@aluforce.com', '', ?, 'gestao', 'gerente', '1990-05-15', '22222222222', 'user', 0)`, [testHash]);
+                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf, role, is_admin) VALUES (3, 'Guilherme Silva', 'guilherme@aluforce.com', '', ?, 'pcp', 'analista', '1992-08-20', '33333333333', 'user', 0)`, [testHash]);
                         console.log('✅ Usuários de teste criados automaticamente.');
                     } else {
                         console.log('✅ Funcionário id=6 já existe (verificado).');
@@ -3094,7 +2913,9 @@ const startServer = async () => {
                 } catch (e) {
                     // Tenta criar com INSERT IGNORE como fallback
                     try {
-                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, departamento, cargo, data_nascimento, cpf) VALUES (6, 'Funcionário Exemplo', 'exemplo@aluforce.ind.br', 'aluvendas01', 'comercial', 'vendedor', '1990-01-01', '00000000000')`);
+                        const bcryptFallback = require('bcryptjs');
+                        const fallbackHash = await bcryptFallback.hash('aluvendas01', 10);
+                        await pool.query(`INSERT IGNORE INTO funcionarios (id, nome_completo, email, senha, senha_hash, departamento, cargo, data_nascimento, cpf) VALUES (6, 'Funcionário Exemplo', 'exemplo@aluforce.ind.br', '', ?, 'comercial', 'vendedor', '1990-01-01', '00000000000')`, [fallbackHash]);
                         console.log('✅ Funcionário id=6 criado com INSERT IGNORE.');
                     } catch (e2) {
                         console.warn('⚠️ Falha ao verificar/inserir funcionário id=6:', e2.message || e2);
@@ -3758,6 +3579,18 @@ app.post('/api/admin/migration-financeiro', authenticateToken, async (req, res) 
                     });
                 }
 
+                // 🤖 Notificar n8n que o servidor iniciou
+                if (n8nIntegration) {
+                    setImmediate(async () => {
+                        try {
+                            await n8nIntegration.onServerStart({ versao: '2.1.7' });
+                            console.log('🤖 [n8n] Evento de startup enviado');
+                        } catch (err) {
+                            console.warn('⚠️  [n8n] Falha ao notificar startup:', err.message);
+                        }
+                    });
+                }
+
                 serverStarted = true;
                 return serverInstance;
             } catch (error) {
@@ -3852,8 +3685,8 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (reason, promise) => {
     // Log detalhado para diagnóstico
-    const reasonStr = reason instanceof Error 
-        ? reason.stack || reason.message 
+    const reasonStr = reason instanceof Error
+        ? reason.stack || reason.message
         : (typeof reason === 'object' ? JSON.stringify(reason, null, 2) : String(reason));
     console.error('❌ PROMESSA NÃO TRATADA:', reasonStr);
     console.error('❌ Tipo do reason:', typeof reason, reason?.constructor?.name);

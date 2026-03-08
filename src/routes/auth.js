@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
+const { validatePasswordStrength } = require('../../utils/password-validator');
 
 const router = express.Router();
 
@@ -106,6 +107,18 @@ async function safeQuery(sql, params = []) {
     }
 }
 
+// Audit log helper — fire-and-forget
+async function auditLog(action, userId, description, req) {
+    try {
+        if (!pool || !_poolReady) return;
+        await pool.query(
+            `INSERT INTO auditoria_logs (usuario_id, acao, modulo, descricao, ip_address, user_agent, created_at)
+             VALUES (?, ?, 'auth', ?, ?, ?, NOW())`,
+            [userId || null, action, description || null, req?.ip || null, req?.headers?.['user-agent'] || null]
+        );
+    } catch (e) { /* fire-and-forget */ }
+}
+
 // Rota de login corrigida (sem campo cargo)
 router.post('/login', async (req, res) => {
     const isDevMode = process.env.NODE_ENV !== 'production';
@@ -134,7 +147,8 @@ router.post('/login', async (req, res) => {
             '@aluforce.ind.br',
             '@aluforce.com',
             '@lumiereassesoria.com.br',   // Consultoria parceira (grafia alternativa)
-            '@lumiereassessoria.com.br'   // Consultoria parceira (grafia oficial com SS)
+            '@lumiereassessoria.com.br',  // Consultoria parceira (grafia oficial com SS)
+            '@zyntra.com.br'             // Zyntra Demo
         ];
 
         const emailValido = dominiosPermitidos.some(dominio => email && email.endsWith(dominio));
@@ -438,8 +452,8 @@ router.post('/login', async (req, res) => {
                             port: parseInt(process.env.SMTP_PORT) || 465,
                             secure: (process.env.SMTP_SECURE !== 'false'),
                             auth: {
-                                user: process.env.SMTP_USER || 'sistema@aluforce.ind.br',
-                                pass: process.env.SMTP_PASS || 'apialuforce'
+                                user: process.env.SMTP_USER,
+                                pass: process.env.SMTP_PASS
                             },
                             tls: { rejectUnauthorized: false },
                             connectionTimeout: 10000,
@@ -651,6 +665,8 @@ router.post('/login', async (req, res) => {
             }
         };
         res.json(payload);
+
+        auditLog('LOGIN_SUCCESS', user.id, `Login bem-sucedido: ${user.email}`, req);
     } catch (error) {
         // Log completo no servidor (stack quando disponível)
         console.error('Erro detalhado no login:', error.stack || error);
@@ -854,8 +870,9 @@ router.post('/auth/change-password', async (req, res) => {
             return res.status(400).json({ message: 'Dados incompletos. Token e nova senha são obrigatórios.' });
         }
 
-        if (newPassword.length < 6) {
-            return res.status(400).json({ message: 'A senha deve ter pelo menos 6 caracteres.' });
+        const pwCheck = validatePasswordStrength(newPassword);
+        if (!pwCheck.valid) {
+            return res.status(400).json({ message: pwCheck.errors.join('. ') });
         }
 
         // AUDIT-FIX: Validate the reset token (hashed comparison, time-limited)
@@ -918,6 +935,8 @@ router.post('/auth/change-password', async (req, res) => {
         } catch (e) { /* table may not exist */ }
 
         console.log('[AUTH/CHANGE-PASSWORD] ✅ Senha alterada com sucesso no banco (token invalidado)');
+
+        auditLog('PASSWORD_CHANGE', userId, 'Senha alterada via token de recuperação', req);
 
         res.json({
             success: true,
@@ -1412,8 +1431,8 @@ router.post('/resend-2fa', async (req, res) => {
                     port: parseInt(process.env.SMTP_PORT) || 465,
                     secure: (process.env.SMTP_SECURE !== 'false'),
                     auth: {
-                        user: process.env.SMTP_USER || 'sistema@aluforce.ind.br',
-                        pass: process.env.SMTP_PASS || 'apialuforce'
+                        user: process.env.SMTP_USER,
+                        pass: process.env.SMTP_PASS
                     },
                     tls: { rejectUnauthorized: false },
                     connectionTimeout: 10000,
@@ -1525,8 +1544,9 @@ router.post('/auth/force-change-password', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Dados incompletos.' });
         }
 
-        if (newPassword.length < 6) {
-            return res.status(400).json({ success: false, message: 'A senha deve ter pelo menos 6 caracteres.' });
+        const pwCheck = validatePasswordStrength(newPassword);
+        if (!pwCheck.valid) {
+            return res.status(400).json({ success: false, message: pwCheck.errors.join('. ') });
         }
 
         // Decodifica o token JWT para obter o userId
@@ -1554,9 +1574,11 @@ router.post('/auth/force-change-password', async (req, res) => {
         // Hash da nova senha
         const senhaHash = await bcrypt.hash(newPassword, 12);
 
-        // Atualiza senha e remove flag de temporária
-        await safeQuery('UPDATE usuarios SET senha = ?, senha_temporaria = 0 WHERE id = ?', [senhaHash, userId]);
+        // Atualiza senha_hash (coluna canônica) e remove flag de temporária
+        await safeQuery('UPDATE usuarios SET senha_hash = ?, senha_temporaria = 0 WHERE id = ?', [senhaHash, userId]);
         console.log(`[AUTH/FORCE-CHANGE] ✅ Senha definitiva salva para userId: ${userId} (${rows[0].email})`);
+
+        auditLog('PASSWORD_FORCE_CHANGE', userId, `Troca obrigatória de senha temporária (${rows[0].email})`, req);
 
         res.json({ success: true, message: 'Senha alterada com sucesso!' });
 
@@ -1593,18 +1615,29 @@ router.post('/auth/esqueci-senha', async (req, res) => {
         const user = rows[0];
         const nome = (user.nome || email.split('@')[0]).split(' ')[0];
 
-        // Gera nova senha aleatória (8 chars: letras + números)
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        // Gera nova senha aleatória que atende à política de segurança (12 chars)
+        const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const lower = 'abcdefghjkmnpqrstuvwxyz';
+        const digits = '23456789';
+        const special = '!@#$%&*';
+        const all = upper + lower + digits + special;
+        // Garante pelo menos 1 de cada tipo
         let novaSenha = '';
-        for (let i = 0; i < 8; i++) {
-            novaSenha += chars.charAt(Math.floor(Math.random() * chars.length));
+        novaSenha += upper.charAt(Math.floor(Math.random() * upper.length));
+        novaSenha += lower.charAt(Math.floor(Math.random() * lower.length));
+        novaSenha += digits.charAt(Math.floor(Math.random() * digits.length));
+        novaSenha += special.charAt(Math.floor(Math.random() * special.length));
+        for (let i = 4; i < 12; i++) {
+            novaSenha += all.charAt(Math.floor(Math.random() * all.length));
         }
+        // Embaralha a senha
+        novaSenha = novaSenha.split('').sort(() => Math.random() - 0.5).join('');
 
         // Hash da nova senha
         const senhaHash = await bcrypt.hash(novaSenha, 12);
 
-        // Atualiza no banco (senha + flag de senha temporária)
-        await safeQuery('UPDATE usuarios SET senha = ?, senha_temporaria = 1 WHERE id = ?', [senhaHash, user.id]);
+        // Atualiza no banco (senha_hash + flag de senha temporária)
+        await safeQuery('UPDATE usuarios SET senha_hash = ?, senha_temporaria = 1 WHERE id = ?', [senhaHash, user.id]);
         console.log('[AUTH/ESQUECI-SENHA] ✅ Senha temporária atualizada no banco para userId:', user.id);
 
         // Carrega template de email
@@ -1618,8 +1651,8 @@ router.post('/auth/esqueci-senha', async (req, res) => {
             port: parseInt(process.env.SMTP_PORT) || 465,
             secure: true,
             auth: {
-                user: process.env.SMTP_USER || 'sistema@aluforce.ind.br',
-                pass: process.env.SMTP_PASS || 'apialuforce'
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
             },
             tls: { rejectUnauthorized: false },
             connectionTimeout: 10000,
@@ -1635,6 +1668,8 @@ router.post('/auth/esqueci-senha', async (req, res) => {
         });
 
         console.log(`[AUTH/ESQUECI-SENHA] ✅ Email de recuperação enviado para ${user.email}`);
+
+        auditLog('PASSWORD_RESET_REQUEST', user.id, `Recuperação de senha solicitada para ${user.email}`, req);
 
         res.json({ 
             success: true, 
@@ -1676,15 +1711,24 @@ router.post('/auth/forgot-password', async (req, res) => {
         const user = rows[0];
         const nome = (user.nome || email.split('@')[0]).split(' ')[0];
 
-        // Gera nova senha aleatória (8 chars)
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+        // Gera nova senha aleatória que atende à política de segurança (12 chars)
+        const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const lower = 'abcdefghjkmnpqrstuvwxyz';
+        const digits = '23456789';
+        const special = '!@#$%&*';
+        const all = upper + lower + digits + special;
         let novaSenha = '';
-        for (let i = 0; i < 8; i++) {
-            novaSenha += chars.charAt(Math.floor(Math.random() * chars.length));
+        novaSenha += upper.charAt(Math.floor(Math.random() * upper.length));
+        novaSenha += lower.charAt(Math.floor(Math.random() * lower.length));
+        novaSenha += digits.charAt(Math.floor(Math.random() * digits.length));
+        novaSenha += special.charAt(Math.floor(Math.random() * special.length));
+        for (let i = 4; i < 12; i++) {
+            novaSenha += all.charAt(Math.floor(Math.random() * all.length));
         }
+        novaSenha = novaSenha.split('').sort(() => Math.random() - 0.5).join('');
 
         const senhaHash = await bcrypt.hash(novaSenha, 12);
-        await safeQuery('UPDATE usuarios SET senha = ?, senha_temporaria = 1 WHERE id = ?', [senhaHash, user.id]);
+        await safeQuery('UPDATE usuarios SET senha_hash = ?, senha_temporaria = 1 WHERE id = ?', [senhaHash, user.id]);
 
         const templates = require('../../config/email-templates');
         const htmlContent = templates.recuperacaoSenha.html(nome, novaSenha);
@@ -1695,8 +1739,8 @@ router.post('/auth/forgot-password', async (req, res) => {
             port: parseInt(process.env.SMTP_PORT) || 465,
             secure: true,
             auth: {
-                user: process.env.SMTP_USER || 'sistema@aluforce.ind.br',
-                pass: process.env.SMTP_PASS || 'apialuforce'
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS
             },
             tls: { rejectUnauthorized: false },
             connectionTimeout: 10000,
@@ -1712,6 +1756,9 @@ router.post('/auth/forgot-password', async (req, res) => {
         });
 
         console.log(`[AUTH/FORGOT-PASSWORD] ✅ Email de recuperação enviado para ${user.email}`);
+
+        auditLog('PASSWORD_RESET_REQUEST', user.id, `Recuperação de senha (forgot-password) para ${user.email}`, req);
+
         res.json({ success: true, message: 'Nova senha enviada para o email informado.' });
 
     } catch (error) {

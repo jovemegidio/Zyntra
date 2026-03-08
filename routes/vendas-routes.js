@@ -8,8 +8,12 @@ const multer = require('multer');
 const path = require('path');
 
 module.exports = function createVendasRoutes(deps) {
-    const { pool, authenticateToken, authorizeArea, authorizeAdmin, authorizeAdminOrComercial, writeAuditLog, cacheMiddleware, CACHE_CONFIG } = deps;
+    const { pool, authenticateToken, authorizeArea, authorizeAdmin, authorizeAdminOrComercial, writeAuditLog, cacheMiddleware, CACHE_CONFIG, checkOwnership, writeGuard } = deps;
     const router = express.Router();
+
+    // Repository pattern (ARCH-008)
+    const createRepositories = require('../repositories');
+    const repos = createRepositories(pool);
 
     // Serviço compartilhado de faturamento (configuração centralizada, CFOP, numeração, admin check)
     const { getFaturamentoSharedService } = require('../services/faturamento-shared.service');
@@ -27,11 +31,32 @@ module.exports = function createVendasRoutes(deps) {
         if (!errors.isEmpty()) return res.status(400).json({ message: 'Dados inválidos', errors: errors.array() });
         next();
     };
+
+    // AUDIT-FIX SEC-001: IDOR protection for pedidos (owner = vendedor_id)
+    const pedidoOwnership = checkOwnership ? checkOwnership(pool, 'pedidos', 'vendedor_id') : (req, res, next) => next();
+
     router.use(authenticateToken);
     router.use(authorizeArea('vendas'));
+    // AUDIT-FIX PERM-004: Block mutations for consultoria/restricted roles
+    router.use(writeGuard || ((req, res, next) => next()));
+
+    // Garantir que tabela notificacoes existe (inicialização única)
+    pool.query(`
+        CREATE TABLE IF NOT EXISTS notificacoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT,
+            titulo VARCHAR(255),
+            mensagem TEXT,
+            tipo VARCHAR(50) DEFAULT 'info',
+            link VARCHAR(500),
+            dados_extras JSON,
+            lida TINYINT(1) DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `).catch(e => console.error('Erro ao criar tabela notificacoes:', e.message));
     
-    // Endpoint de KPIs para o módulo de Vendas (Admin Only)
-    router.get('/kpis', async (req, res) => {
+    // Endpoint de KPIs para o módulo de Vendas — AUDIT-FIX PERF-001: Add cache
+    router.get('/kpis', cacheMiddleware('vendas_kpis', CACHE_CONFIG.dashboardKPIs || 300000), async (req, res) => {
         try {
             // Verificar se é admin
             const isAdmin = req.user && (req.user.is_admin === 1 || req.user.role === 'admin');
@@ -158,61 +183,21 @@ module.exports = function createVendasRoutes(deps) {
     });
     
     // PEDIDOS
-    router.get('/pedidos', async (req, res, next) => {
+    router.get('/pedidos', cacheMiddleware('vendas_pedidos', 60000), async (req, res, next) => {
         try {
             const { period, page = 1, limit = 1000 } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(limit);
-            let whereClause = '';
-            let params = [];
-    
-            if (period && period !== 'all') {
-                whereClause = `WHERE p.created_at >= CURDATE() - INTERVAL ? DAY`;
-                params.push(parseInt(period));
-            }
-            params.push(parseInt(limit), offset);
-    
-            const [rows] = await pool.query(`
-                SELECT p.id, p.valor, p.valor as valor_total, p.status, p.created_at, p.created_at as data_pedido,
-                       p.vendedor_id, p.cliente_id, p.observacao,
-                       p.nf, p.numero_nf, p.nfe_chave,
-                       COALESCE(c.nome_fantasia, c.razao_social, c.nome, 'Cliente não informado') AS cliente_nome,
-                       c.email AS cliente_email, c.telefone AS cliente_telefone,
-                       e.nome_fantasia AS empresa_nome,
-                       u.nome AS vendedor_nome
-                FROM pedidos p
-                LEFT JOIN clientes c ON p.cliente_id = c.id
-                LEFT JOIN empresas e ON p.empresa_id = e.id
-                LEFT JOIN usuarios u ON p.vendedor_id = u.id
-                ${whereClause}
-                ORDER BY p.id DESC
-                LIMIT ? OFFSET ?
-            `, params);
+            const rows = await repos.pedido.list({ period, page, limit });
             res.json(rows);
         } catch (error) { next(error); }
     });
     router.get('/pedidos/search', async (req, res, next) => {
         try {
             const q = req.query.q || '';
-            const query = `%${q}%`;
-            const [rows] = await pool.query(`
-                SELECT p.id, p.valor, p.valor as valor_total, p.status, p.created_at, p.created_at as data_pedido,
-                       p.vendedor_id, p.cliente_id, p.observacao,
-                       COALESCE(c.nome_fantasia, c.razao_social, c.nome, 'Cliente não informado') AS cliente_nome,
-                       c.email AS cliente_email, c.telefone AS cliente_telefone,
-                       e.nome_fantasia AS empresa_nome,
-                       u.nome AS vendedor_nome
-                FROM pedidos p
-                LEFT JOIN clientes c ON p.cliente_id = c.id
-                LEFT JOIN empresas e ON p.empresa_id = e.id
-                LEFT JOIN usuarios u ON p.vendedor_id = u.id
-                WHERE c.nome_fantasia LIKE ? OR c.razao_social LIKE ? OR c.nome LIKE ?
-                   OR e.nome_fantasia LIKE ? OR p.id LIKE ? OR u.nome LIKE ?
-                ORDER BY p.id DESC
-            `, [query, query, query, query, query, query]);
+            const rows = await repos.pedido.search(q);
             res.json(rows);
         } catch (error) { next(error); }
     });
-    router.get('/pedidos/:id', async (req, res, next) => {
+    router.get('/pedidos/:id', pedidoOwnership, async (req, res, next) => {
         try {
             const { id } = req.params;
             const [[pedido]] = await pool.query(`
@@ -310,21 +295,6 @@ module.exports = function createVendasRoutes(deps) {
                 const nomeVendedor = req.user.nome || req.user.apelido || 'Vendedor';
                 const valorFormatado = parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-                // Garantir que tabela notificacoes existe
-                await pool.query(`
-                    CREATE TABLE IF NOT EXISTS notificacoes (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        usuario_id INT,
-                        titulo VARCHAR(255),
-                        mensagem TEXT,
-                        tipo VARCHAR(50) DEFAULT 'info',
-                        link VARCHAR(500),
-                        dados_extras JSON,
-                        lida TINYINT(1) DEFAULT 0,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                    )
-                `);
-
                 // Notificar todos os admins e supervisores sobre novo pedido
                 const [admins] = await pool.query(`
                     SELECT id FROM usuarios WHERE 
@@ -366,7 +336,7 @@ module.exports = function createVendasRoutes(deps) {
             res.status(201).json({ message: 'Pedido criado com sucesso!', id: pedidoId });
         } catch (error) { next(error); }
     });
-    router.put('/pedidos/:id', [
+    router.put('/pedidos/:id', pedidoOwnership, [
         param('id').isInt({ min: 1 }).withMessage('ID do pedido inválido'),
         body('empresa_id').isInt({ min: 1 }).withMessage('ID da empresa deve ser um número inteiro positivo'),
         body('valor').isFloat({ min: 0.01 }).withMessage('Valor deve ser um número positivo'),
@@ -460,7 +430,7 @@ module.exports = function createVendasRoutes(deps) {
     });
     
     // POST /pedidos/:id/duplicar - Duplicar pedido existente
-    router.post('/pedidos/:id/duplicar', async (req, res, next) => {
+    router.post('/pedidos/:id/duplicar', pedidoOwnership, async (req, res, next) => {
         const connection = await pool.getConnection();
         try {
             const { id } = req.params;
@@ -893,6 +863,26 @@ module.exports = function createVendasRoutes(deps) {
             }
     
             console.log(`✅ Pedido ${id} atualizado com sucesso! (${result.affectedRows} linha(s) afetada(s))`);
+
+            // Registrar histórico da alteração via PATCH
+            try {
+                const camposAlterados = Object.keys(updates).filter(k => updates[k] !== undefined).join(', ');
+                await pool.query(
+                    'INSERT INTO pedido_historico (pedido_id, usuario_id, usuario_nome, acao, descricao, meta) VALUES (?, ?, ?, ?, ?, ?)',
+                    [id, user.id || null, user.nome || user.email || 'Sistema', 'edicao',
+                     `Atualização via PATCH: ${camposAlterados}`,
+                     JSON.stringify({ campos: Object.keys(updates), status_anterior: statusAtual, status_novo: updates.status || statusAtual })]
+                ).catch(() => {
+                    // Fallback para colunas alternativas
+                    return pool.query(
+                        'INSERT INTO pedido_historico (pedido_id, descricao, acao, meta) VALUES (?, ?, ?, ?)',
+                        [id, `${user.nome || 'Sistema'}: Atualização PATCH - ${camposAlterados}`, 'edicao',
+                         JSON.stringify({ campos: Object.keys(updates) })]
+                    );
+                });
+            } catch (histErr) {
+                console.error(`[HISTORICO] Erro ao registrar histórico PATCH pedido #${id}:`, histErr.message);
+            }
     
             // ========================================
             // ESTORNO DE ESTOQUE AO CANCELAR (PATCH/Kanban)
@@ -917,18 +907,19 @@ module.exports = function createVendasRoutes(deps) {
                             );
                             if (produtos.length > 0) {
                                 const produto = produtos[0];
-                                const canceladoAnterior = parseFloat(produto.estoque_cancelado || 0);
-                                const novoCancelado = canceladoAnterior + parseFloat(mov.quantidade);
-                                await pool.query('UPDATE produtos SET estoque_cancelado = ? WHERE id = ?', [novoCancelado, produto.id]);
+                                const estoqueAnterior = parseFloat(produto.estoque_atual || 0);
+                                const qtdEstorno = parseFloat(mov.quantidade);
+                                const novoEstoque = estoqueAnterior + qtdEstorno;
+                                await pool.query('UPDATE produtos SET estoque_atual = ?, estoque_cancelado = COALESCE(estoque_cancelado, 0) + ? WHERE id = ?', [novoEstoque, qtdEstorno, produto.id]);
                                 await pool.query(`
                                     INSERT INTO estoque_movimentacoes
                                     (codigo_material, tipo_movimento, origem, quantidade, quantidade_anterior, quantidade_atual,
                                      documento_tipo, documento_id, usuario_id, observacao, data_movimento)
-                                    VALUES (?, 'entrada', 'ajuste', ?, ?, ?, 'pedido_cancelado', ?, ?, ?, NOW())
-                                `, [mov.codigo_material, mov.quantidade, canceladoAnterior, novoCancelado, id, user.id || null,
-                                    `Estorno PATCH - Cancelamento Pedido #${id} (estoque cancelado)`]);
-                                estornoEstoque.push({ produto: produto.codigo, quantidade_devolvida: parseFloat(mov.quantidade), tipo: 'cancelado' });
-                                console.log(`[ESTORNO_ESTOQUE] ${produto.codigo} - ${mov.quantidade} movido para estoque_cancelado`);
+                                    VALUES (?, 'entrada', 'estorno', ?, ?, ?, 'pedido_cancelado', ?, ?, ?, NOW())
+                                `, [mov.codigo_material, qtdEstorno, estoqueAnterior, novoEstoque, id, user.id || null,
+                                    `Estorno PATCH - Cancelamento Pedido #${id} - ${qtdEstorno} devolvido ao estoque disponivel`]);
+                                estornoEstoque.push({ produto: produto.codigo, quantidade_devolvida: qtdEstorno, tipo: 'estorno_disponivel' });
+                                console.log(`[ESTORNO_ESTOQUE] ${produto.codigo} - ${qtdEstorno} devolvido ao estoque_atual (${estoqueAnterior} -> ${novoEstoque})`);
                             }
                         }
                     } else {
@@ -940,17 +931,17 @@ module.exports = function createVendasRoutes(deps) {
                                 const produto = produtos[0];
                                 const qtd = parseFloat(item.quantidade || 0);
                                 if (qtd <= 0) continue;
-                                const canceladoAnt = parseFloat(produto.estoque_cancelado || 0);
-                                const novoCancelado = canceladoAnt + qtd;
-                                await pool.query('UPDATE produtos SET estoque_cancelado = ? WHERE id = ?', [novoCancelado, produto.id]);
+                                const estoqueAnterior = parseFloat(produto.estoque_atual || 0);
+                                const novoEstoque = estoqueAnterior + qtd;
+                                await pool.query('UPDATE produtos SET estoque_atual = ?, estoque_cancelado = COALESCE(estoque_cancelado, 0) + ? WHERE id = ?', [novoEstoque, qtd, produto.id]);
                                 await pool.query(`
                                     INSERT INTO estoque_movimentacoes
                                     (codigo_material, tipo_movimento, origem, quantidade, quantidade_anterior, quantidade_atual,
                                      documento_tipo, documento_id, usuario_id, observacao, data_movimento)
-                                    VALUES (?, 'entrada', 'ajuste', ?, ?, ?, 'pedido_cancelado', ?, ?, ?, NOW())
-                                `, [produto.codigo, qtd, canceladoAnt, novoCancelado, id, user.id || null,
-                                    `Estorno PATCH - Cancelamento Pedido #${id} - ${qtd}${item.unidade || 'UN'} (estoque cancelado)`]);
-                                estornoEstoque.push({ produto: produto.codigo, quantidade_devolvida: qtd, tipo: 'cancelado' });
+                                    VALUES (?, 'entrada', 'estorno', ?, ?, ?, 'pedido_cancelado', ?, ?, ?, NOW())
+                                `, [produto.codigo, qtd, estoqueAnterior, novoEstoque, id, user.id || null,
+                                    `Estorno PATCH - Cancelamento Pedido #${id} - ${qtd}${item.unidade || 'UN'} devolvido ao estoque`]);
+                                estornoEstoque.push({ produto: produto.codigo, quantidade_devolvida: qtd, tipo: 'estorno_disponivel' });
                             }
                         }
                     }
@@ -1084,7 +1075,7 @@ module.exports = function createVendasRoutes(deps) {
         'orçamento': ['analise', 'analise-credito', 'cancelado'],
         'analise': ['analise-credito', 'aprovado', 'orcamento', 'cancelado'],
         'analise-credito': ['aprovado', 'pedido-aprovado', 'orcamento', 'cancelado'],
-        'aprovado': ['pedido-aprovado', 'faturar', 'cancelado'],
+        'aprovado': ['pedido-aprovado', 'faturar', 'analise-credito', 'cancelado'],
         'pedido-aprovado': ['faturar', 'faturado', 'cancelado'],
         'faturar': ['faturado', 'cancelado'],
         'parcial': ['faturado', 'entregue', 'cancelado'], // Faturamento parcial pode completar ou cancelar
@@ -1165,12 +1156,7 @@ module.exports = function createVendasRoutes(deps) {
                     return res.status(403).json({ message: 'Você só pode mover seus próprios pedidos.' });
                 }
     
-                // Vendedor só pode definir status até "analise" ou cancelar seus próprios pedidos
-                const allowedForVendedor = ['orcamento', 'orçamento', 'analise', 'analise-credito', 'cancelado'];
-                if (!allowedForVendedor.includes(status)) {
-                    console.log(`❌ Vendedor tentou mover para status ${status} - apenas admin pode`);
-                    return res.status(403).json({ message: 'Apenas administradores podem mover pedidos após "Análise de Crédito".' });
-                }
+                // Permissão já verificada pelo sistema userPermissions acima
             }
     
             await connection.beginTransaction();
@@ -1426,7 +1412,7 @@ module.exports = function createVendasRoutes(deps) {
     });
     
     // EMPRESAS
-    router.get('/empresas', async (req, res, next) => {
+    router.get('/empresas', cacheMiddleware('vendas_empresas', 120000), async (req, res, next) => {
         try {
             const { page = 1, limit = 20 } = req.query;
             const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -1553,7 +1539,7 @@ module.exports = function createVendasRoutes(deps) {
     });
     
     // CLIENTES (CONTATOS)
-    router.get('/clientes', async (req, res, next) => {
+    router.get('/clientes', cacheMiddleware('vendas_clientes', 120000), async (req, res, next) => {
         try {
             const { page = 1, limit = 2000 } = req.query;
             const offset = (parseInt(page) - 1) * parseInt(limit);

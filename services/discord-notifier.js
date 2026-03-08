@@ -13,6 +13,11 @@ const path = require('path');
 
 const CHANGELOG_FILE = path.join(__dirname, '..', 'logs', 'changelog.json');
 
+let _discordBreaker;
+try {
+    _discordBreaker = require('./external-breakers').discordBreaker;
+} catch (e) { /* fallback: no circuit breaker */ }
+
 class DiscordNotifier {
     constructor() {
         this.webhookUrl = process.env.DISCORD_WEBHOOK_URL 
@@ -41,6 +46,21 @@ class DiscordNotifier {
             return false;
         }
 
+        // Circuit breaker — skip if service is known-down
+        if (_discordBreaker) {
+            try {
+                return await _discordBreaker.execute(() => this._doSendWebhook(payload));
+            } catch (e) {
+                console.warn(`⚠️  [Discord] Circuit breaker: ${e.message}`);
+                return false;
+            }
+        }
+        return this._doSendWebhook(payload);
+    }
+
+    async _doSendWebhook(payload) {
+        if (!this.webhookUrl) return false;
+
         // Respeitar rate limit
         const now = Date.now();
         if (now < this.rateLimitReset) {
@@ -49,7 +69,7 @@ class DiscordNotifier {
             await new Promise(r => setTimeout(r, wait));
         }
 
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             try {
                 const data = JSON.stringify(payload);
                 const url = new URL(this.webhookUrl);
@@ -84,33 +104,33 @@ class DiscordNotifier {
                                 const parsed = JSON.parse(body);
                                 this.rateLimitReset = Date.now() + (parsed.retry_after || 1) * 1000;
                             } catch {}
-                            resolve(false);
+                            reject(new Error('Discord rate limited'));
                         });
                     } else {
                         let body = '';
                         res.on('data', chunk => body += chunk);
                         res.on('end', () => {
                             console.warn(`⚠️  [Discord] Webhook respondeu ${res.statusCode}: ${body.substring(0, 200)}`);
-                            resolve(false);
+                            reject(new Error(`Discord webhook ${res.statusCode}`));
                         });
                     }
                 });
 
                 req.on('error', (err) => {
                     console.error('❌ [Discord] Erro de rede:', err.message);
-                    resolve(false);
+                    reject(err);
                 });
 
                 req.on('timeout', () => {
                     req.destroy();
-                    resolve(false);
+                    reject(new Error('Discord webhook timeout'));
                 });
 
                 req.write(data);
                 req.end();
             } catch (err) {
                 console.error('❌ [Discord] Erro ao enviar webhook:', err.message);
-                resolve(false);
+                reject(err);
             }
         });
     }
