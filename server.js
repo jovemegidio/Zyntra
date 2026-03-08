@@ -1747,67 +1747,9 @@ app.get('/metrics', (req, res, next) => {
 app.use('/api', requestTimeout(parseInt(process.env.REQUEST_TIMEOUT) || 30000));
 
 // =================================================================
-// ENDPOINT DE FOTO DO USUÁRIO - Busca foto pelo email
+// ENDPOINT DE FOTO DO USUÁRIO - Busca foto pelo email (autenticado)
 // =================================================================
-app.get('/api/usuarios/foto/:email', async (req, res) => {
-    try {
-        const email = decodeURIComponent(req.params.email).toLowerCase();
 
-        // Buscar dados do usuário na tabela usuarios
-        let nome = null, apelido = null, foto = null;
-        try {
-            const [usuarios] = await pool.query(
-                'SELECT foto, avatar, nome, apelido FROM usuarios WHERE LOWER(email) = ?',
-                [email]
-            );
-            if (usuarios.length > 0) {
-                nome = usuarios[0].nome;
-                apelido = usuarios[0].apelido;
-                // Priorizar foto real (não SVG), depois avatar
-                let fotoUsuario = usuarios[0].foto || null;
-                if (!fotoUsuario || fotoUsuario.endsWith('.svg')) {
-                    fotoUsuario = usuarios[0].avatar || null;
-                }
-                // Ignorar SVGs de avatar genérico
-                if (fotoUsuario && !fotoUsuario.endsWith('.svg')) {
-                    foto = fotoUsuario;
-                }
-            }
-        } catch (e) {
-            console.warn('Erro ao buscar foto em usuarios:', e.message);
-        }
-
-        // Sempre tentar buscar foto na tabela funcionarios (tem foto_perfil_url)
-        if (!foto) {
-            try {
-                const [funcionarios] = await pool.query(
-                    'SELECT foto_perfil_url, foto_thumb_url, nome_completo FROM funcionarios WHERE LOWER(email) = ? LIMIT 1',
-                    [email]
-                );
-                if (funcionarios.length > 0) {
-                    foto = funcionarios[0].foto_perfil_url || funcionarios[0].foto_thumb_url || null;
-                    if (!nome) nome = funcionarios[0].nome_completo;
-                }
-            } catch (e) {
-                console.warn('Erro ao buscar foto em funcionarios:', e.message);
-            }
-        }
-
-        if (nome || foto) {
-            return res.json({
-                success: true,
-                foto: foto,
-                nome: nome,
-                apelido: apelido || null
-            });
-        }
-
-        return res.json({ success: false, message: 'Usuário não encontrado' });
-    } catch (error) {
-        console.error('Erro ao buscar foto do usuário:', error);
-        return res.status(500).json({ success: false, error: error.message });
-    }
-});
 
 // Rota específica para módulo Vendas - APENAS recursos estáticos (CSS, JS, imagens)
 // Bloqueia acesso direto a arquivos HTML (requer autenticação via rotas específicas)
@@ -2376,6 +2318,68 @@ const authorizeAdminOrComercial = (req, res, next) => {
 // ACL: Controle de acesso detalhado por nível de usuário
 // FIX: req.user.permissions nunca é populado no JWT. Consultar permissoes_acoes no DB.
 function authorizeACL(permission) {
+    // =================================================================
+    // ENDPOINT DE FOTO DO USUÁRIO - Busca foto pelo email (autenticado)
+    // =================================================================
+    app.get('/api/usuarios/foto/:email', authenticateToken, async (req, res) => {
+        try {
+            const email = decodeURIComponent(req.params.email).toLowerCase();
+
+            // Buscar dados do usuário na tabela usuarios
+            let nome = null, apelido = null, foto = null;
+            try {
+                const [usuarios] = await pool.query(
+                    'SELECT foto, avatar, nome, apelido FROM usuarios WHERE LOWER(email) = ?',
+                    [email]
+                );
+                if (usuarios.length > 0) {
+                    nome = usuarios[0].nome;
+                    apelido = usuarios[0].apelido;
+                    // Priorizar foto real (não SVG), depois avatar
+                    let fotoUsuario = usuarios[0].foto || null;
+                    if (!fotoUsuario || fotoUsuario.endsWith('.svg')) {
+                        fotoUsuario = usuarios[0].avatar || null;
+                    }
+                    // Ignorar SVGs de avatar genérico
+                    if (fotoUsuario && !fotoUsuario.endsWith('.svg')) {
+                        foto = fotoUsuario;
+                    }
+                }
+            } catch (e) {
+                console.warn('Erro ao buscar foto em usuarios:', e.message);
+            }
+
+            // Sempre tentar buscar foto na tabela funcionarios (tem foto_perfil_url)
+            if (!foto) {
+                try {
+                    const [funcionarios] = await pool.query(
+                        'SELECT foto_perfil_url, foto_thumb_url, nome_completo FROM funcionarios WHERE LOWER(email) = ? LIMIT 1',
+                        [email]
+                    );
+                    if (funcionarios.length > 0) {
+                        foto = funcionarios[0].foto_perfil_url || funcionarios[0].foto_thumb_url || null;
+                        if (!nome) nome = funcionarios[0].nome_completo;
+                    }
+                } catch (e) {
+                    console.warn('Erro ao buscar foto em funcionarios:', e.message);
+                }
+            }
+
+            if (nome || foto) {
+                return res.json({
+                    success: true,
+                    foto: foto,
+                    nome: nome,
+                    apelido: apelido || null
+                });
+            }
+
+            return res.json({ success: false, message: 'Usuário não encontrado' });
+        } catch (error) {
+            console.error('Erro ao buscar foto do usuário:', error);
+            return res.status(500).json({ success: false, error: error.message });
+        }
+    });
     return async (req, res, next) => {
         try {
             // Admin sempre tem acesso total

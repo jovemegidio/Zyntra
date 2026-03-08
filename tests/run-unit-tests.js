@@ -82,8 +82,15 @@ async function testCircuitBreaker() {
     console.log('\n' + p2 + '/6 circuit breaker tests passed');
     if (f2 > 0) process.exit(1);
 
-    // Repository tests
+    // Repository tests (unit)
     require('./unit/repository.test.js');
+
+    // Repository integration tests (async)
+    const runIntegration = require('./unit/repository-integration.test.js');
+    await runIntegration();
+
+    // Security & middleware tests
+    require('./unit/security.test.js');
 }
 
 testCircuitBreaker().catch(e => { console.error(e); process.exit(1); });

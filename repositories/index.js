@@ -6,11 +6,17 @@
 const PedidoRepository = require('./pedido-repository');
 const FinanceiroRepository = require('./financeiro-repository');
 const ProdutoRepository = require('./produto-repository');
+const ClienteRepository = require('./cliente-repository');
+const EmpresaRepository = require('./empresa-repository');
+const UsuarioRepository = require('./usuario-repository');
 
 module.exports = function createRepositories(pool) {
     return {
         pedido: new PedidoRepository(pool),
         financeiro: new FinanceiroRepository(pool),
         produto: new ProdutoRepository(pool),
+        cliente: new ClienteRepository(pool),
+        empresa: new EmpresaRepository(pool),
+        usuario: new UsuarioRepository(pool),
     };
 };

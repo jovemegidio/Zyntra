@@ -1415,47 +1415,16 @@ module.exports = function createVendasRoutes(deps) {
     router.get('/empresas', cacheMiddleware('vendas_empresas', 120000), async (req, res, next) => {
         try {
             const { page = 1, limit = 20 } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(limit);
-    
-            // Verificar se o usuário é admin ou vendedor
             const isAdmin = req.user && (req.user.is_admin || req.user.role === 'admin' || req.user.role === 'administrador');
-    
-            let query = 'SELECT id, razao_social, nome_fantasia, cnpj, email, telefone, cidade, estado, vendedor_id, data_criacao as created_at FROM empresas';
-            let params = [];
-    
-            // Se não for admin, filtrar apenas empresas do vendedor
-            if (!isAdmin && req.user && req.user.id) {
-                query += ' WHERE vendedor_id = ? OR vendedor_id IS NULL';
-                params.push(req.user.id);
-            }
-    
-            query += ' ORDER BY nome_fantasia ASC LIMIT ? OFFSET ?';
-            params.push(parseInt(limit), offset);
-    
-            const [rows] = await pool.query(query, params);
+            const rows = await repos.empresa.list({ page, limit, isAdmin, vendedorId: req.user?.id });
             res.json(rows);
         } catch (error) { next(error); }
     });
     router.get('/empresas/search', async (req, res, next) => {
         try {
             const q = req.query.q || '';
-            const queryStr = `%${q}%`;
-    
-            // Verificar se o usuário é admin ou vendedor
             const isAdmin = req.user && (req.user.is_admin || req.user.role === 'admin' || req.user.role === 'administrador');
-    
-            let query = `SELECT id, nome_fantasia, cnpj FROM empresas WHERE (nome_fantasia LIKE ? OR razao_social LIKE ? OR cnpj LIKE ?)`;
-            let params = [queryStr, queryStr, queryStr];
-    
-            // Se não for admin, filtrar apenas empresas do vendedor
-            if (!isAdmin && req.user && req.user.id) {
-                query += ' AND (vendedor_id = ? OR vendedor_id IS NULL)';
-                params.push(req.user.id);
-            }
-    
-            query += ' ORDER BY nome_fantasia LIMIT 10';
-    
-            const [rows] = await pool.query(query, params);
+            const rows = await repos.empresa.search(q, { isAdmin, vendedorId: req.user?.id });
             res.json(rows);
         } catch (error) { next(error); }
     });
@@ -1542,39 +1511,14 @@ module.exports = function createVendasRoutes(deps) {
     router.get('/clientes', cacheMiddleware('vendas_clientes', 120000), async (req, res, next) => {
         try {
             const { page = 1, limit = 2000 } = req.query;
-            const offset = (parseInt(page) - 1) * parseInt(limit);
-    
-            // Verificar se o usuário é admin ou vendedor
             const isAdmin = req.user && (req.user.is_admin || req.user.role === 'admin' || req.user.role === 'administrador');
-    
-            let query = `
-                SELECT c.id, c.nome, c.razao_social, c.nome_fantasia, c.email, c.telefone,
-                       c.cnpj, c.cpf, c.cnpj_cpf, c.cidade, c.estado, c.ativo,
-                       c.vendedor_responsavel, c.vendedor_proprietario,
-                       c.created_at, c.data_cadastro,
-                       e.nome_fantasia AS empresa_nome
-                FROM clientes c
-                LEFT JOIN empresas e ON c.empresa_id = e.id
-            `;
-            let params = [];
-    
-            // Se não for admin, filtrar apenas clientes de empresas do vendedor
-            if (!isAdmin && req.user && req.user.id) {
-                query += ' WHERE (e.vendedor_id = ? OR e.vendedor_id IS NULL)';
-                params.push(req.user.id);
-            }
-    
-            query += ' ORDER BY c.nome ASC LIMIT ? OFFSET ?';
-            params.push(parseInt(limit), parseInt(offset));
-    
-            const [rows] = await pool.query(query, params);
+            const rows = await repos.cliente.list({ page, limit, isAdmin, vendedorId: req.user?.id });
             res.json(rows);
         } catch (error) { next(error); }
     });
     router.get('/clientes/:id', async (req, res, next) => {
         try {
-            const { id } = req.params;
-            const [[cliente]] = await pool.query('SELECT * FROM clientes WHERE id = ?', [id]);
+            const cliente = await repos.cliente.findById(req.params.id);
             if (!cliente) return res.status(404).json({ message: 'Cliente não encontrado.' });
             res.json(cliente);
         } catch (error) { next(error); }
