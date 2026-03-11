@@ -24,16 +24,20 @@ module.exports = {
     out_file: './logs/out.log',
     log_file: './logs/combined.log',
     time: true,
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     watch: !isProduction,  // Watch apenas em dev, desabilitado em produção
     watch_delay: 1000,
     max_memory_restart: '1G',
     node_args: '--max-old-space-size=4096',
     kill_timeout: 5000,
     wait_ready: true,
-    listen_timeout: 10000,
+    listen_timeout: 30000,
     autorestart: true,
     max_restarts: 10,
     min_uptime: '10s',
+    restart_delay: 3000,          // 3s delay entre restarts para evitar restart storms
+    exp_backoff_restart_delay: 1000, // Exponential backoff: 1s, 2s, 4s, 8s...
+    merge_logs: true,             // Merge logs de todos os workers do cluster
     ignore_watch: [
       'node_modules',
       'logs',

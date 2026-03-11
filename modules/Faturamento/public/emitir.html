@@ -1,13 +1,13 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Aluforce: Faturamento — Emitir NF-e</title>
     <script src="/js/auth-unified.js?v=20260204" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
     <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
@@ -270,6 +270,12 @@
 </div>
 
 <script>
+function escapeHtml(str) {
+    if (str == null) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+}
 function toggleMobileSidebar() {
     const sidebar = document.getElementById('mobile-sidebar');
     const overlay = document.getElementById('sidebar-overlay');
@@ -308,10 +314,10 @@ function renderizarItens() {
     tbody.innerHTML = itens.map((item, i) => `
         <tr>
             <td>${i+1}</td>
-            <td><input type="text" class="form-control" style="min-width:200px;" value="${item.descricao}" onchange="atualizarItem(${i},'descricao',this.value)"></td>
-            <td><input type="text" class="form-control" style="width:100px;" value="${item.ncm}" onchange="atualizarItem(${i},'ncm',this.value)"></td>
-            <td><input type="text" class="form-control" style="width:80px;" value="${item.cfop}" onchange="atualizarItem(${i},'cfop',this.value)"></td>
-            <td><input type="text" class="form-control" style="width:60px;" value="${item.unidade}" onchange="atualizarItem(${i},'unidade',this.value)"></td>
+            <td><input type="text" class="form-control" style="min-width:200px;" value="${escapeHtml(item.descricao)}" onchange="atualizarItem(${i},'descricao',this.value)"></td>
+            <td><input type="text" class="form-control" style="width:100px;" value="${escapeHtml(item.ncm)}" onchange="atualizarItem(${i},'ncm',this.value)"></td>
+            <td><input type="text" class="form-control" style="width:80px;" value="${escapeHtml(item.cfop)}" onchange="atualizarItem(${i},'cfop',this.value)"></td>
+            <td><input type="text" class="form-control" style="width:60px;" value="${escapeHtml(item.unidade)}" onchange="atualizarItem(${i},'unidade',this.value)"></td>
             <td><input type="number" class="form-control" style="width:70px;" value="${item.quantidade}" onchange="atualizarItem(${i},'quantidade',parseFloat(this.value))"></td>
             <td><input type="number" class="form-control" style="width:100px;" step="0.01" value="${item.valorUnitario}" onchange="atualizarItem(${i},'valorUnitario',parseFloat(this.value))"></td>
             <td><strong>${(item.quantidade * item.valorUnitario).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</strong></td>

@@ -19,7 +19,8 @@ router.get('/', async (req, res) => {
         const { lidas = 'todas', limite = 50 } = req.query;
 
         let query = `
-            SELECT * FROM notificacoes 
+            SELECT id, usuario_id, tipo, titulo, mensagem, lida, referencia_tipo, referencia_id, created_at
+            FROM notificacoes
             WHERE usuario_id = ?
         `;
         const params = [usuario_id];
@@ -41,6 +42,78 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /api/notificacoes/alertas
+ * Retorna alertas dos módulos do sistema (contas vencidas, pedidos pendentes, etc.)
+ */
+router.get('/alertas', async (req, res) => {
+    try {
+        const alertas = [];
+
+        // Alertas de contas a receber vencidas
+        try {
+            const [vencidas] = await pool.query(`
+                SELECT COUNT(*) as total, COALESCE(SUM(valor), 0) as valor_total
+                FROM contas_receber
+                WHERE status = 'pendente' AND vencimento < CURDATE()
+            `);
+            if (vencidas[0]?.total > 0) {
+                alertas.push({
+                    modulo: 'financeiro',
+                    titulo: `${vencidas[0].total} conta(s) a receber vencida(s)`,
+                    mensagem: `Valor total: R$ ${Number(vencidas[0].valor_total).toFixed(2).replace('.', ',')}`,
+                    tipo: 'danger',
+                    link: '/modules/Financeiro/contas-receber.html',
+                    icone: 'exclamation-triangle'
+                });
+            }
+        } catch (e) { /* tabela pode não existir */ }
+
+        // Alertas de contas a pagar vencidas
+        try {
+            const [vencidas] = await pool.query(`
+                SELECT COUNT(*) as total, COALESCE(SUM(valor), 0) as valor_total
+                FROM contas_pagar
+                WHERE status = 'pendente' AND vencimento < CURDATE()
+            `);
+            if (vencidas[0]?.total > 0) {
+                alertas.push({
+                    modulo: 'financeiro',
+                    titulo: `${vencidas[0].total} conta(s) a pagar vencida(s)`,
+                    mensagem: `Valor total: R$ ${Number(vencidas[0].valor_total).toFixed(2).replace('.', ',')}`,
+                    tipo: 'danger',
+                    link: '/modules/Financeiro/contas-pagar.html',
+                    icone: 'exclamation-triangle'
+                });
+            }
+        } catch (e) { /* tabela pode não existir */ }
+
+        // Alertas de contas vencendo em 7 dias
+        try {
+            const [vencendo] = await pool.query(`
+                SELECT COUNT(*) as total
+                FROM contas_pagar
+                WHERE status = 'pendente' AND vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+            `);
+            if (vencendo[0]?.total > 0) {
+                alertas.push({
+                    modulo: 'financeiro',
+                    titulo: `${vencendo[0].total} conta(s) vencendo em 7 dias`,
+                    mensagem: 'Verifique as contas a pagar próximas do vencimento',
+                    tipo: 'warning',
+                    link: '/modules/Financeiro/contas-pagar.html',
+                    icone: 'clock'
+                });
+            }
+        } catch (e) { /* tabela pode não existir */ }
+
+        res.json({ success: true, alertas });
+    } catch (error) {
+        console.error('[NOTIFICAÇÕES] Erro ao carregar alertas:', error);
+        res.json({ success: true, alertas: [] });
+    }
+});
+
+/**
  * GET /api/notificacoes/nao-lidas
  * Conta notificações não lidas
  */
@@ -49,7 +122,7 @@ router.get('/nao-lidas', async (req, res) => {
         const usuario_id = req.query.usuario_id || req.user?.id;
 
         const [result] = await pool.query(`
-            SELECT COUNT(*) as total FROM notificacoes 
+            SELECT COUNT(*) as total FROM notificacoes
             WHERE usuario_id = ? AND lida = 0
         `, [usuario_id]);
 
@@ -75,15 +148,15 @@ router.post('/', async (req, res) => {
         } = req.body;
 
         if (!usuario_id || !titulo) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Usuário e título são obrigatórios' 
+            return res.status(400).json({
+                success: false,
+                error: 'Usuário e título são obrigatórios'
             });
         }
 
         const [result] = await pool.query(`
             INSERT INTO notificacoes (
-                usuario_id, titulo, mensagem, tipo, link, dados_extras, 
+                usuario_id, titulo, mensagem, tipo, link, dados_extras,
                 lida, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
         `, [
@@ -95,8 +168,8 @@ router.post('/', async (req, res) => {
             dados_extras ? JSON.stringify(dados_extras) : null
         ]);
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: 'Notificação criada',
             data: { id: result.insertId }
         });
@@ -184,13 +257,13 @@ router.put('/marcar-todas-lidas', async (req, res) => {
         const usuario_id = req.body.usuario_id || req.user?.id;
 
         const [result] = await pool.query(`
-            UPDATE notificacoes SET lida = 1, lida_em = NOW() 
+            UPDATE notificacoes SET lida = 1, lida_em = NOW()
             WHERE usuario_id = ? AND lida = 0
         `, [usuario_id]);
 
-        res.json({ 
-            success: true, 
-            message: `${result.affectedRows} notificação(ões) marcada(s) como lida(s)` 
+        res.json({
+            success: true,
+            message: `${result.affectedRows} notificação(ões) marcada(s) como lida(s)`
         });
     } catch (error) {
         console.error('[NOTIFICAÇÕES] Erro ao marcar todas como lidas:', error);
@@ -225,7 +298,7 @@ router.delete('/limpar', async (req, res) => {
         const usuario_id = req.body.usuario_id || req.user?.id;
 
         const [result] = await pool.query(`
-            DELETE FROM notificacoes 
+            DELETE FROM notificacoes
             WHERE usuario_id = ? AND lida = 1 AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
         `, [usuario_id, parseInt(dias)]);
 

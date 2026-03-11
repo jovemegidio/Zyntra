@@ -32,7 +32,7 @@ function esocialAuthMiddleware(req, res, next) {
         const payload = jwt.verify(token, JWT_SECRET);
         req.user = payload;
         // Apenas usuários admin/RH podem acessar eSocial
-        const adminRoles = ['admin', 'administrador', 'rh', 'financeiro', 'diretoria', 'ti', 'analista de t.i'];
+        const { adminRoles } = require('../config/roles');
         const role = (payload.role || '').toLowerCase().trim();
         if (!adminRoles.includes(role)) {
             return res.status(403).json({ message: 'Acesso negado. Apenas RH/Admin podem acessar eSocial.' });

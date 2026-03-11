@@ -1,13 +1,13 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Aluforce: Faturamento — PIX</title>
     <script src="/js/auth-unified.js?v=20260204" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
     <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
@@ -116,7 +116,7 @@
                 <div class="card-body">
                     <div class="form-row">
                         <div class="form-group"><label>Client ID / Token *</label><input type="text" class="form-control" id="pix-client-id" placeholder="Client ID"></div>
-                        <div class="form-group"><label>Client Secret / Key *</label><input type="password" class="form-control" id="pix-client-secret" placeholder="Client Secret"></div>
+                        <div class="form-group"><label>Client Secret / Key *</label><input type="password" class="form-control" id="pix-client-secret" placeholder="Client Secret" autocomplete="new-password"></div>
                     </div>
                     <div class="form-row">
                         <div class="form-group"><label>Chave PIX</label><input type="text" class="form-control" id="pix-chave" placeholder="CPF, CNPJ, e-mail ou chave aleatória"></div>
@@ -248,6 +248,24 @@
 </div>
 
 <script>
+function escapeHtml(str) {
+    if (str == null) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+}
+function showToast(message, type) {
+    type = type || 'info';
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:400px;animation:slideIn 0.3s ease;';
+    toast.style.background = type==='success'?'#10b981':type==='error'?'#ef4444':type==='warning'?'#f59e0b':'#3b82f6';
+    var span = document.createElement('span');
+    span.textContent = message;
+    toast.appendChild(span);
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 4000);
+}
+
 function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
@@ -284,11 +302,11 @@ async function salvarConfiguracao() {
             chave_pix: document.getElementById('pix-chave').value,
             ambiente: document.getElementById('pix-ambiente').value
         })});
-        alert(r.ok ? 'Configuração salva!' : 'Erro ao salvar');
-    } catch(e) { alert('Erro de conexão'); }
+        showToast(r.ok ? 'Configuração salva!' : 'Erro ao salvar', r.ok ? 'success' : 'error');
+    } catch(e) { showToast('Erro de conexão', 'error'); }
 }
 
-function testarConexao() { alert('Testando conexão com ' + provedorSelecionado + '...'); }
+function testarConexao() { showToast('Testando conexão com ' + provedorSelecionado + '...', 'info'); }
 
 async function carregarDashboard() {
     try {
@@ -315,16 +333,16 @@ async function carregarCobrancas() {
             if (!arr.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><i class="fas fa-qrcode"></i><p>Nenhuma cobrança encontrada</p></div></td></tr>'; return; }
             tbody.innerHTML = arr.map(c => `
                 <tr>
-                    <td><span class="code">${c.id || c.txid || '-'}</span></td>
-                    <td>${c.cliente || c.devedor?.nome || '-'}</td>
+                    <td><span class="code">${escapeHtml(c.id || c.txid || '-')}</span></td>
+                    <td>${escapeHtml(c.cliente || c.devedor?.nome || '-')}</td>
                     <td><strong>${(c.valor||0).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })}</strong></td>
                     <td>${c.data_criacao ? new Date(c.data_criacao).toLocaleDateString('pt-BR') : '-'}</td>
                     <td>${c.vencimento ? new Date(c.vencimento).toLocaleDateString('pt-BR') : '-'}</td>
-                    <td><span class="badge ${c.status === 'pago' ? 'autorizada' : c.status === 'expirado' ? 'cancelada' : 'pendente'}">${c.status || '-'}</span></td>
+                    <td><span class="badge ${c.status === 'pago' ? 'autorizada' : c.status === 'expirado' ? 'cancelada' : 'pendente'}">${escapeHtml(c.status || '-')}</span></td>
                     <td>
                         <div style="display:flex;gap:4px;">
-                            <button class="action-btn view" onclick="exibirQRCode('${c.id||c.txid}')" title="QR Code"><i class="fas fa-qrcode"></i></button>
-                            <button class="action-btn" onclick="verCobranca('${c.id||c.txid}')" title="Detalhes"><i class="fas fa-eye"></i></button>
+                            <button class="action-btn view" onclick="exibirQRCode('${escapeHtml(c.id||c.txid)}')" title="QR Code"><i class="fas fa-qrcode"></i></button>
+                            <button class="action-btn" onclick="verCobranca('${escapeHtml(c.id||c.txid)}')" title="Detalhes"><i class="fas fa-eye"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -351,8 +369,8 @@ async function criarCobranca() {
                 exibirQRCodeDireto(data);
             }
             carregarCobrancas(); carregarDashboard();
-        } else { alert('Erro ao criar cobrança'); }
-    } catch(e) { alert('Erro de conexão'); }
+        } else { showToast('Erro ao criar cobrança', 'error'); }
+    } catch(e) { showToast('Erro de conexão', 'error'); }
 }
 
 async function exibirQRCode(id) {
@@ -362,7 +380,7 @@ async function exibirQRCode(id) {
             const data = await r.json();
             exibirQRCodeDireto(data);
         }
-    } catch(e) { alert('Erro ao carregar QR Code'); }
+    } catch(e) { showToast('Erro ao carregar QR Code', 'error'); }
 }
 
 function exibirQRCodeDireto(data) {
@@ -378,10 +396,10 @@ function copiarCodigoPix() {
     const input = document.getElementById('pix-codigo');
     input.select();
     document.execCommand('copy');
-    alert('Código PIX copiado!');
+    showToast('Código PIX copiado!', 'success');
 }
 
-function verCobranca(id) { alert('Detalhes da cobrança: ' + id); }
+function verCobranca(id) { showToast('Detalhes da cobrança: ' + id, 'info'); }
 
 async function carregarProvedores() {
     try {

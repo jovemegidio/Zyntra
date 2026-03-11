@@ -1,13 +1,13 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Aluforce: Faturamento — Régua de Cobrança</title>
     <script src="/js/auth-unified.js?v=20260204" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link rel="stylesheet" href="../css/faturamento-layout.css?v=20260220">
     <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
@@ -118,7 +118,7 @@
                         </div>
                         <div class="form-row">
                             <div class="form-group"><label>E-mail</label><input type="email" class="form-control" id="smtp-email" placeholder="seu@email.com"></div>
-                            <div class="form-group"><label>Senha</label><input type="password" class="form-control" id="smtp-senha" placeholder="••••••••"></div>
+                            <div class="form-group"><label>Senha</label><input type="password" class="form-control" id="smtp-senha" placeholder="••••••••" autocomplete="new-password"></div>
                         </div>
                     </div>
 
@@ -205,7 +205,7 @@
                     <h3 class="card-title"><i class="fas fa-history"></i> Histórico de Envios</h3>
                 </div>
                 <div class="card-body" style="padding:0;">
-                    <div class="activity-list" id="listaHistorico">
+                    <div class="activity-list" id="listaHistórico">
                         <div class="empty-state" style="padding:32px;"><i class="fas fa-inbox"></i><p>Nenhum envio registrado</p></div>
                     </div>
                 </div>
@@ -259,6 +259,24 @@
 </div>
 
 <script>
+function escapeHtml(str) {
+    if (str == null) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(str)));
+    return d.innerHTML;
+}
+function showToast(message, type) {
+    type = type || 'info';
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:400px;animation:slideIn 0.3s ease;';
+    toast.style.background = type==='success'?'#10b981':type==='error'?'#ef4444':type==='warning'?'#f59e0b':'#3b82f6';
+    var span = document.createElement('span');
+    span.textContent = message;
+    toast.appendChild(span);
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 4000);
+}
+
 function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
@@ -299,12 +317,12 @@ async function salvarConfig() {
                 senha: document.getElementById('smtp-senha').value
             }
         })});
-        alert(r.ok ? 'Configuração salva!' : 'Erro ao salvar');
-    } catch(e) { alert('Erro de conexão'); }
+        showToast(r.ok ? 'Configuração salva!' : 'Erro ao salvar', r.ok ? 'success' : 'error');
+    } catch(e) { showToast('Erro de conexão', 'error'); }
 }
 
 function toggleRegua() { salvarConfig(); }
-function testarSMTP() { alert('Enviando e-mail de teste...'); }
+function testarSMTP() { showToast('Enviando e-mail de teste...', 'info'); }
 
 async function carregarDashboard() {
     try {
@@ -324,7 +342,7 @@ async function carregarHistorico() {
         const r = await fetch('/api/faturamento/regua/historico', { credentials: 'include' });
         if (r.ok) {
             const list = await r.json();
-            const el = document.getElementById('listaHistorico');
+            const el = document.getElementById('listaHistórico');
             if (!Array.isArray(list) || !list.length) { el.innerHTML = '<div class="empty-state" style="padding:32px;"><i class="fas fa-inbox"></i><p>Nenhum envio registrado</p></div>'; return; }
             el.innerHTML = list.slice(0,30).map(h => `
                 <div class="activity-item">
@@ -332,10 +350,10 @@ async function carregarHistorico() {
                         <i class="fas ${h.status === 'enviado' ? 'fa-check' : h.status === 'falha' ? 'fa-times' : 'fa-clock'}"></i>
                     </div>
                     <div class="activity-info">
-                        <strong>${h.cliente || 'Cliente'}</strong> — ${h.template || 'Template'}<br>
+                        <strong>${escapeHtml(h.cliente || 'Cliente')}</strong> — ${escapeHtml(h.template || 'Template')}<br>
                         <small style="color:#94a3b8;">${h.data ? new Date(h.data).toLocaleString('pt-BR') : '-'}</small>
                     </div>
-                    <span class="badge ${h.status === 'enviado' ? 'autorizada' : h.status === 'falha' ? 'cancelada' : 'pendente'}">${h.status || '-'}</span>
+                    <span class="badge ${h.status === 'enviado' ? 'autorizada' : h.status === 'falha' ? 'cancelada' : 'pendente'}">${escapeHtml(h.status || '-')}</span>
                 </div>
             `).join('');
         }
@@ -360,18 +378,18 @@ async function salvarTemplate() {
             gatilho: document.getElementById('template-gatilho').value,
             dias: parseInt(document.getElementById('template-dias').value)
         })});
-        if (r.ok) { closeModal('modal-template'); alert('Template salvo!'); }
-        else { alert('Erro ao salvar'); }
-    } catch(e) { alert('Erro de conexão'); }
+        if (r.ok) { closeModal('modal-template'); showToast('Template salvo!', 'success'); }
+        else { showToast('Erro ao salvar', 'error'); }
+    } catch(e) { showToast('Erro de conexão', 'error'); }
 }
 
 async function executarReguaManual() {
     if (!confirm('Executar régua de cobrança agora?')) return;
     try {
         const r = await fetch('/api/faturamento/regua/executar', { method: 'POST', credentials: 'include' });
-        alert(r.ok ? 'Régua executada com sucesso!' : 'Erro na execução');
+        showToast(r.ok ? 'Régua executada com sucesso!' : 'Erro na execução', r.ok ? 'success' : 'error');
         carregarDashboard(); carregarHistorico();
-    } catch(e) { alert('Erro de conexão'); }
+    } catch(e) { showToast('Erro de conexão', 'error'); }
 }
 
 function carregarDadosUsuario() {

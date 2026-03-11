@@ -2,10 +2,11 @@
 // Load environment variables from .env when present
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const multer = require('multer');
 const mysql = require('mysql2/promise');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http');
 const { Server: IOServer } = require('socket.io');
@@ -41,6 +42,33 @@ app.use(cookieParser());
 
 // Aplicar security middleware
 app.use(securityHeaders());
+
+// CORS restritivo
+const vendasAllowedOrigins = [
+    'http://localhost:3000', 'http://localhost:5000',
+    'http://127.0.0.1:3000', 'http://127.0.0.1:5000',
+    'https://aluforce.api.br', 'https://www.aluforce.api.br',
+    'https://aluforce.ind.br', 'https://erp.aluforce.ind.br',
+    'https://www.aluforce.ind.br',
+    'http://31.97.64.102:3000', 'http://31.97.64.102',
+    'http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost',
+    process.env.CORS_ORIGIN
+].filter(Boolean);
+app.use(cors({
+    origin: function(origin, callback) {
+        if (!origin && process.env.NODE_ENV === 'development') return callback(null, true);
+        if (!origin) return callback(null, false);
+        if (vendasAllowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            callback(new Error('Origem não permitida pelo CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+}));
+
 app.use(generalLimiter);
 app.use(sanitizeInput);
 
@@ -93,13 +121,13 @@ if (process.env.NODE_ENV === 'production') {
     }
 }
 
-// Create DB pool (will attempt connection on start)
+// Pool MySQL centralizado
 let pool = null;
 let dbAvailable = false;
 try {
-    pool = mysql.createPool(DB_CONFIG);
+    pool = require('../../database/pool');
 } catch (e) {
-    console.warn('mysql.createPool failed', e && e.message ? e.message : e);
+    console.warn('database/pool.js load failed', e && e.message ? e.message : e);
     pool = null;
 }
 
@@ -405,8 +433,16 @@ app.post('/api/login', authLimiter, async (req, res, next) => {
         // AUDIT-FIX ARCH-004: Added algorithm HS256 + audience claim
         const token = jwt.sign(userDataForToken, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: '8h' });
 
-        // retorna chaves simples e compatíveis com frontend
-        return res.json({ token, user: userDataForToken });
+        // SECURITY A4: Token apenas em httpOnly cookie — NÃO expor no JSON
+        const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+        res.cookie('authToken', token, {
+            httpOnly: true,
+            secure: isHttps,
+            sameSite: isHttps ? 'strict' : 'lax',
+            path: '/',
+            maxAge: 1000 * 60 * 60 * 8 // 8h — mesma duração do JWT
+        });
+        return res.json({ success: true, user: userDataForToken });
     } catch (error) {
         next(error);
     }
@@ -417,14 +453,17 @@ const apiVendasRouter = express.Router();
 // middleware de autenticação JWT
 function authenticateToken(req, res, next) {
     try {
-        // SEGURANÇA: Aceitar token APENAS do header Authorization ou cookie
-        // NÃO aceitar token em query string (vulnerabilidade - tokens ficam em logs/histórico)
-        const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
-        let token = typeof auth === 'string' && auth.startsWith('Bearer ') ? auth.split(' ')[1] : null;
-        
-        // Se não encontrou no header, tentar pegar do cookie
-        if (!token && req.cookies) {
+        // SECURITY A4: Priorizar cookie httpOnly sobre Authorization header
+        // Isso evita que um header "Bearer null" (de localStorage vazio) impeça o cookie válido de funcionar
+        let token = null;
+        if (req.cookies) {
             token = req.cookies.authToken || req.cookies.token;
+        }
+        if (!token) {
+            const auth = req.headers && (req.headers.authorization || req.headers.Authorization);
+            if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
+                token = auth.split(' ')[1];
+            }
         }
         
         if (!token) {
@@ -830,7 +869,7 @@ apiVendasRouter.get('/kanban/pedidos', authenticateToken, async (req, res) => {
         
     } catch (err) {
         console.error('Erro ao buscar pedidos para Kanban:', err);
-        res.status(500).json({ message: 'Erro ao carregar pedidos', error: err.message });
+        res.status(500).json({ message: 'Erro ao carregar pedidos', error: process.env.NODE_ENV === 'development' ? err.message : undefined });
     }
 });
 
@@ -970,8 +1009,8 @@ async function ensurePedidoHistoricoTablePre() {
     } catch (e) { /* tabela já existe */ }
 }
 
-// Obter histórico do pedido (ANTES do middleware de auth)
-apiVendasRouter.get('/pedidos/:id/historico', async (req, res, next) => {
+// Obter histórico do pedido (SECURITY: requer autenticação)
+apiVendasRouter.get('/pedidos/:id/historico', authenticateToken, async (req, res, next) => {
     try {
         await ensurePedidoHistoricoTablePre();
         const { id } = req.params;
@@ -986,8 +1025,8 @@ apiVendasRouter.get('/pedidos/:id/historico', async (req, res, next) => {
     }
 });
 
-// Adicionar entrada ao histórico (com autenticação opcional)
-apiVendasRouter.post('/pedidos/:id/historico', async (req, res, next) => {
+// Adicionar entrada ao histórico (SECURITY: requer autenticação)
+apiVendasRouter.post('/pedidos/:id/historico', authenticateToken, async (req, res, next) => {
     try {
         await ensurePedidoHistoricoTablePre();
         const { id } = req.params;
@@ -1011,7 +1050,24 @@ apiVendasRouter.post('/pedidos/:id/historico', async (req, res, next) => {
 apiVendasRouter.use(authenticateToken);
 
 // Multer em memória para uploads temporários (limitando tamanho por arquivo e count)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const allowedMimeTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv', 'text/plain'
+];
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (allowedMimeTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Tipo de arquivo não permitido: ' + file.mimetype), false);
+        }
+    }
+});
 
 // --- ROTAS DE METAS DE VENDAS ---
 
@@ -4563,7 +4619,7 @@ apiVendasRouter.post('/clientes/:id/tags', async (req, res, next) => {
 
 apiVendasRouter.get('/tags', async (req, res, next) => {
     try {
-        const [tags] = await pool.query('SELECT * FROM cliente_tags ORDER BY nome');
+        const [tags] = await pool.query('SELECT id, nome, cor FROM cliente_tags ORDER BY nome LIMIT 500');
         res.json(tags);
     } catch (error) {
         next(error);
@@ -5581,7 +5637,7 @@ apiVendasRouter.get('/ligacoes/dispositivos', async (req, res, next) => {
         res.json(ramais);
     } catch (error) {
         console.error('Erro ao listar ramais CDR:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno' });
     }
 });
 
@@ -5616,7 +5672,7 @@ apiVendasRouter.get('/ligacoes/cdr', async (req, res, next) => {
         });
     } catch (error) {
         console.error('Erro ao buscar CDR:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno' });
     }
 });
 
@@ -5628,7 +5684,7 @@ apiVendasRouter.get('/ligacoes/cdr-entrada', async (req, res, next) => {
         res.json({ total: 0, chamadas: [], mensagem: 'Relatório de chamadas recebidas via DID - em implementação' });
     } catch (error) {
         console.error('Erro ao buscar CDR entrada:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno' });
     }
 });
 
@@ -5639,7 +5695,7 @@ apiVendasRouter.get('/ligacoes/online', async (req, res, next) => {
         res.json({ total: 0, chamadas: [] });
     } catch (error) {
         console.error('Erro ao buscar chamadas online:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno' });
     }
 });
 
@@ -5660,7 +5716,7 @@ apiVendasRouter.get('/ligacoes/resumo', async (req, res, next) => {
         res.json(resumo);
     } catch (error) {
         console.error('Erro ao gerar resumo de ligações:', error.message);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno' });
     }
 });
 
@@ -6002,7 +6058,7 @@ app.get('/api/notifications', (req, res) => {
     });
 });
 
-app.post('/api/notifications/:id/read', express.json(), (req, res) => {
+app.post('/api/notifications/:id/read', authenticateToken, express.json(), (req, res) => {
     const notifications = loadNotifications();
     const id = parseInt(req.params.id);
     const notification = notifications.find(n => n.id === id);
@@ -6013,14 +6069,14 @@ app.post('/api/notifications/:id/read', express.json(), (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/notifications/read-all', (req, res) => {
+app.post('/api/notifications/read-all', authenticateToken, (req, res) => {
     const notifications = loadNotifications();
     notifications.forEach(n => n.read = true);
     saveNotifications(notifications);
     res.json({ success: true });
 });
 
-app.delete('/api/notifications/:id', (req, res) => {
+app.delete('/api/notifications/:id', authenticateToken, (req, res) => {
     let notifications = loadNotifications();
     const id = parseInt(req.params.id);
     notifications = notifications.filter(n => n.id !== id);
@@ -6029,7 +6085,7 @@ app.delete('/api/notifications/:id', (req, res) => {
 });
 
 // Rota para criar notificação (uso interno/admin)
-app.post('/api/notifications', express.json(), (req, res) => {
+app.post('/api/notifications', authenticateToken, express.json(), (req, res) => {
     const { type, title, message, data } = req.body;
     const notification = createNotification(type || 'info', title, message, data);
     res.json(notification);
@@ -6041,7 +6097,7 @@ global.createNotification = createNotification;
 // ==============================================
 // ROTA PÚBLICA DE PEDIDOS (PARA PÁGINA GESTÃO)
 // ==============================================
-app.get('/api/pedidos', async (req, res) => {
+app.get('/api/pedidos', authenticateToken, async (req, res) => {
     try {
         if (!dbAvailable || !pool) {
             return res.json([]);
@@ -6219,7 +6275,20 @@ const startServer = async () => {
     const server = http.createServer(app);
 
     try {
-        io = new IOServer(server, { cors: { origin: process.env.CORS_ORIGIN || true, methods: ['GET','POST'], credentials: true } });
+        const socketAllowedOrigins = [
+            'http://localhost:3000', 'http://localhost:5000',
+            'http://127.0.0.1:3000', 'http://127.0.0.1:5000',
+            'https://aluforce.api.br', 'https://www.aluforce.api.br',
+            'https://aluforce.ind.br', 'https://erp.aluforce.ind.br',
+            'https://www.aluforce.ind.br',
+            'http://31.97.64.102:3000', 'http://31.97.64.102',
+            'http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost',
+            process.env.CORS_ORIGIN
+        ].filter(Boolean);
+        io = new IOServer(server, { cors: { origin: function(origin, cb) {
+            if (!origin || socketAllowedOrigins.includes(origin)) return cb(null, true);
+            cb(new Error('CORS: Origem não permitida'));
+        }, methods: ['GET','POST'], credentials: true } });
 
     io.on('connection', (socket) => {
             try {

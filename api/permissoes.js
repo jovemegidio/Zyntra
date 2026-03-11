@@ -16,7 +16,7 @@ let authenticateToken;
 router.get('/perfis', async (req, res) => {
     try {
         const [perfis] = await pool.query(`
-            SELECT * FROM perfis_permissao ORDER BY nome
+            SELECT id, nome, descricao, permissoes, ativo, created_at FROM perfis_permissao ORDER BY nome LIMIT 200
         `);
         res.json({ success: true, data: perfis });
     } catch (error) {

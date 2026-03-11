@@ -5,7 +5,7 @@ const mysql = require('mysql2')
 const multer = require('multer') // upload de arquivos
 const sharp = require('sharp')
 const fs = require('fs')
-const bcrypt = require('bcrypt')
+const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { body, validationResult } = require('express-validator')
 const rateLimit = require('express-rate-limit')
@@ -21,6 +21,7 @@ const {
     securityHeaders,
     cleanExpiredSessions
 } = require('../../security-middleware');
+const { adminRoles, adminUsers, rolesGestao } = require('./config/roles');
 
 const app = express()
 const PORT = process.env.PORT_RH || process.env.PORT || 3004
@@ -60,18 +61,8 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process
   process.exit(1)
 }
 
-// --- POOL DE CONEXÕES (ÚNICA FONTE DE CONEXÃO) ---
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'aluforce_vendas',
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,
-  charset: 'utf8mb4',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-}).promise(); // Habilita suporte a async/await
+// Pool MySQL centralizado
+const pool = require('../../database/pool')
 
 // Compat: objeto 'db' que roteia para pool (mantém compatibilidade com código callback-style)
 const db = {
@@ -182,12 +173,7 @@ function imageFileFilter (req, file, cb) {
 
 const upload = multer({ storage, fileFilter: imageFileFilter, limits: { fileSize: 5 * 1024 * 1024 } }) // 5MB
 
-// --- LISTA DE ROLES CONSIDERADOS ADMIN ---
-// include common variants so tokens/users using 'admin' or localized labels are recognized
-const adminRoles = ['analista de t.i', 'rh', 'financeiro', 'diretoria', 'ti', 'admin', 'administrador', 'superadmin']
-
-// --- USUÁRIOS ESPECÍFICOS COM ACESSO ADMIN ---
-const adminUsers = ['andreia', 'rh', 'ti', 'douglas', 'hellen', 'junior', 'financeiro2', 'financeiro3', 'adm']
+// Roles e usuários admin carregados de config/roles.js
 
 // Helper to check admin role in a normalized way
 function isAdminRole (role) {
@@ -205,8 +191,6 @@ function isGestorOuAdminUser (user) {
 
   const role = String(user.role || '').toLowerCase().trim()
   const cargo = String(user.cargo || '').toLowerCase().trim()
-  const rolesGestao = ['gestor', 'gerente', 'coordenador', 'supervisor', 'lider', 'líder', 'lideranca', 'liderança']
-
   return rolesGestao.includes(role) || rolesGestao.includes(cargo)
 }
 // Campos extras que o admin pode gerenciar (adicionados via migration)
@@ -2056,7 +2040,7 @@ app.get('/api/rh/dashboard/charts', authMiddleware, async (req, res) => {
 app.get('/api/rh/centro-custo', authMiddleware, async (req, res) => {
   try {
     const centros = await dbQuery(
-      'SELECT * FROM centro_custo WHERE ativo = TRUE ORDER BY codigo'
+      'SELECT id, codigo, nome, descricao, ativo FROM centro_custo WHERE ativo = TRUE ORDER BY codigo LIMIT 500'
     );
     res.json(centros || []);
   } catch (error) {
@@ -2623,7 +2607,7 @@ app.get('/api/rh/ponto/dashboard', authMiddleware, async (req, res) => {
 app.get('/api/rh/jornadas', authMiddleware, async (req, res) => {
   try {
     const jornadas = await dbQuery(
-      'SELECT * FROM jornada_trabalho WHERE ativo = TRUE ORDER BY nome'
+      'SELECT id, nome, carga_horaria, entrada, saida, intervalo, ativo FROM jornada_trabalho WHERE ativo = TRUE ORDER BY nome LIMIT 500'
     );
     res.json(jornadas);
   } catch (error) {

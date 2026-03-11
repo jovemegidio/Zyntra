@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 
 // Importar security middleware
 const {
@@ -20,36 +21,63 @@ app.use(generalLimiter);
 app.use(sanitizeInput);
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:3000', 'http://localhost:5000',
+            'http://127.0.0.1:3000', 'http://127.0.0.1:5000',
+            'https://aluforce.api.br', 'https://www.aluforce.api.br',
+            'https://aluforce.ind.br', 'https://erp.aluforce.ind.br',
+            'https://www.aluforce.ind.br',
+            'http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost',
+            process.env.CORS_ORIGIN
+        ].filter(Boolean);
+        if (!origin && process.env.NODE_ENV === 'development') return callback(null, true);
+        if (!origin) return callback(null, false);
+        if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            callback(new Error('Origem não permitida pelo CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Servir arquivos estáticos
-app.use('/modules/Faturamento/public', express.static(path.join(__dirname, 'public')));
+app.use('/modules/Faturamento/public', express.static(path.join(__dirname, 'public'), { dotfiles: 'deny', index: false }));
 
-// Criar pool MySQL para uso standalone
-const mysql = require('mysql2/promise');
-const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'aluforce',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-});
+// Pool MySQL centralizado
+const pool = require('../../database/pool');
 
-// Middleware de autenticação simplificado para modo standalone
+// CRITICAL: JWT_SECRET must be defined — no hardcoded fallback
 const jwt = require('jsonwebtoken');
+if (!process.env.JWT_SECRET) {
+    console.error('❌ ERRO FATAL [Faturamento]: JWT_SECRET não definido no .env');
+    process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
+
 const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    // SECURITY A4: Check cookies FIRST, then Authorization header
+    let token = req.cookies?.authToken || req.cookies?.token || null;
+    if (!token) {
+        const authHeader = req.headers['authorization'];
+        token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    }
     if (!token) return res.status(401).json({ error: 'Token não fornecido' });
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'aluforce-secret');
+        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
         req.user = decoded;
         next();
     } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            return res.status(401).json({ error: 'Token expirado. Faça login novamente.' });
+        }
         return res.status(403).json({ error: 'Token inválido' });
     }
 };
