@@ -3279,13 +3279,12 @@ app.post('/api/rh/folha/calcular', authMiddleware, async (req, res) => {
       
       // Buscar salário REAL do funcionário na tabela
       const [salarioRows] = await pool.query(
-        'SELECT salario_base, salario FROM funcionarios WHERE id = ?',
+        'SELECT salario_base, salario, nome_completo FROM funcionarios WHERE id = ?',
         [func.id]
       );
       const salarioBase = parseFloat(salarioRows[0]?.salario_base || salarioRows[0]?.salario || 0);
       if (salarioBase <= 0) {
-        logger.warn(`[FOLHA] Funcionário ID ${func.id} sem salário cadastrado - ignorando`);
-        continue;
+        logger.warn(`[FOLHA] Funcionário ID ${func.id} (${salarioRows[0]?.nome_completo || 'N/A'}) sem salário cadastrado - criando holerite com salário zerado`);
       }
       
       // Calcular INSS

@@ -102,6 +102,246 @@ let rhidTokenCache = {
     }
 })();
 
+// ==================== AUTO-SYNC ENGINE ====================
+let autoSyncTimer = null;
+
+async function consolidarMarcacoesParaControlePonto(dataInicio, dataFim) {
+    /**
+     * Converte registros de ponto_marcacoes para controle_ponto
+     * Agrupa por funcionario_id + data, mapeia as 4 marcações do dia
+     */
+    try {
+        const query = `
+            SELECT pm.funcionario_id, pm.data, pm.hora, pm.tipo
+            FROM ponto_marcacoes pm
+            WHERE pm.funcionario_id IS NOT NULL
+              AND pm.data >= ? AND pm.data <= ?
+            ORDER BY pm.funcionario_id, pm.data, pm.hora ASC
+        `;
+        const [marcacoes] = await pool.query(query, [dataInicio, dataFim]);
+
+        if (marcacoes.length === 0) return 0;
+
+        // Agrupar por funcionario_id + data
+        const grupos = {};
+        for (const m of marcacoes) {
+            const key = m.funcionario_id + '_' + m.data.toISOString().split('T')[0];
+            if (!grupos[key]) {
+                grupos[key] = { funcionario_id: m.funcionario_id, data: m.data.toISOString().split('T')[0], marcacoes: [] };
+            }
+            grupos[key].marcacoes.push({ hora: m.hora, tipo: m.tipo });
+        }
+
+        let consolidados = 0;
+        for (const key of Object.keys(grupos)) {
+            const g = grupos[key];
+            const marks = g.marcacoes;
+
+            // Mapear: 1ª=entrada_manha, 2ª=saida_almoco, 3ª=entrada_tarde, 4ª=saida_final
+            const entrada_manha = marks[0] ? marks[0].hora : null;
+            const saida_almoco = marks[1] ? marks[1].hora : null;
+            const entrada_tarde = marks[2] ? marks[2].hora : null;
+            const saida_final = marks[3] ? marks[3].hora : null;
+
+            try {
+                // INSERT ... ON DUPLICATE KEY UPDATE (unique_funcionario_data)
+                await pool.query(`
+                    INSERT INTO controle_ponto (funcionario_id, data, entrada_manha, saida_almoco, entrada_tarde, saida_final, tipo_registro)
+                    VALUES (?, ?, ?, ?, ?, ?, 'normal')
+                    ON DUPLICATE KEY UPDATE
+                        entrada_manha = COALESCE(VALUES(entrada_manha), entrada_manha),
+                        saida_almoco = COALESCE(VALUES(saida_almoco), saida_almoco),
+                        entrada_tarde = COALESCE(VALUES(entrada_tarde), entrada_tarde),
+                        saida_final = COALESCE(VALUES(saida_final), saida_final)
+                `, [g.funcionario_id, g.data, entrada_manha, saida_almoco, entrada_tarde, saida_final]);
+                consolidados++;
+            } catch (err) {
+                console.error('[Consolidar] Erro func=' + g.funcionario_id + ' data=' + g.data + ':', err.message);
+            }
+        }
+
+        console.log('[Consolidar] ' + consolidados + ' registros consolidados de ponto_marcacoes -> controle_ponto');
+        return consolidados;
+    } catch (err) {
+        console.error('[Consolidar] Erro geral:', err.message);
+        return 0;
+    }
+}
+
+async function executarAutoSync() {
+    try {
+        console.log('[RHiD Auto-Sync] Iniciando sincronização automática...');
+
+        // Buscar config
+        const [rows] = await pool.query(
+            'SELECT rhid_email, rhid_password, rhid_auto_sync, rhid_sync_interval FROM controlid_config WHERE ativo = TRUE AND rhid_enabled = TRUE AND rhid_auto_sync = TRUE ORDER BY id DESC LIMIT 1'
+        );
+        if (rows.length === 0) {
+            console.log('[RHiD Auto-Sync] Auto-sync desabilitado ou não configurado');
+            return;
+        }
+
+        const config = rows[0];
+        const email = config.rhid_email;
+        const password = Buffer.from(config.rhid_password, 'base64').toString();
+
+        // Sincronizar o dia de hoje (e ontem para pegar marcações tardias)
+        const hoje = new Date();
+        const ontem = new Date(hoje);
+        ontem.setDate(ontem.getDate() - 1);
+
+        const dateStart = ontem.toISOString().split('T')[0];
+        const dateEnd = hoje.toISOString().split('T')[0];
+
+        console.log('[RHiD Auto-Sync] Período: ' + dateStart + ' a ' + dateEnd);
+
+        // 1. Autenticar
+        const token = await rhidLogin(email, password);
+
+        // 2. Buscar funcionários do RHiD
+        const persons = await rhidApiCall('customerdb/person', 'a', 'GET', null, email, password);
+        const personList = Array.isArray(persons) ? persons : (persons && persons.data ? persons.data : (persons && persons.result ? persons.result : []));
+        const activePersons = personList.filter(function(p) { return p.status === 1; });
+
+        if (activePersons.length === 0) {
+            console.log('[RHiD Auto-Sync] Nenhum funcionário ativo no RHiD');
+            return;
+        }
+
+        // 3. Buscar marcações
+        const personIds = activePersons.map(function(p) { return p.id; });
+        const ini = dateStart.replace(/-/g, '');
+        const fim = dateEnd.replace(/-/g, '');
+
+        let allRecords = [];
+        const BATCH_SIZE = 20;
+
+        for (let i = 0; i < personIds.length; i += BATCH_SIZE) {
+            const batch = personIds.slice(i, i + BATCH_SIZE);
+            try {
+                const apuracao = await rhidApiCall('report', 'apuracao_ponto', 'POST', {
+                    idPerson: batch, ini: ini, fim: fim
+                }, email, password);
+
+                const apuracaoList = Array.isArray(apuracao) ? apuracao : (apuracao && apuracao.data ? apuracao.data : (apuracao && apuracao.result ? apuracao.result : []));
+
+                if (Array.isArray(apuracaoList)) {
+                    for (const dayRecord of apuracaoList) {
+                        if (dayRecord.listAfdtManutencao && dayRecord.listAfdtManutencao.length > 0) {
+                            for (const punch of dayRecord.listAfdtManutencao) {
+                                if (punch.oculto) continue;
+                                const parsed = rhidParseDateTime(punch.dateTimeStr);
+                                if (!parsed.data || !parsed.hora) continue;
+                                allRecords.push({
+                                    pis: dayRecord.pis ? String(dayRecord.pis) : null,
+                                    nome: dayRecord.name,
+                                    data: parsed.data,
+                                    hora: parsed.hora,
+                                    tipo: rhidClassToTipo(punch._typeClassification, punch._typeEntradaSaida)
+                                });
+                            }
+                        }
+                    }
+                }
+            } catch (batchErr) {
+                console.error('[RHiD Auto-Sync] Erro batch:', batchErr.message);
+            }
+        }
+
+        console.log('[RHiD Auto-Sync] ' + allRecords.length + ' marcações encontradas');
+
+        if (allRecords.length === 0) return;
+
+        // 4. Resolver funcionários locais
+        const [funcionariosLocais] = await pool.query(
+            'SELECT id, nome_completo, pis_pasep FROM funcionarios WHERE (status = "Ativo" OR ativo = 1)'
+        );
+        const funcPorPis = {};
+        const funcPorNome = {};
+        for (const func of funcionariosLocais) {
+            if (func.pis_pasep) funcPorPis[String(func.pis_pasep).replace(/[.\-]/g, '')] = func;
+            if (func.nome_completo) funcPorNome[func.nome_completo.toUpperCase().trim()] = func;
+        }
+
+        let successCount = 0, duplicateCount = 0;
+
+        for (const record of allRecords) {
+            try {
+                // Verificar duplicata
+                const [existing] = await pool.query(
+                    'SELECT id FROM ponto_marcacoes WHERE pis = ? AND data = ? AND hora = ?',
+                    [record.pis, record.data, record.hora]
+                );
+                if (existing.length > 0) { duplicateCount++; continue; }
+
+                // Resolver funcionario_id
+                let funcId = null;
+                const pisClean = record.pis ? String(record.pis).replace(/[.\-]/g, '') : null;
+                if (pisClean && funcPorPis[pisClean]) {
+                    funcId = funcPorPis[pisClean].id;
+                } else if (record.nome) {
+                    const nomeUp = record.nome.toUpperCase().trim();
+                    if (funcPorNome[nomeUp]) {
+                        funcId = funcPorNome[nomeUp].id;
+                    } else {
+                        const partes = nomeUp.split(' ');
+                        for (const key of Object.keys(funcPorNome)) {
+                            if (partes[0] && key.indexOf(partes[0]) === 0 && partes.length > 1 && key.indexOf(partes[partes.length - 1]) >= 0) {
+                                funcId = funcPorNome[key].id;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                await pool.query(
+                    'INSERT INTO ponto_marcacoes (funcionario_id, pis, data, hora, tipo, origem, observacao, criado_em) VALUES (?, ?, ?, ?, ?, \'rhid_cloud\', ?, NOW())',
+                    [funcId, record.pis, record.data, record.hora, record.tipo, record.nome ? 'Auto-sync: ' + record.nome : null]
+                );
+                successCount++;
+            } catch (err) {
+                // Ignora erros individuais (duplicatas por unique key, etc)
+            }
+        }
+
+        // 5. Consolidar ponto_marcacoes -> controle_ponto
+        await consolidarMarcacoesParaControlePonto(dateStart, dateEnd);
+
+        // 6. Atualizar last_sync
+        await pool.query('UPDATE controlid_config SET rhid_last_sync = NOW() WHERE ativo = TRUE LIMIT 1');
+
+        console.log('[RHiD Auto-Sync] Concluído: ' + successCount + ' novos, ' + duplicateCount + ' duplicados');
+    } catch (err) {
+        console.error('[RHiD Auto-Sync] Erro:', err.message);
+    }
+}
+
+async function iniciarAutoSync() {
+    try {
+        const [rows] = await pool.query(
+            'SELECT rhid_auto_sync, rhid_sync_interval FROM controlid_config WHERE ativo = TRUE AND rhid_enabled = TRUE ORDER BY id DESC LIMIT 1'
+        );
+
+        if (rows.length > 0 && rows[0].rhid_auto_sync) {
+            const intervalMin = rows[0].rhid_sync_interval || 30;
+            console.log('[RHiD Auto-Sync] Ativado - intervalo: ' + intervalMin + ' minutos');
+
+            if (autoSyncTimer) clearInterval(autoSyncTimer);
+            autoSyncTimer = setInterval(executarAutoSync, intervalMin * 60 * 1000);
+
+            // Executar imediatamente na primeira vez
+            setTimeout(executarAutoSync, 10000); // 10s após boot
+        } else {
+            console.log('[RHiD Auto-Sync] Desabilitado');
+        }
+    } catch (e) {
+        console.error('[RHiD Auto-Sync] Erro ao iniciar:', e.message);
+    }
+}
+
+// Iniciar auto-sync 15 segundos após o boot do servidor
+setTimeout(iniciarAutoSync, 15000);
+
 // ==================== RHID CLOUD HELPERS ====================
 
 /**
@@ -269,6 +509,9 @@ router.post('/rhid/config', authenticateToken, async (req, res) => {
 
         // Limpar cache do token
         rhidTokenCache = { token: null, expiresAt: 0, customerId: null, customerDomain: null, maxUsers: null };
+
+        // Reiniciar auto-sync se configuração mudou
+        iniciarAutoSync();
 
         res.json({ success: true, message: 'Configuração RHiD salva com sucesso' });
     } catch (error) {
@@ -662,6 +905,13 @@ router.post('/rhid/sync', authenticateToken, async (req, res) => {
 
         console.log('[RHiD Sync] Concluído: ' + successCount + ' importados, ' + duplicateCount + ' duplicados, ' + errorCount + ' erros');
 
+        // Consolidar marcações para controle_ponto (tabela usada pelos dashboards/relatórios)
+        try {
+            await consolidarMarcacoesParaControlePonto(dateStart, dateEnd);
+        } catch (consErr) {
+            console.error('[RHiD Sync] Erro ao consolidar:', consErr.message);
+        }
+
         res.json({
             success: true,
             summary: {
@@ -850,6 +1100,11 @@ router.post('/import', authenticateToken, async (req, res) => {
             await pool.query('INSERT INTO ponto_importacoes (data_inicio, data_fim, total_registros, registros_sucesso, registros_duplicados, registros_erro, origem, usuario_id, ip_equipamento, status, criado_em) VALUES (?, ?, ?, ?, ?, ?, \'control_id\', ?, ?, \'concluido\', NOW())', [dateStart, dateEnd, filteredRecords.length, successCount, duplicateCount, errorCount, req.user ? req.user.id : null, ip]);
         } catch (e) { /* ok */ }
 
+        // Consolidar marcações para controle_ponto
+        try {
+            await consolidarMarcacoesParaControlePonto(dateStart, dateEnd);
+        } catch (consErr) { /* ok */ }
+
         res.json({ success: true, summary: { total: filteredRecords.length, success: successCount, duplicates: duplicateCount, errors: errorCount }, records: filteredRecords.slice(0, 100) });
     } catch (error) {
         console.error('[Control iD] Erro na importação:', error.message);
@@ -879,6 +1134,13 @@ router.post('/ponto/import', authenticateToken, async (req, res) => {
         try {
             await pool.query('INSERT INTO ponto_importacoes (data_inicio, data_fim, total_registros, registros_sucesso, registros_duplicados, registros_erro, origem, usuario_id, status, criado_em) VALUES (?, ?, ?, ?, ?, ?, \'arquivo_afd\', ?, \'concluido\', NOW())', [dateStart || null, dateEnd || null, records.length, successCount, duplicateCount, errorCount, req.user ? req.user.id : null]);
         } catch (e) { /* ok */ }
+
+        // Consolidar marcações para controle_ponto
+        try {
+            if (dateStart && dateEnd) {
+                await consolidarMarcacoesParaControlePonto(dateStart, dateEnd);
+            }
+        } catch (consErr) { /* ok */ }
 
         res.json({ success: true, summary: { total: records.length, success: successCount, duplicates: duplicateCount, errors: errorCount }, records: records.slice(0, 100) });
     } catch (error) {
