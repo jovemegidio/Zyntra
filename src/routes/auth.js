@@ -265,12 +265,86 @@ router.post('/login', validate(schemas.login), async (req, res) => {
         }
 
         // Seleciona o usuário (busca por email OU login)
-        const [rows] = await safeQuery('SELECT * FROM usuarios WHERE email = ? OR login = ? ORDER BY id ASC LIMIT 1', [email, email.split('@')[0]]);
+        let [rows] = await safeQuery('SELECT * FROM usuarios WHERE email = ? OR login = ? ORDER BY id ASC LIMIT 1', [email, email.split('@')[0]]);
+
+        // ========================================
+        // CPF LOGIN SYNC: Sincronizar dados quando usuario é encontrado
+        // via campo login mas com email diferente do funcionarios
+        // ========================================
+        if (rows.length && isCpfLogin) {
+            const foundUser = rows[0];
+            const foundByLogin = foundUser.email !== email && foundUser.login === email.split('@')[0];
+            if (foundByLogin) {
+                try {
+                    const [funcSync] = await safeQuery(
+                        `SELECT nome_completo, email, senha, foto_perfil_url
+                         FROM funcionarios
+                         WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
+                         LIMIT 1`,
+                        [cpf]
+                    );
+                    if (funcSync.length) {
+                        const f = funcSync[0];
+                        // Sincronizar senha do funcionarios → usuarios (para que a senha usada no RH funcione)
+                        if (f.senha) {
+                            await safeQuery(
+                                `UPDATE usuarios SET senha_hash = ?, password_hash = ? WHERE id = ?`,
+                                [f.senha, f.senha, foundUser.id]
+                            );
+                        }
+                        // Sincronizar foto se usuarios tem NULL
+                        if ((!foundUser.foto || !foundUser.avatar) && f.foto_perfil_url) {
+                            await safeQuery(
+                                `UPDATE usuarios SET foto = COALESCE(foto, ?), avatar = COALESCE(avatar, ?) WHERE id = ?`,
+                                [f.foto_perfil_url, f.foto_perfil_url, foundUser.id]
+                            );
+                        }
+                        console.log(`[AUTH/LOGIN] 🔄 CPF login sync: ${foundUser.login} (usuarios.email=${foundUser.email}, func.email=${f.email})`);
+                        // Re-query para pegar dados atualizados
+                        [rows] = await safeQuery('SELECT * FROM usuarios WHERE id = ?', [foundUser.id]);
+                    }
+                } catch (syncErr) {
+                    console.error('[AUTH/LOGIN] ⚠️ CPF sync failed:', syncErr.message);
+                }
+            }
+        }
+
+        // ========================================
+        // AUTO-PROVISIONING: CPF login sem usuario
+        // Se o funcionário tem CPF e senha mas não tem registro em usuarios,
+        // cria automaticamente a conta a partir dos dados de funcionarios.
+        // ========================================
+        if (!rows.length && isCpfLogin) {
+            try {
+                const [funcData] = await safeQuery(
+                    `SELECT nome_completo, email, senha, foto_perfil_url, cargo, departamento
+                     FROM funcionarios
+                     WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?
+                     LIMIT 1`,
+                    [cpf]
+                );
+                if (funcData.length && funcData[0].senha) {
+                    const f = funcData[0];
+                    const loginName = f.email ? f.email.split('@')[0] : null;
+                    await safeQuery(
+                        `INSERT INTO usuarios (nome, email, senha_hash, password_hash, role, avatar, foto, login, senha_temporaria, status)
+                         VALUES (?, ?, ?, ?, 'user', ?, ?, ?, 0, 'ativo')`,
+                        [f.nome_completo, f.email, f.senha, f.senha, f.foto_perfil_url || null, f.foto_perfil_url || null, loginName]
+                    );
+                    console.log(`[AUTH/LOGIN] ✅ Auto-provisioned usuarios record for CPF login: ${f.email}`);
+                    // Re-query to get the newly created user
+                    [rows] = await safeQuery('SELECT * FROM usuarios WHERE email = ? ORDER BY id ASC LIMIT 1', [f.email]);
+                }
+            } catch (provisionErr) {
+                console.error('[AUTH/LOGIN] ⚠️ Auto-provision failed:', provisionErr.message);
+            }
+        }
+
         if (!rows.length) {
             // ACCOUNT LOCKOUT: registrar tentativa falha mesmo sem usuário encontrado
             recordFailedLogin(email);
             // AUDIT-FIX SEC-007: Generic message prevents user enumeration
-            return res.status(401).json({ message: 'Email ou senha incorretos.' });
+            return res.status(401).json({ message: isCpfLogin ? 'CPF ou senha incorretos.' : 'Email ou senha incorretos.' });
         }
         const user = rows[0];
 
@@ -365,7 +439,7 @@ router.post('/login', validate(schemas.login), async (req, res) => {
                 });
             }
             // AUDIT-FIX SEC-007: Same message as user-not-found to prevent enumeration
-            return res.status(401).json({ message: 'Email ou senha incorretos.' });
+            return res.status(401).json({ message: isCpfLogin ? 'CPF ou senha incorretos.' : 'Email ou senha incorretos.' });
         }
 
         // ACCOUNT LOCKOUT: login bem-sucedido, resetar contador

@@ -397,7 +397,7 @@ module.exports = function createAuthSectionRoutes(deps) {
                             f.data_admissao as data_admissao,
                             f.id as matricula
                      FROM usuarios u
-                     LEFT JOIN funcionarios f ON u.email = f.email
+                     LEFT JOIN funcionarios f ON (u.email = f.email OR u.login = SUBSTRING_INDEX(f.email, '@', 1))
                      WHERE u.id = ?`,
                     [user.id]
                 );
