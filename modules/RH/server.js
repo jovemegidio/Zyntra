@@ -8,8 +8,8 @@ const fs = require('fs')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const { body, validationResult } = require('express-validator')
-const helmet = require('helmet')
 const rateLimit = require('express-rate-limit')
+const cookieParser = require('cookie-parser')
 require('dotenv').config()
 
 // Importar security middleware centralizado
@@ -23,7 +23,7 @@ const {
 } = require('../../security-middleware');
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT_RH || process.env.PORT || 3004
 // JWT_SECRET deve vir OBRIGATORIAMENTE do .env
 const JWT_SECRET = process.env.JWT_SECRET
 if (!JWT_SECRET) {
@@ -38,6 +38,11 @@ const { maskCPF } = require('../../src/helpers');
 function maskSensitiveLog(obj) {
   if (!obj || typeof obj !== 'object') return obj;
   const out = { ...obj };
+  // Remover campos de senha/hash
+  delete out.senha;
+  delete out.senha_hash;
+  delete out.password_hash;
+  delete out.password;
   if (out.cpf) out.cpf = maskCPF(out.cpf).replace(/(\d{3})\.(\d{3})\.(\d{3})-(\d{2})/, '$1.***.***-$4');
   if (out.banco) out.banco = '***';
   if (out.agencia) out.agencia = '***';
@@ -55,22 +60,11 @@ if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process
   process.exit(1)
 }
 
-// --- CONFIGURAÇÍO DA LIGAÇÁO À BASE DE DADOS ---
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'aluforce_vendas',
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,
-  charset: 'utf8mb4',
-  collation: 'utf8mb4_unicode_ci'
-})
-
-// --- POOL DE CONEXÕES PARA QUERIES ASSÍNCRONAS ---
+// --- POOL DE CONEXÕES (ÚNICA FONTE DE CONEXÃO) ---
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS || process.env.DB_PASSWORD || '',
+  password: process.env.DB_PASS || process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'aluforce_vendas',
   port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,
   charset: 'utf8mb4',
@@ -79,34 +73,41 @@ const pool = mysql.createPool({
   queueLimit: 0
 }).promise(); // Habilita suporte a async/await
 
-db.connect((err) => {
-  if (err) {
-    logger.error('ERRO AO LIGAR-SE À BASE DE DADOS:', err)
-    process.exit(1)
+// Compat: objeto 'db' que roteia para pool (mantém compatibilidade com código callback-style)
+const db = {
+  query: (sql, params, callback) => {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+    pool.query(sql, params || [])
+      .then(([results, fields]) => callback(null, results, fields))
+      .catch(err => callback(err));
   }
-  logger.info('Ligado com sucesso à base de dados MySQL "aluforce_vendas".')
-  
-  // Garantir charset UTF-8 para nomes com acentos (António, Trovão, etc.)
-  db.query('SET NAMES utf8mb4', (charsetErr) => {
-    if (charsetErr) logger.error('Erro ao definir charset UTF-8:', charsetErr)
-    else logger.info('Charset UTF-8mb4 configurado para a conexão.')
-  })
-  
-  // Ensure avisos_lidos table exists for persisting per-user read state
-  const ensureSql = `CREATE TABLE IF NOT EXISTS avisos_lidos (
+};
+
+// Inicialização: validar conexão e criar tabelas
+(async () => {
+  try {
+    await pool.query('SET NAMES utf8mb4');
+    logger.info('Ligado com sucesso à base de dados MySQL "aluforce_vendas".');
+    logger.info('Charset UTF-8mb4 configurado para a conexão.');
+  } catch (err) {
+    logger.error('ERRO AO LIGAR-SE À BASE DE DADOS:', err);
+    process.exit(1);
+  }
+
+  // Garantir tabelas auxiliares
+  const ensureTables = [
+    { name: 'avisos_lidos', sql: `CREATE TABLE IF NOT EXISTS avisos_lidos (
         id INT AUTO_INCREMENT PRIMARY KEY,
         aviso_id INT NOT NULL,
         funcionario_id INT NOT NULL,
         lido_at DATETIME NOT NULL,
         UNIQUE KEY unico_aviso_funcionario (aviso_id, funcionario_id),
         INDEX idx_funcionario (funcionario_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
-  db.query(ensureSql, (e) => {
-    if (e) logger.error('Não foi possível garantir a existência da tabela avisos_lidos:', e)
-    else logger.info('Tabela avisos_lidos pronta.')
-  })
-  // Ensure atéstados table exists (compatible with RHH.sql and tolerant to slightly different schemas)
-  const ensureAtestados = `CREATE TABLE IF NOT EXISTS atéstados (
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` },
+    { name: 'atéstados', sql: `CREATE TABLE IF NOT EXISTS atéstados (
         id INT AUTO_INCREMENT PRIMARY KEY,
         funcionario_id INT NOT NULL,
         data_atestado DATE,
@@ -115,51 +116,50 @@ db.connect((err) => {
         arquivo_url VARCHAR(255) NOT NULL,
         data_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
-  db.query(ensureAtestados, (e2) => {
-    if (e2) logger.error('Não foi possível garantir a existência da tabela atéstados:', e2)
-    else logger.info('Tabela atéstados pronta (ou já existente).')
-  })
-  // Ensure holerites table exists (admin uploads of holerites per funcionário)
-  const ensureHolerites = `CREATE TABLE IF NOT EXISTS holerites (
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` },
+    { name: 'holerites', sql: `CREATE TABLE IF NOT EXISTS holerites (
         id INT AUTO_INCREMENT PRIMARY KEY,
         funcionario_id INT NOT NULL,
         competencia VARCHAR(10) DEFAULT NULL,
         arquivo_url VARCHAR(255) NOT NULL,
         data_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
-  db.query(ensureHolerites, (e3) => {
-    if (e3) logger.error('Não foi possível garantir a existência da tabela holerites:', e3)
-    else logger.info('Tabela holerites pronta (ou já existente).')
-  })
-
-  // Ensure espelhos_ponto table exists (RH uploads espelho de ponto por funcionário)
-  const ensureEspelhos = `CREATE TABLE IF NOT EXISTS espelhos_ponto (
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` },
+    { name: 'espelhos_ponto', sql: `CREATE TABLE IF NOT EXISTS espelhos_ponto (
         id INT AUTO_INCREMENT PRIMARY KEY,
         funcionario_id INT NOT NULL,
         competencia VARCHAR(10) DEFAULT NULL,
         arquivo_url VARCHAR(255) NOT NULL,
         data_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
-  db.query(ensureEspelhos, (e4) => {
-    if (e4) logger.error('Não foi possível garantir a existência da tabela espelhos_ponto:', e4)
-    else logger.info('Tabela espelhos_ponto pronta (ou já existente).')
-  })
-})
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4` }
+  ];
 
-// Small promise wrapper for db.query
-function dbQuery (sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.query(sql, params, (err, results) => {
-      if (err) return reject(err)
-      resolve(results)
-    })
-  })
+  for (const t of ensureTables) {
+    try {
+      await pool.query(t.sql);
+      logger.info(`Tabela ${t.name} pronta (ou já existente).`);
+    } catch (e) {
+      logger.error(`Não foi possível garantir a existência da tabela ${t.name}:`, e);
+    }
+  }
+})();
+
+// Promise wrapper — agora usa pool em vez de createConnection
+async function dbQuery (sql, params = []) {
+  const [results] = await pool.query(sql, params);
+  return results;
 }
 
 // --- CONFIGURAÇÍO DO UPLOAD DE FICHEIROS (MULTER) ---
+// AUDIT-FIX: Safe filename helper — strips unsafe chars from extension and id
+function safeUploadFilename(prefix, req, file) {
+  const idPart = req.params && req.params.id ? String(req.params.id).replace(/\D/g, '') || '0' : '0'
+  const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
+  const ext = path.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '')
+  return `${prefix}-${idPart}-${uniqueSuffix}${ext}`
+}
+
 // Multer storage + file filter (only images) + limits
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -168,9 +168,7 @@ const storage = multer.diskStorage({
     cb(null, uploadPath)
   },
   filename: (req, file, cb) => {
-    const idPart = req.params && req.params.id ? String(req.params.id) : 'unknown'
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
-    cb(null, `funcionario-${idPart}-${uniqueSuffix}${path.extname(file.originalname)}`)
+    cb(null, safeUploadFilename('funcionario', req, file))
   }
 })
 
@@ -200,6 +198,17 @@ function isAdminUser (user) {
   if (!user) return false
   return isAdminRole(user.role)
 }
+
+function isGestorOuAdminUser (user) {
+  if (!user) return false
+  if (isAdminUser(user)) return true
+
+  const role = String(user.role || '').toLowerCase().trim()
+  const cargo = String(user.cargo || '').toLowerCase().trim()
+  const rolesGestao = ['gestor', 'gerente', 'coordenador', 'supervisor', 'lider', 'líder', 'lideranca', 'liderança']
+
+  return rolesGestao.includes(role) || rolesGestao.includes(cargo)
+}
 // Campos extras que o admin pode gerenciar (adicionados via migration)
 const adminAllowedFields = [
   'nacionalidade', 'naturalidade', 'filiacao_mae', 'filiacao_pai', 'dados_conjuge',
@@ -215,12 +224,42 @@ const adminAllowedFields = [
 ]
 
 // --- MIDDLEWARES ---
-app.use(helmet())
-app.use(cors())
+app.use(securityHeaders())
+app.use(cors({
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:3000', 'http://localhost:5000',
+            'http://127.0.0.1:3000', 'http://127.0.0.1:5000',
+            'https://aluforce.api.br', 'https://www.aluforce.api.br',
+            'https://aluforce.ind.br', 'https://erp.aluforce.ind.br',
+            'https://www.aluforce.ind.br',
+            'http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost',
+            process.env.CORS_ORIGIN
+        ].filter(Boolean)
+        if (!origin && process.env.NODE_ENV === 'development') return callback(null, true)
+        if (!origin) return callback(null, false)
+        if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+            callback(null, true)
+        } else {
+            callback(new Error('Origem não permitida pelo CORS'))
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+}))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use(cookieParser())
 
-app.use(express.static(path.join(__dirname, 'public')))
+// Favicon Zyntra
+app.get('/favicon.ico', (req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=2592000, immutable');
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.sendFile(path.join(__dirname, 'public', 'favicon-zyntra.jpg'));
+});
+
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'deny', index: false }))
 
 // === Integração da API eSocial ===
 const esocialApi = require('./api/esocial-api');
@@ -263,7 +302,8 @@ app.get('/area.html', (req, res) => {
 // Helper: gerar token e middleware
 function generateToken (user) {
   // AUDIT-FIX ARCH-004: Added algorithm HS256 + audience claim
-  return jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: '8h' })
+  // AUDIT-FIX: 15 min to match main auth access token expiry (was 8h)
+  return jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: '15m' })
 }
 
 // Development helper: generate a JWT signed with the server's secret.
@@ -281,7 +321,7 @@ if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEBUG_ENDPOINTS
         httpOnly: true,
         secure: false, // dev mode
         sameSite: 'lax',
-        maxAge: 8 * 60 * 60 * 1000
+        maxAge: 15 * 60 * 1000
     })
     return res.json({ success: true, message: 'Token gerado e armazenado em cookie' })
   })
@@ -289,9 +329,16 @@ if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEBUG_ENDPOINTS
 }
 
 function authMiddleware (req, res, next) {
-  const auth = req.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ message: 'Token ausente.' })
-  const token = auth.split(' ')[1]
+  // SECURITY A4: Check cookie FIRST, then Authorization header
+  let token = null
+  if (req.cookies) {
+    token = req.cookies.authToken || req.cookies.token || null
+  }
+  if (!token) {
+    const auth = req.headers.authorization
+    if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ message: 'Token ausente.' })
+    token = auth.split(' ')[1]
+  }
   try {
     // AUDIT-FIX ARCH-004: Enforce HS256 algorithm (audience enforced in sign, verify-side after token rotation)
     const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] })
@@ -305,9 +352,18 @@ function authMiddleware (req, res, next) {
 // optionalAuth: tries to verify a Bearer token but doesn't fail if absent/invalid.
 // When a valid token is present it sets req.user, otherwise continues without user.
 function optionalAuth (req, res, next) {
-  const auth = req.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) return next()
-  const token = auth.split(' ')[1]
+  // SECURITY A4: Check cookie first, then Authorization header
+  let token = null
+  if (req.cookies) {
+    token = req.cookies.authToken || req.cookies.token || null
+  }
+  if (!token) {
+    const auth = req.headers.authorization
+    if (auth && auth.startsWith('Bearer ')) {
+      token = auth.split(' ')[1]
+    }
+  }
+  if (!token) return next()
   try {
     // AUDIT-FIX ARCH-004: Enforce HS256 algorithm (audience enforced in sign, verify-side after token rotation)
     const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] })
@@ -355,9 +411,8 @@ app.post('/api/login', loginLimiter, (req, res) => {
     const statusUsuario = (usuario.status || '').toLowerCase().trim()
     if (statusUsuario === 'inativo' || statusUsuario === 'desligado' || statusUsuario === 'demitido') {
       // Mascarar CPF se presente
-      const logUser = { ...usuario };
-      if (logUser.cpf) logUser.cpf = maskCPF(logUser.cpf).replace(/(\d{3})\.(\d{3})\.(\d{3})-(\d{2})/, '$1.***.***-$4');
-      logger.warn(`Tentativa de login de usuário inativo: ${logUser.email} (status: ${logUser.status})`, logUser)
+      const logUser = maskSensitiveLog(usuario);
+      logger.warn(`Tentativa de login de usuário inativo: ${logUser.email} (status: ${logUser.status})`)
       return res.status(403).json({ 
         message: 'Acesso bloqueado. Seu cadastro está inativo no sistema. Entre em contato com o RH.',
         code: 'USER_INACTIVE'
@@ -423,7 +478,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        maxAge: 8 * 60 * 60 * 1000 // 8 horas
+        maxAge: 15 * 60 * 1000
     })
     res.json({ message: 'Login bem-sucedido!', success: true, userData: safeUser })
   })
@@ -748,9 +803,7 @@ const atéstadoStorage = multer.diskStorage({
     cb(null, uploadPath)
   },
   filename: (req, file, cb) => {
-    const idPart = req.params && req.params.id ? String(req.params.id) : 'unknown'
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
-    cb(null, `atéstado-${idPart}-${uniqueSuffix}${path.extname(file.originalname)}`)
+    cb(null, safeUploadFilename('atestado', req, file))
   }
 })
 
@@ -799,9 +852,7 @@ const holeriteStorage = multer.diskStorage({
     cb(null, uploadPath)
   },
   filename: (req, file, cb) => {
-    const idPart = req.params && req.params.id ? String(req.params.id) : 'unknown'
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
-    cb(null, `holerite-${idPart}-${uniqueSuffix}${path.extname(file.originalname)}`)
+    cb(null, safeUploadFilename('holerite', req, file))
   }
 })
 
@@ -2005,7 +2056,7 @@ app.get('/api/rh/dashboard/charts', authMiddleware, async (req, res) => {
 app.get('/api/rh/centro-custo', authMiddleware, async (req, res) => {
   try {
     const centros = await dbQuery(
-      'SELECT * FROM centro_custo WHERE ativo = TRUE ORDER BY código'
+      'SELECT * FROM centro_custo WHERE ativo = TRUE ORDER BY codigo'
     );
     res.json(centros || []);
   } catch (error) {
@@ -2022,15 +2073,18 @@ app.post('/api/rh/centro-custo', authMiddleware, async (req, res) => {
       return res.status(403).json({ message: 'Acesso negado. Apenas administradores podem criar centros de custo.' });
     }
     
-    const { código, descrição, departamento, responsavel_id, orçamento_mensal } = req.body;
+    const codigo = req.body.codigo ?? req.body['código'];
+    const descricao = req.body.descricao ?? req.body['descrição'];
+    const { departamento, responsavel_id } = req.body;
+    const orcamento_mensal = req.body.orcamento_mensal ?? req.body['orçamento_mensal'];
     
-    if (!código || !descrição) {
+    if (!codigo || !descricao) {
       return res.status(400).json({ message: 'Código e descrição são obrigatórios' });
     }
 
     const result = await dbQuery(
-      'INSERT INTO centro_custo (código, descrição, departamento, responsavel_id, orçamento_mensal, ativo) VALUES (?, ?, ?, ?, ?, TRUE)',
-      [código, descrição, departamento || null, responsavel_id || null, orçamento_mensal || null]
+      'INSERT INTO centro_custo (codigo, descricao, departamento, responsavel_id, orcamento_mensal, ativo) VALUES (?, ?, ?, ?, ?, TRUE)',
+      [codigo, descricao, departamento || null, responsavel_id || null, orcamento_mensal || null]
     );
 
     res.status(201).json({ id: result.insertId, message: 'Centro de custo criado com sucesso' });
@@ -2588,7 +2642,6 @@ app.post('/api/rh/jornadas', authMiddleware, async (req, res) => {
     
     const {
       nome,
-      descrição,
       entrada_manha,
       saida_almoco,
       entrada_tarde,
@@ -2599,6 +2652,7 @@ app.post('/api/rh/jornadas', authMiddleware, async (req, res) => {
       tolerancia_saida,
       dias_trabalho
     } = req.body;
+    const descricao = req.body.descricao ?? req.body['descrição'];
 
     if (!nome || !entrada_manha || !saida_final) {
       return res.status(400).json({ message: 'Dados incompletos' });
@@ -2606,9 +2660,9 @@ app.post('/api/rh/jornadas', authMiddleware, async (req, res) => {
 
     const result = await dbQuery(
       `INSERT INTO jornada_trabalho 
-       (nome, descrição, entrada_manha, saida_almoco, entrada_tarde, saida_final, carga_horaria_diaria, carga_horaria_semanal, tolerancia_atraso, tolerancia_saida, dias_trabalho)
+       (nome, descricao, entrada_manha, saida_almoco, entrada_tarde, saida_final, carga_horaria_diaria, carga_horaria_semanal, tolerancia_atraso, tolerancia_saida, dias_trabalho)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [nome, descrição || null, entrada_manha, saida_almoco || null, entrada_tarde || null, saida_final, carga_horaria_diaria || 8, carga_horaria_semanal || 40, tolerancia_atraso || 10, tolerancia_saida || 10, dias_trabalho ? JSON.stringify(dias_trabalho) : null]
+      [nome, descricao || null, entrada_manha, saida_almoco || null, entrada_tarde || null, saida_final, carga_horaria_diaria || 8, carga_horaria_semanal || 40, tolerancia_atraso || 10, tolerancia_saida || 10, dias_trabalho ? JSON.stringify(dias_trabalho) : null]
     );
 
     res.status(201).json({ id: result.insertId, message: 'Jornada criada com sucesso' });
@@ -3341,6 +3395,74 @@ app.get('/api/rh/folha/listar', authMiddleware, async (req, res) => {
   }
 });
 
+// PUT /api/rh/folha/:id/fechar - Fechar folha e criar conta a pagar no Financeiro
+const axios = require('axios');
+app.put('/api/rh/folha/:id/fechar', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({ error: 'Apenas administradores podem fechar folha.' });
+  }
+  const folhaId = req.params.id;
+  try {
+    // Buscar folha
+    const [folhaRows] = await pool.query('SELECT * FROM rh_folhas_pagamento WHERE id = ?', [folhaId]);
+    if (folhaRows.length === 0) {
+      return res.status(404).json({ error: 'Folha não encontrada' });
+    }
+    const folha = folhaRows[0];
+    if (folha.status === 'fechada') {
+      return res.status(400).json({ error: 'Folha já está fechada' });
+    }
+
+    // Calcular valor total da folha (soma dos salários líquidos dos holerites)
+    const [holerites] = await pool.query('SELECT salario_liquido FROM rh_holerites WHERE folha_id = ?', [folhaId]);
+    const valorTotal = holerites.reduce((acc, h) => acc + parseFloat(h.salario_liquido || 0), 0);
+    if (valorTotal <= 0) {
+      return res.status(400).json({ error: 'Folha sem holerites ou valor total zero' });
+    }
+
+    // Atualizar status da folha para "fechada"
+    await pool.query("UPDATE rh_folhas_pagamento SET status = 'fechada', fechado_em = NOW() WHERE id = ?", [folhaId]);
+
+    // Montar dados para Financeiro
+    const descricao = `Folha de Pagamento ${folha.mes}/${folha.ano}`;
+    const data_emissao = new Date().toISOString().slice(0, 10);
+    // Vencimento: 5º dia útil do mês seguinte
+    const ano = folha.ano;
+    const mes = folha.mes;
+    const vencimentoDate = new Date(ano, mes, 5); // JS: mês 0-based, mas queremos o mês seguinte
+    let data_vencimento = vencimentoDate.toISOString().slice(0, 10);
+
+    // Token JWT do usuário atual para autenticar no Financeiro
+    const token = req.cookies?.authToken || req.cookies?.token || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
+    if (!token) {
+      return res.status(401).json({ error: 'Token de autenticação não encontrado para integração Financeiro.' });
+    }
+
+    // Chamar API do Financeiro
+    const financeiroUrl = process.env.FINANCEIRO_URL || 'http://localhost:3006/api/financeiro/contas-pagar';
+    const payload = {
+      descricao,
+      valor_total: valorTotal,
+      data_emissao,
+      data_vencimento,
+      observacoes: `Folha RH integrada automaticamente. Folha ID: ${folhaId}`
+    };
+    const headers = { Authorization: `Bearer ${token}` };
+    let financeiroResp;
+    try {
+      financeiroResp = await axios.post(financeiroUrl, payload, { headers });
+    } catch (err) {
+      logger.error('Erro ao integrar com Financeiro:', err?.response?.data || err.message);
+      return res.status(500).json({ error: 'Erro ao criar conta a pagar no Financeiro', details: err?.response?.data || err.message });
+    }
+
+    res.json({ success: true, folha_id: folhaId, valor_total: valorTotal, financeiro: financeiroResp.data });
+  } catch (error) {
+    logger.error('Erro ao fechar folha:', error);
+    res.status(500).json({ error: 'Erro ao fechar folha', details: error.message });
+  }
+});
+
 // GET /api/rh/holerite/:id - Buscar holerite específico
 app.get('/api/rh/holerite/:id', authMiddleware, async (req, res) => {
   try {
@@ -3451,22 +3573,388 @@ app.put('/api/rh/holerite/:id', authMiddleware, async (req, res) => {
 
 // POST /api/rh/holerite/:id/item - Adicionar item ao holerite
 app.post('/api/rh/holerite/:id/item', authMiddleware, async (req, res) => {
-  const { tipo, código, descrição, referencia, valor } = req.body;
+  const { tipo, referencia, valor } = req.body;
+  const codigo = req.body.codigo ?? req.body['código'];
+  const descricao = req.body.descricao ?? req.body['descrição'];
   
-  if (!tipo || !descrição || !valor) {
+  if (!tipo || !descricao || !valor) {
     return res.status(400).json({ error: 'tipo, descrição e valor são obrigatórios' });
   }
   
   try {
     await pool.query(
-      'INSERT INTO rh_holerite_itens (holerite_id, tipo, código, descrição, referencia, valor) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.params.id, tipo, código, descrição, referencia, valor]
+      'INSERT INTO rh_holerite_itens (holerite_id, tipo, codigo, descricao, referencia, valor) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.params.id, tipo, codigo, descricao, referencia, valor]
     );
     
     res.json({ success: true });
   } catch (error) {
     logger.error('Erro ao adicionar item:', error);
     res.status(500).json({ error: 'Erro ao adicionar item' });
+  }
+});
+
+// ============ HOLERITES (plural) - ROTAS PARA GESTÃO DE HOLERITES ============
+
+// Ensure visualizacoes and confirmacao columns exist
+const ensureHoleritesColumns = `
+  ALTER TABLE rh_holerites
+    ADD COLUMN IF NOT EXISTS visualizado TINYINT(1) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS total_visualizacoes INT DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS confirmado_recebimento TINYINT(1) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS arquivo_pdf VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'rascunho',
+    ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'salario'
+`;
+db.query(ensureHoleritesColumns, (e) => {
+  if (e && !e.message?.includes('Duplicate')) logger.warn('Aviso ao ajustar colunas rh_holerites:', e.message);
+});
+
+// GET /api/rh/holerites/eventos/padrao - Eventos padrão para holerite
+app.get('/api/rh/holerites/eventos/padrao', authMiddleware, async (req, res) => {
+  res.json({
+    proventos: [
+      { codigo: '001', descricao: 'Salário Base', referencia: '220h' },
+      { codigo: '002', descricao: 'Horas Extras 50%', referencia: '' },
+      { codigo: '003', descricao: 'Horas Extras 100%', referencia: '' },
+      { codigo: '004', descricao: 'Adicional Noturno', referencia: '' },
+      { codigo: '005', descricao: 'Insalubridade', referencia: '' },
+      { codigo: '006', descricao: 'Periculosidade', referencia: '' },
+      { codigo: '007', descricao: 'Comissão', referencia: '' },
+      { codigo: '008', descricao: 'Gratificação', referencia: '' },
+      { codigo: '009', descricao: 'DSR', referencia: '' }
+    ],
+    descontos: [
+      { codigo: '101', descricao: 'INSS', referencia: '' },
+      { codigo: '102', descricao: 'IRRF', referencia: '' },
+      { codigo: '103', descricao: 'Vale Transporte (6%)', referencia: '' },
+      { codigo: '104', descricao: 'Vale Refeição', referencia: '' },
+      { codigo: '105', descricao: 'Plano de Saúde', referencia: '' },
+      { codigo: '106', descricao: 'Plano Odontológico', referencia: '' },
+      { codigo: '107', descricao: 'Pensão Alimentícia', referencia: '' },
+      { codigo: '108', descricao: 'Adiantamento', referencia: '' },
+      { codigo: '109', descricao: 'Faltas/Atrasos', referencia: '' }
+    ]
+  });
+});
+
+// GET /api/rh/holerites - Listar holerites com filtros (ADMIN)
+app.get('/api/rh/holerites', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { funcionario_id, mes, ano, status, tipo } = req.query;
+  try {
+    let query = `
+      SELECT h.*, f.nome AS funcionario_nome, f.cargo, f.departamento,
+        COALESCE(h.tipo, fp.tipo, 'salario') AS tipo,
+        COALESCE(h.status, fp.status, 'rascunho') AS status,
+        fp.mes, fp.ano
+      FROM rh_holerites h
+      LEFT JOIN funcionarios f ON h.funcionario_id = f.id
+      LEFT JOIN rh_folhas_pagamento fp ON h.folha_id = fp.id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (funcionario_id) { query += ' AND h.funcionario_id = ?'; params.push(funcionario_id); }
+    if (mes) { query += ' AND (fp.mes = ? OR h.id > 0 AND fp.mes = ?)'; params.push(mes, mes); }
+    if (ano) { query += ' AND fp.ano = ?'; params.push(ano); }
+    if (status) { query += ' AND (h.status = ? OR fp.status = ?)'; params.push(status, status); }
+    if (tipo) { query += ' AND (h.tipo = ? OR fp.tipo = ?)'; params.push(tipo, tipo); }
+    query += ' ORDER BY fp.ano DESC, fp.mes DESC, f.nome';
+
+    const [holerites] = await pool.query(query, params);
+
+    // Stats
+    const total = holerites.length;
+    const publicados = holerites.filter(h => h.status === 'publicado').length;
+    const visualizados = holerites.filter(h => h.visualizado).length;
+    const naoVisualizados = publicados - visualizados;
+
+    res.json({
+      holerites,
+      stats: { total, publicados, visualizados, naoVisualizados }
+    });
+  } catch (error) {
+    logger.error('Erro ao listar holerites:', error);
+    res.status(500).json({ error: 'Erro ao listar holerites' });
+  }
+});
+
+// GET /api/rh/holerites/:id - Buscar holerite por id (plural alias)
+app.get('/api/rh/holerites/:id', authMiddleware, async (req, res) => {
+  // Avoid matching named subroutes
+  if (isNaN(req.params.id)) return res.status(404).json({ error: 'Rota não encontrada' });
+  try {
+    const [holerite] = await pool.query(`
+      SELECT h.*, f.nome AS funcionario_nome, f.cargo, f.departamento, fp.mes, fp.ano,
+        COALESCE(h.tipo, fp.tipo, 'salario') AS tipo,
+        COALESCE(h.status, fp.status, 'rascunho') AS status
+      FROM rh_holerites h
+      LEFT JOIN funcionarios f ON h.funcionario_id = f.id
+      LEFT JOIN rh_folhas_pagamento fp ON h.folha_id = fp.id
+      WHERE h.id = ?
+    `, [req.params.id]);
+    if (holerite.length === 0) return res.status(404).json({ error: 'Holerite não encontrado' });
+
+    const [itens] = await pool.query('SELECT * FROM rh_holerite_itens WHERE holerite_id = ?', [req.params.id]);
+    const proventos = itens.filter(i => i.tipo === 'provento');
+    const descontos = itens.filter(i => i.tipo === 'desconto');
+
+    res.json({ ...holerite[0], proventos, descontos, itens });
+  } catch (error) {
+    logger.error('Erro ao buscar holerite:', error);
+    res.status(500).json({ error: 'Erro ao buscar holerite' });
+  }
+});
+
+// POST /api/rh/holerites - Criar holerite manual
+app.post('/api/rh/holerites', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { funcionario_id, mes, ano, salario_base, total_proventos, total_descontos, salario_liquido, proventos, descontos, status, tipo } = req.body;
+  if (!funcionario_id || !mes || !ano) return res.status(400).json({ error: 'funcionario_id, mes e ano são obrigatórios' });
+  try {
+    // Buscar ou criar folha
+    let [folhas] = await pool.query('SELECT id FROM rh_folhas_pagamento WHERE mes=? AND ano=? LIMIT 1', [mes, ano]);
+    let folha_id;
+    if (folhas.length > 0) {
+      folha_id = folhas[0].id;
+    } else {
+      const [result] = await pool.query(
+        'INSERT INTO rh_folhas_pagamento (mes, ano, tipo, status) VALUES (?, ?, ?, ?)',
+        [mes, ano, tipo || 'salario', 'rascunho']
+      );
+      folha_id = result.insertId;
+    }
+
+    const [result] = await pool.query(`
+      INSERT INTO rh_holerites (folha_id, funcionario_id, salario_base, total_proventos, total_descontos, salario_liquido, status, tipo)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [folha_id, funcionario_id, salario_base || 0, total_proventos || 0, total_descontos || 0, salario_liquido || 0, status || 'rascunho', tipo || 'salario']);
+
+    const holeriteId = result.insertId;
+
+    // Inserir itens
+    if (proventos?.length) {
+      for (const p of proventos) {
+        await pool.query('INSERT INTO rh_holerite_itens (holerite_id, tipo, codigo, descricao, referencia, valor) VALUES (?,?,?,?,?,?)',
+          [holeriteId, 'provento', p.codigo, p.descricao, p.referencia, p.valor || 0]);
+      }
+    }
+    if (descontos?.length) {
+      for (const d of descontos) {
+        await pool.query('INSERT INTO rh_holerite_itens (holerite_id, tipo, codigo, descricao, referencia, valor) VALUES (?,?,?,?,?,?)',
+          [holeriteId, 'desconto', d.codigo, d.descricao, d.referencia, d.valor || 0]);
+      }
+    }
+
+    res.json({ success: true, id: holeriteId, message: 'Holerite criado com sucesso!' });
+  } catch (error) {
+    logger.error('Erro ao criar holerite:', error);
+    res.status(500).json({ error: 'Erro ao criar holerite' });
+  }
+});
+
+// PUT /api/rh/holerites/:id - Atualizar holerite
+app.put('/api/rh/holerites/:id', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { salario_base, total_proventos, total_descontos, salario_liquido, proventos, descontos, status, tipo } = req.body;
+  try {
+    const updates = [];
+    const params = [];
+    if (salario_base !== undefined) { updates.push('salario_base=?'); params.push(salario_base); }
+    if (total_proventos !== undefined) { updates.push('total_proventos=?'); params.push(total_proventos); }
+    if (total_descontos !== undefined) { updates.push('total_descontos=?'); params.push(total_descontos); }
+    if (salario_liquido !== undefined) { updates.push('salario_liquido=?'); params.push(salario_liquido); }
+    if (status) { updates.push('status=?'); params.push(status); }
+    if (tipo) { updates.push('tipo=?'); params.push(tipo); }
+
+    if (updates.length > 0) {
+      params.push(req.params.id);
+      await pool.query(`UPDATE rh_holerites SET ${updates.join(', ')} WHERE id=?`, params);
+    }
+
+    // Atualizar itens se fornecidos
+    if (proventos || descontos) {
+      await pool.query('DELETE FROM rh_holerite_itens WHERE holerite_id=?', [req.params.id]);
+      if (proventos?.length) {
+        for (const p of proventos) {
+          await pool.query('INSERT INTO rh_holerite_itens (holerite_id, tipo, codigo, descricao, referencia, valor) VALUES (?,?,?,?,?,?)',
+            [req.params.id, 'provento', p.codigo, p.descricao, p.referencia, p.valor || 0]);
+        }
+      }
+      if (descontos?.length) {
+        for (const d of descontos) {
+          await pool.query('INSERT INTO rh_holerite_itens (holerite_id, tipo, codigo, descricao, referencia, valor) VALUES (?,?,?,?,?,?)',
+            [req.params.id, 'desconto', d.codigo, d.descricao, d.referencia, d.valor || 0]);
+        }
+      }
+    }
+
+    res.json({ success: true, message: 'Holerite atualizado com sucesso!' });
+  } catch (error) {
+    logger.error('Erro ao atualizar holerite:', error);
+    res.status(500).json({ error: 'Erro ao atualizar holerite' });
+  }
+});
+
+// DELETE /api/rh/holerites/:id - Excluir holerite
+app.delete('/api/rh/holerites/:id', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  try {
+    await pool.query('DELETE FROM rh_holerite_itens WHERE holerite_id=?', [req.params.id]);
+    await pool.query('DELETE FROM rh_holerites WHERE id=?', [req.params.id]);
+    res.json({ success: true, message: 'Holerite excluído com sucesso!' });
+  } catch (error) {
+    logger.error('Erro ao excluir holerite:', error);
+    res.status(500).json({ error: 'Erro ao excluir holerite' });
+  }
+});
+
+// POST /api/rh/holerites/:id/publicar - Publicar holerite
+app.post('/api/rh/holerites/:id/publicar', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  try {
+    await pool.query("UPDATE rh_holerites SET status='publicado' WHERE id=?", [req.params.id]);
+    res.json({ success: true, message: 'Holerite publicado com sucesso!' });
+  } catch (error) {
+    logger.error('Erro ao publicar holerite:', error);
+    res.status(500).json({ error: 'Erro ao publicar holerite' });
+  }
+});
+
+// GET /api/rh/holerites/:id/download-pdf - Download PDF
+app.get('/api/rh/holerites/:id/download-pdf', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT arquivo_pdf FROM rh_holerites WHERE id=?', [req.params.id]);
+    if (rows.length === 0 || !rows[0].arquivo_pdf) {
+      return res.status(404).json({ error: 'PDF não encontrado' });
+    }
+    const filePath = path.join(__dirname, 'public', rows[0].arquivo_pdf);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado' });
+    res.download(filePath);
+  } catch (error) {
+    logger.error('Erro ao baixar PDF:', error);
+    res.status(500).json({ error: 'Erro ao baixar PDF' });
+  }
+});
+
+// GET /api/rh/holerites/consentimentos - Listar consentimentos
+app.get('/api/rh/holerites/consentimentos', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  try {
+    const [rows] = await pool.query(`
+      SELECT h.id, h.funcionario_id, f.nome AS funcionario_nome, h.confirmado_recebimento,
+        fp.mes, fp.ano
+      FROM rh_holerites h
+      LEFT JOIN funcionarios f ON h.funcionario_id = f.id
+      LEFT JOIN rh_folhas_pagamento fp ON h.folha_id = fp.id
+      WHERE h.status = 'publicado'
+      ORDER BY fp.ano DESC, fp.mes DESC, f.nome
+    `);
+    res.json({ consentimentos: rows });
+  } catch (error) {
+    logger.error('Erro ao buscar consentimentos:', error);
+    res.status(500).json({ error: 'Erro ao buscar consentimentos' });
+  }
+});
+
+// POST /api/rh/holerites/importar-pdf - Importar PDF de holerite
+app.post('/api/rh/holerites/importar-pdf', authMiddleware, uploadHolerite.single('arquivo'), async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  if (!req.file) return res.status(400).json({ error: 'Arquivo PDF é obrigatório' });
+  const { funcionario_id, mes, ano } = req.body;
+  if (!funcionario_id || !mes || !ano) return res.status(400).json({ error: 'funcionario_id, mes e ano são obrigatórios' });
+  try {
+    const arquivoUrl = `/uploads/holerites/${req.file.filename}`;
+    let [folhas] = await pool.query('SELECT id FROM rh_folhas_pagamento WHERE mes=? AND ano=? LIMIT 1', [mes, ano]);
+    let folha_id;
+    if (folhas.length > 0) {
+      folha_id = folhas[0].id;
+    } else {
+      const [result] = await pool.query('INSERT INTO rh_folhas_pagamento (mes, ano, tipo, status) VALUES (?, ?, ?, ?)', [mes, ano, 'salario', 'rascunho']);
+      folha_id = result.insertId;
+    }
+    const [result] = await pool.query(
+      'INSERT INTO rh_holerites (folha_id, funcionario_id, arquivo_pdf, status) VALUES (?, ?, ?, ?)',
+      [folha_id, funcionario_id, arquivoUrl, 'rascunho']
+    );
+    res.json({ success: true, id: result.insertId, message: 'PDF importado com sucesso!' });
+  } catch (error) {
+    logger.error('Erro ao importar PDF:', error);
+    res.status(500).json({ error: 'Erro ao importar PDF' });
+  }
+});
+
+// GET /api/rh/holerites/relatorio/visualizacoes - Relatório HTML de visualizações
+app.get('/api/rh/holerites/relatorio/visualizacoes', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { mes, ano } = req.query;
+  try {
+    let query = `
+      SELECT h.id, f.nome AS funcionario_nome, f.cargo, f.departamento,
+        fp.mes, fp.ano, h.visualizado, h.total_visualizacoes, h.confirmado_recebimento,
+        COALESCE(h.status, fp.status) AS status
+      FROM rh_holerites h
+      LEFT JOIN funcionarios f ON h.funcionario_id = f.id
+      LEFT JOIN rh_folhas_pagamento fp ON h.folha_id = fp.id
+      WHERE h.status = 'publicado'
+    `;
+    const params = [];
+    if (mes) { query += ' AND fp.mes = ?'; params.push(mes); }
+    if (ano) { query += ' AND fp.ano = ?'; params.push(ano); }
+    query += ' ORDER BY f.nome';
+
+    const [rows] = await pool.query(query, params);
+    const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const total = rows.length;
+    const vistos = rows.filter(r => r.visualizado).length;
+    const confirmados = rows.filter(r => r.confirmado_recebimento).length;
+    const periodo = mes && ano ? `${meses[parseInt(mes)]}/${ano}` : ano ? `Ano ${ano}` : 'Todos os períodos';
+
+    let html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Relatório de Visualizações</title>
+    <style>
+      body{font-family:'Segoe UI',sans-serif;margin:0;padding:20px;background:#f8fafc;color:#1e293b;}
+      h1{font-size:1.2rem;color:#1e293b;margin-bottom:4px;}
+      .periodo{font-size:0.85rem;color:#64748b;margin-bottom:16px;}
+      .stats{display:flex;gap:12px;margin-bottom:20px;}
+      .stat{flex:1;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center;}
+      .stat-value{font-size:1.5rem;font-weight:700;color:#6366f1;}
+      .stat-label{font-size:0.75rem;color:#64748b;}
+      table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;}
+      th{background:#f1f5f9;padding:10px 12px;font-size:0.75rem;text-transform:uppercase;color:#64748b;text-align:left;font-weight:600;}
+      td{padding:10px 12px;border-top:1px solid #f1f5f9;font-size:0.85rem;}
+      tr:hover{background:#f8fafc;}
+      .badge{padding:3px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;}
+      .badge-sim{background:#dcfce7;color:#166534;}
+      .badge-nao{background:#fee2e2;color:#991b1b;}
+      @media print{body{padding:0;background:#fff;}.stats .stat{border:1px solid #ccc;}}
+    </style></head><body>
+    <h1><i>📊</i> Relatório de Visualizações de Holerites</h1>
+    <p class="periodo">${periodo} | Gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
+    <div class="stats">
+      <div class="stat"><div class="stat-value">${total}</div><div class="stat-label">Total</div></div>
+      <div class="stat"><div class="stat-value">${vistos}</div><div class="stat-label">Visualizados</div></div>
+      <div class="stat"><div class="stat-value">${total - vistos}</div><div class="stat-label">Não Vistos</div></div>
+      <div class="stat"><div class="stat-value">${confirmados}</div><div class="stat-label">Confirmados</div></div>
+    </div>
+    <table><thead><tr><th>Funcionário</th><th>Cargo</th><th>Departamento</th><th>Período</th><th>Visualizado</th><th>Visualizações</th><th>Confirmado</th></tr></thead><tbody>`;
+
+    rows.forEach(r => {
+      html += `<tr>
+        <td style="font-weight:600;">${r.funcionario_nome || 'N/A'}</td>
+        <td>${r.cargo || '-'}</td>
+        <td>${r.departamento || '-'}</td>
+        <td>${meses[r.mes] || '-'}/${r.ano || '-'}</td>
+        <td><span class="badge ${r.visualizado ? 'badge-sim' : 'badge-nao'}">${r.visualizado ? 'Sim' : 'Não'}</span></td>
+        <td>${r.total_visualizacoes || 0}x</td>
+        <td><span class="badge ${r.confirmado_recebimento ? 'badge-sim' : 'badge-nao'}">${r.confirmado_recebimento ? 'Sim' : 'Não'}</span></td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></body></html>`;
+    res.type('html').send(html);
+  } catch (error) {
+    logger.error('Erro ao gerar relatório:', error);
+    res.status(500).json({ error: 'Erro ao gerar relatório' });
   }
 });
 
@@ -3788,7 +4276,7 @@ app.get('/api/rh/beneficios/funcionario/:id', authMiddleware, async (req, res) =
     }
     
     const [beneficios] = await pool.query(`
-      SELECT fb.*, bt.nome AS beneficio_nome, bt.código, bt.descrição
+      SELECT fb.*, bt.nome AS beneficio_nome, bt.codigo, bt.descricao
       FROM rh_funcionarios_beneficios fb
       INNER JOIN rh_beneficios_tipos bt ON fb.beneficio_tipo_id = bt.id
       WHERE fb.funcionario_id = ? AND fb.ativo = TRUE
@@ -3940,6 +4428,188 @@ app.delete('/api/rh/dependentes/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// ============ PENSÃO ALIMENTÍCIA ============
+
+// Criar tabela se não existir
+const ensurePensaoAlimenticia = `CREATE TABLE IF NOT EXISTS rh_pensao_alimenticia (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  funcionario_id INT NOT NULL,
+  valor DECIMAL(10,2) DEFAULT 0,
+  nome_recebedor VARCHAR(255),
+  cpf_recebedor VARCHAR(14),
+  banco_recebedor VARCHAR(100),
+  agencia_recebedor VARCHAR(20),
+  conta_recebedor VARCHAR(30),
+  observacoes TEXT,
+  ativo TINYINT(1) DEFAULT 1,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE,
+  INDEX idx_func_pensao (funcionario_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`;
+
+db.query(ensurePensaoAlimenticia, (e) => {
+  if (e) logger.error('Erro ao criar tabela rh_pensao_alimenticia:', e);
+  else logger.info('Tabela rh_pensao_alimenticia pronta.');
+});
+
+// GET - Listar pensões de um funcionário
+app.get('/api/rh/funcionarios/:id/pensao', authMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM rh_pensao_alimenticia WHERE funcionario_id = ? ORDER BY criado_em DESC',
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (error) {
+    logger.error('Erro ao listar pensões:', error);
+    res.status(500).json({ error: 'Erro ao listar pensões' });
+  }
+});
+
+// POST - Criar pensão
+app.post('/api/rh/funcionarios/:id/pensao', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { valor, nome_recebedor, cpf_recebedor, banco_recebedor, agencia_recebedor, conta_recebedor, observacoes } = req.body;
+  try {
+    const [result] = await pool.query(
+      `INSERT INTO rh_pensao_alimenticia (funcionario_id, valor, nome_recebedor, cpf_recebedor, banco_recebedor, agencia_recebedor, conta_recebedor, observacoes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.params.id, valor || 0, nome_recebedor || null, cpf_recebedor || null, banco_recebedor || null, agencia_recebedor || null, conta_recebedor || null, observacoes || null]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (error) {
+    logger.error('Erro ao criar pensão:', error);
+    res.status(500).json({ error: 'Erro ao criar pensão' });
+  }
+});
+
+// PUT - Atualizar pensão
+app.put('/api/rh/funcionarios/:id/pensao/:pensaoId', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { valor, nome_recebedor, cpf_recebedor, banco_recebedor, agencia_recebedor, conta_recebedor, observacoes } = req.body;
+  try {
+    await pool.query(
+      `UPDATE rh_pensao_alimenticia SET valor=?, nome_recebedor=?, cpf_recebedor=?, banco_recebedor=?, agencia_recebedor=?, conta_recebedor=?, observacoes=?
+       WHERE id=? AND funcionario_id=?`,
+      [valor || 0, nome_recebedor || null, cpf_recebedor || null, banco_recebedor || null, agencia_recebedor || null, conta_recebedor || null, observacoes || null, req.params.pensaoId, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Erro ao atualizar pensão:', error);
+    res.status(500).json({ error: 'Erro ao atualizar pensão' });
+  }
+});
+
+// DELETE - Remover pensão
+app.delete('/api/rh/funcionarios/:id/pensao/:pensaoId', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  try {
+    await pool.query('DELETE FROM rh_pensao_alimenticia WHERE id=? AND funcionario_id=?', [req.params.pensaoId, req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Erro ao remover pensão:', error);
+    res.status(500).json({ error: 'Erro ao remover pensão' });
+  }
+});
+
+// ============ SALÁRIO FAMÍLIA ============
+
+// Criar tabela se não existir
+const ensureSalarioFamilia = `CREATE TABLE IF NOT EXISTS rh_salario_familia (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  funcionario_id INT NOT NULL UNIQUE,
+  recebe TINYINT(1) DEFAULT 0,
+  quantidade_dependentes INT DEFAULT 0,
+  observacoes TEXT,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE,
+  INDEX idx_func_sf (funcionario_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`;
+
+const ensureSfDependentes = `CREATE TABLE IF NOT EXISTS rh_sf_dependentes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  funcionario_id INT NOT NULL,
+  nome VARCHAR(255) NOT NULL,
+  parentesco VARCHAR(50),
+  data_nascimento DATE,
+  cpf VARCHAR(14),
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE,
+  INDEX idx_func_sf_dep (funcionario_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`;
+
+db.query(ensureSalarioFamilia, (e) => {
+  if (e) logger.error('Erro ao criar tabela rh_salario_familia:', e);
+  else logger.info('Tabela rh_salario_familia pronta.');
+});
+
+db.query(ensureSfDependentes, (e) => {
+  if (e) logger.error('Erro ao criar tabela rh_sf_dependentes:', e);
+  else logger.info('Tabela rh_sf_dependentes pronta.');
+});
+
+// GET - Dados de salário família do funcionário
+app.get('/api/rh/funcionarios/:id/salario-familia', authMiddleware, async (req, res) => {
+  try {
+    const [sfRows] = await pool.query('SELECT * FROM rh_salario_familia WHERE funcionario_id = ?', [req.params.id]);
+    const [depRows] = await pool.query('SELECT * FROM rh_sf_dependentes WHERE funcionario_id = ? ORDER BY criado_em DESC', [req.params.id]);
+    const sf = sfRows[0] || { recebe: 0, observacoes: '' };
+    res.json({ recebe: sf.recebe, observacoes: sf.observacoes || '', dependentes: depRows });
+  } catch (error) {
+    logger.error('Erro ao carregar salário família:', error);
+    res.status(500).json({ error: 'Erro ao carregar salário família' });
+  }
+});
+
+// PUT - Atualizar dados de salário família
+app.put('/api/rh/funcionarios/:id/salario-familia', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { recebe, quantidade_dependentes, observacoes } = req.body;
+  try {
+    await pool.query(
+      `INSERT INTO rh_salario_familia (funcionario_id, recebe, quantidade_dependentes, observacoes)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE recebe=VALUES(recebe), quantidade_dependentes=VALUES(quantidade_dependentes), observacoes=VALUES(observacoes)`,
+      [req.params.id, recebe ? 1 : 0, quantidade_dependentes || 0, observacoes || null]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Erro ao salvar salário família:', error);
+    res.status(500).json({ error: 'Erro ao salvar salário família' });
+  }
+});
+
+// POST - Adicionar dependente SF
+app.post('/api/rh/funcionarios/:id/salario-familia/dependente', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  const { nome, parentesco, data_nascimento, cpf } = req.body;
+  if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO rh_sf_dependentes (funcionario_id, nome, parentesco, data_nascimento, cpf) VALUES (?, ?, ?, ?, ?)',
+      [req.params.id, nome, parentesco || null, data_nascimento || null, cpf || null]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (error) {
+    logger.error('Erro ao adicionar dependente SF:', error);
+    res.status(500).json({ error: 'Erro ao adicionar dependente' });
+  }
+});
+
+// DELETE - Remover dependente SF
+app.delete('/api/rh/funcionarios/:id/salario-familia/dependente/:depId', authMiddleware, async (req, res) => {
+  if (!isAdminUser(req.user)) return res.status(403).json({ message: 'Acesso negado' });
+  try {
+    await pool.query('DELETE FROM rh_sf_dependentes WHERE id=? AND funcionario_id=?', [req.params.depId, req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Erro ao remover dependente SF:', error);
+    res.status(500).json({ error: 'Erro ao remover dependente' });
+  }
+});
+
 // GET /api/rh/beneficios/relatório/custos - Relatório de custos
 app.get('/api/rh/beneficios/relatório/custos', authMiddleware, async (req, res) => {
   const { mes, ano } = req.query;
@@ -4060,6 +4730,19 @@ app.post('/api/rh/vale-transporte', authMiddleware, async (req, res) => {
 // ==================== FASE 6: AVALIAÇÉO DE DESEMPENHO ====================
 
 // 1. Listar períodos de avaliação
+app.get('/api/rh/avaliacoes/periodos', authMiddleware, async (req, res) => {
+  try {
+    const [períodos] = await pool.query(`
+      SELECT * FROM rh_periodos_avaliacao ORDER BY data_inicio DESC
+    `);
+    res.json(períodos);
+  } catch (error) {
+    logger.error('Erro ao listar períodos:', error);
+    res.status(500).json({ error: 'Erro ao listar períodos de avaliação' });
+  }
+});
+
+// Alias com acento (compatibilidade)
 app.get('/api/rh/avaliacoes/períodos', authMiddleware, async (req, res) => {
   try {
     const [períodos] = await pool.query(`
@@ -4078,7 +4761,46 @@ app.get('/api/rh/avaliacoes/competencias', authMiddleware, async (req, res) => {
     const [competencias] = await pool.query(`
       SELECT * FROM rh_competencias WHERE ativo = TRUE ORDER BY categoria, nome
     `);
-    res.json(competencias);
+
+    // Fallback: repair encoding-corrupted names at runtime
+    const encodingFixes = {
+      'Conhecimento T?cnico': 'Conhecimento Técnico',
+      'Comunica??o': 'Comunicação',
+      'Proatividade': 'Proatividade',
+      'Resolu??o de Problemas': 'Resolução de Problemas',
+      'Lideran?a': 'Liderança',
+      'Lideran??a': 'Liderança',
+      'Vis?o Estrat?gica': 'Visão Estratégica',
+      'Vis??o Estrat??gica': 'Visão Estratégica',
+      'Gest?o de Pessoas': 'Gestão de Pessoas',
+      'Gest??o de Pessoas': 'Gestão de Pessoas',
+      'Planejamento e Organiza??o': 'Planejamento e Organização',
+      'Planejamento e Organiza????o': 'Planejamento e Organização',
+      'Precis?o': 'Precisão',
+      'Colabora??o': 'Colaboração',
+      'solu??es': 'soluções',
+      'mudan?as': 'mudanças',
+      'An?lise': 'Análise',
+      'decis?o': 'decisão',
+    };
+
+    const repaired = competencias.map(c => {
+      let nome = c.nome || '';
+      let descricao = c.descricao || '';
+      // Fix known corrupted names
+      if (encodingFixes[nome]) {
+        nome = encodingFixes[nome];
+      }
+      // Fix any remaining ? patterns in both nome and descricao
+      for (const [bad, good] of Object.entries(encodingFixes)) {
+        if (descricao.includes(bad)) {
+          descricao = descricao.split(bad).join(good);
+        }
+      }
+      return { ...c, nome, descricao };
+    });
+
+    res.json(repaired);
   } catch (error) {
     logger.error('Erro ao listar competências:', error);
     res.status(500).json({ error: 'Erro ao listar competências' });
@@ -4088,9 +4810,25 @@ app.get('/api/rh/avaliacoes/competencias', authMiddleware, async (req, res) => {
 // 3. Criar/atualizar avaliação de desempenho
 app.post('/api/rh/avaliacoes/criar', authMiddleware, async (req, res) => {
   const { 
-    funcionario_id, período_id, avaliador_id, tipo_avaliacao, 
+    funcionario_id, avaliador_id, tipo_avaliacao, 
     pontos_fortes, pontos_melhoria, comentarios_avaliador, competencias 
   } = req.body;
+  const periodo_id = req.body.periodo_id ?? req.body['período_id'];
+
+  // Apenas gestores e administradores podem avaliar terceiros.
+  // Autoavaliação é permitida quando avaliador e avaliado são o mesmo usuário.
+  const userFuncId = Number(req.user.funcionario_id || req.user.id)
+  const funcionarioId = Number(funcionario_id)
+  const avaliadorId = Number(avaliador_id)
+  const ehAutoavaliacao = funcionarioId === userFuncId && avaliadorId === userFuncId
+
+  if (!ehAutoavaliacao && !isGestorOuAdminUser(req.user)) {
+    return res.status(403).json({ message: 'Acesso negado. Apenas gestores/administradores podem criar avaliações de colaboradores.' })
+  }
+
+  if (!isAdminUser(req.user) && avaliadorId !== userFuncId) {
+    return res.status(403).json({ message: 'Acesso negado. O avaliador deve ser o usuário autenticado.' })
+  }
   
   const conn = await pool.getConnection();
   try {
@@ -4099,10 +4837,10 @@ app.post('/api/rh/avaliacoes/criar', authMiddleware, async (req, res) => {
     // Criar avaliação
     const [result] = await conn.query(`
       INSERT INTO rh_avaliacoes_desempenho 
-      (funcionario_id, período_id, avaliador_id, tipo_avaliacao, data_avaliacao, status,
+      (funcionario_id, periodo_id, avaliador_id, tipo_avaliacao, data_avaliacao, status,
        pontos_fortes, pontos_melhoria, comentarios_avaliador) 
       VALUES (?, ?, ?, ?, CURDATE(), 'RASCUNHO', ?, ?, ?)
-    `, [funcionario_id, período_id, avaliador_id, tipo_avaliacao, pontos_fortes, pontos_melhoria, comentarios_avaliador]);
+    `, [funcionario_id, periodo_id, avaliador_id, tipo_avaliacao, pontos_fortes, pontos_melhoria, comentarios_avaliador]);
     
     const avaliacaoId = result.insertId;
     
@@ -4137,10 +4875,10 @@ app.get('/api/rh/avaliacoes/funcionario/:id', authMiddleware, async (req, res) =
     }
     
     const [avaliacoes] = await pool.query(`
-      SELECT a.*, p.nome AS período_nome, 
+      SELECT a.*, p.nome AS periodo_nome, 
              av.nome_completo AS avaliador_nome
       FROM rh_avaliacoes_desempenho a
-      INNER JOIN rh_periodos_avaliacao p ON a.período_id = p.id
+      INNER JOIN rh_periodos_avaliacao p ON a.periodo_id = p.id
       LEFT JOIN funcionarios av ON a.avaliador_id = av.id
       WHERE a.funcionario_id = ?
       ORDER BY a.data_avaliacao DESC
@@ -4158,16 +4896,26 @@ app.get('/api/rh/avaliacoes/:id', authMiddleware, async (req, res) => {
   try {
     const [avaliacoes] = await pool.query(`
       SELECT a.*, f.nome_completo AS funcionario_nome, f.cargo,
-             av.nome_completo AS avaliador_nome, p.nome AS período_nome
+             av.nome_completo AS avaliador_nome, p.nome AS periodo_nome
       FROM rh_avaliacoes_desempenho a
       INNER JOIN funcionarios f ON a.funcionario_id = f.id
       LEFT JOIN funcionarios av ON a.avaliador_id = av.id
-      INNER JOIN rh_periodos_avaliacao p ON a.período_id = p.id
+      INNER JOIN rh_periodos_avaliacao p ON a.periodo_id = p.id
       WHERE a.id = ?
     `, [req.params.id]);
     
     if (avaliacoes.length === 0) {
       return res.status(404).json({ error: 'Avaliação não encontrada' });
+    }
+
+    const userFuncId = Number(req.user.funcionario_id || req.user.id)
+    const avaliacao = avaliacoes[0]
+    const podeVisualizar = isAdminUser(req.user) ||
+      Number(avaliacao.funcionario_id) === userFuncId ||
+      Number(avaliacao.avaliador_id) === userFuncId
+
+    if (!podeVisualizar) {
+      return res.status(403).json({ message: 'Acesso negado. Você só pode visualizar avaliações relacionadas ao seu usuário.' })
     }
     
     const [itens] = await pool.query(`
@@ -4189,6 +4937,25 @@ app.get('/api/rh/avaliacoes/:id', authMiddleware, async (req, res) => {
 app.put('/api/rh/avaliacoes/:id/finalizar', authMiddleware, async (req, res) => {
   const { comentarios_avaliado } = req.body;
   try {
+    const [rows] = await pool.query(
+      'SELECT id, funcionario_id, avaliador_id FROM rh_avaliacoes_desempenho WHERE id = ?',
+      [req.params.id]
+    )
+
+    if (!rows || rows.length === 0) {
+      return res.status(404).json({ error: 'Avaliação não encontrada' })
+    }
+
+    const userFuncId = Number(req.user.funcionario_id || req.user.id)
+    const registro = rows[0]
+    const podeFinalizar = isAdminUser(req.user) ||
+      Number(registro.funcionario_id) === userFuncId ||
+      Number(registro.avaliador_id) === userFuncId
+
+    if (!podeFinalizar) {
+      return res.status(403).json({ message: 'Acesso negado. Você não pode finalizar esta avaliação.' })
+    }
+
     await pool.query(`
       UPDATE rh_avaliacoes_desempenho 
       SET status = 'CONCLUIDA', comentarios_avaliado = ?
@@ -4205,17 +4972,19 @@ app.put('/api/rh/avaliacoes/:id/finalizar', authMiddleware, async (req, res) => 
 // 7. Criar meta
 app.post('/api/rh/metas/criar', authMiddleware, async (req, res) => {
   const { 
-    funcionario_id, período_id, titulo, descrição, categoria, tipo, 
+    funcionario_id, titulo, categoria, tipo, 
     valor_meta, unidade_medida, data_inicio, data_fim, responsavel_id 
   } = req.body;
+  const periodo_id = req.body.periodo_id ?? req.body['período_id'];
+  const descricao = req.body.descricao ?? req.body['descrição'];
   
   try {
     const [result] = await pool.query(`
       INSERT INTO rh_metas 
-      (funcionario_id, período_id, titulo, descrição, categoria, tipo, valor_meta, 
+      (funcionario_id, periodo_id, titulo, descricao, categoria, tipo, valor_meta, 
        unidade_medida, data_inicio, data_fim, status, responsavel_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PLANEJADA', ?)
-    `, [funcionario_id, período_id, titulo, descrição, categoria, tipo, valor_meta, unidade_medida, data_inicio, data_fim, responsavel_id]);
+    `, [funcionario_id, periodo_id, titulo, descricao, categoria, tipo, valor_meta, unidade_medida, data_inicio, data_fim, responsavel_id]);
     
     res.json({ success: true, id: result.insertId });
   } catch (error) {
@@ -4251,10 +5020,10 @@ app.get('/api/rh/metas/funcionario/:id', authMiddleware, async (req, res) => {
     }
     
     const [metas] = await pool.query(`
-      SELECT m.*, p.nome AS período_nome,
+      SELECT m.*, p.nome AS periodo_nome,
              r.nome_completo AS responsavel_nome
       FROM rh_metas m
-      LEFT JOIN rh_periodos_avaliacao p ON m.período_id = p.id
+      LEFT JOIN rh_periodos_avaliacao p ON m.periodo_id = p.id
       LEFT JOIN funcionarios r ON m.responsavel_id = r.id
       WHERE m.funcionario_id = ?
       ORDER BY m.data_fim DESC
@@ -4333,17 +5102,18 @@ app.get('/api/rh/feedback360/funcionario/:id', authMiddleware, async (req, res) 
 // 12. Criar ação PDI
 app.post('/api/rh/pdi/criar', authMiddleware, async (req, res) => {
   const { 
-    funcionario_id, período_id, competencia_desenvolver, acao_desenvolvimento,
+    funcionario_id, competencia_desenvolver, acao_desenvolvimento,
     tipo_acao, prioridade, prazo_conclusao, custo_estimado, responsavel_acompanhamento 
   } = req.body;
+  const periodo_id = req.body.periodo_id ?? req.body['período_id'];
   
   try {
     const [result] = await pool.query(`
       INSERT INTO rh_pdi 
-      (funcionario_id, período_id, competencia_desenvolver, acao_desenvolvimento, tipo_acao,
+      (funcionario_id, periodo_id, competencia_desenvolver, acao_desenvolvimento, tipo_acao,
        prioridade, prazo_conclusao, custo_estimado, status, responsavel_acompanhamento)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PLANEJADO', ?)
-    `, [funcionario_id, período_id, competencia_desenvolver, acao_desenvolvimento, tipo_acao, prioridade, prazo_conclusao, custo_estimado, responsavel_acompanhamento]);
+    `, [funcionario_id, periodo_id, competencia_desenvolver, acao_desenvolvimento, tipo_acao, prioridade, prazo_conclusao, custo_estimado, responsavel_acompanhamento]);
     
     res.json({ success: true, id: result.insertId });
   } catch (error) {
@@ -4398,6 +5168,10 @@ app.get('/api/rh/pdi/funcionario/:id', authMiddleware, async (req, res) => {
 // 15. Dashboard de avaliações
 app.get('/api/rh/avaliacoes/dashboard', authMiddleware, async (req, res) => {
   try {
+    if (!isGestorOuAdminUser(req.user)) {
+      return res.status(403).json({ message: 'Acesso negado. Dashboard de avaliações disponível apenas para gestores/administradores.' })
+    }
+
     const [stats] = await pool.query(`
       SELECT 
         (SELECT COUNT(*) FROM rh_avaliacoes_desempenho WHERE status = 'CONCLUIDA') AS avaliacoes_concluidas,
@@ -4519,7 +5293,7 @@ const ensureInscricoes = `CREATE TABLE IF NOT EXISTS rh_inscricoes_treinamento (
     INDEX idx_funcionario (funcionario_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`;
 
-const ensureHistorico = `CREATE TABLE IF NOT EXISTS rh_historico_treinamentos (
+const ensureHistórico = `CREATE TABLE IF NOT EXISTS rh_historico_treinamentos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     funcionario_id INT NOT NULL,
     treinamento_id INT,

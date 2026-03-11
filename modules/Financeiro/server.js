@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SERVIDOR FINANCEIRO - ALUFORCE V.2
  * Módulo completo de gestão financeira com integração MySQL
  */
@@ -11,6 +11,7 @@ const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
+const cookieParser = require('cookie-parser');
 
 // SEGURANÇA: Validar JWT_SECRET obrigatório
 if (!process.env.JWT_SECRET) {
@@ -75,8 +76,8 @@ const PORT = process.env.PORT_FINANCEIRO || 3006;
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'railway',
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME || 'aluforce_vendas',
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,
     charset: 'utf8mb4',
     connectionLimit: 20,
@@ -88,8 +89,12 @@ const pool = mysql.createPool({
 
 // Middleware de autenticação JWT
 const authenticateToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    // SECURITY A4: Check cookies FIRST, then Authorization header
+    let token = req.cookies?.authToken || req.cookies?.token || null;
+    if (!token) {
+        const authHeader = req.headers['authorization'];
+        token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    }
 
     if (!token) {
         return res.status(401).json({ error: 'Token não fornecido' });
@@ -156,13 +161,36 @@ const requireFinancePermission = (action) => {
 app.use(securityHeaders());
 app.use(generalLimiter);
 app.use(sanitizeInput);
-app.use(cors());
+app.use(cors({
+    origin: function(origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:3000', 'http://localhost:5000',
+            'http://127.0.0.1:3000', 'http://127.0.0.1:5000',
+            'https://aluforce.api.br', 'https://www.aluforce.api.br',
+            'https://aluforce.ind.br', 'https://erp.aluforce.ind.br',
+            'https://www.aluforce.ind.br',
+            'http://tauri.localhost', 'https://tauri.localhost', 'tauri://localhost',
+            process.env.CORS_ORIGIN
+        ].filter(Boolean);
+        if (!origin && process.env.NODE_ENV === 'development') return callback(null, true);
+        if (!origin) return callback(null, false);
+        if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+            callback(null, true);
+        } else {
+            callback(new Error('Origem não permitida pelo CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+}));
 app.use(express.json({ limit: '2mb' })); // SEGURANÇA: Limite de payload
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(cookieParser());
 
 // Servir arquivos estáticos
-app.use('/modules/Financeiro', express.static(__dirname));
-app.use('/modules/Financeiro/public', express.static(path.join(__dirname, 'public')));
+app.use('/modules/Financeiro', express.static(__dirname, { dotfiles: 'deny', index: false }));
+app.use('/modules/Financeiro/public', express.static(path.join(__dirname, 'public'), { dotfiles: 'deny', index: false }));
 
 // ============================================
 // ROTAS - CONTAS A PAGAR
@@ -200,7 +228,7 @@ app.get('/api/financeiro/contas-pagar', authenticateToken, async (req, res) => {
         res.json({ success: true, data: contas });
     } catch (error) {
         console.error('❌ Erro ao buscar contas a pagar:', error);
-        res.status(500).json({ error: 'Erro ao buscar contas a pagar', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar contas a pagar', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -255,7 +283,7 @@ app.post('/api/financeiro/contas-pagar', authenticateToken, async (req, res) => 
     } catch (error) {
         await connection.rollback();
         console.error('❌ Erro ao criar conta a pagar:', error);
-        res.status(500).json({ error: 'Erro ao criar conta a pagar', message: error.message });
+        res.status(500).json({ error: 'Erro ao criar conta a pagar', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     } finally {
         connection.release();
     }
@@ -316,7 +344,7 @@ app.put('/api/financeiro/contas-pagar/:id', authenticateToken, async (req, res) 
         res.json({ success: true, message: 'Conta a pagar atualizada com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao atualizar conta a pagar:', error);
-        res.status(500).json({ error: 'Erro ao atualizar conta a pagar', message: error.message });
+        res.status(500).json({ error: 'Erro ao atualizar conta a pagar', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -351,7 +379,7 @@ app.post('/api/financeiro/contas-pagar/:id/baixar', authenticateToken, async (re
     } catch (error) {
         await connection.rollback();
         console.error('❌ Erro ao baixar conta a pagar:', error);
-        res.status(500).json({ error: 'Erro ao baixar conta a pagar', message: error.message });
+        res.status(500).json({ error: 'Erro ao baixar conta a pagar', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     } finally {
         connection.release();
     }
@@ -364,7 +392,7 @@ app.post('/api/financeiro/contas-pagar/:id/pagar', authenticateToken, async (req
 });
 
 // DELETE - Excluir conta a pagar
-app.delete('/api/financeiro/contas-pagar/:id', authenticateToken, async (req, res) => {
+app.delete('/api/financeiro/contas-pagar/:id', authenticateToken, requireFinancePermission('excluir'), async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -381,7 +409,7 @@ app.delete('/api/financeiro/contas-pagar/:id', authenticateToken, async (req, re
         res.json({ success: true, message: 'Conta excluída com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao excluir conta a pagar:', error);
-        res.status(500).json({ error: 'Erro ao excluir conta a pagar', message: error.message });
+        res.status(500).json({ error: 'Erro ao excluir conta a pagar', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -404,7 +432,7 @@ app.get('/api/financeiro/contas-pagar/:id', authenticateToken, async (req, res) 
         res.json({ success: true, data: contas[0] });
     } catch (error) {
         console.error('❌ Erro ao buscar conta a pagar:', error);
-        res.status(500).json({ error: 'Erro ao buscar conta a pagar', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar conta a pagar', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -452,7 +480,7 @@ app.get('/api/financeiro/contas-receber', authenticateToken, async (req, res) =>
         res.json(contas); // Retornar array direto para compatibilidade com frontend
     } catch (error) {
         console.error('❌ Erro ao buscar contas a receber:', error);
-        res.status(500).json({ error: 'Erro ao buscar contas a receber', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar contas a receber', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -505,7 +533,7 @@ app.post('/api/financeiro/contas-receber', authenticateToken, async (req, res) =
     } catch (error) {
         await connection.rollback();
         console.error('❌ Erro ao criar conta a receber:', error);
-        res.status(500).json({ error: 'Erro ao criar conta a receber', message: error.message });
+        res.status(500).json({ error: 'Erro ao criar conta a receber', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     } finally {
         connection.release();
     }
@@ -574,12 +602,12 @@ app.put('/api/financeiro/contas-receber/:id', authenticateToken, async (req, res
         res.json({ success: true, message: 'Conta atualizada com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao atualizar conta a receber:', error);
-        res.status(500).json({ error: 'Erro ao atualizar conta a receber', message: error.message });
+        res.status(500).json({ error: 'Erro ao atualizar conta a receber', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
 // DELETE - Excluir conta a receber
-app.delete('/api/financeiro/contas-receber/:id', authenticateToken, async (req, res) => {
+app.delete('/api/financeiro/contas-receber/:id', authenticateToken, requireFinancePermission('excluir'), async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -596,7 +624,7 @@ app.delete('/api/financeiro/contas-receber/:id', authenticateToken, async (req, 
         res.json({ success: true, message: 'Conta excluída com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao excluir conta a receber:', error);
-        res.status(500).json({ error: 'Erro ao excluir conta a receber', message: error.message });
+        res.status(500).json({ error: 'Erro ao excluir conta a receber', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -619,7 +647,7 @@ app.get('/api/financeiro/contas-receber/:id', authenticateToken, async (req, res
         res.json({ success: true, data: contas[0] });
     } catch (error) {
         console.error('❌ Erro ao buscar conta a receber:', error);
-        res.status(500).json({ error: 'Erro ao buscar conta a receber', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar conta a receber', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -682,7 +710,7 @@ app.post('/api/financeiro/contas-receber/:id/baixar', authenticateToken, async (
     } catch (error) {
         await connection.rollback();
         console.error('❌ Erro ao baixar conta a receber:', error);
-        res.status(500).json({ error: 'Erro ao baixar conta a receber', message: error.message });
+        res.status(500).json({ error: 'Erro ao baixar conta a receber', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     } finally {
         connection.release();
     }
@@ -698,7 +726,7 @@ app.get('/api/financeiro/contas-bancarias', authenticateToken, async (req, res) 
         res.json({ success: true, data: contas });
     } catch (error) {
         console.error('❌ Erro ao buscar contas bancárias:', error);
-        res.status(500).json({ error: 'Erro ao buscar contas bancárias', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar contas bancárias', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -716,7 +744,7 @@ app.post('/api/financeiro/contas-bancarias', authenticateToken, async (req, res)
         res.json({ success: true, id: result.insertId, message: 'Conta bancária criada' });
     } catch (error) {
         console.error('❌ Erro ao criar conta bancária:', error);
-        res.status(500).json({ error: 'Erro ao criar conta bancária', message: error.message });
+        res.status(500).json({ error: 'Erro ao criar conta bancária', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -759,7 +787,7 @@ app.get('/api/financeiro/dashboard', authenticateToken, async (req, res) => {
         });
     } catch (error) {
         console.error('❌ Erro ao buscar dashboard:', error);
-        res.status(500).json({ error: 'Erro ao buscar dashboard', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar dashboard', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -796,7 +824,7 @@ app.get('/api/financeiro/relatorios/dre', authenticateToken, async (req, res) =>
         });
     } catch (error) {
         console.error('❌ Erro ao gerar DRE:', error);
-        res.status(500).json({ error: 'Erro ao gerar DRE', message: error.message });
+        res.status(500).json({ error: 'Erro ao gerar DRE', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -826,7 +854,7 @@ app.get('/api/financeiro/fluxo-caixa', authenticateToken, async (req, res) => {
         res.json({ success: true, data: { entradas, saidas } });
     } catch (error) {
         console.error('❌ Erro ao buscar fluxo de caixa:', error);
-        res.status(500).json({ error: 'Erro ao buscar fluxo de caixa', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar fluxo de caixa', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -842,7 +870,7 @@ app.get('/api/financeiro/fornecedores', authenticateToken, async (req, res) => {
         res.json({ success: true, data: fornecedores });
     } catch (error) {
         console.error('❌ Erro ao buscar fornecedores:', error);
-        res.status(500).json({ error: 'Erro ao buscar fornecedores', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar fornecedores', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -854,7 +882,7 @@ app.get('/api/financeiro/clientes', authenticateToken, async (req, res) => {
         res.json({ success: true, data: clientes });
     } catch (error) {
         console.error('❌ Erro ao buscar clientes:', error);
-        res.status(500).json({ error: 'Erro ao buscar clientes', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar clientes', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -876,7 +904,7 @@ app.get('/api/financeiro/bancos', authenticateToken, async (req, res) => {
         res.json({ success: true, data: bancos });
     } catch (error) {
         console.error('❌ Erro ao buscar bancos:', error);
-        res.status(500).json({ error: 'Erro ao buscar bancos', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar bancos', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -891,7 +919,7 @@ app.get('/api/financeiro/bancos/:id', authenticateToken, async (req, res) => {
         res.json({ success: true, data: bancos[0] });
     } catch (error) {
         console.error('❌ Erro ao buscar banco:', error);
-        res.status(500).json({ error: 'Erro ao buscar banco', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar banco', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -928,7 +956,7 @@ app.post('/api/financeiro/bancos', authenticateToken, async (req, res) => {
         res.json({ success: true, id: result.insertId, message: 'Banco cadastrado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao criar banco:', error);
-        res.status(500).json({ error: 'Erro ao criar banco', message: error.message });
+        res.status(500).json({ error: 'Erro ao criar banco', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -970,19 +998,19 @@ app.put('/api/financeiro/bancos/:id', authenticateToken, async (req, res) => {
         res.json({ success: true, message: 'Banco atualizado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao atualizar banco:', error);
-        res.status(500).json({ error: 'Erro ao atualizar banco', message: error.message });
+        res.status(500).json({ error: 'Erro ao atualizar banco', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
 // Excluir banco (soft delete)
-app.delete('/api/financeiro/bancos/:id', authenticateToken, async (req, res) => {
+app.delete('/api/financeiro/bancos/:id', authenticateToken, requireFinancePermission('excluir'), async (req, res) => {
     try {
         const { id } = req.params;
         await pool.execute("UPDATE bancos SET status = 'inativo' WHERE id = ?", [id]);
         res.json({ success: true, message: 'Banco desativado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao excluir banco:', error);
-        res.status(500).json({ error: 'Erro ao excluir banco', message: error.message });
+        res.status(500).json({ error: 'Erro ao excluir banco', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1027,7 +1055,7 @@ app.get('/api/financeiro/movimentacoes-bancarias', authenticateToken, async (req
         res.json({ success: true, data: movimentacoes });
     } catch (error) {
         console.error('❌ Erro ao buscar movimentações:', error);
-        res.status(500).json({ error: 'Erro ao buscar movimentações', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar movimentações', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1087,7 +1115,7 @@ app.post('/api/financeiro/movimentacoes-bancarias', authenticateToken, async (re
     } catch (error) {
         await connection.rollback();
         console.error('❌ Erro ao criar movimentação:', error);
-        res.status(500).json({ error: 'Erro ao criar movimentação', message: error.message });
+        res.status(500).json({ error: 'Erro ao criar movimentação', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     } finally {
         connection.release();
     }
@@ -1173,7 +1201,7 @@ app.post('/api/financeiro/transferencia-bancaria', authenticateToken, async (req
     } catch (error) {
         await connection.rollback();
         console.error('❌ Erro na transferência:', error);
-        res.status(500).json({ error: 'Erro na transferência', message: error.message });
+        res.status(500).json({ error: 'Erro na transferência', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     } finally {
         connection.release();
     }
@@ -1208,7 +1236,7 @@ app.get('/api/financeiro/bancos/:id/extrato', authenticateToken, async (req, res
         res.json({ success: true, data: movimentacoes });
     } catch (error) {
         console.error('❌ Erro ao buscar extrato:', error);
-        res.status(500).json({ error: 'Erro ao buscar extrato', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar extrato', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1222,7 +1250,7 @@ app.get('/api/financeiro/centros-custo', authenticateToken, async (req, res) => 
         res.json({ success: true, data: centros });
     } catch (error) {
         console.error('❌ Erro ao buscar centros de custo:', error);
-        res.status(500).json({ error: 'Erro ao buscar centros de custo', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar centros de custo', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1236,7 +1264,7 @@ app.get('/api/financeiro/centros-custo/:id', authenticateToken, async (req, res)
         res.json({ success: true, data: centros[0] });
     } catch (error) {
         console.error('❌ Erro ao buscar centro de custo:', error);
-        res.status(500).json({ error: 'Erro ao buscar centro de custo', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar centro de custo', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1252,7 +1280,7 @@ app.post('/api/financeiro/centros-custo', authenticateToken, async (req, res) =>
         res.json({ success: true, id: result.insertId, message: 'Centro de custo criado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao criar centro de custo:', error);
-        res.status(500).json({ error: 'Erro ao criar centro de custo', message: error.message });
+        res.status(500).json({ error: 'Erro ao criar centro de custo', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1269,18 +1297,18 @@ app.put('/api/financeiro/centros-custo/:id', authenticateToken, async (req, res)
         res.json({ success: true, message: 'Centro de custo atualizado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao atualizar centro de custo:', error);
-        res.status(500).json({ error: 'Erro ao atualizar centro de custo', message: error.message });
+        res.status(500).json({ error: 'Erro ao atualizar centro de custo', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
-app.delete('/api/financeiro/centros-custo/:id', authenticateToken, async (req, res) => {
+app.delete('/api/financeiro/centros-custo/:id', authenticateToken, requireFinancePermission('excluir'), async (req, res) => {
     try {
         const { id } = req.params;
         await pool.execute('UPDATE centros_custo SET ativo = 0 WHERE id = ?', [id]);
         res.json({ success: true, message: 'Centro de custo desativado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao excluir centro de custo:', error);
-        res.status(500).json({ error: 'Erro ao excluir centro de custo', message: error.message });
+        res.status(500).json({ error: 'Erro ao excluir centro de custo', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1294,7 +1322,7 @@ app.get('/api/financeiro/impostos', authenticateToken, async (req, res) => {
         res.json({ success: true, data: impostos });
     } catch (error) {
         console.error('❌ Erro ao buscar impostos:', error);
-        res.status(500).json({ error: 'Erro ao buscar impostos', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar impostos', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1308,7 +1336,7 @@ app.get('/api/financeiro/impostos/:id', authenticateToken, async (req, res) => {
         res.json({ success: true, data: impostos[0] });
     } catch (error) {
         console.error('❌ Erro ao buscar imposto:', error);
-        res.status(500).json({ error: 'Erro ao buscar imposto', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar imposto', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1324,7 +1352,7 @@ app.post('/api/financeiro/impostos', authenticateToken, async (req, res) => {
         res.json({ success: true, id: result.insertId, message: 'Imposto criado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao criar imposto:', error);
-        res.status(500).json({ error: 'Erro ao criar imposto', message: error.message });
+        res.status(500).json({ error: 'Erro ao criar imposto', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1341,18 +1369,18 @@ app.put('/api/financeiro/impostos/:id', authenticateToken, async (req, res) => {
         res.json({ success: true, message: 'Imposto atualizado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao atualizar imposto:', error);
-        res.status(500).json({ error: 'Erro ao atualizar imposto', message: error.message });
+        res.status(500).json({ error: 'Erro ao atualizar imposto', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
-app.delete('/api/financeiro/impostos/:id', authenticateToken, async (req, res) => {
+app.delete('/api/financeiro/impostos/:id', authenticateToken, requireFinancePermission('excluir'), async (req, res) => {
     try {
         const { id } = req.params;
         await pool.execute('UPDATE impostos SET ativo = 0 WHERE id = ?', [id]);
         res.json({ success: true, message: 'Imposto desativado com sucesso' });
     } catch (error) {
         console.error('❌ Erro ao excluir imposto:', error);
-        res.status(500).json({ error: 'Erro ao excluir imposto', message: error.message });
+        res.status(500).json({ error: 'Erro ao excluir imposto', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1366,7 +1394,7 @@ app.get('/api/financeiro/categorias', authenticateToken, async (req, res) => {
         res.json({ success: true, data: categorias });
     } catch (error) {
         console.error('❌ Erro ao buscar categorias:', error);
-        res.status(500).json({ error: 'Erro ao buscar categorias', message: error.message });
+        res.status(500).json({ error: 'Erro ao buscar categorias', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
@@ -1406,7 +1434,7 @@ app.use((err, req, res, next) => {
     console.error('❌ Erro:', err);
     res.status(500).json({ 
         error: 'Erro interno do servidor',
-        message: err.message 
+        message: process.env.NODE_ENV === 'development' ? err.message : undefined 
     });
 });
 
@@ -1457,7 +1485,7 @@ async function startServer() {
                 }
             } catch (error) {
                 console.error('Erro ao criar parcelamento:', error);
-                res.status(500).json({ error: error.message });
+                res.status(500).json({ error: 'Erro ao criar parcelamento', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
             }
         });
         
@@ -1488,7 +1516,7 @@ async function startServer() {
                 res.json(permissoes[0]);
             } catch (error) {
                 console.error('Erro ao buscar permissões:', error);
-                res.status(500).json({ error: error.message });
+                res.status(500).json({ error: 'Erro ao buscar permissões', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
             }
         });
         
@@ -1526,7 +1554,7 @@ async function startServer() {
                 });
             } catch (error) {
                 console.error('Erro ao fazer upload:', error);
-                res.status(500).json({ error: error.message });
+                res.status(500).json({ error: 'Erro ao fazer upload', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
             }
         });
         
@@ -1542,11 +1570,11 @@ async function startServer() {
                 res.json({ data: anexos });
             } catch (error) {
                 console.error('Erro ao listar anexos:', error);
-                res.status(500).json({ error: error.message });
+                res.status(500).json({ error: 'Erro ao listar anexos', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
             }
         });
         
-        app.delete('/api/financeiro/anexos/:id', authenticateToken, async (req, res) => {
+        app.delete('/api/financeiro/anexos/:id', authenticateToken, requireFinancePermission('excluir'), async (req, res) => {
             try {
                 const { id } = req.params;
                 
@@ -1555,7 +1583,7 @@ async function startServer() {
                 res.json({ success: true });
             } catch (error) {
                 console.error('Erro ao excluir anexo:', error);
-                res.status(500).json({ error: error.message });
+                res.status(500).json({ error: 'Erro ao excluir anexo', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
             }
         });
 

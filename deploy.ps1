@@ -268,7 +268,6 @@ try {
       $arquivosField += "`n... +$($arquivosGit.Count - 15) arquivo(s)"
    }
 
-   $commitHash = ""
    Push-Location $caminhoLocal
    $commitHash = git rev-parse --short HEAD 2>$null
    Pop-Location

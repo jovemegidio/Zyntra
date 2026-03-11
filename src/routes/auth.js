@@ -6,8 +6,52 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const { validatePasswordStrength } = require('../../utils/password-validator');
+const { validate, schemas } = require('../../middleware/schema-validation');
+const twoFactorService = require('../../services/two-factor.service');
+
+const refreshTokenModule = require('../auth/refresh-token');
 
 const router = express.Router();
+
+// ============================================================================
+// ACCOUNT LOCKOUT — bloqueia conta após tentativas falhas consecutivas
+// ============================================================================
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutos
+const loginAttempts = new Map(); // key: email, value: { count, lockedUntil }
+
+function getLoginAttempt(email) {
+    const key = (email || '').toLowerCase().trim();
+    const record = loginAttempts.get(key);
+    if (!record) return { count: 0, lockedUntil: null };
+    // Limpar registros expirados
+    if (record.lockedUntil && Date.now() > record.lockedUntil) {
+        loginAttempts.delete(key);
+        return { count: 0, lockedUntil: null };
+    }
+    return record;
+}
+
+function recordFailedLogin(email) {
+    const key = (email || '').toLowerCase().trim();
+    const record = getLoginAttempt(key);
+    const newCount = record.count + 1;
+    const lockedUntil = newCount >= MAX_LOGIN_ATTEMPTS ? Date.now() + LOCKOUT_DURATION_MS : null;
+    loginAttempts.set(key, { count: newCount, lockedUntil });
+    return { count: newCount, lockedUntil };
+}
+
+function resetLoginAttempts(email) {
+    loginAttempts.delete((email || '').toLowerCase().trim());
+}
+
+// Limpar entradas expiradas a cada 10 minutos
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, val] of loginAttempts) {
+        if (val.lockedUntil && now > val.lockedUntil) loginAttempts.delete(key);
+    }
+}, 10 * 60 * 1000);
 
 // Configuração do Banco de Dados e modo de desenvolvimento
 const DEV_MOCK = (process.env.DEV_MOCK === '1' || process.env.DEV_MOCK === 'true');
@@ -120,7 +164,7 @@ async function auditLog(action, userId, description, req) {
 }
 
 // Rota de login corrigida (sem campo cargo)
-router.post('/login', async (req, res) => {
+router.post('/login', validate(schemas.login), async (req, res) => {
     const isDevMode = process.env.NODE_ENV !== 'production';
     if (isDevMode) {
         console.log('=== DEBUG LOGIN ===');
@@ -133,8 +177,41 @@ router.post('/login', async (req, res) => {
         return res.status(400).json({ message: 'Dados de login inválidos' });
     }
 
-    let { email, password, trustedDeviceToken } = req.body;
+    let { email, password, trustedDeviceToken, cpf } = req.body;
     try {
+        // ========================================
+        // CPF LOGIN MODE
+        // ========================================
+        let isCpfLogin = false;
+        if (cpf && !email) {
+            isCpfLogin = true;
+            // Strip non-digits
+            cpf = String(cpf).replace(/\D/g, '');
+            if (cpf.length !== 11) {
+                return res.status(400).json({ message: 'CPF deve conter 11 dígitos.' });
+            }
+            if (isDevMode) console.log('[AUTH/LOGIN] Tentativa de login por CPF:', cpf.substring(0, 3) + '...');
+
+            // Look up email from funcionarios table by CPF
+            try {
+                const [funcRows] = await safeQuery(
+                    'SELECT email FROM funcionarios WHERE REPLACE(REPLACE(REPLACE(cpf, ".", ""), "-", ""), " ", "") = ? LIMIT 1',
+                    [cpf]
+                );
+                if (!funcRows.length) {
+                    recordFailedLogin('cpf:' + cpf);
+                    return res.status(401).json({ message: 'CPF ou senha incorretos.' });
+                }
+                email = funcRows[0].email;
+                if (!email) {
+                    return res.status(401).json({ message: 'CPF não possui email vinculado. Contate o RH.' });
+                }
+            } catch (cpfErr) {
+                console.error('[AUTH/LOGIN] Erro ao buscar CPF:', cpfErr.message);
+                return res.status(500).json({ message: 'Erro ao verificar CPF.' });
+            }
+        }
+
         if (isDevMode) console.log('[AUTH/LOGIN] Tentativa de login para:', email);
 
         // Se o usuário digitou apenas o login sem @, adicionar @aluforce.ind.br
@@ -153,9 +230,22 @@ router.post('/login', async (req, res) => {
 
         const emailValido = dominiosPermitidos.some(dominio => email && email.endsWith(dominio));
 
-        if (!email || !emailValido) {
+        if (!isCpfLogin && (!email || !emailValido)) {
             return res.status(401).json({ message: 'Apenas e-mails @aluforce.ind.br, @aluforce.com e @lumiereassessoria.com.br são permitidos.' });
         }
+
+        // ========================================
+        // ACCOUNT LOCKOUT — verificar se conta está bloqueada
+        // ========================================
+        const attemptRecord = getLoginAttempt(email);
+        if (attemptRecord.lockedUntil && Date.now() < attemptRecord.lockedUntil) {
+            const minutesLeft = Math.ceil((attemptRecord.lockedUntil - Date.now()) / 60000);
+            await auditLog('login_locked', null, `Tentativa em conta bloqueada: ${email}`, req);
+            return res.status(429).json({
+                message: `Conta temporariamente bloqueada por excesso de tentativas. Tente novamente em ${minutesLeft} minuto(s).`
+            });
+        }
+
         // Detecta colunas da tabela `usuarios` para escolher o campo de senha
         let cols;
         try {
@@ -177,6 +267,8 @@ router.post('/login', async (req, res) => {
         // Seleciona o usuário (busca por email OU login)
         const [rows] = await safeQuery('SELECT * FROM usuarios WHERE email = ? OR login = ? ORDER BY id ASC LIMIT 1', [email, email.split('@')[0]]);
         if (!rows.length) {
+            // ACCOUNT LOCKOUT: registrar tentativa falha mesmo sem usuário encontrado
+            recordFailedLogin(email);
             // AUDIT-FIX SEC-007: Generic message prevents user enumeration
             return res.status(401).json({ message: 'Email ou senha incorretos.' });
         }
@@ -259,64 +351,35 @@ router.post('/login', async (req, res) => {
                 }
             }
         } catch (err) {
-            console.error('Erro ao comparar senha:', err.stack || err);
+            console.error('Erro ao comparar senha:', err.message);
             return res.status(500).json({ message: 'Erro ao verificar credenciais.', error: (err && err.message) ? err.message : String(err) });
         }
         if (!valid) {
+            // ACCOUNT LOCKOUT: registrar tentativa falha
+            const lockResult = recordFailedLogin(email);
+            const remaining = MAX_LOGIN_ATTEMPTS - lockResult.count;
+            await auditLog('login_failed', user.id, `Senha incorreta para ${email} (tentativa ${lockResult.count}/${MAX_LOGIN_ATTEMPTS})`, req);
+            if (lockResult.lockedUntil) {
+                return res.status(429).json({
+                    message: `Conta bloqueada por ${LOCKOUT_DURATION_MS / 60000} minutos após ${MAX_LOGIN_ATTEMPTS} tentativas falhas.`
+                });
+            }
             // AUDIT-FIX SEC-007: Same message as user-not-found to prevent enumeration
             return res.status(401).json({ message: 'Email ou senha incorretos.' });
         }
 
+        // ACCOUNT LOCKOUT: login bem-sucedido, resetar contador
+        resetLoginAttempts(email);
+
         // ════════════════════════════════════════════════════════════════
         // 🔐 2FA - AUTENTICAÇÃO DE DOIS FATORES VIA EMAIL
         // ════════════════════════════════════════════════════════════════
-        // WHITELIST: Por enquanto, 2FA apenas para emails específicos
-        // Quando todos os emails estiverem atualizados, remover esta checagem
-        const twoFA_whitelist = [
-            'ti@aluforce.ind.br',
-            'pcp@aluforce.ind.br',
-            'rh@aluforce.ind.br',
-            'augusto.santos@aluforce.ind.br',
-            'vendas4@aluforce.ind.br',
-            'financeiro2@aluforce.ind.br',
-            'financeiro3@aluforce.ind.br',
-            'adm@aluforce.ind.br',
-            'compras@aluforce.ind.br',
-            'aluforce@aluforce.ind.br',
-            // 'qafinanceiro@aluforce.ind.br', // 2FA removido em 26/02/2026
-            'qavendas@aluforce.ind.br',
-            'qapcp@aluforce.ind.br',
-            'qarh@aluforce.ind.br',
-            'qacompras@aluforce.ind.br',
-            'qanfe@aluforce.ind.br',
-            'qapainel@aluforce.ind.br'
-        ];
-        const userEmail = (user.email || '').toLowerCase().trim();
-        const requires2FA = twoFA_whitelist.includes(userEmail);
+        // [REFACTORED 10/03/2026] 2FA agora é controlado pelo banco de dados
+        // via coluna `two_factor_enabled` na tabela usuarios.
+        // Admin ativa/desativa pelo painel — sem whitelist hardcoded.
+        const requires2FA = await twoFactorService.requires2FA(pool, user.id);
 
-        // 🔐 Verificar se o admin desabilitou o 2FA para este usuário via painel
-        let twoFactorDisabledByAdmin = false;
         if (requires2FA) {
-            try {
-                // Verificar se a coluna existe, se não, criar
-                const [cols] = await safeQuery("SHOW COLUMNS FROM usuarios LIKE 'two_factor_disabled'");
-                if (!cols || cols.length === 0) {
-                    await safeQuery('ALTER TABLE usuarios ADD COLUMN two_factor_disabled TINYINT(1) DEFAULT 0').catch(() => {});
-                }
-                
-                const [twoFaCheck] = await safeQuery(
-                    'SELECT two_factor_disabled FROM usuarios WHERE id = ?', [user.id]
-                );
-                if (twoFaCheck && twoFaCheck.length > 0 && twoFaCheck[0].two_factor_disabled === 1) {
-                    twoFactorDisabledByAdmin = true;
-                    console.log(`[AUTH/2FA] ⏭️ 2FA desabilitado pelo admin para ${user.email}`);
-                }
-            } catch (e) {
-                console.log('[AUTH/2FA] Aviso: Não foi possível verificar two_factor_disabled:', e.message);
-            }
-        }
-
-        if (requires2FA && !twoFactorDisabledByAdmin) {
         try {
             // Criar tabela de dispositivos confiáveis se não existir
             await safeQuery(`
@@ -339,9 +402,9 @@ router.post('/login', async (req, res) => {
             const trustedDeviceBody = trustedDeviceToken; // Backup via localStorage
             const trustedTokenToCheck = trustedDeviceCookie || trustedDeviceBody || null;
             
-            console.log(`[AUTH/2FA] 🔍 Verificando dispositivo confiável para ${user.email}:`);
-            console.log(`[AUTH/2FA]   - Cookie trusted_device_2fa: ${trustedDeviceCookie ? trustedDeviceCookie.substring(0, 8) + '...' : 'AUSENTE'}`);
-            console.log(`[AUTH/2FA]   - Body trustedDeviceToken: ${trustedDeviceBody ? trustedDeviceBody.substring(0, 8) + '...' : 'AUSENTE'}`);
+            console.log(`[AUTH/2FA] 🔍 Verificando dispositivo confiável para userId ${user.id}`);
+            console.log(`[AUTH/2FA]   - Cookie trusted_device_2fa: ${trustedDeviceCookie ? 'PRESENTE' : 'AUSENTE'}`);
+            console.log(`[AUTH/2FA]   - Body trustedDeviceToken: ${trustedDeviceBody ? 'PRESENTE' : 'AUSENTE'}`);
             
             if (trustedTokenToCheck) {
                 // Limpar dispositivos expirados
@@ -579,16 +642,23 @@ router.post('/login', async (req, res) => {
         const deviceId = uuidv4();
         console.log(`[AUTH/LOGIN] 📱 DeviceId gerado: ${deviceId.substring(0, 8)}...`);
 
-        // Gera token JWT com deviceId e coloca em cookie httpOnly
-        // AUDIT-FIX: Explicit HS256 algorithm to prevent algorithm confusion attacks
-        const token = jwt.sign({
+        // Gera PAR de tokens: access (15m) + refresh (7d) com rotação
+        const tokenPair = await refreshTokenModule.generateTokenPair(
+            { id: user.id, username: user.email, nome: user.nome, role: user.role, empresa_id: user.empresa_id, area: user.area },
+            pool,
+            deviceId
+        );
+        // Adicionar campos extras ao access token (deviceId, setor, email)
+        const accessToken = jwt.sign({
             id: user.id,
             nome: user.nome,
             email: user.email,
             role: user.role,
             setor: user.setor || null,
-            deviceId: deviceId // CRITICAL: Identificador único do dispositivo
-        }, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: '8h' });
+            deviceId: deviceId,
+            type: 'access'
+        }, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: refreshTokenModule.ACCESS_TOKEN_EXPIRY });
+
         const cookieOptions = {
             httpOnly: true,
             path: '/'
@@ -602,12 +672,18 @@ router.post('/login', async (req, res) => {
             // Em desenvolvimento (localhost), não usar secure mas permitir sameSite lax
             cookieOptions.sameSite = 'lax';
         }
-        // Define cookie com expiração em 8 horas
-        const finalCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 60 * 8 });
-        res.cookie('authToken', token, finalCookieOptions);
-        console.log('[AUTH/LOGIN] ✅ Cookie authToken setado para:', user.email);
-        console.log('[AUTH/LOGIN] Cookie options:', JSON.stringify(finalCookieOptions));
-        console.log('[AUTH/LOGIN] Token (primeiros 30 chars):', token.substring(0, 30) + '...');
+        // Access token cookie: 15 minutos
+        const accessCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 15 });
+        res.cookie('authToken', accessToken, accessCookieOptions);
+
+        // Refresh token cookie: 7 dias (httpOnly, path restrito a /api/auth)
+        const refreshCookieOptions = Object.assign({}, cookieOptions, {
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            path: '/api/auth'
+        });
+        res.cookie('refreshToken', tokenPair.refreshToken, refreshCookieOptions);
+
+        console.log('[AUTH/LOGIN] ✅ Cookies authToken (15m) + refreshToken (7d) setados para userId:', user.id);
         // Se a requisição vem de um navegador (ex: submission de formulário) redirecione para o painel
         // Caso seja uma requisição AJAX/fetch, retorne JSON (comportamento atual)
         const acceptsHtml = typeof req.headers.accept === 'string' && req.headers.accept.indexOf('text/html') !== -1;
@@ -620,13 +696,11 @@ router.post('/login', async (req, res) => {
         // Inclui `redirectTo` (absoluto) para que clientes que usam fetch possam redirecionar a página facilmente.
         const baseUrl = (req.protocol || 'http') + '://' + (req.get('host') || req.headers.host || 'localhost');
         const redirectTo = baseUrl + '/dashboard';
-        // AUDIT-FIX SEC-006 (REVISED): Token included in response for localStorage fallback.
-        // The httpOnly cookie is the primary auth mechanism, but login.js also saves
-        // the token to localStorage so auth-unified.js can send it as Authorization header.
-        // This provides dual-path authentication resilience.
+        // SECURITY: Token is NOT included in JSON response.
+        // Authentication is handled exclusively via httpOnly cookie (set above).
+        // This eliminates XSS token theft via localStorage.
         const payload = {
             success: true,
-            token, // Needed by login.js to save in localStorage for Authorization header fallback
             deviceId, // 🔐 MULTI-DEVICE: ID único deste dispositivo
             redirectTo,
             forcePasswordChange: user.senha_temporaria === 1 || user.senha_temporaria === true, // 🔑 Flag de senha temporária
@@ -637,6 +711,9 @@ router.post('/login', async (req, res) => {
                 role: user.role,
                 is_admin: user.is_admin || 0,
                 setor: user.setor || null,
+                apelido: user.apelido || null,
+                foto: user.foto || user.avatar || null,
+                avatar: user.avatar || user.foto || null,
                 areas: (() => {
                     // Parse áreas do banco de dados
                     let areas = [];
@@ -671,12 +748,12 @@ router.post('/login', async (req, res) => {
         // Log completo no servidor (stack quando disponível)
         console.error('Erro detalhado no login:', error.stack || error);
         // Envia apenas mensagem/texto para o cliente para evitar problemas de serialização
-        res.status(500).json({ message: 'Erro inesperado no login', error: (error && error.message) ? error.message : String(error) });
+        res.status(500).json({ message: 'Erro inesperado no login' });
     }
 });
 
-// Rota para logout (limpa cookie e cache)
-router.post('/logout', (req, res) => {
+// Rota para logout (limpa cookies, revoga refresh tokens e cache)
+router.post('/logout', async (req, res) => {
     console.log('[AUTH/LOGOUT] 🚪 Logout requisitado');
 
     // Obter token para limpar cache e identificar usuário
@@ -698,6 +775,16 @@ router.post('/logout', (req, res) => {
         if (typeof global.cacheClearByToken === 'function') {
             global.cacheClearByToken(token);
             console.log('[AUTH/LOGOUT] 🗑️ Cache de sessão limpo');
+        }
+    }
+
+    // Revogar todos os refresh tokens do usuário no banco
+    if (userId && pool && !DEV_MOCK) {
+        try {
+            await refreshTokenModule.revokeAllUserTokens(pool, userId);
+            console.log('[AUTH/LOGOUT] 🔒 Refresh tokens revogados para userId:', userId);
+        } catch (e) {
+            console.warn('[AUTH/LOGOUT] ⚠️ Erro ao revogar refresh tokens:', e.message);
         }
     }
 
@@ -727,10 +814,96 @@ router.post('/logout', (req, res) => {
     }
 
     res.clearCookie('authToken', cookieOptions);
+    // Limpar cookie de refresh token (path restrito)
+    res.clearCookie('refreshToken', Object.assign({}, cookieOptions, { path: '/api/auth' }));
     // Limpar também o cookie de lembrar-me
     res.clearCookie('rememberToken', cookieOptions);
-    console.log('[AUTH/LOGOUT] ✅ Cookies authToken e rememberToken limpos');
+    console.log('[AUTH/LOGOUT] ✅ Cookies authToken, refreshToken e rememberToken limpos');
     res.json({ ok: true, message: 'Logout realizado com sucesso' });
+});
+
+// ===================== TOKEN REFRESH (ROTAÇÃO AUTOMÁTICA) =====================
+// O access token (cookie authToken) expira em 15 min.
+// O frontend chama esta rota para obter novos tokens sem re-login.
+router.post('/auth/refresh', async (req, res) => {
+    try {
+        const oldRefreshToken = req.cookies?.refreshToken;
+
+        if (!oldRefreshToken) {
+            return res.status(401).json({ code: 'NO_REFRESH_TOKEN', message: 'Refresh token não fornecido.' });
+        }
+
+        if (DEV_MOCK) {
+            return res.status(501).json({ message: 'Token refresh não disponível em modo mock.' });
+        }
+
+        // Detectar possível reuso de token revogado (ataque)
+        const jwtLib = require('jsonwebtoken');
+        let decoded;
+        try {
+            decoded = jwtLib.verify(oldRefreshToken, process.env.REFRESH_SECRET || JWT_SECRET + '_refresh');
+        } catch (e) {
+            return res.status(401).json({ code: 'INVALID_REFRESH_TOKEN', message: 'Refresh token inválido ou expirado.' });
+        }
+
+        if (decoded.tokenId) {
+            const reused = await refreshTokenModule.detectTokenReuse(pool, decoded.tokenId);
+            if (reused) {
+                // Token já foi usado/revogado — possível roubo: revogar TODOS os tokens do usuário
+                await refreshTokenModule.revokeAllUserTokens(pool, decoded.userId);
+                console.warn(`🚨 [SECURITY] Token reuse detected for userId ${decoded.userId} — all tokens revoked`);
+                const clearOpts = { httpOnly: true, path: '/' };
+                if (process.env.NODE_ENV === 'production') { clearOpts.secure = true; clearOpts.sameSite = 'strict'; } else { clearOpts.sameSite = 'lax'; }
+                res.clearCookie('authToken', clearOpts);
+                res.clearCookie('refreshToken', Object.assign({}, clearOpts, { path: '/api/auth' }));
+                return res.status(401).json({ code: 'TOKEN_REUSE_DETECTED', message: 'Sessão comprometida. Faça login novamente.' });
+            }
+        }
+
+        // Rotacionar tokens
+        const result = await refreshTokenModule.refreshTokens(oldRefreshToken, pool);
+
+        if (!result || !result.success) {
+            return res.status(401).json({ code: 'REFRESH_FAILED', message: 'Não foi possível renovar sessão.' });
+        }
+
+        // Gerar novo access token com campos completos
+        const newAccessToken = jwtLib.sign({
+            id: result.user.id,
+            nome: result.user.nome,
+            email: result.user.username,
+            role: result.user.role,
+            deviceId: decoded.deviceId || 'default',
+            type: 'access'
+        }, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: refreshTokenModule.ACCESS_TOKEN_EXPIRY });
+
+        // Cookie options
+        const cookieOpts = { httpOnly: true, path: '/' };
+        if (process.env.NODE_ENV === 'production') {
+            cookieOpts.secure = true;
+            cookieOpts.sameSite = 'strict';
+        } else {
+            cookieOpts.sameSite = 'lax';
+        }
+
+        // Setar novos cookies
+        res.cookie('authToken', newAccessToken, Object.assign({}, cookieOpts, { maxAge: 1000 * 60 * 15 }));
+        res.cookie('refreshToken', result.refreshToken, Object.assign({}, cookieOpts, {
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            path: '/api/auth'
+        }));
+
+        console.log(`[AUTH/REFRESH] ✅ Tokens renovados para userId ${result.user.id}`);
+
+        res.json({
+            success: true,
+            user: result.user
+        });
+
+    } catch (error) {
+        console.error('[AUTH/REFRESH] ❌ Erro:', error.message);
+        res.status(401).json({ code: 'REFRESH_ERROR', message: 'Erro ao renovar sessão. Faça login novamente.' });
+    }
 });
 
 // ===================== ROTAS DE RECUPERAÇÃO DE SENHA (SECURED) =====================
@@ -953,22 +1126,49 @@ router.post('/auth/change-password', async (req, res) => {
 
 // ===================== FUNCIONALIDADE "LEMBRAR-ME" =====================
 
-// Cria tabela de refresh tokens se não existir
+// Cria tabela de refresh tokens se não existir (schema unificado: remember-me + token refresh)
 async function ensureRefreshTokensTable() {
     try {
+        // Criar tabela com schema completo (suporta remember-me e token refresh)
         await safeQuery(`
             CREATE TABLE IF NOT EXISTS refresh_tokens (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                token_id VARCHAR(64) NULL UNIQUE,
                 user_id INT NOT NULL,
-                token VARCHAR(512) NOT NULL UNIQUE,
+                token VARCHAR(512) NULL UNIQUE,
+                device_id VARCHAR(100) DEFAULT 'default',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 expires_at TIMESTAMP NOT NULL,
+                revoked TINYINT(1) DEFAULT 0,
+                revoked_at DATETIME NULL,
+                used TINYINT(1) DEFAULT 0,
+                used_at DATETIME NULL,
+                replaced_by VARCHAR(64) NULL,
                 INDEX idx_user_id (user_id),
                 INDEX idx_token (token),
-                FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
+                INDEX idx_token_id (token_id),
+                INDEX idx_user_device (user_id, device_id),
+                INDEX idx_expires (expires_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         `);
-        console.log('[AUTH] ✅ Tabela refresh_tokens verificada/criada');
+        // Migração: adicionar colunas se tabela já existia com schema antigo
+        const columnsToAdd = [
+            { name: 'token_id', sql: 'ALTER TABLE refresh_tokens ADD COLUMN token_id VARCHAR(64) NULL UNIQUE AFTER id' },
+            { name: 'device_id', sql: 'ALTER TABLE refresh_tokens ADD COLUMN device_id VARCHAR(100) DEFAULT \'default\' AFTER token' },
+            { name: 'revoked', sql: 'ALTER TABLE refresh_tokens ADD COLUMN revoked TINYINT(1) DEFAULT 0 AFTER expires_at' },
+            { name: 'revoked_at', sql: 'ALTER TABLE refresh_tokens ADD COLUMN revoked_at DATETIME NULL AFTER revoked' },
+            { name: 'used', sql: 'ALTER TABLE refresh_tokens ADD COLUMN used TINYINT(1) DEFAULT 0 AFTER revoked_at' },
+            { name: 'used_at', sql: 'ALTER TABLE refresh_tokens ADD COLUMN used_at DATETIME NULL AFTER used' },
+            { name: 'replaced_by', sql: 'ALTER TABLE refresh_tokens ADD COLUMN replaced_by VARCHAR(64) NULL AFTER used_at' }
+        ];
+        const [columns] = await safeQuery('SHOW COLUMNS FROM refresh_tokens');
+        const existingCols = new Set(columns.map(c => c.Field));
+        for (const col of columnsToAdd) {
+            if (!existingCols.has(col.name)) {
+                try { await safeQuery(col.sql); console.log(`[AUTH] ✅ Coluna ${col.name} adicionada à refresh_tokens`); } catch (e) { /* já existe */ }
+            }
+        }
+        console.log('[AUTH] ✅ Tabela refresh_tokens verificada/criada (schema unificado)');
     } catch (error) {
         console.error('[AUTH] ⚠️ Erro ao criar tabela refresh_tokens:', error.message);
     }
@@ -1104,21 +1304,33 @@ router.post('/auth/validate-remember-token', async (req, res) => {
             setor: tokenData.setor
         };
 
-        console.log('[AUTH/VALIDATE-REMEMBER] ✅ Token válido para:', user.email);
+        console.log('[AUTH/VALIDATE-REMEMBER] ✅ Token válido para userId:', user.id);
 
         // 🔐 FIX: Gerar deviceId para isolamento de sessão (igual ao login normal)
         const deviceId = uuidv4();
-        const tokenPayload = { ...user, deviceId };
 
-        // Gera novo authToken JWT com deviceId
-        // AUDIT-FIX: Explicit HS256 algorithm
-        const authToken = jwt.sign(tokenPayload, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: '8h' });
+        // Gerar PAR de tokens (access 15m + refresh 7d) igual ao login normal
+        const tokenPair = await refreshTokenModule.generateTokenPair(
+            { id: user.id, username: user.email, nome: user.nome, role: user.role },
+            pool,
+            deviceId
+        );
 
-        // Define cookie authToken
+        // Access token com campos completos
+        const accessToken = jwt.sign({
+            id: user.id,
+            nome: user.nome,
+            email: user.email,
+            role: user.role,
+            setor: user.setor || null,
+            deviceId: deviceId,
+            type: 'access'
+        }, JWT_SECRET, { algorithm: 'HS256', audience: 'aluforce', expiresIn: refreshTokenModule.ACCESS_TOKEN_EXPIRY });
+
+        // Cookie options
         const cookieOptions = {
             httpOnly: true,
-            path: '/',
-            maxAge: 8 * 60 * 60 * 1000 // 8 horas
+            path: '/'
         };
 
         if (process.env.NODE_ENV === 'production') {
@@ -1128,7 +1340,13 @@ router.post('/auth/validate-remember-token', async (req, res) => {
             cookieOptions.sameSite = 'lax';
         }
 
-        res.cookie('authToken', authToken, cookieOptions);
+        // Access token (15 min)
+        res.cookie('authToken', accessToken, Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 15 }));
+        // Refresh token (7 dias, path restrito)
+        res.cookie('refreshToken', tokenPair.refreshToken, Object.assign({}, cookieOptions, {
+            maxAge: 1000 * 60 * 60 * 24 * 7,
+            path: '/api/auth'
+        }));
 
         res.json({
             success: true,
@@ -1266,7 +1484,7 @@ router.post('/verify-2fa', async (req, res) => {
         const finalCookieOptions = Object.assign({}, cookieOptions, { maxAge: 1000 * 60 * 60 * 8 });
         res.cookie('authToken', token, finalCookieOptions);
 
-        console.log('[AUTH/2FA] ✅ Cookie authToken setado para:', user.email);
+        console.log('[AUTH/2FA] ✅ Cookie authToken setado para userId:', user.id);
 
         // 🔐 Salvar dispositivo confiável se solicitado
         let savedTrustedToken = null;
@@ -1323,11 +1541,11 @@ router.post('/verify-2fa', async (req, res) => {
                 res.cookie('trusted_device_2fa', trustedToken, trustedCookieOpts);
                 savedTrustedToken = trustedToken; // Salvar para enviar no JSON response
 
-                console.log(`[AUTH/2FA] 🔒 Dispositivo confiável salvo para ${user.email} (30 dias) - token: ${trustedToken.substring(0, 8)}...`);
+                console.log(`[AUTH/2FA] 🔒 Dispositivo confiável salvo para userId ${user.id} (30 dias)`);
                 console.log(`[AUTH/2FA] 🔒 Cookie trusted_device_2fa setado com maxAge: ${thirtyDays}ms, secure: ${process.env.NODE_ENV === 'production'}, sameSite: ${process.env.NODE_ENV === 'production' ? 'strict' : 'lax'}`);
             } catch (trustErr) {
                 console.error('[AUTH/2FA] ⚠️ Erro ao salvar dispositivo confiável:', trustErr.message);
-                console.error('[AUTH/2FA] ⚠️ Stack:', trustErr.stack);
+                console.error('[AUTH/2FA] ⚠️ Erro:', trustErr.message);
                 // Não impede o login — continua normalmente
             }
         }
@@ -1335,12 +1553,12 @@ router.post('/verify-2fa', async (req, res) => {
         const baseUrl = (req.protocol || 'http') + '://' + (req.get('host') || req.headers.host || 'localhost');
         const redirectTo = baseUrl + '/dashboard';
 
+        // SECURITY: Token is NOT included in JSON response — delivered only via httpOnly cookie
         const payload = {
             success: true,
-            token,
             deviceId,
             redirectTo,
-            trustedDeviceToken: savedTrustedToken || null, // 🔐 Backup via localStorage
+            trustedDeviceToken: savedTrustedToken || null, // 🔐 Backup — also set as httpOnly cookie trusted_device_2fa
             user: {
                 id: user.id,
                 nome: user.nome,
@@ -1348,6 +1566,9 @@ router.post('/verify-2fa', async (req, res) => {
                 role: user.role,
                 is_admin: user.is_admin || 0,
                 setor: user.setor || null,
+                apelido: user.apelido || null,
+                foto: user.foto || user.avatar || null,
+                avatar: user.avatar || user.foto || null,
                 areas: (() => {
                     let areas = [];
                     if (user.areas) {
@@ -1538,7 +1759,9 @@ router.post('/resend-2fa', async (req, res) => {
 // Usuário autenticado com senha temporária precisa definir uma senha definitiva
 router.post('/auth/force-change-password', async (req, res) => {
     try {
-        const { token, newPassword } = req.body;
+        const { newPassword } = req.body;
+        // SECURITY: Read token from httpOnly cookie (primary) or body (legacy fallback)
+        const token = req.cookies?.authToken || req.body.token;
 
         if (!token || !newPassword) {
             return res.status(400).json({ success: false, message: 'Dados incompletos.' });
@@ -1576,9 +1799,9 @@ router.post('/auth/force-change-password', async (req, res) => {
 
         // Atualiza senha_hash (coluna canônica) e remove flag de temporária
         await safeQuery('UPDATE usuarios SET senha_hash = ?, senha_temporaria = 0 WHERE id = ?', [senhaHash, userId]);
-        console.log(`[AUTH/FORCE-CHANGE] ✅ Senha definitiva salva para userId: ${userId} (${rows[0].email})`);
+        console.log(`[AUTH/FORCE-CHANGE] ✅ Senha definitiva salva para userId: ${userId}`);
 
-        auditLog('PASSWORD_FORCE_CHANGE', userId, `Troca obrigatória de senha temporária (${rows[0].email})`, req);
+        auditLog('PASSWORD_FORCE_CHANGE', userId, 'Troca obrigatória de senha temporária', req);
 
         res.json({ success: true, message: 'Senha alterada com sucesso!' });
 
@@ -1594,7 +1817,7 @@ router.post('/auth/force-change-password', async (req, res) => {
 router.post('/auth/esqueci-senha', async (req, res) => {
     try {
         const { email } = req.body;
-        console.log('[AUTH/ESQUECI-SENHA] Solicitação para:', email);
+        console.log('[AUTH/ESQUECI-SENHA] Solicitação recebida');
 
         if (!email || !email.includes('@')) {
             return res.status(400).json({ success: false, message: 'Email inválido.' });
@@ -1605,7 +1828,7 @@ router.post('/auth/esqueci-senha', async (req, res) => {
 
         if (!rows.length) {
             // Retorna sucesso genérico para evitar enumeração de emails
-            console.log('[AUTH/ESQUECI-SENHA] Email não encontrado:', email);
+            console.log('[AUTH/ESQUECI-SENHA] Email não encontrado');
             return res.json({ 
                 success: true, 
                 message: 'Se o email estiver cadastrado, uma nova senha será enviada.' 
@@ -1667,9 +1890,9 @@ router.post('/auth/esqueci-senha', async (req, res) => {
             html: htmlContent
         });
 
-        console.log(`[AUTH/ESQUECI-SENHA] ✅ Email de recuperação enviado para ${user.email}`);
+        console.log(`[AUTH/ESQUECI-SENHA] ✅ Email de recuperação enviado para userId ${user.id}`);
 
-        auditLog('PASSWORD_RESET_REQUEST', user.id, `Recuperação de senha solicitada para ${user.email}`, req);
+        auditLog('PASSWORD_RESET_REQUEST', user.id, 'Recuperação de senha solicitada', req);
 
         res.json({ 
             success: true, 
@@ -1691,7 +1914,7 @@ router.post('/auth/esqueci-senha', async (req, res) => {
 router.post('/auth/forgot-password', async (req, res) => {
     try {
         const { email } = req.body;
-        console.log('[AUTH/FORGOT-PASSWORD] Alias → esqueci-senha para:', email);
+        console.log('[AUTH/FORGOT-PASSWORD] Alias → esqueci-senha');
 
         if (!email || !email.includes('@')) {
             return res.status(400).json({ success: false, message: 'Email inválido.' });
@@ -1701,7 +1924,7 @@ router.post('/auth/forgot-password', async (req, res) => {
         const [rows] = await safeQuery('SELECT id, nome, email FROM usuarios WHERE email = ? LIMIT 1', [email]);
 
         if (!rows.length) {
-            console.log('[AUTH/FORGOT-PASSWORD] Email não encontrado:', email);
+            console.log('[AUTH/FORGOT-PASSWORD] Email não encontrado');
             return res.json({ 
                 success: true, 
                 message: 'Se o email estiver cadastrado, uma nova senha será enviada.' 

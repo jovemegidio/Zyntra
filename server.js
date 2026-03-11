@@ -52,7 +52,6 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const fs = require('fs');
 const cors = require('cors');
-const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
 const authRouter = require('./src/routes/auth');
 const userPermissions = require('./src/permissions-server');
@@ -305,218 +304,31 @@ const pedidoValidation = [
     validate
 ];
 
-// Middleware para autorizar apenas administradores ou RH (usado em RH)
-const authorizeAdmin = async (req, res, next) => {
-    const userRole = String(req.user?.role || '').toLowerCase().trim();
-    const isAdmin = userRole === 'admin' || userRole === 'administrador' ||
-                    req.user?.is_admin === 1 || req.user?.is_admin === true || req.user?.is_admin === '1';
-    const isRH = userRole === 'rh' || userRole === 'recursos humanos';
+// [REFACTORED 10/03/2026] Delegado para middleware/auth-central.js
+const authCentral = require('./middleware/auth-central');
+const authorizeAdmin = authCentral.requireAdminOrRH;
 
-    if (isAdmin || isRH) {
-        return next();
-    }
+// [REFACTORED 10/03/2026] Cache e lógica movidos para services/permission.service.js
+// Expondo global._permCache para backward compat (auth-rbac.js pode invalidar)
+global._permCache = authCentral.permissionService._moduleCache || new Map();
+const PERM_CACHE_TTL = 5 * 60 * 1000; // 5 min (lido por outros módulos)
 
-    // AUDIT-FIX: Verificar permissão via banco (permissoes_modulos) — consistente com authorizeArea
-    try {
-        const dbAreas = await getDbAreas(req.user?.id);
-        if (dbAreas && dbAreas.has('rh')) {
-            return next();
-        }
-    } catch (e) {
-        // Ignora erros na checagem de permissão — fallback para deny
-    }
-
-    return res.status(403).json({ message: 'Acesso negado. Requer privilégios de administrador ou RH.' });
-};
-
-// ============================================================
-// AUDIT-FIX HIGH-002: DB-driven permission cache
-// ============================================================
-const _permCache = new Map(); // key: userId → { areas: Set, ts: number }
-global._permCache = _permCache; // Exposto para auth-rbac invalidar cache
-const PERM_CACHE_TTL = 5 * 60 * 1000; // 5 min
-
+// Função mantida para backward compat (usada pelo authorizeACL e authenticatePage)
 async function getDbAreas(userId) {
     if (!pool || !userId) return null;
-    const cached = _permCache.get(userId);
-    if (cached && Date.now() - cached.ts < PERM_CACHE_TTL) return cached.areas;
-    try {
-        const [rows] = await pool.query(
-            'SELECT modulo FROM permissoes_modulos WHERE usuario_id = ? AND visualizar = 1',
-            [userId]
-        );
-        if (rows.length === 0) return null; // no DB rows → use hardcoded fallback
-        const areas = new Set(rows.map(r => r.modulo.toLowerCase()));
-        _permCache.set(userId, { areas, ts: Date.now() });
-        return areas;
-    } catch (e) {
-        return null; // DB error → fall through to hardcoded
-    }
+    const modules = await authCentral.permissionService.getUserModules(pool, userId);
+    return modules && modules.size > 0 ? modules : null;
 }
 
-// Middleware para controle de acesso por área baseado em permissões de usuário
-// AUDIT-FIX HIGH-002: Checks DB (permissoes_modulos) first, hardcoded map as fallback
-const authorizeArea = (area) => {
-    return async (req, res, next) => {
-        if (!req.user) {
-            logger.warn(`[AUTH-AREA] Usuário não autenticado para área: ${area}`);
-            return res.status(401).json({ message: 'Usuário não autenticado.' });
-        }
-
-        // Obter firstName de forma segura
-        let firstName = 'unknown';
-        if (req.user.nome) {
-            firstName = req.user.nome.split(' ')[0].toLowerCase();
-        } else if (req.user.email) {
-            firstName = req.user.email.split('@')[0].split('.')[0].toLowerCase();
-        }
-
-        // Admin always has access
-        const isAdmin = req.user.role === 'admin' ||
-                        req.user.is_admin === true ||
-                        req.user.is_admin === 1 ||
-                        req.user.is_admin === '1' ||
-                        String(req.user.role).toLowerCase() === 'admin';
-
-        if (isAdmin) {
-            logger.info(`[AUTH-AREA] Admin ${firstName} autorizado para ${area}`);
-            return next();
-        }
-
-        // Consultoria: read-mostly access
-        const isConsultoria = req.user.role === 'consultoria' ||
-                              String(req.user.role).toLowerCase() === 'consultoria';
-        if (isConsultoria) {
-            logger.info(`[AUTH-AREA] Consultoria ${firstName} autorizado para ${area} (modo leitura)`);
-            req.isConsultoria = true;
-            // AUDIT-FIX PERM-004: Consultoria is read-only — no edit, create, delete or approve
-            req.canEdit = false;
-            req.canCreate = false;
-            req.canDelete = false;
-            req.canApprove = false;
-            return next();
-        }
-
-        // AUDIT-FIX HIGH-002: Check DB permissions first
-        const dbAreas = await getDbAreas(req.user.id);
-        if (dbAreas) {
-            // DB has rows for this user — authoritative source
-            if (dbAreas.has(area.toLowerCase())) {
-                logger.info(`[AUTH-AREA] DB: ${firstName} autorizado para ${area}`);
-                return next();
-            }
-            logger.warn(`[AUTH-AREA] DB: Acesso negado para ${firstName} à área ${area}`);
-            return res.status(403).json({
-                message: `Acesso negado à área ${area}. Você não tem permissão para acessar este módulo.`
-            });
-        }
-
-        // Fallback to hardcoded map (transition period)
-        if (userPermissions.hasAccess(firstName, area)) {
-            logger.info(`[AUTH-AREA] Hardcoded: ${firstName} autorizado para ${area}`);
-            return next();
-        }
-
-        logger.warn(`[AUTH-AREA] Acesso negado para ${firstName} à área ${area}`);
-        return res.status(403).json({
-            message: `Acesso negado à área ${area}. Você não tem permissão para acessar este módulo.`
-        });
-    };
-};
+// [REFACTORED 10/03/2026] Delegado para middleware/auth-central.js
+const authorizeArea = authCentral.requireModule;
 
 
-// =================================================================
-// AUDIT-FIX HIGH-002: DB-driven action permission cache
-// =================================================================
-const _actionCache = new Map(); // key: `${userId}:${modulo}` → { actions: Set, ts: number }
-global._actionCache = _actionCache; // Exposto para auth-rbac invalidar cache
+// [REFACTORED 10/03/2026] Action cache movido para services/permission.service.js
+global._actionCache = authCentral.permissionService._actionCache || new Map();
 
-async function getDbActions(userId, modulo) {
-    if (!pool || !userId) return null;
-    const cacheKey = `${userId}:${modulo}`;
-    const cached = _actionCache.get(cacheKey);
-    if (cached && Date.now() - cached.ts < PERM_CACHE_TTL) return cached.actions;
-    try {
-        const [rows] = await pool.query(
-            'SELECT acao FROM permissoes_acoes WHERE usuario_id = ? AND modulo = ? AND permitido = 1',
-            [userId, modulo]
-        );
-        if (rows.length === 0) return null; // no DB rows → use hardcoded fallback
-        const actions = new Set(rows.map(r => r.acao));
-        _actionCache.set(cacheKey, { actions, ts: Date.now() });
-        return actions;
-    } catch (e) {
-        return null; // DB error → fall through to hardcoded
-    }
-}
-
-// =================================================================
-// Middleware de Autorização Granular por Ação
-// AUDIT-FIX HIGH-002: DB-first with hardcoded fallback (transition period)
-// =================================================================
-const authorizeAction = (modulo, actions) => {
-    return async (req, res, next) => {
-        if (!req.user) {
-            return res.status(401).json({ message: 'Usuário não autenticado.' });
-        }
-
-        // Admin sempre tem acesso total
-        const isAdmin = req.user.role === 'admin' ||
-                        req.user.is_admin === true ||
-                        req.user.is_admin === 1 ||
-                        req.user.is_admin === '1';
-
-        if (isAdmin) {
-            req.userPermissions = actions; // Admin tem todas as ações
-            return next();
-        }
-
-        // Obter firstName
-        let firstName = 'unknown';
-        if (req.user.nome) {
-            firstName = req.user.nome.split(' ')[0].toLowerCase();
-        } else if (req.user.email) {
-            firstName = req.user.email.split('@')[0].split('.')[0].toLowerCase();
-        }
-
-        const actionsArray = Array.isArray(actions) ? actions : [actions];
-
-        // DB-first: Check permissoes_acoes
-        const dbActions = await getDbActions(req.user.id, modulo);
-        if (dbActions) {
-            const permittedActions = actionsArray.filter(action => dbActions.has(action));
-            if (permittedActions.length > 0) {
-                logger.info(`[AUTH-ACTION] DB: ${firstName} autorizado para ${permittedActions.join(', ')} em ${modulo}`);
-                req.userPermissions = permittedActions;
-                return next();
-            }
-            logger.warn(`[AUTH-ACTION] DB: Acesso negado para ${firstName} - Ações: ${actionsArray.join(', ')} no módulo ${modulo}`);
-            return res.status(403).json({
-                message: `Acesso negado. Você não tem permissão para esta ação no módulo ${modulo}.`,
-                required_actions: actionsArray,
-                module: modulo
-            });
-        }
-
-        // Fallback: hardcoded map (deprecation transition)
-        const permittedActions = actionsArray.filter(action =>
-            userPermissions.hasPermission(firstName, modulo, action)
-        );
-
-        if (permittedActions.length === 0) {
-            console.log(`[AUTH-ACTION] Acesso negado para ${firstName} - Ações: ${actionsArray.join(', ')} no módulo ${modulo}`);
-            return res.status(403).json({
-                message: `Acesso negado. Você não tem permissão para esta ação no módulo ${modulo}.`,
-                required_actions: actionsArray,
-                module: modulo
-            });
-        }
-
-        logger.info(`[AUTH-ACTION] Hardcoded fallback: ${firstName} autorizado para ${permittedActions.join(', ')} em ${modulo}`);
-        req.userPermissions = permittedActions;
-        return next();
-    };
-};
+// [REFACTORED 10/03/2026] Delegado para middleware/auth-central.js
+const authorizeAction = authCentral.requireAction;
 
 // Configuração do Banco de Dados (use variáveis de ambiente para testes/produção)
 // Permite sobrescrever host/user/password/database sem editar o código.
@@ -783,6 +595,10 @@ app.use(compression({
     threshold: 1024 // Mínimo de 1KB para comprimir
 }));
 
+// HTTPS redirect — forces HTTPS in production (no-op in development)
+const { forceHttpsMiddleware } = require('./config/https.config');
+app.use(forceHttpsMiddleware);
+
 // � ENTERPRISE: Request-ID tracing — end-to-end observability
 app.use(requestIdMiddleware());
 
@@ -797,7 +613,6 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // Aplicar security middleware centralizado
 app.use(securityHeaders());
-app.use(helmet());
 
 // RATE LIMIT: Isentar assets estáticos (avatars, images, css, js, fonts) para não gastar o limite
 app.use((req, res, next) => {
@@ -867,7 +682,7 @@ app.use(cors({
     credentials: true, // CRITICAL: Permite envio de cookies
     exposedHeaders: ['set-cookie'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-CSRF-Token']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // FIX 19/02/2026: cookieParser DEVE rodar ANTES do csrfProtection
@@ -982,8 +797,8 @@ app.get('/avatars/:filename', (req, res, next) => {
 // ========================================
 app.get('/favicon.ico', (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=2592000, immutable'); // 30 dias
-    res.setHeader('Content-Type', 'image/x-icon');
-    res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.sendFile(path.join(__dirname, 'public', 'favicon-zyntra.jpg'));
 });
 
 // ========================================
@@ -1118,6 +933,8 @@ app.get('/index.html', authenticatePage, (req, res) => {
 // Servir página de Ajuda (institucional) - DEVE VIR ANTES do express.static(public)
 const ajudaPath = path.join(__dirname, 'ajuda');
 const ajudaOptions = {
+    dotfiles: 'deny',
+    index: false,
     setHeaders: (res, filePath) => {
         if (filePath.endsWith('.html')) {
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -1131,6 +948,8 @@ app.use('/Ajuda', express.static(ajudaPath, ajudaOptions));
 
 // ⚡ ENTERPRISE: Shared utilities (fetch-utils, confirm-dialog, etc.)
 app.use('/_shared', express.static(path.join(__dirname, '_shared'), {
+    dotfiles: 'deny',
+    index: false,
     maxAge: '7d',
     etag: true,
     lastModified: true
@@ -1144,15 +963,17 @@ app.use('/Ajuda-Aluforce', (req, res) => {
 
 // CSS e JS - Cache longo para performance (assets versionados)
 app.use('/css', express.static(path.join(__dirname, 'public', 'css'), {
+    dotfiles: 'deny',
     index: false,
-    maxAge: '7d',  // Cache de 7 dias para CSS
+    maxAge: '7d',
     etag: true,
     lastModified: true
 }));
 
 app.use('/js', express.static(path.join(__dirname, 'public', 'js'), {
+    dotfiles: 'deny',
     index: false,
-    maxAge: '7d',  // Cache de 7 dias para JS
+    maxAge: '7d',
     etag: true,
     lastModified: true,
     setHeaders: (res, filePath) => {
@@ -1168,11 +989,12 @@ app.use('/js', express.static(path.join(__dirname, 'public', 'js'), {
 
 // 🖼️ Fundos/Backgrounds - Cache longo (imagens WebP otimizadas, mudam raramente)
 app.use('/Fundos', express.static(path.join(__dirname, 'public', 'Fundos'), {
+    dotfiles: 'deny',
     index: false,
-    maxAge: '30d',  // Cache de 30 dias - fundos mudam muito raramente
+    maxAge: '30d',
     etag: true,
     lastModified: true,
-    immutable: true  // Diz ao browser que o conteúdo não muda (usa ?v= para cache busting)
+    immutable: true
 }));
 
 // ============================================================
@@ -1187,18 +1009,22 @@ if (!require('fs').existsSync(chatUploadDir)) {
 const chatUploadStorage = chatMulter.diskStorage({
     destination: (req, file, cb) => cb(null, chatUploadDir),
     filename: (req, file, cb) => {
-        const ext = chatPath.extname(file.originalname);
+        const ext = chatPath.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '');
         cb(null, Date.now() + '-' + Math.round(Math.random() * 1E6) + ext);
     }
 });
 const chatUpload = chatMulter({
     storage: chatUploadStorage,
-    limits: { fileSize: 25 * 1024 * 1024 },
+    limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|xls|xlsx|mp3|wav|ogg|webm|mp4/;
+        const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|xls|xlsx|mp3|wav|ogg|webm/;
         const ext = allowedTypes.test(chatPath.extname(file.originalname).toLowerCase());
         const mime = allowedTypes.test(file.mimetype);
-        cb(null, ext || mime);
+        if (ext && mime) {
+            cb(null, true);
+        } else {
+            cb(new Error('Tipo de arquivo não permitido'));
+        }
     }
 });
 
@@ -1240,9 +1066,19 @@ app.use('/chat', (req, res, next) => {
     next();
 });
 
+// 📱 iOS: Servir .well-known para Universal Links / Deep Links (precisa dotfiles: 'allow')
+app.use('/.well-known', express.static(path.join(__dirname, 'public', '.well-known'), {
+    dotfiles: 'allow',
+    maxAge: '1d',
+    setHeaders: (res) => {
+        res.setHeader('Content-Type', 'application/json');
+    }
+}));
+
 app.use(express.static(path.join(__dirname, 'public'), {
+    dotfiles: 'deny',
     index: false,
-    maxAge: '1d',  // Cache de 1 dia para outros assets
+    maxAge: '1d',
     etag: true,
     lastModified: true,
     setHeaders: (res, filePath) => {
@@ -1251,11 +1087,23 @@ app.use(express.static(path.join(__dirname, 'public'), {
             res.setHeader('Cache-Control', 'no-cache, must-revalidate');
             res.setHeader('Pragma', 'no-cache');
         }
+        // iOS OTA: MIME type correto para manifest.plist
+        if (filePath.endsWith('.plist')) {
+            res.setHeader('Content-Type', 'text/xml');
+        }
+        // iOS OTA: MIME type correto para .ipa
+        if (filePath.endsWith('.ipa')) {
+            res.setHeader('Content-Type', 'application/octet-stream');
+        }
+        // Apple App Site Association (sem extensão)
+        if (filePath.endsWith('apple-app-site-association')) {
+            res.setHeader('Content-Type', 'application/json');
+        }
     }
 }));
 
 // Servir Socket.io client library
-app.use('/socket.io', express.static(path.join(__dirname, 'node_modules', 'socket.io', 'client-dist')));
+app.use('/socket.io', express.static(path.join(__dirname, 'node_modules', 'socket.io', 'client-dist'), { dotfiles: 'deny', index: false }));
 
 // AUDIT-FIX HIGH-013: Removed CORS wildcard override — CORS is handled by the cors() middleware
 // Middleware específico para correção de MIME types
@@ -1291,11 +1139,13 @@ app.use('/Vendas/css', express.static(path.join(__dirname, 'modules', 'Vendas', 
     }
 }));
 
-app.use('/Vendas/images', express.static(path.join(__dirname, 'modules', 'Vendas', 'public', 'images')));
-app.use('/Vendas/assets', express.static(path.join(__dirname, 'modules', 'Vendas', 'public', 'assets')));
+app.use('/Vendas/images', express.static(path.join(__dirname, 'modules', 'Vendas', 'public', 'images'), { dotfiles: 'deny', index: false }));
+app.use('/Vendas/assets', express.static(path.join(__dirname, 'modules', 'Vendas', 'public', 'assets'), { dotfiles: 'deny', index: false }));
 
 // Servir uploads específicos do Vendas
 app.use('/uploads', express.static(path.join(__dirname, 'modules', 'Vendas', 'public', 'uploads'), {
+    dotfiles: 'deny',
+    index: false,
     setHeaders: (res, filePath) => {
         if (filePath.endsWith('.png') || filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
             res.setHeader('Content-Type', 'image/' + filePath.split('.').pop().replace('jpg', 'jpeg'));
@@ -1362,6 +1212,8 @@ app.get('/modules/*.html', (req, res, next) => {
 
 // Rotas estáticas do PCP - Cache desabilitado para TODOS os tipos de arquivo
 app.use('/PCP', express.static(path.join(__dirname, 'modules', 'PCP'), {
+    dotfiles: 'deny',
+    index: false,
     etag: false,
     lastModified: false,
     setHeaders: (res, filePath) => {
@@ -1385,6 +1237,8 @@ app.use('/PCP', express.static(path.join(__dirname, 'modules', 'PCP'), {
 
 // Rota para servir módulo PCP com /modules/PCP - Cache desabilitado para TODOS os tipos
 app.use('/modules/PCP', express.static(path.join(__dirname, 'modules', 'PCP'), {
+    dotfiles: 'deny',
+    index: false,
     etag: false,
     lastModified: false,
     setHeaders: (res, filePath) => {
@@ -1402,44 +1256,50 @@ app.use('/modules/PCP', express.static(path.join(__dirname, 'modules', 'PCP'), {
     }
 }));
 
-app.use('/NFe', express.static(path.join(__dirname, 'modules', 'NFe')));
-app.use('/e-Nf-e', express.static(path.join(__dirname, 'modules', 'NFe'))); // Compatibilidade com URL antiga
+app.use('/NFe', express.static(path.join(__dirname, 'modules', 'NFe'), { dotfiles: 'deny', index: false }));
+app.use('/e-Nf-e', express.static(path.join(__dirname, 'modules', 'NFe'), { dotfiles: 'deny', index: false }));
 
 // Servir templates de importação Zyntra (xlsx) para download direto
 // Rota explícita para subpastas (zyntra/) + arquivo direto
 app.get('/templates/:folder/:file', (req, res) => {
-    // Security: block path traversal
-    if (req.params.folder.includes('..') || req.params.file.includes('..')) {
+    // Security: block path traversal (decode first to catch %2e%2e)
+    const folder = decodeURIComponent(req.params.folder);
+    const file = decodeURIComponent(req.params.file);
+    if (folder.includes('..') || file.includes('..') || folder.includes('/') || folder.includes('\\') || file.includes('/') || file.includes('\\')) {
         return res.status(400).json({ error: 'Caminho inválido' });
     }
-    const filePath = path.join(__dirname, 'templates', req.params.folder, req.params.file);
+    const filePath = path.join(__dirname, 'templates', folder, file);
     // Verify resolved path stays within templates dir
-    if (!filePath.startsWith(path.join(__dirname, 'templates'))) {
+    const resolvedPath = path.resolve(filePath);
+    const templatesDir = path.resolve(path.join(__dirname, 'templates'));
+    if (!resolvedPath.startsWith(templatesDir + path.sep)) {
         return res.status(400).json({ error: 'Caminho inválido' });
     }
-    if (!filePath.endsWith('.xlsx')) {
+    if (!resolvedPath.endsWith('.xlsx')) {
         return res.status(400).json({ error: 'Apenas arquivos .xlsx são permitidos' });
     }
-    res.download(filePath, req.params.file, (err) => {
+    res.download(resolvedPath, file, (err) => {
         if (err && !res.headersSent) {
-            console.error(`[Templates] Arquivo não encontrado: ${filePath}`);
             res.status(404).json({ error: 'Template não encontrado' });
         }
     });
 });
 app.get('/templates/:file', (req, res) => {
-    // Security: block path traversal
-    if (req.params.file.includes('..')) {
+    // Security: block path traversal (decode first to catch %2e%2e)
+    const file = decodeURIComponent(req.params.file);
+    if (file.includes('..') || file.includes('/') || file.includes('\\')) {
         return res.status(400).json({ error: 'Caminho inválido' });
     }
-    const filePath = path.join(__dirname, 'templates', req.params.file);
-    if (!filePath.startsWith(path.join(__dirname, 'templates'))) {
+    const filePath = path.join(__dirname, 'templates', file);
+    const resolvedPath = path.resolve(filePath);
+    const templatesDir = path.resolve(path.join(__dirname, 'templates'));
+    if (!resolvedPath.startsWith(templatesDir + path.sep)) {
         return res.status(400).json({ error: 'Caminho inválido' });
     }
-    if (!filePath.endsWith('.xlsx')) {
+    if (!resolvedPath.endsWith('.xlsx')) {
         return res.status(400).json({ error: 'Apenas arquivos .xlsx são permitidos' });
     }
-    res.download(filePath, req.params.file, (err) => {
+    res.download(resolvedPath, file, (err) => {
         if (err && !res.headersSent) {
             console.error(`[Templates] Arquivo não encontrado: ${filePath}`);
             res.status(404).json({ error: 'Template não encontrado' });
@@ -1447,16 +1307,16 @@ app.get('/templates/:file', (req, res) => {
     });
 });
 
-app.use('/Financeiro', express.static(path.join(__dirname, 'modules', 'Financeiro', 'public')));
-app.use('/Compras', express.static(path.join(__dirname, 'modules', 'Compras')));
-app.use('/RecursosHumanos', express.static(path.join(__dirname, 'modules', 'RH', 'public')));
-app.use('/RH', express.static(path.join(__dirname, 'modules', 'RH', 'public'))); // Compatibilidade
+app.use('/Financeiro', express.static(path.join(__dirname, 'modules', 'Financeiro', 'public'), { dotfiles: 'deny', index: false }));
+app.use('/Compras', express.static(path.join(__dirname, 'modules', 'Compras'), { dotfiles: 'deny', index: false }));
+app.use('/RecursosHumanos', express.static(path.join(__dirname, 'modules', 'RH', 'public'), { dotfiles: 'deny', index: false }));
+app.use('/RH', express.static(path.join(__dirname, 'modules', 'RH', 'public'), { dotfiles: 'deny', index: false }));
 
 // Servir arquivos compartilhados dos módulos
-app.use('/_shared', express.static(path.join(__dirname, 'modules', '_shared')));
+app.use('/_shared', express.static(path.join(__dirname, 'modules', '_shared'), { dotfiles: 'deny', index: false }));
 
 // Servir módulos diretamente com rotas específicas
-app.use('/modules', express.static(path.join(__dirname, 'modules')));
+app.use('/modules', express.static(path.join(__dirname, 'modules'), { dotfiles: 'deny', index: false }));
 
 // =================================================================
 // ENDPOINT DE HEALTH CHECK — Enterprise Monitoring
@@ -2296,48 +2156,10 @@ const initCronJobs = () => {
 };
 
 // =================================================================
-// 4. MIDDLEWARES DE AUTENTICAÇÁO E AUTORIZAÇÁO
+// 4. MIDDLEWARES DE AUTENTICAÇÃO E AUTORIZAÇÃO
+// [REFACTORED 10/03/2026] Delegado para middleware/auth-central.js
 // =================================================================
-
-// Middleware para verificar o token JWT
-const authenticateToken = (req, res, next) => {
-    // Busca token em múltiplas fontes: Authorization header, cookie ou query string
-    const authHeader = req.headers['authorization'];
-    let token = null;
-
-    // Extrair token do header Authorization (ignorar se for "null" ou "undefined")
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const headerToken = authHeader.split(' ')[1];
-        if (headerToken && headerToken !== 'null' && headerToken !== 'undefined') {
-            token = headerToken;
-        }
-    }
-
-    // Se não encontrou no header, tentar cookies
-    if (!token) {
-        token = req.cookies?.authToken || req.cookies?.token;
-    }
-
-    // SECURITY: Não aceitar token via query string (expõe em logs/histórico)
-    // Tokens devem vir apenas via header Authorization ou cookies httpOnly
-
-    if (!token) {
-        return res.status(401).json({ message: 'Token de autenticação não fornecido.' });
-    }
-
-    // AUDIT-FIX ARCH-004: Enforce HS256 algorithm (audience enforced in sign, verify-side after token rotation)
-    jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
-        if (err) {
-            logger.warn('[AUTH] Token inválido: ' + err.message);
-            if (err.name === 'TokenExpiredError') {
-                return res.status(401).json({ message: 'Token expirado. Faça login novamente.' });
-            }
-            return res.status(403).json({ message: 'Token inválido. Faça login novamente.' });
-        }
-        req.user = user;
-        next();
-    });
-};
+const authenticateToken = authCentral.authenticateToken;
 
 // Middleware para autorizar admin ou comercial para Vendas/CRM
 const authorizeAdminOrComercial = (req, res, next) => {
@@ -2347,84 +2169,68 @@ const authorizeAdminOrComercial = (req, res, next) => {
     return res.status(403).json({ message: 'Acesso negado. Requer privilégios de administrador ou comercial.' });
 };
 
-// ACL: Controle de acesso detalhado por nível de usuário
-// FIX: req.user.permissions nunca é populado no JWT. Consultar permissoes_acoes no DB.
-function authorizeACL(permission) {
-    // =================================================================
-    // ENDPOINT DE FOTO DO USUÁRIO - Busca foto pelo email (autenticado)
-    // =================================================================
-    app.get('/api/usuarios/foto/:email', authenticateToken, async (req, res) => {
+// =================================================================
+// ENDPOINT DE FOTO DO USUÁRIO - Busca foto pelo email (autenticado)
+// [REFACTORED 10/03/2026] Extraído de dentro do authorizeACL para evitar side-effect
+// =================================================================
+app.get('/api/usuarios/foto/:email', authenticateToken, async (req, res) => {
+    try {
+        const email = decodeURIComponent(req.params.email).toLowerCase();
+        let nome = null, apelido = null, foto = null;
         try {
-            const email = decodeURIComponent(req.params.email).toLowerCase();
-
-            // Buscar dados do usuário na tabela usuarios
-            let nome = null, apelido = null, foto = null;
+            const [usuarios] = await pool.query(
+                'SELECT foto, avatar, nome, apelido FROM usuarios WHERE LOWER(email) = ?', [email]
+            );
+            if (usuarios.length > 0) {
+                nome = usuarios[0].nome;
+                apelido = usuarios[0].apelido;
+                let fotoUsuario = usuarios[0].foto || null;
+                if (!fotoUsuario || fotoUsuario.endsWith('.svg')) {
+                    fotoUsuario = usuarios[0].avatar || null;
+                }
+                if (fotoUsuario && !fotoUsuario.endsWith('.svg')) {
+                    foto = fotoUsuario;
+                }
+            }
+        } catch (e) {
+            console.warn('Erro ao buscar foto em usuarios:', e.message);
+        }
+        if (!foto) {
             try {
-                const [usuarios] = await pool.query(
-                    'SELECT foto, avatar, nome, apelido FROM usuarios WHERE LOWER(email) = ?',
-                    [email]
+                const [funcionarios] = await pool.query(
+                    'SELECT foto_perfil_url, foto_thumb_url, nome_completo FROM funcionarios WHERE LOWER(email) = ? LIMIT 1', [email]
                 );
-                if (usuarios.length > 0) {
-                    nome = usuarios[0].nome;
-                    apelido = usuarios[0].apelido;
-                    // Priorizar foto real (não SVG), depois avatar
-                    let fotoUsuario = usuarios[0].foto || null;
-                    if (!fotoUsuario || fotoUsuario.endsWith('.svg')) {
-                        fotoUsuario = usuarios[0].avatar || null;
-                    }
-                    // Ignorar SVGs de avatar genérico
-                    if (fotoUsuario && !fotoUsuario.endsWith('.svg')) {
-                        foto = fotoUsuario;
-                    }
+                if (funcionarios.length > 0) {
+                    foto = funcionarios[0].foto_perfil_url || funcionarios[0].foto_thumb_url || null;
+                    if (!nome) nome = funcionarios[0].nome_completo;
                 }
             } catch (e) {
-                console.warn('Erro ao buscar foto em usuarios:', e.message);
+                console.warn('Erro ao buscar foto em funcionarios:', e.message);
             }
-
-            // Sempre tentar buscar foto na tabela funcionarios (tem foto_perfil_url)
-            if (!foto) {
-                try {
-                    const [funcionarios] = await pool.query(
-                        'SELECT foto_perfil_url, foto_thumb_url, nome_completo FROM funcionarios WHERE LOWER(email) = ? LIMIT 1',
-                        [email]
-                    );
-                    if (funcionarios.length > 0) {
-                        foto = funcionarios[0].foto_perfil_url || funcionarios[0].foto_thumb_url || null;
-                        if (!nome) nome = funcionarios[0].nome_completo;
-                    }
-                } catch (e) {
-                    console.warn('Erro ao buscar foto em funcionarios:', e.message);
-                }
-            }
-
-            if (nome || foto) {
-                return res.json({
-                    success: true,
-                    foto: foto,
-                    nome: nome,
-                    apelido: apelido || null
-                });
-            }
-
-            return res.json({ success: false, message: 'Usuário não encontrado' });
-        } catch (error) {
-            console.error('Erro ao buscar foto do usuário:', error);
-            return res.status(500).json({ success: false, error: error.message });
         }
-    });
+        if (nome || foto) {
+            return res.json({ success: true, foto, nome, apelido: apelido || null });
+        }
+        return res.json({ success: false, message: 'Usuário não encontrado' });
+    } catch (error) {
+        console.error('Erro ao buscar foto do usuário:', error);
+        return res.status(500).json({ success: false, error: 'Erro interno ao buscar foto' });
+    }
+});
+
+// ACL: Controle de acesso detalhado por nível de usuário
+// [REFACTORED 10/03/2026] Simplificado — usa permission.service para verificação
+function authorizeACL(permission) {
     return async (req, res, next) => {
         try {
-            // Admin sempre tem acesso total
-            if (req.user?.role === 'admin') return next();
+            if (await authCentral.permissionService.isAdmin(req.user)) return next();
 
-            // Verificar permissão na tabela permissoes_acoes
             const [rows] = await pool.query(
                 'SELECT acao FROM permissoes_acoes WHERE usuario_id = ? AND acao = ? AND permitido = 1',
                 [req.user?.id, permission]
             );
             if (rows.length > 0) return next();
 
-            // Fallback: verificar permissões financeiro (pode incluir permissões gerais)
             if (req.user?.permissions?.includes(permission)) return next();
 
             return res.status(403).json({ message: 'Acesso negado. Permissão insuficiente.' });
@@ -3514,7 +3320,7 @@ app.post('/api/admin/describe-tabelas-financeiro', authenticateToken, async (req
             contas_bancarias: bancos.map(c => c.Field)
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Erro ao buscar estrutura', message: process.env.NODE_ENV === 'development' ? error.message : undefined });
     }
 });
 
