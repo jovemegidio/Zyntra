@@ -3773,6 +3773,7 @@ const ensureHoleritesColumns = `
     ADD COLUMN IF NOT EXISTS visualizado TINYINT(1) DEFAULT 0,
     ADD COLUMN IF NOT EXISTS total_visualizacoes INT DEFAULT 0,
     ADD COLUMN IF NOT EXISTS confirmado_recebimento TINYINT(1) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS data_confirmacao DATETIME NULL,
     ADD COLUMN IF NOT EXISTS arquivo_pdf VARCHAR(255),
     ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'rascunho',
     ADD COLUMN IF NOT EXISTS tipo VARCHAR(30) DEFAULT 'salario'
@@ -3780,6 +3781,29 @@ const ensureHoleritesColumns = `
 db.query(ensureHoleritesColumns, (e) => {
   if (e && !e.message?.includes('Duplicate')) logger.warn('Aviso ao ajustar colunas rh_holerites:', e.message);
 });
+
+// Ensure table de consentimento digital para holerites
+const ensureHoleritesConsentTable = `
+  CREATE TABLE IF NOT EXISTS rh_holerites_consentimentos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    funcionario_id INT NOT NULL,
+    assinatura_digital VARCHAR(255) NOT NULL,
+    aceito TINYINT(1) DEFAULT 1,
+    ip_address VARCHAR(64) NULL,
+    user_agent VARCHAR(255) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_holerites_consentimento_funcionario (funcionario_id)
+  )
+`;
+db.query(ensureHoleritesConsentTable, (e) => {
+  if (e) logger.warn('Aviso ao criar tabela rh_holerites_consentimentos:', e.message);
+});
+
+function getUserFuncionarioId(user) {
+  const id = Number(user?.funcionario_id || user?.id);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
 
 // GET /api/rh/holerites/eventos/padrao - Eventos padrão para holerite
 app.get('/api/rh/holerites/eventos/padrao', authMiddleware, async (req, res) => {
@@ -3850,13 +3874,114 @@ app.get('/api/rh/holerites', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/rh/holerites/consentimento - Verificar consentimento digital do usuário logado
+app.get('/api/rh/holerites/consentimento', authMiddleware, async (req, res) => {
+  try {
+    if (isAdminUser(req.user)) {
+      return res.json({ consentimento: true, admin: true });
+    }
+
+    const funcionarioId = getUserFuncionarioId(req.user);
+    if (!funcionarioId) {
+      return res.status(400).json({ message: 'Funcionário não identificado para o usuário logado.' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT id, assinatura_digital, created_at, updated_at FROM rh_holerites_consentimentos WHERE funcionario_id = ? AND aceito = 1 LIMIT 1',
+      [funcionarioId]
+    );
+
+    const consent = rows.length > 0;
+    return res.json({
+      consentimento: consent,
+      admin: false,
+      registro: consent ? rows[0] : null
+    });
+  } catch (error) {
+    logger.error('Erro ao verificar consentimento digital de holerites:', error);
+    res.status(500).json({ error: 'Erro ao verificar consentimento digital' });
+  }
+});
+
+// POST /api/rh/holerites/consentimento - Registrar/atualizar consentimento digital
+app.post('/api/rh/holerites/consentimento', authMiddleware, async (req, res) => {
+  try {
+    if (isAdminUser(req.user)) {
+      return res.json({ success: true, admin: true, message: 'Usuário admin não precisa de consentimento.' });
+    }
+
+    const assinatura = String(req.body?.assinatura_digital || '').trim();
+    if (assinatura.length < 3) {
+      return res.status(400).json({ message: 'assinatura_digital é obrigatória e deve ter ao menos 3 caracteres.' });
+    }
+
+    const funcionarioId = getUserFuncionarioId(req.user);
+    if (!funcionarioId) {
+      return res.status(400).json({ message: 'Funcionário não identificado para o usuário logado.' });
+    }
+
+    const ipAddress = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip || null;
+    const userAgent = req.headers['user-agent'] || null;
+
+    await pool.query(
+      `INSERT INTO rh_holerites_consentimentos
+        (funcionario_id, assinatura_digital, aceito, ip_address, user_agent)
+       VALUES (?, ?, 1, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         assinatura_digital = VALUES(assinatura_digital),
+         aceito = 1,
+         ip_address = VALUES(ip_address),
+         user_agent = VALUES(user_agent),
+         updated_at = CURRENT_TIMESTAMP`,
+      [funcionarioId, assinatura, ipAddress, userAgent]
+    );
+
+    res.json({ success: true, message: 'Consentimento digital registrado com sucesso.' });
+  } catch (error) {
+    logger.error('Erro ao registrar consentimento digital de holerites:', error);
+    res.status(500).json({ error: 'Erro ao registrar consentimento digital' });
+  }
+});
+
+// GET /api/rh/holerites/meus - Listar holerites do funcionário logado
+app.get('/api/rh/holerites/meus', authMiddleware, async (req, res) => {
+  try {
+    const funcionarioId = getUserFuncionarioId(req.user);
+    if (!funcionarioId) {
+      return res.status(400).json({ error: 'Funcionário não identificado para o usuário logado.' });
+    }
+
+    const { mes, ano } = req.query;
+    let query = `
+      SELECT h.*, f.nome AS funcionario_nome, f.cargo, f.departamento, f.cpf,
+        COALESCE(h.tipo, fp.tipo, 'salario') AS tipo,
+        COALESCE(h.status, fp.status, 'rascunho') AS status_holerite,
+        fp.mes, fp.ano
+      FROM rh_holerites h
+      LEFT JOIN funcionarios f ON h.funcionario_id = f.id
+      LEFT JOIN rh_folhas_pagamento fp ON h.folha_id = fp.id
+      WHERE h.funcionario_id = ? AND (h.status = 'publicado' OR fp.status = 'publicado')
+    `;
+    const params = [funcionarioId];
+    if (ano) { query += ' AND fp.ano = ?'; params.push(parseInt(ano)); }
+    if (mes) { query += ' AND fp.mes = ?'; params.push(parseInt(mes)); }
+    query += ' ORDER BY fp.ano DESC, fp.mes DESC';
+
+    const [holerites] = await pool.query(query, params);
+    res.json({ holerites });
+  } catch (error) {
+    logger.error('Erro ao listar holerites do funcionário:', error);
+    res.status(500).json({ error: 'Erro ao listar holerites' });
+  }
+});
+
 // GET /api/rh/holerites/:id - Buscar holerite por id (plural alias)
-app.get('/api/rh/holerites/:id', authMiddleware, async (req, res) => {
+app.get('/api/rh/holerites/:id', authMiddleware, async (req, res, next) => {
   // Avoid matching named subroutes
-  if (isNaN(req.params.id)) return res.status(404).json({ error: 'Rota não encontrada' });
+  if (!/^\d+$/.test(req.params.id)) return next();
   try {
     const [holerite] = await pool.query(`
-      SELECT h.*, f.nome AS funcionario_nome, f.cargo, f.departamento, fp.mes, fp.ano,
+      SELECT h.*, f.nome AS funcionario_nome, f.cargo, f.departamento, f.cpf, fp.mes, fp.ano,
         COALESCE(h.tipo, fp.tipo, 'salario') AS tipo,
         COALESCE(h.status, fp.status, 'rascunho') AS status
       FROM rh_holerites h
@@ -3865,6 +3990,12 @@ app.get('/api/rh/holerites/:id', authMiddleware, async (req, res) => {
       WHERE h.id = ?
     `, [req.params.id]);
     if (holerite.length === 0) return res.status(404).json({ error: 'Holerite não encontrado' });
+
+    // Verificar se o usuário pode ver este holerite
+    const userFuncId = getUserFuncionarioId(req.user);
+    if (userFuncId && Number(holerite[0].funcionario_id) !== userFuncId && !isAdminUser(req.user)) {
+      return res.status(403).json({ message: 'Acesso negado. Você só pode visualizar seus próprios holerites.' });
+    }
 
     const [itens] = await pool.query('SELECT * FROM rh_holerite_itens WHERE holerite_id = ?', [req.params.id]);
     const proventos = itens.filter(i => i.tipo === 'provento');
@@ -4005,6 +4136,56 @@ app.get('/api/rh/holerites/:id/download-pdf', async (req, res) => {
   } catch (error) {
     logger.error('Erro ao baixar PDF:', error);
     res.status(500).json({ error: 'Erro ao baixar PDF' });
+  }
+});
+
+// POST /api/rh/holerites/:id/visualizar - Registrar que o funcionário visualizou o holerite
+app.post('/api/rh/holerites/:id/visualizar', authMiddleware, async (req, res) => {
+  try {
+    const holeriteId = req.params.id;
+    const userFuncId = getUserFuncionarioId(req.user);
+
+    // Verificar ownership para não-admin
+    if (userFuncId && !isAdminUser(req.user)) {
+      const [rows] = await pool.query('SELECT funcionario_id FROM rh_holerites WHERE id = ? LIMIT 1', [holeriteId]);
+      if (rows.length > 0 && Number(rows[0].funcionario_id) !== userFuncId) {
+        return res.status(403).json({ message: 'Acesso negado.' });
+      }
+    }
+
+    await pool.query(
+      'UPDATE rh_holerites SET visualizado = 1, total_visualizacoes = COALESCE(total_visualizacoes, 0) + 1 WHERE id = ?',
+      [holeriteId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Erro ao registrar visualização:', error);
+    res.status(500).json({ error: 'Erro ao registrar visualização' });
+  }
+});
+
+// POST /api/rh/holerites/:id/confirmar - Confirmar recebimento do holerite
+app.post('/api/rh/holerites/:id/confirmar', authMiddleware, async (req, res) => {
+  try {
+    const holeriteId = req.params.id;
+    const userFuncId = getUserFuncionarioId(req.user);
+
+    // Verificar ownership para não-admin
+    if (userFuncId && !isAdminUser(req.user)) {
+      const [rows] = await pool.query('SELECT funcionario_id FROM rh_holerites WHERE id = ? LIMIT 1', [holeriteId]);
+      if (rows.length > 0 && Number(rows[0].funcionario_id) !== userFuncId) {
+        return res.status(403).json({ message: 'Acesso negado.' });
+      }
+    }
+
+    await pool.query(
+      "UPDATE rh_holerites SET confirmado_recebimento = 1, data_confirmacao = NOW() WHERE id = ?",
+      [holeriteId]
+    );
+    res.json({ success: true, message: 'Recebimento confirmado com sucesso!' });
+  } catch (error) {
+    logger.error('Erro ao confirmar recebimento:', error);
+    res.status(500).json({ error: 'Erro ao confirmar recebimento' });
   }
 });
 
