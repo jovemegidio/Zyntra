@@ -231,7 +231,7 @@ class GestãoFuncionarios {
 
     renderizarLinhaFuncionario(funcionario) {
         const departamento = this.departamentos.find(d => d.id === funcionario.departamento_id);
-        const dataAdmissao = new Date(funcionario.data_admissao).toLocaleDateString('pt-BR');
+        const _da = String(funcionario.data_admissao || '').substring(0, 10); const _dap = _da.split('-'); const dataAdmissao = _dap.length === 3 ? _dap[2]+'/'+_dap[1]+'/'+_dap[0] : _da;
         
         return `
             <tr class="funcionario-row">
@@ -603,7 +603,7 @@ class GestãoFuncionarios {
                         <div class="dados-lista">
                             <div class="dado-item">
                                 <span class="dado-label">Data de Admissão:</span>
-                                <span class="dado-valor">${new Date(funcionario.data_admissao).toLocaleDateString('pt-BR')}</span>
+                                <span class="dado-valor">${(function(){ const s=String(funcionario.data_admissao||'').substring(0,10); const p=s.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : s; })()}</span>
                             </div>
                             <div class="dado-item">
                                 <span class="dado-label">Salário:</span>
