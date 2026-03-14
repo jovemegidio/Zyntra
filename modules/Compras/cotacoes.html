@@ -2,13 +2,13 @@
 <html lang="pt-BR">
 <head>
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    
 
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta name="theme-color" content="#1e1e1e">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -26,7 +26,7 @@
     <script src="/js/csp-fix.js" defer></script>
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 
     <!-- CSS Padrão Global -->
     <link rel="stylesheet" href="/modules/Compras/css/compras-layout.css?v=20260301">
@@ -256,13 +256,9 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label>Material/Produto <span class="required">*</span></label>
+                            <!-- Materiais carregados dinamicamente via API /api/pcp/produtos -->
                             <select id="cotMaterial" class="form-control" required>
-                                <option value="">Selecione o material</option>
-                                <option value="1">Chapa de Alumínio 3mm</option>
-                                <option value="2">Perfil de Alumínio</option>
-                                <option value="3">Vidro Temperado 8mm</option>
-                                <option value="4">Parafusos Inox M8</option>
-                                <option value="5">Silicone Estrutural</option>
+                                <option value="">Selecione o material...</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -289,11 +285,9 @@
 
                     <div class="form-group">
                         <label>Fornecedores para Cotação</label>
-                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
-                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="1"> Alumínio Brasil LTDA</label>
-                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="2"> Metais Premium SA</label>
-                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="3"> Vidros & Cia</label>
-                            <label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="4"> Fixadores Industriais</label>
+                        <!-- Fornecedores carregados dinamicamente via carregarFornecedores() -->
+                        <div id="fornecedoresContainer" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+                            <span style="color:var(--gray-400);font-size:13px;"><i class="fas fa-spinner fa-spin"></i> Carregando fornecedores...</span>
                         </div>
                     </div>
 
@@ -318,12 +312,55 @@
             if (overlay) overlay.classList.toggle('active');
         }
 
+        async function carregarFornecedores() {
+            const container = document.getElementById('fornecedoresContainer');
+            if (!container) return;
+            try {
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const r = await fetch('/api/compras/fornecedores', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (r.ok) {
+                    const data = await r.json();
+                    const fornecedores = data.fornecedores || data || [];
+                    if (fornecedores.length) {
+                        container.innerHTML = fornecedores.map(f => 
+                            `<label class="fornecedor-checkbox"><input type="checkbox" name="fornecedores" value="${f.id}"> ${f.razao_social || f.nome || f.name}</label>`
+                        ).join('');
+                    } else {
+                        container.innerHTML = '<span style="color:var(--gray-400);font-size:13px;">Nenhum fornecedor cadastrado</span>';
+                    }
+                } else { throw new Error('Falha ao carregar'); }
+            } catch (e) {
+                console.error('Erro ao carregar fornecedores:', e);
+                container.innerHTML = '<span style="color:var(--danger-500,#ef4444);font-size:13px;">Erro ao carregar fornecedores</span>';
+            }
+        }
+
+        async function carregarMateriaisCotacao() {
+            const select = document.getElementById('cotMaterial');
+            if (!select) return;
+            try {
+                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+                const r = await fetch('/api/pcp/produtos?limit=1000', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (r.ok) {
+                    const data = await r.json();
+                    const materiais = data.produtos || data || [];
+                    select.innerHTML = '<option value="">Selecione o material...</option>' +
+                        materiais.map(m => `<option value="${m.id}">${m.nome || m.descricao || m.name}</option>`).join('');
+                }
+            } catch (e) {
+                console.error('Erro ao carregar materiais:', e);
+            }
+        }
+
         async function abrirModalNovaCotacao() {
             document.getElementById('modalNovaCotacao').classList.add('active');
             document.getElementById('modalCotacaoTitulo').textContent = 'Nova Cotação de Compra';
             document.getElementById('formCotacao').reset();
             document.getElementById('cotacaoId').value = '';
             document.getElementById('cotacaoNumero').value = '';
+            // Carregar materiais e fornecedores dinamicamente
+            carregarMateriaisCotacao();
+            carregarFornecedores();
             // Buscar próximo número
             try {
                 const token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -396,6 +433,22 @@
         });
     </script>
 
+    <!-- Modal: Visualizar Cotação -->
+    <div class="modal-overlay" id="modalVisualizarCotacao">
+        <div class="modal" style="max-width:700px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye"></i> Detalhes da Cotação</h3>
+                <button class="modal-close" onclick="document.getElementById('modalVisualizarCotacao').classList.remove('active')">&times;</button>
+            </div>
+            <div class="modal-body" id="viewCotacaoBody" style="max-height:60vh; overflow-y:auto;">
+                <p style="text-align:center; color:var(--gray-400);"><i class="fas fa-spinner fa-spin"></i> Carregando...</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="document.getElementById('modalVisualizarCotacao').classList.remove('active')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -407,12 +460,26 @@
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.style.setProperty('--toast-duration', duration + 'ms');
-        toast.innerHTML = `
-            <div class="toast-icon"><i class="fas ${icons[type] || icons.info}"></i></div>
-            <div class="toast-body">${message}</div>
-            <button class="toast-close" onclick="this.parentElement.classList.add('hiding'); setTimeout(() => this.parentElement.remove(), 300);"><i class="fas fa-times"></i></button>
-            <div class="toast-progress"></div>
-        `;
+        var iconDiv = document.createElement('div');
+        iconDiv.className = 'toast-icon';
+        var iconEl = document.createElement('i');
+        iconEl.className = 'fas ' + (icons[type] || icons.info);
+        iconDiv.appendChild(iconEl);
+        toast.appendChild(iconDiv);
+        var bodyDiv = document.createElement('div');
+        bodyDiv.className = 'toast-body';
+        bodyDiv.textContent = message;
+        toast.appendChild(bodyDiv);
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'toast-close';
+        closeBtn.addEventListener('click', function() { this.parentElement.classList.add('hiding'); setTimeout(function() { closeBtn.parentElement.remove(); }, 300); });
+        var closeIcon = document.createElement('i');
+        closeIcon.className = 'fas fa-times';
+        closeBtn.appendChild(closeIcon);
+        toast.appendChild(closeBtn);
+        var progressDiv = document.createElement('div');
+        progressDiv.className = 'toast-progress';
+        toast.appendChild(progressDiv);
         container.appendChild(toast);
         setTimeout(() => { if (toast.parentElement) { toast.classList.add('hiding'); setTimeout(() => toast.remove(), 300); } }, duration);
     }

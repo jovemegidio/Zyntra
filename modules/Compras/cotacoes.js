@@ -571,7 +571,59 @@ class CotacoesManager {
         const cotacao = this.cotacoes.find(c => c.id === id);
         if (!cotacao) return;
 
-        this.mostrarToast(`Cotação ${cotacao.numero} — ${cotacao.solicitante} | Status: ${cotacao.status} | ${cotacao.materiais.length} materiais, ${cotacao.fornecedores.length} fornecedores, ${cotacao.propostas.length} propostas`, 'info');
+        const statusMap = { 'Rascunho': 'pending', 'Em Análise': 'info', 'Enviada': 'info', 'Aprovada': 'approved', 'Cancelada': 'cancelled' };
+        const statusClass = statusMap[cotacao.status] || 'pending';
+
+        // Materiais
+        const materiais = (cotacao.materiais || []);
+        let materiaisHtml = '<p style="color:#9ca3af;font-size:13px;">Nenhum material</p>';
+        if (materiais.length > 0) {
+            materiaisHtml = '<table style="width:100%;border-collapse:collapse;margin-top:8px;">' +
+                '<thead><tr style="background:#f9fafb;"><th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Material</th>' +
+                '<th style="padding:8px 10px;text-align:right;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Qtd</th>' +
+                '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Unidade</th></tr></thead><tbody>' +
+                materiais.map(m => {
+                    const nome = typeof m === 'object' ? (m.nome || m.descricao || '-') : m;
+                    const qtd = typeof m === 'object' ? (m.quantidade || '-') : '-';
+                    const und = typeof m === 'object' ? (m.unidade || '-') : '-';
+                    return `<tr><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #f3f4f6;">${nome}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #f3f4f6;text-align:right;">${qtd}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #f3f4f6;">${und}</td></tr>`;
+                }).join('') + '</tbody></table>';
+        }
+
+        // Propostas
+        const propostas = (cotacao.propostas || []);
+        let propostasHtml = '<p style="color:#9ca3af;font-size:13px;">Nenhuma proposta registrada</p>';
+        if (propostas.length > 0) {
+            propostasHtml = '<table style="width:100%;border-collapse:collapse;margin-top:8px;">' +
+                '<thead><tr style="background:#f9fafb;"><th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Fornecedor</th>' +
+                '<th style="padding:8px 10px;text-align:right;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Valor</th>' +
+                '<th style="padding:8px 10px;text-align:left;font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;border-bottom:1px solid #e5e7eb;">Prazo</th></tr></thead><tbody>' +
+                propostas.map(p => {
+                    const forn = this.fornecedores.find(f => f.id === p.fornecedorId);
+                    const fornNome = forn ? forn.nome : `Fornecedor #${p.fornecedorId}`;
+                    const valor = p.valorTotal ? `R$ ${parseFloat(p.valorTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2})}` : '-';
+                    return `<tr><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #f3f4f6;">${fornNome}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #f3f4f6;text-align:right;font-weight:600;">${valor}</td><td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #f3f4f6;">${p.prazoEntrega || '-'} dias</td></tr>`;
+                }).join('') + '</tbody></table>';
+        }
+
+        const melhorOferta = cotacao.melhorProposta
+            ? `R$ ${parseFloat(cotacao.melhorProposta.valorTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+            : '-';
+
+        const body = document.getElementById('viewCotacaoBody');
+        body.innerHTML =
+            '<div class="view-section"><h4><i class="fas fa-info-circle"></i> Informações Gerais</h4><div class="view-grid">' +
+                '<div class="view-item"><label>Número</label><p>' + (cotacao.numero || '-') + '</p></div>' +
+                '<div class="view-item"><label>Data</label><p>' + this.formatarData(cotacao.data) + '</p></div>' +
+                '<div class="view-item"><label>Solicitante</label><p>' + (cotacao.solicitante || '-') + '</p></div>' +
+                '<div class="view-item"><label>Status</label><p><span class="badge badge-' + statusClass + '">' + (cotacao.status || '-') + '</span></p></div>' +
+                '<div class="view-item"><label>Melhor Oferta</label><p style="font-weight:700;color:#059669;">' + melhorOferta + '</p></div>' +
+                '<div class="view-item"><label>Observações</label><p>' + (cotacao.observacoes || '-') + '</p></div>' +
+            '</div></div>' +
+            '<div class="view-section"><h4><i class="fas fa-boxes"></i> Materiais (' + materiais.length + ')</h4>' + materiaisHtml + '</div>' +
+            '<div class="view-section"><h4><i class="fas fa-file-invoice-dollar"></i> Propostas (' + propostas.length + ')</h4>' + propostasHtml + '</div>';
+
+        document.getElementById('modalVisualizarCotacao').classList.add('active');
     }
 
     registrarProposta(cotacaoId) {
@@ -1171,7 +1223,7 @@ function inicializarUsuario() {
     else if (hora < 18) saudacao = 'Boa tarde';
     else saudacao = 'Boa noite';
 
-    const userName = localStorage.getItem('userName') || 'Usuário';
+    const userName = (JSON.parse(localStorage.getItem('userData') || '{}').nome) || 'Usuário';
     const greetingEl = document.getElementById('userGreeting');
     if (greetingEl) {
         greetingEl.textContent = `${saudacao}, ${userName}`;

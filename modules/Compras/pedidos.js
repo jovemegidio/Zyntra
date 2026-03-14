@@ -63,10 +63,12 @@ function mostrarToast(mensagem, tipo = 'info') {
 
     const toast = document.createElement('div');
     toast.className = 'toast-notification-pedidos';
-    toast.innerHTML = `
-        <i class="fas fa-${icones[tipo] || 'info-circle'}"></i>
-        <span>${mensagem}</span>
-    `;
+    var icon = document.createElement('i');
+    icon.className = 'fas fa-' + (icones[tipo] || 'info-circle');
+    var span = document.createElement('span');
+    span.textContent = mensagem;
+    toast.appendChild(icon);
+    toast.appendChild(span);
     toast.style.cssText = `
         position: fixed; top: 20px; right: 20px; z-index: 10000;
         background: ${cores[tipo] || cores.info};
@@ -601,23 +603,21 @@ function renderizarTabelaPedidos() {
             <td><strong>${formatarMoeda(valorExibir)}</strong></td>
             <td>${pedido.data_entrega_prevista ? formatarData(pedido.data_entrega_prevista) : '-'}</td>
             <td><span class="badge-status badge-${pedido.status}">${getStatusLabel(pedido.status)}</span></td>
-            <td>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn-secondary-small" onclick="visualizarPedido('${pedido.id}')" title="Visualizar">
+            <td class="table-actions">
+                    <button class="btn-action view" onclick="visualizarPedido('${pedido.id}')" title="Visualizar">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button class="btn-secondary-small" onclick="abrirModalEditarPedido('${pedido.id}')" title="Editar">
+                    <button class="btn-action edit" onclick="abrirModalEditarPedido('${pedido.id}')" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
                     ${pedido.status === 'pendente' ? `
-                    <button class="btn-secondary-small" onclick="aprovarPedido('${pedido.id}')" title="Aprovar" style="color: #6366f1;">
+                    <button class="btn-action success" onclick="aprovarPedido('${pedido.id}')" title="Aprovar">
                         <i class="fas fa-check"></i>
                     </button>
                     ` : ''}
-                    <button class="btn-secondary-small" onclick="excluirPedido('${pedido.id}')" title="Excluir" style="color: #dc2626;">
+                    <button class="btn-action delete" onclick="excluirPedido('${pedido.id}')" title="Excluir">
                         <i class="fas fa-trash"></i>
                     </button>
-                </div>
             </td>
         </tr>`;
     }).join('');
@@ -797,7 +797,8 @@ async function excluirPedido(pedidoId) {
     try {
         const response = await fetch(`/api/compras/pedidos/${pedidoId}/cancelar`, {
             method: 'POST',
-            headers: getAuthHeaders()
+            headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ motivo: 'Cancelado pelo usuário' })
         });
         if (response.ok) {
             mostrarNotificacao('Pedido cancelado com sucesso!', 'success');
@@ -883,7 +884,7 @@ function atualizarSelecao() {
     }
 }
 
-function excluirSelecionados() {
+async function excluirSelecionados() {
     const checkboxes = document.querySelectorAll('.pedido-checkbox:checked');
     const ids = Array.from(checkboxes).map(cb => cb.getAttribute('data-id'));
 
@@ -894,16 +895,39 @@ function excluirSelecionados() {
 
     if (!confirm(`Deseja realmente excluir ${ids.length} pedido(s)?`)) return;
 
-    pedidos = pedidos.filter(p => !ids.includes(p.id));
-    salvarPedidosLocal();
-    renderizarTabelaPedidos();
-    atualizarCards();
+    let sucesso = 0;
+    let erros = 0;
+
+    for (const id of ids) {
+        try {
+            const response = await fetch(`/api/compras/pedidos/${id}/cancelar`, {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ motivo: 'Exclusão em massa pelo usuário' })
+            });
+            if (response.ok) {
+                sucesso++;
+            } else {
+                erros++;
+            }
+        } catch (error) {
+            console.error(`Erro ao cancelar pedido ${id}:`, error);
+            erros++;
+        }
+    }
+
+    // Recarregar dados da API
+    await carregarPedidos();
 
     // Desmarcar "Selecionar Todos"
     const selectAllCb = document.getElementById('selectAllPedidos');
     if (selectAllCb) selectAllCb.checked = false;
 
-    mostrarToast(`${ids.length} pedido(s) excluído(s) com sucesso!`, 'success');
+    if (erros === 0) {
+        mostrarToast(`${sucesso} pedido(s) cancelado(s) com sucesso!`, 'success');
+    } else {
+        mostrarToast(`${sucesso} cancelado(s), ${erros} falha(s)`, erros > sucesso ? 'error' : 'warning');
+    }
 }
 
 // ============ PAGINAÇÍO ============
