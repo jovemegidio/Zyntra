@@ -820,18 +820,29 @@ var NotificationManager = {
                     this.socket = window._aluforceSocket;
                     console.log('[NotificationManager] ✅ Usando socket compartilhado existente');
                 } else {
+                    // Obter token JWT para autenticação Socket.IO
+                    const authToken = (function() {
+                        const cookies = document.cookie.split(';');
+                        for (const c of cookies) {
+                            const [key, val] = c.trim().split('=');
+                            if (key === 'authToken' || key === 'token') return val;
+                        }
+                        return localStorage.getItem('authToken') || null;
+                    })();
+
                     // Criar nova conexão com configurações otimizadas
                     const socket = io({
                         path: '/socket.io',
-                        transports: ['websocket'],  // Forçar WebSocket apenas
-                        upgrade: false,  // Não fazer upgrade de polling para websocket
+                        transports: ['websocket', 'polling'],
                         reconnection: true,
-                        reconnectionAttempts: 3,  // Reduzir tentativas
+                        reconnectionAttempts: 5,
                         reconnectionDelay: 2000,
                         reconnectionDelayMax: 10000,
                         timeout: 30000,
                         forceNew: false,
-                        autoConnect: true
+                        autoConnect: true,
+                        auth: authToken ? { token: authToken } : {},
+                        withCredentials: true
                     });
                     
                     // Compartilhar globalmente

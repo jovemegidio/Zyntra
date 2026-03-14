@@ -34,16 +34,18 @@ const formatCurrency = (value) => {
  * Formata datas para padrão brasileiro
  */
 const formatDate = (date, includeTime = false) => {
-    if (!date) return '-';
-    const str = String(date);
-    const datePart = str.substring(0, 10);
-    const parts = datePart.split('-');
-    const dataFormatada = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : datePart;
-    if (includeTime) {
-        const timeMatch = str.match(/T(\d{2}):(\d{2}):(\d{2})/);
-        if (timeMatch) return `${dataFormatada} ${timeMatch[1]}:${timeMatch[2]}:${timeMatch[3]}`;
-    }
-    return dataFormatada;
+    const options = {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        ...(includeTime && {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        })
+    };
+    
+    return new Intl.DateTimeFormat('pt-BR', options).format(new Date(date));
 };
 
 /**

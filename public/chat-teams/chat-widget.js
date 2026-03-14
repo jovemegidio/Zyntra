@@ -438,8 +438,28 @@
     // ═══════════════════════════════════════════════════════
 
     function initSocket() {
-        socket = io('/chat-teams', { transports: ['websocket', 'polling'], withCredentials: true });
+        const authToken = getAuthToken();
+        socket = io('/chat-teams', {
+            transports: ['websocket', 'polling'],
+            withCredentials: true,
+            auth: authToken ? { token: authToken } : {}
+        });
         socket.on('connect', () => { console.log('[CHAT] Socket conectado'); if (currentUser) socket.emit('chat:online', { ...currentUser, status: myStatus }); });
+
+        socket.on('connect_error', (error) => {
+            console.warn('[CHAT] Erro de conexão Socket:', error.message);
+            // Se token expirou, tentar atualizar
+            if (error.message === 'Token inválido ou expirado' || error.message === 'Autenticação necessária') {
+                const freshToken = getAuthToken();
+                if (freshToken) {
+                    socket.auth = { token: freshToken };
+                }
+            }
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('[CHAT] Socket desconectado:', reason);
+        });
 
         socket.on('chat:channel:message', msg => {
             if (activeView.type === 'channel' && activeView.id === msg.channelId) { appendMessage(msg, 'channel'); }
@@ -454,8 +474,11 @@
             }
             if (activeView.type === 'dm') {
                 const otherId = activeView.id;
-                if (msg.fromId === otherId || msg.fromId === currentUser?.id || msg.toId === currentUser?.id) { appendMessage(msg, 'dm'); return; }
+                // FIX: Mostrar apenas msgs do parceiro atual ou echo próprio para o parceiro atual
+                if (msg.fromId === otherId || (msg.fromId === currentUser?.id && msg.toId === otherId)) { appendMessage(msg, 'dm'); return; }
             }
+            // FIX: Não incrementar não-lidas para echo de mensagem própria
+            if (msg.fromId === currentUser?.id) return;
             unreadCount++; updateFabBadge(); playNotifSound();
         });
         socket.on('chat:dm:notification', data => { if (!isOpen || activeView.type !== 'dm' || activeView.id !== data.fromId) { unreadCount++; updateFabBadge(); playNotifSound(); } });
@@ -881,6 +904,8 @@
 
     function appendMessage(msg, type) {
         const container = document.getElementById('ct-messages');
+        // FIX: Proteção contra mensagens duplicadas
+        if (msg.id && container.querySelector(`.ct-message[data-msg-id="${msg.id}"]`)) return;
         const welcome = container.querySelector('.ct-welcome');
         if (welcome) welcome.remove();
         container.insertAdjacentHTML('beforeend', renderMsg(msg));

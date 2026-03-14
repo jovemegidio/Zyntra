@@ -26,8 +26,8 @@ console.log('[Financeiro] Configuração DB:', {
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'interchange.proxy.rlwy.net',
     user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD, // SEGURANÇA: sem fallback hardcoded
-    database: process.env.DB_NAME || 'aluforce_vendas',
+    password: process.env.DB_PASSWORD || 'iiilOZutDOnPCwxgiTKeMuEaIzSwplcu',
+    database: process.env.DB_NAME || 'railway',
     port: parseInt(process.env.DB_PORT) || 19396,
     waitForConnections: true,
     connectionLimit: 10,
@@ -51,7 +51,7 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ error: 'Token não fornecido' });
     }
 
-    jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
+    jwt.verify(token, JWT_SECRET, (err, user) => {
         if (err) {
             return res.status(403).json({ error: 'Token inválido' });
         }
@@ -91,7 +91,6 @@ function authorizeFinanceiro(section) {
                 'helen@aluforce.ind.br',
                 'helen.nascimento@aluforce.ind.br',
                 'junior@aluforce.ind.br',
-                'adm@aluforce.ind.br',
                 'eldir@aluforce.ind.br',
                 'eldir.junior@aluforce.ind.br'
             ];
@@ -221,7 +220,7 @@ function optionalAuth(req, res, next) {
                  req.cookies?.token;
     
     if (token) {
-        jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
+        jwt.verify(token, JWT_SECRET, (err, user) => {
             if (!err) {
                 req.user = user;
             }
@@ -304,7 +303,7 @@ router.get('/resumo-kpis', optionalAuth, async (req, res) => {
  */
 router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
     try {
-        const limite = Math.min(Math.max(parseInt(req.query.limite) || 5, 1), 100);
+        const limite = parseInt(req.query.limite) || 5;
         
         // Buscar próximos vencimentos de contas a receber
         const [receber] = await pool.query(`
@@ -319,8 +318,8 @@ router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
             LEFT JOIN clientes c ON cr.cliente_id = c.id
             WHERE cr.status IN ('pendente', 'parcial', 'PENDENTE', 'PARCIAL')
             ORDER BY COALESCE(cr.data_vencimento, cr.vencimento) ASC
-            LIMIT ?
-        `, [limite]);
+            LIMIT ${limite}
+        `);
         
         // Buscar próximos vencimentos de contas a pagar
         const [pagar] = await pool.query(`
@@ -335,8 +334,8 @@ router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
             WHERE cp.status IN ('pendente', 'parcial', 'PENDENTE', 'PARCIAL')
             ORDER BY COALESCE(cp.data_vencimento, cp.vencimento) ASC
-            LIMIT ?
-        `, [limite]);
+            LIMIT ${limite}
+        `);
         
         // Combinar e ordenar por data
         const todas = [...receber, ...pagar]
@@ -356,7 +355,7 @@ router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
  */
 router.get('/ultimos-lancamentos', optionalAuth, async (req, res) => {
     try {
-        const limite = Math.min(Math.max(parseInt(req.query.limite) || 10, 1), 100);
+        const limite = parseInt(req.query.limite) || 10;
         
         // Buscar últimos lançamentos de receber
         const [receber] = await pool.query(`
@@ -371,8 +370,8 @@ router.get('/ultimos-lancamentos', optionalAuth, async (req, res) => {
             FROM contas_receber cr
             LEFT JOIN clientes c ON cr.cliente_id = c.id
             ORDER BY cr.data_criacao DESC
-            LIMIT ?
-        `, [limite]);
+            LIMIT ${limite}
+        `);
         
         // Buscar últimos lançamentos de pagar
         const [pagar] = await pool.query(`
@@ -387,8 +386,8 @@ router.get('/ultimos-lancamentos', optionalAuth, async (req, res) => {
             FROM contas_pagar cp
             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
             ORDER BY cp.data_criacao DESC
-            LIMIT ?
-        `, [limite]);
+            LIMIT ${limite}
+        `);
         
         // Combinar e ordenar por data de criação
         const todas = [...receber, ...pagar]
@@ -777,7 +776,7 @@ router.get('/contas-receber', authenticateToken, authorizeFinanceiro('receber'),
             SELECT 
                 cr.id,
                 cr.cliente_id,
-                COALESCE(c.nome_fantasia, c.razao_social, cr.cliente_nome, cr.descricao, 'N/D') as cliente_nome,
+                COALESCE(c.nome_fantasia, c.razao_social, cr.descricao, 'N/D') as cliente_nome,
                 c.cnpj_cpf as cnpj_cpf,
                 cr.valor,
                 cr.valor as valor_total,
@@ -787,7 +786,7 @@ router.get('/contas-receber', authenticateToken, authorizeFinanceiro('receber'),
                 cr.data_vencimento,
                 cr.data_criacao,
                 cr.categoria_id,
-                COALESCE(cat.nome, cr.categoria_nome) as categoria,
+                cat.nome as categoria,
                 cr.banco_id as conta_bancaria,
                 cr.forma_recebimento,
                 cr.observacoes,
@@ -798,8 +797,8 @@ router.get('/contas-receber', authenticateToken, authorizeFinanceiro('receber'),
                 cr.pedido_id,
                 cr.venda_id,
                 DATE_FORMAT(cr.data_vencimento, '%Y-%m') as competencia,
-                COALESCE(cr.numero_documento, cr.observacoes, cr.descricao) as numero_documento,
-                COALESCE(cr.conta_corrente_nome, '') as centro_receita,
+                cr.observacoes as numero_documento,
+                '' as centro_receita,
                 3 as dias_lembrete,
                 NULL as recorrencia
             FROM contas_receber cr
@@ -827,8 +826,7 @@ router.get('/contas-receber', authenticateToken, authorizeFinanceiro('receber'),
         query += ' ORDER BY COALESCE(cr.data_vencimento, cr.vencimento) ASC';
         
         if (limite) {
-            query += ' LIMIT ?';
-            params.push(Math.min(Math.max(parseInt(limite), 1), 100));
+            query += ` LIMIT ${parseInt(limite)}`;
         }
 
         const [rows] = await pool.execute(query, params);
@@ -1041,7 +1039,7 @@ router.get('/contas-pagar', authenticateToken, authorizeFinanceiro('pagar'), asy
             SELECT 
                 cp.id,
                 cp.fornecedor_id,
-                COALESCE(f.nome, f.razao_social, cp.fornecedor_nome, cp.cnpj_cpf, 'N/D') as fornecedor_nome,
+                COALESCE(f.nome, f.razao_social, cp.cnpj_cpf, 'N/D') as fornecedor_nome,
                 COALESCE(f.cnpj, cp.cnpj_cpf) as fornecedor_cnpj,
                 cp.valor,
                 cp.valor as valor_total,
@@ -1052,17 +1050,17 @@ router.get('/contas-pagar', authenticateToken, authorizeFinanceiro('pagar'), asy
                 COALESCE(cp.data_vencimento_original, cp.data_vencimento, cp.vencimento) as data_vencimento_original,
                 cp.data_criacao,
                 cp.categoria_id,
-                COALESCE(cat.nome, cp.categoria_nome) as categoria,
+                cat.nome as categoria,
                 cp.banco_id as conta_bancaria_id,
                 cp.forma_pagamento,
                 cp.observacoes,
                 cp.parcela_numero,
                 cp.total_parcelas,
                 cp.valor_pago,
-                COALESCE(cp.data_pagamento, cp.data_recebimento) as data_pagamento,
+                cp.data_recebimento as data_pagamento,
                 cp.pedido_compra_id,
-                COALESCE(cp.numero_documento, cp.cnpj_cpf, cp.descricao) as numero_documento,
-                COALESCE(cp.conta_corrente_nome, cp.minha_empresa_nome_fantasia, '') as centro_custo,
+                cp.cnpj_cpf as numero_documento,
+                COALESCE(cp.minha_empresa_nome_fantasia, '') as centro_custo,
                 DATE_FORMAT(cp.data_vencimento, '%Y-%m') as competencia
             FROM contas_pagar cp
             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
@@ -1089,8 +1087,7 @@ router.get('/contas-pagar', authenticateToken, authorizeFinanceiro('pagar'), asy
         query += ' ORDER BY COALESCE(cp.data_vencimento, cp.vencimento) ASC';
         
         if (limite) {
-            query += ' LIMIT ?';
-            params.push(Math.min(Math.max(parseInt(limite), 1), 100));
+            query += ` LIMIT ${parseInt(limite)}`;
         }
 
         const [rows] = await pool.execute(query, params);

@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -21,7 +21,7 @@
     </script>
 
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <link rel="manifest" href="/manifest.json">
 
     <!-- Fonts -->
@@ -30,7 +30,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
 
     <!-- Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 
     <!-- Performance: Skeleton Loaders -->
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
@@ -50,8 +50,8 @@
     <!-- Background Manager CSS -->
     <link rel="stylesheet" href="/css/backgrounds.css?v=20260214">
 
-    <!-- Preload: primeiro fundo aleatório (carrega imediatamente, antes do JS) -->
-    <link rel="preload" as="image" type="image/webp" href="/Fundos/Fundos (1).webp?v=20260214">
+    <!-- Prefetch: fundos carregam em segundo plano, sem aviso de preload -->
+    <link rel="prefetch" as="image" type="image/webp" href="/Fundos/Fundos (1).webp?v=20260214">
     <link rel="prefetch" as="image" type="image/webp" href="/Fundos/Fundos (2).webp?v=20260214">
     <link rel="prefetch" as="image" type="image/webp" href="/Fundos/Fundos (9).webp?v=20260214">
 
@@ -135,6 +135,7 @@
             right: 0;
             height: 64px;
             background: rgba(255, 255, 255, 0.95) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
             backdrop-filter: blur(20px) !important;
             -webkit-backdrop-filter: blur(20px) !important;
             border-bottom: 1px solid var(--slate-200) !important;
@@ -448,6 +449,7 @@
 
         .module-card {
             background: rgba(255, 255, 255, 0.95);
+            -webkit-backdrop-filter: blur(20px);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border: 1px solid rgba(230,230,230,0.5);
@@ -993,6 +995,7 @@
             justify-content: center;
             align-items: center;
             z-index: 10000;
+            -webkit-backdrop-filter: blur(8px);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
         }
@@ -1870,8 +1873,12 @@
                     userEmail.includes('lumiere')
                 );
 
-                // Mostrar opções de admin (exceto para consultoria)
-                if (isAdmin && !isConsultoria) {
+                // Emails que são admin no banco mas NÃO devem ver configurações
+                const noConfigEmails = ['adm@aluforce.ind.br'];
+                const isNoConfig = userEmail && noConfigEmails.includes(userEmail);
+
+                // Mostrar opções de admin (exceto para consultoria e emails restritos)
+                if (isAdmin && !isConsultoria && !isNoConfig) {
                     document.querySelectorAll('[data-admin-only]').forEach(el => {
                         el.style.display = '';
                     });
@@ -1908,8 +1915,8 @@
             'financeiro3@aluforce.ind.br': ['financeiro', 'rh'],
             // Compras - Guilherme Bastos
             'compras@aluforce.ind.br': ['vendas', 'compras', 'pcp', 'financeiro'],
-            // ADM (Junior) - Acesso total
-            'adm@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
+            // ADM (Junior) - RH + Financeiro
+            'adm@aluforce.ind.br': ['rh', 'financeiro'],
             // Douglas (email atualizado)
             'aluforce@aluforce.ind.br': ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'],
             // Jamesson - Apenas PCP (somente visualização + relatórios)
@@ -1941,26 +1948,34 @@
             const emailCheck = (user.email || '').toLowerCase();
             const isConsultoriaUser = emailCheck.includes('lumiere');
 
-            // Admin tem acesso total (exceto consultoria - usa permissões definidas)
-            if (isAdmin && !isConsultoriaUser) {
+            // Verificar se tem permissões ESPECÍFICAS por email (prioridade sobre admin)
+            const emailSpecificAreas = emailCheck ? emailPermissions[emailCheck] : null;
+
+            // Admin tem acesso total SOMENTE se NÃO tem permissões específicas por email e NÃO é consultoria
+            if (isAdmin && !isConsultoriaUser && !emailSpecificAreas) {
                 document.querySelectorAll('.module-card').forEach(card => {
                     card.style.display = '';
                     card.style.opacity = '1';
                 });
+                // Salvar áreas para filtrar modal de configurações
+                window._userAllowedAreas = ['compras', 'vendas', 'nfe', 'pcp', 'financeiro', 'rh'];
                 return;
             }
 
-            // Obter áreas permitidas do banco ou por email
+            // Obter áreas permitidas: email específico > áreas do banco > padrão RH
             let allowedAreas = [];
 
-            if (user.areas && Array.isArray(user.areas) && user.areas.length > 0) {
+            if (emailSpecificAreas) {
+                allowedAreas = emailSpecificAreas;
+            } else if (user.areas && Array.isArray(user.areas) && user.areas.length > 0) {
                 allowedAreas = user.areas.map(a => a.toLowerCase());
-            } else if (user.email && emailPermissions[user.email.toLowerCase()]) {
-                allowedAreas = emailPermissions[user.email.toLowerCase()];
             } else {
                 // Se não há permissões definidas, mostrar apenas RH (padrão seguro)
                 allowedAreas = ['rh'];
             }
+
+            // Salvar áreas para filtrar modal de configurações
+            window._userAllowedAreas = allowedAreas;
 
             // Aplicar permissões (usa setProperty com !important para vencer CSS)
             document.querySelectorAll('.module-card').forEach(card => {
@@ -2157,12 +2172,91 @@
                 document.body.style.overflow = 'hidden';
                 // Título dinâmico ao abrir
                 document.title = 'Aluforce: Configurações do Sistema';
+                // Filtrar tabs/cards baseado em permissões do usuário
+                filtrarTabsConfiguracoes();
                 console.log('✅ Modal de configurações ativado com título dinâmico');
             } else {
                 // Fallback: abre a página de configurações em modal
                 window.location.href = '/config-modals.html';
             }
         };
+
+        // Filtra tabs e cards do modal de configurações baseado nas áreas permitidas do usuário
+        function filtrarTabsConfiguracoes() {
+            const areas = window._userAllowedAreas || ['rh'];
+            console.log('🔒 Filtrando configurações para áreas:', areas);
+
+            // Mapa: nome da tab → áreas necessárias (basta ter qualquer uma)
+            const tabPermissions = {
+                'principais': [],               // sempre visível (configurações gerais)
+                'recursos-humanos': ['rh'],
+                'financas': ['financeiro'],
+                'clientes-fornecedores': ['vendas', 'compras'],
+                'venda-produtos': ['vendas'],
+                'venda-servicos': ['vendas', 'nfe']
+            };
+
+            let firstVisibleTab = null;
+            let hasActiveVisible = false;
+
+            // Filtrar botões de tab
+            document.querySelectorAll('.modal-config-tab').forEach(tab => {
+                const tabName = tab.dataset.tab;
+                const requiredAreas = tabPermissions[tabName] || [];
+                const isVisible = requiredAreas.length === 0 || requiredAreas.some(a => areas.includes(a));
+
+                tab.style.display = isVisible ? '' : 'none';
+
+                if (isVisible && !firstVisibleTab) firstVisibleTab = tabName;
+                if (isVisible && tab.classList.contains('active')) hasActiveVisible = true;
+
+                // Se tab ativa ficou oculta, desativar
+                if (!isVisible && tab.classList.contains('active')) {
+                    tab.classList.remove('active');
+                }
+            });
+
+            // Filtrar conteúdo das tabs
+            document.querySelectorAll('.modal-config-tab-content').forEach(content => {
+                const tabName = content.id.replace('tab-', '');
+                const requiredAreas = tabPermissions[tabName] || [];
+                const isVisible = requiredAreas.length === 0 || requiredAreas.some(a => areas.includes(a));
+
+                if (!isVisible) {
+                    content.style.display = 'none';
+                    content.classList.remove('active');
+                }
+            });
+
+            // Se nenhuma tab ativa está visível, ativar a primeira visível
+            if (!hasActiveVisible && firstVisibleTab) {
+                const tab = document.querySelector('.modal-config-tab[data-tab="' + firstVisibleTab + '"]');
+                const content = document.getElementById('tab-' + firstVisibleTab);
+                if (tab) tab.classList.add('active');
+                if (content) {
+                    content.style.display = '';
+                    content.classList.add('active');
+                }
+            }
+
+            // Filtrar cards específicos dentro da tab Principais
+            const principaisCards = document.querySelectorAll('#tab-principais .modal-config-card');
+            principaisCards.forEach(card => {
+                const onclick = card.getAttribute('onclick') || '';
+                let shouldHide = false;
+
+                // Custos e Precificação → requer PCP
+                if (onclick.includes('custos-precificacao') && !areas.includes('pcp')) shouldHide = true;
+                // Importação da NF-e → requer NFe
+                if (onclick.includes('importacao-nfe') && !areas.includes('nfe')) shouldHide = true;
+                // Certificado Digital → requer NFe
+                if (onclick.includes('certificado-digital') && !areas.includes('nfe')) shouldHide = true;
+
+                card.style.display = shouldHide ? 'none' : '';
+            });
+
+            console.log('✅ Tabs filtradas com sucesso');
+        }
 
         // Função abrirCentralNotificacoes
         window.abrirCentralNotificacoes = function() {
@@ -2802,8 +2896,71 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
 
+    <!-- 🔄 Real-time: Atualização instantânea de permissões -->
+    <script>
+    (function() {
+        let _rtSocket = null;
+        function initRealtimePermissions() {
+            if (typeof io === 'undefined') return setTimeout(initRealtimePermissions, 500);
+            try {
+                _rtSocket = io();
+                const myData = JSON.parse(localStorage.getItem('userData') || '{}');
+                const myId = myData.id;
+                if (!myId) return;
+
+                _rtSocket.on('permissions-updated', function(data) {
+                    if (data.userId !== myId) return;
+                    console.log('[REALTIME] 📡 Permissões atualizadas em tempo real:', data);
+
+                    // Atualizar áreas no localStorage
+                    const current = JSON.parse(localStorage.getItem('userData') || '{}');
+                    if (data.areas) current.areas = data.areas;
+                    if (data.is_admin !== undefined) {
+                        current.is_admin = data.is_admin;
+                        current.role = data.is_admin ? 'admin' : (current.role === 'admin' ? 'user' : current.role);
+                    }
+                    if (data.status) current.status = data.status;
+                    localStorage.setItem('userData', JSON.stringify(current));
+
+                    // Re-aplicar permissões nos cards imediatamente
+                    if (typeof applyModulePermissions === 'function') {
+                        applyModulePermissions(current);
+                    }
+                    if (typeof updateUserUI === 'function') {
+                        updateUserUI(current);
+                    }
+
+                    // Toast informativo
+                    var toast = document.createElement('div');
+                    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;background:#3b82f6;color:#fff;padding:14px 22px;border-radius:12px;font-family:Poppins,sans-serif;font-size:0.9rem;box-shadow:0 8px 25px rgba(0,0,0,0.2);animation:slideIn .3s ease;display:flex;align-items:center;gap:10px;';
+                    toast.innerHTML = '<i class="fas fa-shield-alt"></i> Suas permissões foram atualizadas';
+                    document.body.appendChild(toast);
+                    setTimeout(function(){ toast.style.opacity='0'; toast.style.transition='opacity .3s'; setTimeout(function(){ toast.remove(); }, 300); }, 4000);
+                });
+
+                _rtSocket.on('user-blocked', function(data) {
+                    if (data.userId !== myId) return;
+                    alert('Seu acesso foi bloqueado pelo administrador. Você será redirecionado.');
+                    localStorage.clear();
+                    window.location.href = '/login.html';
+                });
+
+                console.log('[REALTIME] ✅ Listener de permissões ativo para userId=' + myId);
+            } catch(e) { console.warn('[REALTIME] Erro ao inicializar:', e); }
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initRealtimePermissions);
+        } else {
+            initRealtimePermissions();
+        }
+    })();
+    </script>
+
     <!-- PWA + Offline Sync -->
     <script src="/js/offline-sync-manager.js?v=20260301" defer></script>
     <script src="/js/pwa-manager.js?v=20260301" defer></script>
+
+    <!-- iOS Native App Bridge (Capacitor) -->
+    <script src="/js/ios-native-bridge.js?v=20260309" defer></script>
 </body>
 </html>
