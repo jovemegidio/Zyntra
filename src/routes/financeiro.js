@@ -26,8 +26,8 @@ console.log('[Financeiro] Configuração DB:', {
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'interchange.proxy.rlwy.net',
     user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'iiilOZutDOnPCwxgiTKeMuEaIzSwplcu',
-    database: process.env.DB_NAME || 'railway',
+    password: process.env.DB_PASSWORD, // SEGURANÇA: sem fallback hardcoded
+    database: process.env.DB_NAME || 'aluforce_vendas',
     port: parseInt(process.env.DB_PORT) || 19396,
     waitForConnections: true,
     connectionLimit: 10,
@@ -51,7 +51,7 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ error: 'Token não fornecido' });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
+    jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
         if (err) {
             return res.status(403).json({ error: 'Token inválido' });
         }
@@ -91,6 +91,7 @@ function authorizeFinanceiro(section) {
                 'helen@aluforce.ind.br',
                 'helen.nascimento@aluforce.ind.br',
                 'junior@aluforce.ind.br',
+                'adm@aluforce.ind.br',
                 'eldir@aluforce.ind.br',
                 'eldir.junior@aluforce.ind.br'
             ];
@@ -220,7 +221,7 @@ function optionalAuth(req, res, next) {
                  req.cookies?.token;
     
     if (token) {
-        jwt.verify(token, JWT_SECRET, (err, user) => {
+        jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }, (err, user) => {
             if (!err) {
                 req.user = user;
             }
@@ -303,7 +304,7 @@ router.get('/resumo-kpis', optionalAuth, async (req, res) => {
  */
 router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
     try {
-        const limite = parseInt(req.query.limite) || 5;
+        const limite = Math.min(Math.max(parseInt(req.query.limite) || 5, 1), 100);
         
         // Buscar próximos vencimentos de contas a receber
         const [receber] = await pool.query(`
@@ -313,13 +314,13 @@ router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
                 COALESCE(c.nome_fantasia, c.razao_social, cr.descricao, 'N/D') as descricao,
                 cr.valor,
                 COALESCE(cr.data_vencimento, cr.vencimento) as data_vencimento,
-                cr.status
+                LOWER(cr.status) as status
             FROM contas_receber cr
             LEFT JOIN clientes c ON cr.cliente_id = c.id
             WHERE cr.status IN ('pendente', 'parcial', 'PENDENTE', 'PARCIAL')
             ORDER BY COALESCE(cr.data_vencimento, cr.vencimento) ASC
-            LIMIT ${limite}
-        `);
+            LIMIT ?
+        `, [limite]);
         
         // Buscar próximos vencimentos de contas a pagar
         const [pagar] = await pool.query(`
@@ -329,13 +330,13 @@ router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
                 COALESCE(f.nome_fantasia, f.razao_social, f.nome, cp.descricao, 'N/D') as descricao,
                 cp.valor,
                 COALESCE(cp.data_vencimento, cp.vencimento) as data_vencimento,
-                cp.status
+                LOWER(cp.status) as status
             FROM contas_pagar cp
             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
             WHERE cp.status IN ('pendente', 'parcial', 'PENDENTE', 'PARCIAL')
             ORDER BY COALESCE(cp.data_vencimento, cp.vencimento) ASC
-            LIMIT ${limite}
-        `);
+            LIMIT ?
+        `, [limite]);
         
         // Combinar e ordenar por data
         const todas = [...receber, ...pagar]
@@ -355,7 +356,7 @@ router.get('/proximos-vencimentos', optionalAuth, async (req, res) => {
  */
 router.get('/ultimos-lancamentos', optionalAuth, async (req, res) => {
     try {
-        const limite = parseInt(req.query.limite) || 10;
+        const limite = Math.min(Math.max(parseInt(req.query.limite) || 10, 1), 100);
         
         // Buscar últimos lançamentos de receber
         const [receber] = await pool.query(`
@@ -365,13 +366,13 @@ router.get('/ultimos-lancamentos', optionalAuth, async (req, res) => {
                 COALESCE(c.nome_fantasia, c.razao_social, cr.descricao, 'N/D') as descricao,
                 cr.valor,
                 COALESCE(cr.data_vencimento, cr.vencimento) as data_vencimento,
-                cr.status,
+                LOWER(cr.status) as status,
                 cr.data_criacao
             FROM contas_receber cr
             LEFT JOIN clientes c ON cr.cliente_id = c.id
             ORDER BY cr.data_criacao DESC
-            LIMIT ${limite}
-        `);
+            LIMIT ?
+        `, [limite]);
         
         // Buscar últimos lançamentos de pagar
         const [pagar] = await pool.query(`
@@ -381,13 +382,13 @@ router.get('/ultimos-lancamentos', optionalAuth, async (req, res) => {
                 COALESCE(f.nome_fantasia, f.razao_social, f.nome, cp.descricao, 'N/D') as descricao,
                 cp.valor,
                 COALESCE(cp.data_vencimento, cp.vencimento) as data_vencimento,
-                cp.status,
+                LOWER(cp.status) as status,
                 cp.data_criacao
             FROM contas_pagar cp
             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
             ORDER BY cp.data_criacao DESC
-            LIMIT ${limite}
-        `);
+            LIMIT ?
+        `, [limite]);
         
         // Combinar e ordenar por data de criação
         const todas = [...receber, ...pagar]
@@ -513,7 +514,7 @@ router.get('/fluxo-caixa-resumo', optionalAuth, async (req, res) => {
                 COALESCE(cat.nome, 'Vendas') as categoria,
                 cr.valor,
                 COALESCE(cr.data_vencimento, cr.vencimento) as data,
-                cr.status
+                LOWER(cr.status) as status
             FROM contas_receber cr
             LEFT JOIN clientes c ON cr.cliente_id = c.id
             LEFT JOIN categorias_financeiro cat ON cr.categoria_id = cat.id
@@ -529,7 +530,7 @@ router.get('/fluxo-caixa-resumo', optionalAuth, async (req, res) => {
                 COALESCE(cat.nome, 'Fornecedores') as categoria,
                 cp.valor,
                 COALESCE(cp.data_vencimento, cp.vencimento) as data,
-                cp.status
+                LOWER(cp.status) as status
             FROM contas_pagar cp
             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
             LEFT JOIN categorias_financeiro cat ON cp.categoria_id = cat.id
@@ -771,22 +772,24 @@ router.get('/dashboard', authenticateToken, authorizeFinanceiro('dashboard'), as
  */
 router.get('/contas-receber', authenticateToken, authorizeFinanceiro('receber'), async (req, res) => {
     try {
-        const { status, dataInicio, dataFim, limite } = req.query;
+        const { status, limite } = req.query;
+        const dataInicio = req.query.dataInicio || req.query.data_inicio;
+        const dataFim = req.query.dataFim || req.query.data_fim;
         let query = `
             SELECT 
                 cr.id,
                 cr.cliente_id,
-                COALESCE(c.nome_fantasia, c.razao_social, cr.descricao, 'N/D') as cliente_nome,
+                COALESCE(c.nome_fantasia, c.razao_social, cr.cliente_nome, cr.descricao, 'N/D') as cliente_nome,
                 c.cnpj_cpf as cnpj_cpf,
                 cr.valor,
                 cr.valor as valor_total,
                 cr.descricao,
-                cr.status,
+                LOWER(cr.status) as status,
                 cr.vencimento,
                 cr.data_vencimento,
                 cr.data_criacao,
                 cr.categoria_id,
-                cat.nome as categoria,
+                COALESCE(cat.nome, cr.categoria_nome) as categoria,
                 cr.banco_id as conta_bancaria,
                 cr.forma_recebimento,
                 cr.observacoes,
@@ -797,8 +800,8 @@ router.get('/contas-receber', authenticateToken, authorizeFinanceiro('receber'),
                 cr.pedido_id,
                 cr.venda_id,
                 DATE_FORMAT(cr.data_vencimento, '%Y-%m') as competencia,
-                cr.observacoes as numero_documento,
-                '' as centro_receita,
+                COALESCE(cr.numero_documento, cr.observacoes, cr.descricao) as numero_documento,
+                COALESCE(cr.conta_corrente_nome, '') as centro_receita,
                 3 as dias_lembrete,
                 NULL as recorrencia
             FROM contas_receber cr
@@ -826,7 +829,8 @@ router.get('/contas-receber', authenticateToken, authorizeFinanceiro('receber'),
         query += ' ORDER BY COALESCE(cr.data_vencimento, cr.vencimento) ASC';
         
         if (limite) {
-            query += ` LIMIT ${parseInt(limite)}`;
+            query += ' LIMIT ?';
+            params.push(Math.min(Math.max(parseInt(limite), 1), 100));
         }
 
         const [rows] = await pool.execute(query, params);
@@ -1034,33 +1038,35 @@ router.delete('/contas-receber/:id', authenticateToken, authorizeFinanceiro('rec
  */
 router.get('/contas-pagar', authenticateToken, authorizeFinanceiro('pagar'), async (req, res) => {
     try {
-        const { status, dataInicio, dataFim, limite } = req.query;
+        const { status, limite } = req.query;
+        const dataInicio = req.query.dataInicio || req.query.data_inicio;
+        const dataFim = req.query.dataFim || req.query.data_fim;
         let query = `
             SELECT 
                 cp.id,
                 cp.fornecedor_id,
-                COALESCE(f.nome, f.razao_social, cp.cnpj_cpf, 'N/D') as fornecedor_nome,
+                COALESCE(f.nome, f.razao_social, cp.fornecedor_nome, cp.cnpj_cpf, 'N/D') as fornecedor_nome,
                 COALESCE(f.cnpj, cp.cnpj_cpf) as fornecedor_cnpj,
                 cp.valor,
                 cp.valor as valor_total,
                 cp.descricao,
-                cp.status,
+                LOWER(cp.status) as status,
                 cp.vencimento,
                 cp.data_vencimento,
                 COALESCE(cp.data_vencimento_original, cp.data_vencimento, cp.vencimento) as data_vencimento_original,
                 cp.data_criacao,
                 cp.categoria_id,
-                cat.nome as categoria,
+                COALESCE(cat.nome, cp.categoria_nome) as categoria,
                 cp.banco_id as conta_bancaria_id,
                 cp.forma_pagamento,
                 cp.observacoes,
                 cp.parcela_numero,
                 cp.total_parcelas,
                 cp.valor_pago,
-                cp.data_recebimento as data_pagamento,
+                COALESCE(cp.data_pagamento, cp.data_recebimento) as data_pagamento,
                 cp.pedido_compra_id,
-                cp.cnpj_cpf as numero_documento,
-                COALESCE(cp.minha_empresa_nome_fantasia, '') as centro_custo,
+                COALESCE(cp.numero_documento, cp.cnpj_cpf, cp.descricao) as numero_documento,
+                COALESCE(cp.conta_corrente_nome, cp.minha_empresa_nome_fantasia, '') as centro_custo,
                 DATE_FORMAT(cp.data_vencimento, '%Y-%m') as competencia
             FROM contas_pagar cp
             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id
@@ -1087,7 +1093,8 @@ router.get('/contas-pagar', authenticateToken, authorizeFinanceiro('pagar'), asy
         query += ' ORDER BY COALESCE(cp.data_vencimento, cp.vencimento) ASC';
         
         if (limite) {
-            query += ` LIMIT ${parseInt(limite)}`;
+            query += ' LIMIT ?';
+            params.push(Math.min(Math.max(parseInt(limite), 1), 100));
         }
 
         const [rows] = await pool.execute(query, params);
@@ -2399,11 +2406,14 @@ router.get('/bancos/:id', authenticateToken, authorizeFinanceiro('bancos'), asyn
 // Criar banco
 router.post('/bancos', authenticateToken, authorizeFinanceiro('bancos'), async (req, res) => {
     try {
-        const { codigo, nome, agencia, conta, tipo, apelido, saldo_inicial, observacoes, ativo } = req.body;
+        const { codigo, nome, agencia, conta, tipo, apelido, saldo_inicial, observacoes, ativo,
+                categoria, limite_credito, conta_vinculada, nao_considerar_resumo, data_saldo_inicial } = req.body;
         const [result] = await pool.query(
-            `INSERT INTO bancos (codigo, nome, agencia, conta, tipo, apelido, saldo, saldo_inicial, observacoes, ativo, created_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-            [codigo, nome, agencia, conta, tipo || 'corrente', apelido || null, saldo_inicial || 0, saldo_inicial || 0, observacoes || null, ativo !== false ? 1 : 0]
+            `INSERT INTO bancos (nome, instituicao, tipo_conta, agencia, conta_corrente, saldo_inicial, saldo_atual, limite_credito, status, considera_fluxo, emite_boleto, created_at) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())`,
+            [apelido || nome || 'Conta', nome || apelido || '', tipo || categoria || 'Conta Corrente', agencia || '', conta || '', 
+             saldo_inicial || 0, saldo_inicial || 0, limite_credito || 0, 
+             ativo !== false ? 'ativo' : 'inativo', nao_considerar_resumo ? 0 : 1]
         );
         res.json({ id: result.insertId, message: 'Banco cadastrado com sucesso' });
     } catch (error) {
@@ -2416,10 +2426,14 @@ router.post('/bancos', authenticateToken, authorizeFinanceiro('bancos'), async (
 router.put('/bancos/:id', authenticateToken, authorizeFinanceiro('bancos'), async (req, res) => {
     try {
         const { id } = req.params;
-        const { codigo, nome, agencia, conta, tipo, apelido, observacoes, ativo } = req.body;
+        const { codigo, nome, agencia, conta, tipo, apelido, observacoes, ativo,
+                categoria, limite_credito, nao_considerar_resumo } = req.body;
         await pool.query(
-            `UPDATE bancos SET codigo=?, nome=?, agencia=?, conta=?, tipo=?, apelido=?, observacoes=?, ativo=?, updated_at=NOW() WHERE id=?`,
-            [codigo, nome, agencia, conta, tipo, apelido, observacoes, ativo ? 1 : 0, id]
+            `UPDATE bancos SET nome=?, instituicao=?, tipo_conta=?, agencia=?, conta_corrente=?, 
+             limite_credito=?, status=?, considera_fluxo=?, updated_at=NOW() WHERE id=?`,
+            [apelido || nome, nome || apelido || '', tipo || categoria || 'Conta Corrente', 
+             agencia, conta, limite_credito || 0,
+             ativo !== false ? 'ativo' : 'inativo', nao_considerar_resumo ? 0 : 1, id]
         );
         res.json({ message: 'Banco atualizado com sucesso' });
     } catch (error) {

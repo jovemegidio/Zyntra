@@ -1,10 +1,10 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1a1a2e">
@@ -18,14 +18,14 @@
 
     <!-- Fonte Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 
     <!-- Financeiro Design System -->
     <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
     <link rel="stylesheet" href="css/fin-components.css?v=20260215">
 
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
 
     <!-- Redirecionamento baseado em permissões -->
     <script>
@@ -51,28 +51,91 @@
 
     <!-- Estilos específicos desta página -->
     <style>
-        /* KPI Grid */
-        .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-        .kpi-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; transition: all 0.2s; }
-        .kpi-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
-        .kpi-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .kpi-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-        .kpi-icon.green { background: rgba(34,197,94,0.1); color: #22c55e; }
-        .kpi-icon.red { background: rgba(239,68,68,0.1); color: #ef4444; }
-        .kpi-icon.blue { background: rgba(59,130,246,0.1); color: #3b82f6; }
-        .kpi-icon.orange { background: rgba(245,158,11,0.1); color: #f59e0b; }
-        .kpi-content h3 { font-size: 13px; color: #64748b; font-weight: 500; margin-bottom: 6px; }
-        .kpi-value { font-size: 22px; font-weight: 700; color: #1e293b; }
-        .kpi-value.green { color: #22c55e; }
-        .kpi-value.red { color: #ef4444; }
-        .kpi-trend { font-size: 12px; color: #94a3b8; margin-top: 6px; display: flex; align-items: center; gap: 4px; }
-        .kpi-trend.up { color: #22c55e; }
-        .kpi-trend.down { color: #ef4444; }
-        .kpi-progress { height: 4px; background: #f1f5f9; border-radius: 2px; margin-top: 12px; overflow: hidden; }
-        .kpi-progress-bar { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
-        .kpi-progress-bar.green { background: #22c55e; }
-        .kpi-progress-bar.red { background: #ef4444; }
-        .kpi-progress-bar.blue { background: #3b82f6; }
+        /* Cards de resumo - padrão alinhado com Relatórios */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 24px; }
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            border-radius: 20px 20px 0 0;
+        }
+        .stat-card.green::before { background: linear-gradient(180deg, #10b981, #34d399); }
+        .stat-card.red::before { background: linear-gradient(180deg, #ef4444, #f87171); }
+        .stat-card.lime::before { background: linear-gradient(180deg, #84cc16, #a3e635); }
+        .stat-card.blue::before { background: linear-gradient(180deg, #3b82f6, #60a5fa); }
+        .stat-card.green { background: linear-gradient(135deg, #ecfdf5 0%, white 40%); }
+        .stat-card.red { background: linear-gradient(135deg, #fef2f2 0%, white 40%); }
+        .stat-card.lime { background: linear-gradient(135deg, #f7fee7 0%, white 40%); }
+        .stat-card.blue { background: linear-gradient(135deg, #eff6ff 0%, white 40%); }
+        .stat-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .stat-icon { width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+        .stat-icon.green { background: linear-gradient(135deg, #ecfdf5, #a7f3d0); color: #059669; }
+        .stat-icon.red { background: linear-gradient(135deg, #fef2f2, #fecaca); color: #dc2626; }
+        .stat-icon.lime { background: linear-gradient(135deg, #f7fee7, #d9f99d); color: #65a30d; }
+        .stat-icon.blue { background: linear-gradient(135deg, #eff6ff, #bfdbfe); color: #2563eb; }
+        .stat-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .stat-badge.green { background: #ecfdf5; color: #059669; }
+        .stat-badge.red { background: #fef2f2; color: #dc2626; }
+        .stat-badge.lime { background: #f7fee7; color: #65a30d; }
+        .stat-badge.blue { background: #eff6ff; color: #2563eb; }
+        .stat-label {
+            color: #6b7280;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.3;
+            letter-spacing: 0.01em;
+        }
+        .stat-value {
+            font-size: 30px;
+            font-weight: 800;
+            color: #111827;
+            line-height: 1.1;
+            margin-bottom: 4px;
+            letter-spacing: -0.03em;
+        }
+        .stat-value.negative { color: #dc2626; }
+        .stat-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding-top: 16px;
+            border-top: 1px solid #f1f5f9;
+        }
+        .stat-change {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 999px;
+        }
+        .stat-change.up { background: #ecfdf5; color: #059669; }
+        .stat-change.down { background: #fef2f2; color: #dc2626; }
+        .stat-change.neutral { background: #f8fafc; color: #64748b; }
+        .stat-change i { font-size: 10px; }
+        .stat-period { font-size: 12px; color: #94a3b8; }
 
         /* Chart */
         .chart-container { height: 280px; position: relative; }
@@ -153,7 +216,7 @@
         .lancamentos-nav-btn.btn-receber:hover { color: #22c55e; border-color: #86efac; background: #f0fdf4; }
 
         /* ============ MODAIS OMIE ============ */
-        .modal-overlay-omie { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal-overlay-omie { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
         .modal-overlay-omie.active { display: flex; }
         .modal-omie { background: white; border-radius: 12px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
         .modal-omie--sm { width: 560px; }
@@ -283,7 +346,7 @@
         .empty-state p { font-size: 14px; }
 
         @media (max-width: 768px) {
-            .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
             .page-header { flex-direction: column; }
             .page-header .btn { width: 100%; justify-content: center; }
             .modal-omie--sm, .modal-omie--md, .modal-omie--lg, .modal-omie--xl { width: 95vw; margin: 0 auto; }
@@ -294,7 +357,7 @@
             .grid-cadastro-main, .grid-cadastro-detail { grid-template-columns: 1fr; }
         }
         @media (max-width: 480px) {
-            .kpi-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr; }
         }
     </style>
 
@@ -428,51 +491,55 @@
                     <button class="btn btn-secondary" onclick="location.href='relatorios.html'"><i class="fas fa-file-alt"></i> Relatórios</button>
                 </div>
 
-                <!-- KPIs -->
-                <div class="kpi-grid">
-                    <div class="kpi-card">
-                        <div class="kpi-header">
-                            <div class="kpi-icon green"><i class="fas fa-arrow-down"></i></div>
+                <!-- Resumo Financeiro -->
+                <div class="stats-grid">
+                    <div class="stat-card green">
+                        <div class="stat-header">
+                            <div class="stat-icon green"><i class="fas fa-hand-holding-usd"></i></div>
+                            <span class="stat-badge green">Receitas</span>
                         </div>
-                        <div class="kpi-content">
-                            <h3>A Receber (30 dias)</h3>
-                            <div class="kpi-value green" id="kpi-receber">R$ 0,00</div>
-                            <div class="kpi-trend up"><i class="fas fa-arrow-up"></i> vs mês anterior</div>
+                        <div class="stat-value" id="statTotalReceber">R$ 0,00</div>
+                        <div class="stat-label">Total a Receber</div>
+                        <div class="stat-footer">
+                            <div class="stat-change neutral" id="changeReceber"><i class="fas fa-minus"></i> 0%</div>
+                            <div class="stat-period">vs mês anterior</div>
                         </div>
-                        <div class="kpi-progress"><div class="kpi-progress-bar green" id="progress-receber" style="width: 0%"></div></div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-header">
-                            <div class="kpi-icon red"><i class="fas fa-arrow-up"></i></div>
+                    <div class="stat-card red">
+                        <div class="stat-header">
+                            <div class="stat-icon red"><i class="fas fa-file-invoice-dollar"></i></div>
+                            <span class="stat-badge red">Despesas</span>
                         </div>
-                        <div class="kpi-content">
-                            <h3>A Pagar (30 dias)</h3>
-                            <div class="kpi-value red" id="kpi-pagar">R$ 0,00</div>
-                            <div class="kpi-trend down"><i class="fas fa-arrow-down"></i> vs mês anterior</div>
+                        <div class="stat-value" id="statTotalPagar">R$ 0,00</div>
+                        <div class="stat-label">Total a Pagar</div>
+                        <div class="stat-footer">
+                            <div class="stat-change neutral" id="changePagar"><i class="fas fa-minus"></i> 0%</div>
+                            <div class="stat-period">vs mês anterior</div>
                         </div>
-                        <div class="kpi-progress"><div class="kpi-progress-bar red" id="progress-pagar" style="width: 0%"></div></div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-header">
-                            <div class="kpi-icon blue"><i class="fas fa-wallet"></i></div>
+                    <div class="stat-card lime">
+                        <div class="stat-header">
+                            <div class="stat-icon lime"><i class="fas fa-chart-line"></i></div>
+                            <span class="stat-badge lime">Projeção</span>
                         </div>
-                        <div class="kpi-content">
-                            <h3>Saldo Previsto</h3>
-                            <div class="kpi-value" id="kpi-saldo">R$ 0,00</div>
-                            <div class="kpi-trend"><i class="fas fa-chart-line"></i> Projeção 30 dias</div>
+                        <div class="stat-value" id="statSaldoProjetado">R$ 0,00</div>
+                        <div class="stat-label">Saldo Projetado</div>
+                        <div class="stat-footer">
+                            <div class="stat-change neutral" id="changeSaldo"><i class="fas fa-minus"></i> 0%</div>
+                            <div class="stat-period">vs mês anterior</div>
                         </div>
-                        <div class="kpi-progress"><div class="kpi-progress-bar blue" style="width: 75%"></div></div>
                     </div>
-                    <div class="kpi-card">
-                        <div class="kpi-header">
-                            <div class="kpi-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="stat-card blue">
+                        <div class="stat-header">
+                            <div class="stat-icon blue"><i class="fas fa-university"></i></div>
+                            <span class="stat-badge blue">Bancário</span>
                         </div>
-                        <div class="kpi-content">
-                            <h3>Títulos Vencidos</h3>
-                            <div class="kpi-value" id="kpi-vencidos">0</div>
-                            <div class="kpi-trend"><i class="fas fa-bell"></i> Requer atenção</div>
+                        <div class="stat-value" id="statSaldoContas">R$ 0,00</div>
+                        <div class="stat-label">Saldo em Contas</div>
+                        <div class="stat-footer">
+                            <div class="stat-change up" id="changeContas"><i class="fas fa-check-circle"></i> Saldo atual</div>
+                            <div class="stat-period">atual</div>
                         </div>
-                        <div class="kpi-progress"><div class="kpi-progress-bar red" id="progress-vencidos" style="width: 0%"></div></div>
                     </div>
                 </div>
 
@@ -560,9 +627,29 @@
             overlay.classList.toggle('active');
         }
 
-        function toggleNotifications() {
+        function toggleNotificacoes() {
             const panel = document.getElementById('notification-panel');
             if (panel) panel.classList.toggle('active');
+        }
+
+        function marcarTodasLidas() {
+            const badge = document.getElementById('notification-count');
+            if (badge) {
+                badge.textContent = '0';
+                badge.style.display = 'none';
+            }
+        }
+
+        function limparNotificacoes() {
+            const lista = document.getElementById('notification-list');
+            if (!lista) return;
+            lista.innerHTML = `
+                <div class="notification-empty">
+                    <i class="fas fa-check-circle"></i>
+                    <p>Nenhuma notificação</p>
+                </div>
+            `;
+            marcarTodasLidas();
         }
 
         // ======== Carregar usuário ========
@@ -600,164 +687,449 @@
             } catch (e) { console.error('Erro ao carregar usuário:', e); }
         }
 
-        // ======== CACHE DE DADOS ========
-        const financeiroCache = { contasReceber: null, contasPagar: null, lastFetch: null, cacheTime: 60000, isLoading: false, loadPromise: null };
+        // ======== Dados do Dashboard ========
+        const dashboardCache = {
+            data: null,
+            lastFetch: null,
+            cacheTime: 60000,
+            loadPromise: null
+        };
 
-        async function carregarDadosFinanceiros(forceRefresh = false) {
-            const now = Date.now();
-            if (!forceRefresh && financeiroCache.lastFetch && (now - financeiroCache.lastFetch < financeiroCache.cacheTime)) {
-                return { contasReceber: financeiroCache.contasReceber, contasPagar: financeiroCache.contasPagar };
-            }
-            if (financeiroCache.isLoading && financeiroCache.loadPromise) return financeiroCache.loadPromise;
-            financeiroCache.isLoading = true;
-            financeiroCache.loadPromise = (async () => {
-                try {
-                    const [receber, pagar] = await Promise.all([
-                        fetch('/api/financeiro/contas-receber', { credentials: 'include' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(() => []),
-                        fetch('/api/financeiro/contas-pagar', { credentials: 'include' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(() => [])
-                    ]);
-                    const receberData = receber.data || receber || [];
-                    const pagarData = pagar.data || pagar || [];
-                    financeiroCache.contasReceber = Array.isArray(receberData) ? receberData : [];
-                    financeiroCache.contasPagar = Array.isArray(pagarData) ? pagarData : [];
-                    financeiroCache.lastFetch = Date.now();
-                    return { contasReceber: financeiroCache.contasReceber, contasPagar: financeiroCache.contasPagar };
-                } finally { financeiroCache.isLoading = false; }
-            })();
-            return financeiroCache.loadPromise;
+        function formatarDataISO(data) {
+            return data.toISOString().split('T')[0];
         }
 
-        function invalidarCacheFinanceiro() { financeiroCache.lastFetch = null; }
+        function obterPeriodoMensal(referencia = new Date()) {
+            const inicio = new Date(referencia.getFullYear(), referencia.getMonth(), 1);
+            const fim = new Date(referencia.getFullYear(), referencia.getMonth() + 1, 0);
+            return {
+                inicio: formatarDataISO(inicio),
+                fim: formatarDataISO(fim)
+            };
+        }
+
+        function normalizarArray(payload) {
+            if (Array.isArray(payload)) return payload;
+            if (Array.isArray(payload?.data)) return payload.data;
+            return [];
+        }
+
+        function converterNumero(valor) {
+            const numero = Number.parseFloat(valor);
+            return Number.isFinite(numero) ? numero : 0;
+        }
+
+        function normalizarStatus(status) {
+            return String(status || '').trim().toLowerCase();
+        }
+
+        async function fetchJsonSeguro(url, fallback) {
+            try {
+                const response = await fetch(url, { credentials: 'include' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.warn(`[Dashboard Financeiro] Falha ao carregar ${url}:`, error.message);
+                return fallback;
+            }
+        }
+
+        function calcularTotal(contas) {
+            return contas.reduce((soma, conta) => soma + converterNumero(conta.valor_total || conta.valor), 0);
+        }
+
+        function calcularVariacaoPercentual(atual, anterior) {
+            if (anterior === 0) {
+                return atual === 0 ? 0 : 100;
+            }
+            return ((atual - anterior) / anterior) * 100;
+        }
+
+        function invalidarCacheDashboard() {
+            dashboardCache.data = null;
+            dashboardCache.lastFetch = null;
+        }
+
+        async function carregarDadosDashboard(forceRefresh = false) {
+            const agora = Date.now();
+            if (!forceRefresh && dashboardCache.data && dashboardCache.lastFetch && (agora - dashboardCache.lastFetch < dashboardCache.cacheTime)) {
+                return dashboardCache.data;
+            }
+
+            if (dashboardCache.loadPromise) {
+                return dashboardCache.loadPromise;
+            }
+
+            const referenciaAtual = new Date();
+            const referenciaAnterior = new Date(referenciaAtual.getFullYear(), referenciaAtual.getMonth() - 1, 1);
+            const periodoAtual = obterPeriodoMensal(referenciaAtual);
+            const periodoAnterior = obterPeriodoMensal(referenciaAnterior);
+
+            dashboardCache.loadPromise = (async () => {
+                const [
+                    receberAtualPayload,
+                    pagarAtualPayload,
+                    receberAnteriorPayload,
+                    pagarAnteriorPayload,
+                    fluxoPayload,
+                    vencimentosPayload,
+                    lancamentosPayload,
+                    resumoKpisPayload
+                ] = await Promise.all([
+                    fetchJsonSeguro(`/api/financeiro/contas-receber?dataInicio=${periodoAtual.inicio}&dataFim=${periodoAtual.fim}`, { data: [] }),
+                    fetchJsonSeguro(`/api/financeiro/contas-pagar?dataInicio=${periodoAtual.inicio}&dataFim=${periodoAtual.fim}`, { data: [] }),
+                    fetchJsonSeguro(`/api/financeiro/contas-receber?dataInicio=${periodoAnterior.inicio}&dataFim=${periodoAnterior.fim}`, { data: [] }),
+                    fetchJsonSeguro(`/api/financeiro/contas-pagar?dataInicio=${periodoAnterior.inicio}&dataFim=${periodoAnterior.fim}`, { data: [] }),
+                    fetchJsonSeguro('/api/financeiro/fluxo-caixa-resumo?periodo=30d', { saldoInicial: 0, fluxoDiario: [] }),
+                    fetchJsonSeguro('/api/financeiro/proximos-vencimentos?limite=6', { data: [] }),
+                    fetchJsonSeguro('/api/financeiro/ultimos-lancamentos?limite=10', { data: [] }),
+                    fetchJsonSeguro('/api/financeiro/resumo-kpis', { data: { vencidos: 0 } })
+                ]);
+
+                const contasReceberAtual = normalizarArray(receberAtualPayload);
+                const contasPagarAtual = normalizarArray(pagarAtualPayload);
+                const contasReceberAnterior = normalizarArray(receberAnteriorPayload);
+                const contasPagarAnterior = normalizarArray(pagarAnteriorPayload);
+
+                const saldoContas = converterNumero(fluxoPayload?.saldoInicial);
+                const totalReceber = calcularTotal(contasReceberAtual);
+                const totalPagar = calcularTotal(contasPagarAtual);
+                const saldoProjetado = saldoContas + totalReceber - totalPagar;
+
+                const totalReceberAnterior = calcularTotal(contasReceberAnterior);
+                const totalPagarAnterior = calcularTotal(contasPagarAnterior);
+                const saldoProjetadoAnterior = saldoContas + totalReceberAnterior - totalPagarAnterior;
+
+                const dados = {
+                    cards: {
+                        totalReceber,
+                        totalPagar,
+                        saldoProjetado,
+                        saldoContas
+                    },
+                    comparativos: {
+                        totalReceberAnterior,
+                        totalPagarAnterior,
+                        saldoProjetadoAnterior
+                    },
+                    fluxoDiario: Array.isArray(fluxoPayload?.fluxoDiario) ? fluxoPayload.fluxoDiario : [],
+                    proximosVencimentos: normalizarArray(vencimentosPayload),
+                    ultimosLancamentos: normalizarArray(lancamentosPayload),
+                    alertas: Number.parseInt(resumoKpisPayload?.data?.vencidos || 0, 10) || 0
+                };
+
+                dashboardCache.data = dados;
+                dashboardCache.lastFetch = Date.now();
+                return dados;
+            })().finally(() => {
+                dashboardCache.loadPromise = null;
+            });
+
+            return dashboardCache.loadPromise;
+        }
+
+        function atualizarBadgeNotificacao(total) {
+            const badge = document.getElementById('notification-count');
+            if (!badge) return;
+
+            if (total > 0) {
+                badge.textContent = total;
+                badge.style.display = 'inline-flex';
+            } else {
+                badge.textContent = '0';
+                badge.style.display = 'none';
+            }
+        }
+
+        function aplicarVariacao(elId, atual, anterior, inverterCores = false) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+
+            if (atual === 0 && anterior === 0) {
+                el.className = 'stat-change neutral';
+                el.innerHTML = '<i class="fas fa-minus"></i> 0%';
+                return;
+            }
+
+            const variacao = calcularVariacaoPercentual(atual, anterior);
+            const subiu = variacao >= 0;
+            const classPositiva = inverterCores ? !subiu : subiu;
+
+            el.className = `stat-change ${classPositiva ? 'up' : 'down'}`;
+            el.innerHTML = `<i class="fas fa-arrow-${subiu ? 'up' : 'down'}"></i> ${Math.abs(variacao).toFixed(1)}%`;
+        }
 
         // ======== KPIs ========
         async function carregarKPIs() {
             try {
-                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
-                const totalReceber = contasReceber.reduce((sum, c) => sum + parseFloat(c.valor || 0), 0);
-                const totalPagar = contasPagar.reduce((sum, c) => sum + parseFloat(c.valor || 0), 0);
-                const saldo = totalReceber - totalPagar;
-                const vencidos = [...contasReceber, ...contasPagar].filter(c => new Date(c.data_vencimento) < new Date() && c.status !== 'pago' && c.status !== 'recebido').length;
-                const hoje = new Date().toISOString().split('T')[0];
-                const venceHoje = [...contasReceber, ...contasPagar].filter(c => c.data_vencimento === hoje && c.status !== 'pago' && c.status !== 'recebido').length;
+                const dados = await carregarDadosDashboard();
 
-                document.getElementById('kpi-receber').textContent = formatarMoeda(totalReceber);
-                document.getElementById('kpi-pagar').textContent = formatarMoeda(totalPagar);
-                document.getElementById('kpi-saldo').textContent = formatarMoeda(saldo);
-                document.getElementById('kpi-saldo').className = 'kpi-value ' + (saldo >= 0 ? 'green' : 'red');
-                document.getElementById('kpi-vencidos').textContent = vencidos;
+                const totalReceberEl = document.getElementById('statTotalReceber');
+                const totalPagarEl = document.getElementById('statTotalPagar');
+                const saldoProjetadoEl = document.getElementById('statSaldoProjetado');
+                const saldoContasEl = document.getElementById('statSaldoContas');
 
-                const totalAlertas = vencidos + venceHoje;
-                const badge = document.getElementById('notification-count');
-                badge.textContent = totalAlertas;
-                badge.classList.toggle('hidden', totalAlertas === 0);
+                if (totalReceberEl) totalReceberEl.textContent = formatarMoeda(dados.cards.totalReceber);
+                if (totalPagarEl) totalPagarEl.textContent = formatarMoeda(dados.cards.totalPagar);
+                if (saldoProjetadoEl) {
+                    saldoProjetadoEl.textContent = formatarMoeda(dados.cards.saldoProjetado);
+                    saldoProjetadoEl.className = `stat-value${dados.cards.saldoProjetado < 0 ? ' negative' : ''}`;
+                }
+                if (saldoContasEl) {
+                    saldoContasEl.textContent = formatarMoeda(dados.cards.saldoContas);
+                    saldoContasEl.className = `stat-value${dados.cards.saldoContas < 0 ? ' negative' : ''}`;
+                }
 
-                const maxValor = Math.max(totalReceber, totalPagar, 1);
-                document.getElementById('progress-receber').style.width = ((totalReceber / maxValor) * 100) + '%';
-                document.getElementById('progress-pagar').style.width = ((totalPagar / maxValor) * 100) + '%';
-                const totalContas = contasReceber.length + contasPagar.length;
-                if (totalContas > 0) document.getElementById('progress-vencidos').style.width = Math.min((vencidos / totalContas) * 100, 100) + '%';
-            } catch (e) { console.error('Erro ao carregar KPIs:', e); }
+                aplicarVariacao('changeReceber', dados.cards.totalReceber, dados.comparativos.totalReceberAnterior);
+                aplicarVariacao('changePagar', dados.cards.totalPagar, dados.comparativos.totalPagarAnterior, true);
+                aplicarVariacao('changeSaldo', dados.cards.saldoProjetado, dados.comparativos.saldoProjetadoAnterior);
+
+                const changeContas = document.getElementById('changeContas');
+                if (changeContas) {
+                    changeContas.className = 'stat-change up';
+                    changeContas.innerHTML = '<i class="fas fa-check-circle"></i> Saldo atual';
+                }
+
+                atualizarBadgeNotificacao(dados.alertas);
+            } catch (error) {
+                console.error('Erro ao carregar cards do dashboard:', error);
+            }
         }
 
         // ======== Gráfico ========
         let fluxoCaixaChartInstance = null;
         async function carregarGrafico() {
-            const ctx = document.getElementById('fluxoCaixaChart').getContext('2d');
-            if (fluxoCaixaChartInstance) { fluxoCaixaChartInstance.destroy(); fluxoCaixaChartInstance = null; }
+            const canvas = document.getElementById('fluxoCaixaChart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            if (fluxoCaixaChartInstance) {
+                fluxoCaixaChartInstance.destroy();
+                fluxoCaixaChartInstance = null;
+            }
+
             try {
-                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
-                const labels = [], entradas = [], saidas = [];
+                const dados = await carregarDadosDashboard();
+                const fluxoPorData = new Map(
+                    (dados.fluxoDiario || []).map(item => [String(item.data).slice(0, 10), item])
+                );
+
+                const hoje = new Date();
+                hoje.setHours(0, 0, 0, 0);
+
+                const labels = [];
+                const entradas = [];
+                const saidas = [];
+
                 for (let i = 0; i < 30; i++) {
-                    const d = new Date(); d.setDate(d.getDate() + i);
-                    const dataStr = d.toISOString().split('T')[0];
-                    labels.push(d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }));
-                    entradas.push(contasReceber.filter(c => c.data_vencimento === dataStr && c.status !== 'recebido').reduce((sum, c) => sum + parseFloat(c.valor || 0), 0));
-                    saidas.push(contasPagar.filter(c => c.data_vencimento === dataStr && c.status !== 'pago').reduce((sum, c) => sum + parseFloat(c.valor || 0), 0));
+                    const data = new Date(hoje);
+                    data.setDate(hoje.getDate() + i);
+
+                    const chave = formatarDataISO(data);
+                    const item = fluxoPorData.get(chave) || {};
+
+                    labels.push(data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }));
+                    entradas.push(converterNumero(item.entradas));
+                    saidas.push(converterNumero(item.saidas));
                 }
+
                 fluxoCaixaChartInstance = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels,
                         datasets: [
-                            { label: 'Entradas', data: entradas, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#22c55e' },
-                            { label: 'Saídas', data: saidas, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 0, pointHoverRadius: 6, pointBackgroundColor: '#ef4444' }
+                            {
+                                label: 'Entradas',
+                                data: entradas,
+                                borderColor: '#22c55e',
+                                backgroundColor: 'rgba(34,197,94,0.08)',
+                                fill: true,
+                                tension: 0.35,
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                pointHoverRadius: 5,
+                                pointBackgroundColor: '#22c55e'
+                            },
+                            {
+                                label: 'Saídas',
+                                data: saidas,
+                                borderColor: '#ef4444',
+                                backgroundColor: 'rgba(239,68,68,0.08)',
+                                fill: true,
+                                tension: 0.35,
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                pointHoverRadius: 5,
+                                pointBackgroundColor: '#ef4444'
+                            }
                         ]
                     },
                     options: {
-                        responsive: true, maintainAspectRatio: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
                         interaction: { intersect: false, mode: 'index' },
                         plugins: {
                             legend: { display: false },
-                            tooltip: { backgroundColor: '#1e293b', titleColor: '#fff', bodyColor: '#fff', padding: 12, cornerRadius: 8, callbacks: { label: ctx => ctx.dataset.label + ': ' + formatarMoeda(ctx.raw) } }
+                            tooltip: {
+                                backgroundColor: '#1e293b',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                padding: 12,
+                                cornerRadius: 8,
+                                callbacks: {
+                                    label: tooltipItem => `${tooltipItem.dataset.label}: ${formatarMoeda(tooltipItem.raw)}`
+                                }
+                            }
                         },
                         scales: {
                             x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 11 }, maxTicksLimit: 10 } },
-                            y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', font: { size: 11 }, callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } }
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: '#f1f5f9' },
+                                ticks: {
+                                    color: '#64748b',
+                                    font: { size: 11 },
+                                    callback: valor => formatarMoeda(valor)
+                                }
+                            }
                         }
                     }
                 });
-            } catch (e) { console.error('Erro ao carregar gráfico:', e); }
+            } catch (error) {
+                console.error('Erro ao carregar gráfico do fluxo de caixa:', error);
+            }
+        }
+
+        function obterTextoPrazo(dataVencimento) {
+            if (!dataVencimento) return 'Sem vencimento';
+
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+
+            const data = new Date(`${String(dataVencimento).slice(0, 10)}T00:00:00`);
+            const diferencaDias = Math.round((data - hoje) / 86400000);
+
+            if (diferencaDias < 0) return `Vencido há ${Math.abs(diferencaDias)} dia(s)`;
+            if (diferencaDias === 0) return 'Vence hoje';
+            if (diferencaDias === 1) return 'Vence amanhã';
+            return `Vence em ${diferencaDias} dia(s)`;
         }
 
         // ======== Vencimentos ========
         async function carregarVencimentos() {
             const lista = document.getElementById('lista-vencimentos');
+            if (!lista) return;
+
             try {
-                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
-                const todas = [
-                    ...contasReceber.map(c => ({ ...c, tipo: 'receber' })),
-                    ...contasPagar.map(c => ({ ...c, tipo: 'pagar' }))
-                ].filter(c => c.status !== 'pago' && c.status !== 'recebido')
-                 .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))
-                 .slice(0, 6);
-                if (todas.length === 0) { lista.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>Nenhum vencimento próximo</p></div>'; return; }
-                lista.innerHTML = todas.map(c => `
+                const dados = await carregarDadosDashboard();
+                const vencimentos = [...dados.proximosVencimentos]
+                    .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))
+                    .slice(0, 6);
+
+                if (vencimentos.length === 0) {
+                    lista.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>Nenhum vencimento próximo</p></div>';
+                    return;
+                }
+
+                lista.innerHTML = vencimentos.map(item => `
                     <div class="vencimento-item">
                         <div class="vencimento-left">
-                            <div class="vencimento-icon ${c.tipo}"><i class="fas fa-${c.tipo === 'receber' ? 'arrow-down' : 'arrow-up'}"></i></div>
+                            <div class="vencimento-icon ${item.tipo}">
+                                <i class="fas fa-${item.tipo === 'receber' ? 'arrow-down' : 'arrow-up'}"></i>
+                            </div>
                             <div class="vencimento-info">
-                                <h4>${c.descricao || c.fornecedor || c.cliente || 'Sem descrição'}</h4>
-                                <span>${new Date(c.data_vencimento).toLocaleDateString('pt-BR')} • ${c.tipo === 'receber' ? 'A Receber' : 'A Pagar'}</span>
+                                <h4>${item.descricao || 'Sem descrição'}</h4>
+                                <span>${obterTextoPrazo(item.data_vencimento)} • ${item.tipo === 'receber' ? 'A Receber' : 'A Pagar'}</span>
                             </div>
                         </div>
-                        <div class="vencimento-valor ${c.tipo === 'receber' ? 'green' : 'red'}">${formatarMoeda(c.valor)}</div>
+                        <div class="vencimento-valor ${item.tipo === 'receber' ? 'green' : 'red'}">${formatarMoeda(item.valor)}</div>
                     </div>
                 `).join('');
-            } catch (e) { lista.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Erro ao carregar</p></div>'; }
+            } catch (error) {
+                console.error('Erro ao carregar próximos vencimentos:', error);
+                lista.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Erro ao carregar vencimentos</p></div>';
+            }
         }
 
         // ======== Lançamentos ========
         async function carregarLancamentos() {
             const tbody = document.getElementById('tabela-lancamentos');
+            if (!tbody) return;
+
             try {
-                const { contasReceber, contasPagar } = await carregarDadosFinanceiros();
-                const todas = [
-                    ...contasReceber.map(c => ({ ...c, tipo: 'Receber' })),
-                    ...contasPagar.map(c => ({ ...c, tipo: 'Pagar' }))
-                ].sort((a, b) => new Date(b.created_at || b.data_vencimento) - new Date(a.created_at || a.data_vencimento)).slice(0, 10);
-                if (todas.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="td-loading"><i class="fas fa-inbox icon-empty"></i>Nenhum lançamento</td></tr>'; return; }
-                tbody.innerHTML = todas.map(c => `
-                    <tr>
-                        <td><span class="badge ${c.tipo === 'Receber' ? 'badge-success' : 'badge-danger'}">${c.tipo}</span></td>
-                        <td class="td-description">${c.descricao || c.fornecedor || c.cliente || 'Sem descrição'}</td>
-                        <td>${new Date(c.data_vencimento).toLocaleDateString('pt-BR')}</td>
-                        <td class="td-valor">${formatarMoeda(c.valor)}</td>
-                        <td><span class="badge ${getStatusClass(c.status)}">${formatarStatus(c.status)}</span></td>
-                    </tr>
-                `).join('');
-            } catch (e) { tbody.innerHTML = '<tr><td colspan="5" class="td-loading td-valor--danger">Erro ao carregar</td></tr>'; }
+                const dados = await carregarDadosDashboard();
+                const lancamentos = [...dados.ultimosLancamentos].slice(0, 10);
+
+                if (lancamentos.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="td-loading"><i class="fas fa-inbox icon-empty"></i>Nenhum lançamento</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = lancamentos.map(item => {
+                    const tipo = item.tipo === 'Receber' ? 'Receber' : 'Pagar';
+                    return `
+                        <tr>
+                            <td><span class="badge ${tipo === 'Receber' ? 'badge-success' : 'badge-danger'}">${tipo}</span></td>
+                            <td class="td-description">${item.descricao || 'Sem descrição'}</td>
+                            <td>${formatarData(item.data_vencimento)}</td>
+                            <td class="td-valor ${tipo === 'Receber' ? 'td-valor--success' : 'td-valor--danger'}">${formatarMoeda(item.valor)}</td>
+                            <td><span class="badge ${getStatusClass(item.status)}">${formatarStatus(item.status)}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Erro ao carregar últimos lançamentos:', error);
+                tbody.innerHTML = '<tr><td colspan="5" class="td-loading td-valor--danger">Erro ao carregar</td></tr>';
+            }
         }
 
-        function getStatusClass(s) { s = (s || '').toLowerCase(); if (s === 'pago' || s === 'recebido') return 'badge-success'; if (s === 'vencido') return 'badge-danger'; if (s === 'parcial') return 'badge-warning'; return 'badge-info'; }
-        function formatarStatus(s) { const m = { 'pago': 'Pago', 'recebido': 'Recebido', 'pendente': 'Pendente', 'vencido': 'Vencido', 'parcial': 'Parcial' }; return m[(s || 'pendente').toLowerCase()] || s; }
-        function formatarMoeda(v) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0); }
-        function novoLancamento(tipo) { location.href = tipo === 'pagar' ? 'contas-pagar.html' : 'contas-receber.html'; }
+        function getStatusClass(status) {
+            const statusNormalizado = normalizarStatus(status);
+            if (statusNormalizado === 'pago' || statusNormalizado === 'recebido') return 'badge-success';
+            if (statusNormalizado === 'vencido') return 'badge-danger';
+            if (statusNormalizado === 'parcial') return 'badge-warning';
+            return 'badge-info';
+        }
+
+        function formatarStatus(status) {
+            const mapa = {
+                pago: 'Pago',
+                recebido: 'Recebido',
+                pendente: 'Pendente',
+                vencido: 'Vencido',
+                parcial: 'Parcial'
+            };
+            const statusNormalizado = normalizarStatus(status) || 'pendente';
+            return mapa[statusNormalizado] || statusNormalizado;
+        }
+
+        function formatarData(data) {
+            if (!data) return '-';
+            return new Date(`${String(data).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR');
+        }
+
+        function formatarMoeda(valor) {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(converterNumero(valor));
+        }
+
+        function novoLancamento(tipo) {
+            location.href = tipo === 'pagar' ? 'contas-pagar.html' : 'contas-receber.html';
+        }
 
         // ======== Dashboard update ========
         async function atualizarDashboard(forceRefresh = false) {
-            if (forceRefresh) invalidarCacheFinanceiro();
-            await carregarDadosFinanceiros(forceRefresh);
-            await Promise.all([carregarKPIs(), carregarGrafico(), carregarVencimentos(), carregarLancamentos()]);
+            if (forceRefresh) {
+                invalidarCacheDashboard();
+            }
+
+            await Promise.all([
+                carregarKPIs(),
+                carregarGrafico(),
+                carregarVencimentos(),
+                carregarLancamentos()
+            ]);
         }
 
         // ======== Init ========
@@ -1037,6 +1409,18 @@
 
     <!-- JS dos Modais -->
     <script>
+        function showToast(message, type) {
+            type = type || 'info';
+            var toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:99999;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);max-width:400px;';
+            toast.style.background = type==='success'?'#10b981':type==='error'?'#ef4444':type==='warning'?'#f59e0b':'#3b82f6';
+            var span = document.createElement('span');
+            span.textContent = message;
+            toast.appendChild(span);
+            document.body.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 4000);
+        }
+
         function abrirModalClienteFornecedor() { document.getElementById('modalEscolhaCliente').classList.add('active'); }
         function fecharModalClienteFornecedor() { document.getElementById('modalEscolhaCliente').classList.remove('active'); }
         function abrirModalCNPJ() { fecharModalClienteFornecedor(); document.getElementById('modalCNPJ').classList.add('active'); }
@@ -1049,23 +1433,21 @@
 
         async function pesquisaAtomica() {
             const termo = document.getElementById('pesquisaAtomicaInput').value;
-            if (!termo) { alert('Digite um termo para pesquisar'); return; }
-            mostrarResultados([
-                { localidade: 'Teste', endereco: 'Rua Estrada da fazenda velha número 200 bloco 5 ap 106, São José do Rio Preto - SP, 15030-700, Brasil' },
-                { localidade: 'Empresa Teste', endereco: 'Av. Pres. Vargas - Jardim Boa Esperança, Franca - SP, 14403-720, Brasil' }
-            ]);
+            if (!termo) { showToast('Digite um termo para pesquisar', 'warning'); return; }
+            showToast('Funcionalidade em implementação', 'info');
+            return;
         }
 
         async function pesquisarCNPJ() {
             const cnpj = document.getElementById('cnpjCpfInput').value.replace(/\D/g, '');
-            if (!cnpj || (cnpj.length !== 11 && cnpj.length !== 14)) { alert('Informe um CPF ou CNPJ válido'); return; }
+            if (!cnpj || (cnpj.length !== 11 && cnpj.length !== 14)) { showToast('Informe um CPF ou CNPJ válido', 'warning'); return; }
             try {
                 if (cnpj.length === 14) {
                     const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
                     if (response.ok) { const data = await response.json(); fecharModalCNPJ(); preencherDadosCNPJ(data); abrirCadastroCompleto(); return; }
                 }
-                alert('Não foi possível encontrar dados para este documento');
-            } catch (e) { console.error('Erro na consulta:', e); alert('Erro ao consultar. Tente a inserção manual.'); }
+                showToast('Não foi possível encontrar dados para este documento', 'warning');
+            } catch (e) { console.error('Erro na consulta:', e); showToast('Erro ao consultar. Tente a inserção manual.', 'error'); }
         }
 
         function preencherDadosCNPJ(data) {
@@ -1085,7 +1467,7 @@
 
         async function pesquisarCEP() {
             const cep = document.getElementById('cepInput').value.replace(/\D/g, '');
-            if (!cep || cep.length !== 8) { alert('Informe um CEP válido'); return; }
+            if (!cep || cep.length !== 8) { showToast('Informe um CEP válido', 'warning'); return; }
             try {
                 const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
                 if (response.ok) {
@@ -1101,8 +1483,8 @@
                         abrirCadastroCompleto(); return;
                     }
                 }
-                alert('CEP não encontrado');
-            } catch (e) { console.error('Erro na consulta:', e); alert('Erro ao consultar CEP'); }
+                showToast('CEP não encontrado', 'warning');
+            } catch (e) { console.error('Erro na consulta:', e); showToast('Erro ao consultar CEP', 'error'); }
         }
 
         function pesquisaGoogle() { fecharModalClienteFornecedor(); document.getElementById('modalGoogle').classList.add('active'); document.getElementById('googleSearchInput').value = ''; setTimeout(() => document.getElementById('googleSearchInput').focus(), 100); }
@@ -1139,7 +1521,7 @@
                 document.getElementById('btnPesquisarGoogle').disabled = false;
                 fecharModalGoogle();
                 mostrarResultadosComDados(resultados);
-            } catch (e) { console.error('Erro na pesquisa:', e); document.getElementById('googleSearchLoading').style.display = 'none'; document.getElementById('btnPesquisarGoogle').disabled = false; alert('Erro ao realizar pesquisa.'); }
+            } catch (e) { console.error('Erro na pesquisa:', e); document.getElementById('googleSearchLoading').style.display = 'none'; document.getElementById('btnPesquisarGoogle').disabled = false; showToast('Erro ao realizar pesquisa.', 'error'); }
         }
 
         function mostrarResultadosComDados(resultados) {
@@ -1161,7 +1543,7 @@
 
         function selecionarResultado() {
             const selected = document.querySelector('#resultadosTableBody tr.selected');
-            if (!selected) { alert('Selecione um resultado'); return; }
+            if (!selected) { showToast('Selecione um resultado', 'warning'); return; }
             const index = parseInt(selected.dataset.index);
             const resultado = resultadosPesquisa[index];
             fecharModalResultados();
@@ -1184,12 +1566,12 @@
 
         async function salvarClienteFornecedor() {
             const dados = { razao_social: document.getElementById('razaoSocialInput').value, nome_fantasia: document.getElementById('nomeFantasiaInput').value, cnpj_cpf: document.getElementById('cnpjInput').value, ddd: document.getElementById('dddInput').value, telefone: document.getElementById('telefoneInput').value, contato: document.getElementById('contatoInput').value, endereco: document.getElementById('enderecoInput').value, numero: document.getElementById('numeroInput').value, bairro: document.getElementById('bairroInput').value, complemento: document.getElementById('complementoInput').value, cidade: document.getElementById('cidadeInput').value, estado: document.getElementById('estadoSelect').value, cep: document.getElementById('cepCadastroInput').value };
-            if (!dados.razao_social) { alert('Informe a Razão Social / Nome'); return; }
+            if (!dados.razao_social) { showToast('Informe a Razão Social / Nome', 'warning'); return; }
             try {
                 const response = await fetch('/api/financeiro/clientes-fornecedores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(dados) });
-                if (response.ok) { alert('Cliente/Fornecedor salvo com sucesso!'); fecharCadastroCompleto(); document.querySelectorAll('#modalCadastroCompleto input').forEach(i => i.value = ''); }
-                else { const err = await response.json(); alert('Erro ao salvar: ' + (err.message || 'Erro desconhecido')); }
-            } catch (e) { console.error('Erro:', e); alert('Erro ao salvar. Verifique a conexão.'); }
+                if (response.ok) { showToast('Cliente/Fornecedor salvo com sucesso!', 'success'); fecharCadastroCompleto(); document.querySelectorAll('#modalCadastroCompleto input').forEach(i => i.value = ''); }
+                else { const err = await response.json(); showToast('Erro ao salvar: ' + (err.message || 'Erro desconhecido'), 'error'); }
+            } catch (e) { console.error('Erro:', e); showToast('Erro ao salvar. Verifique a conexão.', 'error'); }
         }
 
         // Tab navigation
@@ -1222,6 +1604,3 @@
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
 </body>
 </html>
-
-
-

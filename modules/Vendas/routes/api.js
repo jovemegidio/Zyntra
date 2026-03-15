@@ -585,7 +585,8 @@ router.post('/pedidos', authenticateToken, async (req, res) => {
             cliente_id, empresa_id, produtos, itens, valor, valor_total, valor_produtos, 
             desconto, descricao, observacoes, status = 'orcamento', frete = 0, 
             prioridade = 'normal', prazo_entrega, endereco_entrega, municipio_entrega, 
-            metodo_envio, condicao_pagamento, cenario_fiscal, parcelas
+            metodo_envio, condicao_pagamento, cenario_fiscal, parcelas,
+            cliente_nome, departamento, total_impostos, previsao_faturamento
         } = req.body;
         const vendedor_id = req.user?.id;
         const pool = await getPool();
@@ -601,15 +602,18 @@ router.post('/pedidos', authenticateToken, async (req, res) => {
             (cliente_id, empresa_id, vendedor_id, valor, descricao, status, 
              frete, prioridade, produtos_preview, prazo_entrega, endereco_entrega, 
              municipio_entrega, metodo_envio, observacao, desconto, parcelas,
-             condicao_pagamento, cenario_fiscal, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+             condicao_pagamento, cenario_fiscal, cliente_nome, departamento,
+             total_impostos, data_previsao, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         `, [
             cliente_id || null, empresa_id || null, vendedor_id, valorFinal, 
             descricao || observacoes || '', status, frete, prioridade, 
             JSON.stringify(produtosArray), prazo_entrega || null, 
             endereco_entrega || null, municipio_entrega || null, 
             metodo_envio || null, observacoes || null, desconto || 0,
-            parcelas || null, condicao_pagamento || null, cenario_fiscal || null
+            parcelas || null, condicao_pagamento || null, cenario_fiscal || null,
+            cliente_nome || null, departamento || null,
+            total_impostos || 0, previsao_faturamento || null
         ]);
         
         res.json({ success: true, id: result.insertId, numero: result.insertId, message: 'Pedido criado com sucesso' });
@@ -930,6 +934,22 @@ router.post('/pedidos/:id/faturar', authenticateToken, async (req, res) => {
                 success: false, 
                 message: 'Este pedido já está faturado' 
             });
+        }
+        
+        // Verificar se pedido possui itens antes de faturar
+        try {
+            const [itensCheck] = await pool.query(
+                'SELECT COUNT(*) as total FROM pedido_itens WHERE pedido_id = ?', [id]
+            );
+            if (itensCheck[0].total === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Pedido sem itens não pode ser faturado. Adicione produtos antes de faturar.'
+                });
+            }
+        } catch (itensErr) {
+            // tabela pode não existir — prosseguir
+            console.warn('[FATURAR] Não foi possível verificar itens:', itensErr.message);
         }
         
         // Atualizar status para faturado
@@ -2655,6 +2675,194 @@ router.get('/pedidos/:id/pdf', authenticateToken, async (req, res) => {
             message: 'Erro ao gerar PDF',
             error: error.message 
         });
+    }
+});
+
+// ============================================================
+// COMISSÕES
+// ============================================================
+
+// GET /api/vendas/comissoes/configuracao - Listar vendedores com configuração de comissão
+router.get('/comissoes/configuracao', authenticateToken, async (req, res) => {
+    try {
+        const pool = await getPool();
+        const [vendedores] = await pool.query(`
+            SELECT
+                u.id, u.nome, u.email,
+                COALESCE(u.comissao_percentual, 1.0) as comissao_percentual,
+                COALESCE(u.comissao_tipo, 'percentual') as comissao_tipo
+            FROM usuarios u
+            LEFT JOIN departamentos d ON u.departamento_id = d.id
+            WHERE (d.nome IN ('Comercial', 'Vendas') OR u.role IN ('comercial', 'vendedor') OR u.departamento IN ('Comercial', 'Vendas'))
+              AND u.status = 'ativo'
+            ORDER BY u.nome
+        `);
+        res.json(vendedores);
+    } catch (error) {
+        console.error('Erro ao buscar configuração de comissões:', error);
+        res.status(500).json({ message: 'Erro ao buscar configuração de comissões' });
+    }
+});
+
+// PUT /api/vendas/comissoes/configuracao/:vendedorId - Atualizar comissão de vendedor
+router.put('/comissoes/configuracao/:vendedorId', authenticateToken, async (req, res) => {
+    try {
+        const user = req.user;
+        const username = (user.email || '').split('@')[0].toLowerCase();
+        const USERS_PERMITIDOS_COMISSAO = ['andreia', 'antonio', 'ti', 'tialuforce'];
+        const isAdmin = user.is_admin === 1 || user.role === 'admin';
+        const podeAlterarComissao = isAdmin || USERS_PERMITIDOS_COMISSAO.includes(username);
+        if (!podeAlterarComissao) {
+            return res.status(403).json({ message: 'Apenas administradores podem alterar comissões.' });
+        }
+
+        const { vendedorId } = req.params;
+        const { comissao_percentual } = req.body;
+        const pool = await getPool();
+
+        try {
+            await pool.query(
+                'UPDATE usuarios SET comissao_percentual = ? WHERE id = ?',
+                [parseFloat(comissao_percentual) || 1.0, vendedorId]
+            );
+        } catch (e) {
+            await pool.query('ALTER TABLE usuarios ADD COLUMN comissao_percentual DECIMAL(5,2) DEFAULT 1.0');
+            await pool.query(
+                'UPDATE usuarios SET comissao_percentual = ? WHERE id = ?',
+                [parseFloat(comissao_percentual) || 1.0, vendedorId]
+            );
+        }
+
+        res.json({ message: 'Comissão atualizada com sucesso' });
+    } catch (error) {
+        console.error('Erro ao atualizar comissão:', error);
+        res.status(500).json({ message: 'Erro ao atualizar comissão' });
+    }
+});
+
+// GET /api/vendas/comissoes - Listar comissões detalhadas
+router.get('/comissoes', authenticateToken, async (req, res) => {
+    try {
+        const { periodo, vendedor_id } = req.query;
+        const pool = await getPool();
+        let where = 'p.status IN ("faturado", "recibo")';
+        const params = [];
+        if (periodo) {
+            where += ' AND DATE_FORMAT(p.created_at, "%Y-%m") = ?';
+            params.push(periodo);
+        }
+        if (vendedor_id) {
+            where += ' AND p.vendedor_id = ?';
+            params.push(vendedor_id);
+        }
+        const [rows] = await pool.query(`
+            SELECT p.id AS pedido_id, p.valor, p.created_at, u.id AS vendedor_id, u.nome AS vendedor_nome,
+                   COALESCE(u.comissao_percentual, 1.0) as comissao_percentual,
+                   (p.valor * COALESCE(u.comissao_percentual, 1.0) / 100) AS valor_comissao
+            FROM pedidos p
+            LEFT JOIN usuarios u ON p.vendedor_id = u.id
+            WHERE ${where}
+            ORDER BY u.nome, p.created_at DESC
+        `, params);
+        res.json(rows);
+    } catch (error) {
+        console.error('Erro ao buscar comissões:', error);
+        res.status(500).json({ message: 'Erro ao buscar comissões' });
+    }
+});
+
+// GET /api/vendas/comissoes/resumo - Resumo de comissões por vendedor
+router.get('/comissoes/resumo', authenticateToken, async (req, res) => {
+    try {
+        const { periodo } = req.query;
+        const pool = await getPool();
+        const periodoAtual = periodo || new Date().toISOString().substring(0, 7);
+
+        const [rows] = await pool.query(`
+            SELECT
+                u.id as vendedor_id,
+                u.nome as vendedor_nome,
+                u.email,
+                COALESCE(u.comissao_percentual, 1.0) as percentual_comissao,
+                COUNT(CASE WHEN p.status IN ('faturado', 'recibo') THEN 1 END) as qtd_faturados,
+                COALESCE(SUM(CASE WHEN p.status IN ('faturado', 'recibo') THEN p.valor ELSE 0 END), 0) as valor_faturado,
+                COALESCE(SUM(CASE WHEN p.status IN ('faturado', 'recibo') THEN (p.valor * COALESCE(u.comissao_percentual, 1.0) / 100) ELSE 0 END), 0) as comissao_faturada,
+                COUNT(CASE WHEN p.status NOT IN ('cancelado', 'faturado', 'recibo') THEN 1 END) as qtd_pendentes,
+                COALESCE(SUM(CASE WHEN p.status NOT IN ('cancelado', 'faturado', 'recibo') THEN p.valor ELSE 0 END), 0) as valor_pendente,
+                COALESCE(SUM(CASE WHEN p.status NOT IN ('cancelado', 'faturado', 'recibo') THEN (p.valor * COALESCE(u.comissao_percentual, 1.0) / 100) ELSE 0 END), 0) as comissao_pendente
+            FROM usuarios u
+            LEFT JOIN pedidos p ON u.id = p.vendedor_id AND DATE_FORMAT(p.created_at, '%Y-%m') = ?
+            WHERE (u.role IN ('comercial', 'vendedor') OR u.departamento IN ('Comercial', 'Vendas')) AND u.status = 'ativo'
+            GROUP BY u.id, u.nome, u.email, u.comissao_percentual
+            ORDER BY comissao_faturada DESC
+        `, [periodoAtual]);
+
+        const totais = {
+            total_faturado: rows.reduce((sum, r) => sum + parseFloat(r.valor_faturado || 0), 0),
+            total_comissao_faturada: rows.reduce((sum, r) => sum + parseFloat(r.comissao_faturada || 0), 0),
+            total_pendente: rows.reduce((sum, r) => sum + parseFloat(r.valor_pendente || 0), 0),
+            total_comissao_pendente: rows.reduce((sum, r) => sum + parseFloat(r.comissao_pendente || 0), 0)
+        };
+
+        res.json({ periodo: periodoAtual, vendedores: rows, totais });
+    } catch (error) {
+        console.error('Erro ao buscar resumo de comissões:', error);
+        res.status(500).json({ message: 'Erro ao buscar resumo de comissões' });
+    }
+});
+
+// GET /api/vendas/comissoes/historico - Histórico de comissões
+router.get('/comissoes/historico', authenticateToken, async (req, res) => {
+    try {
+        const { vendedor_id, ano } = req.query;
+        const pool = await getPool();
+        const anoAtual = ano || new Date().getFullYear();
+
+        let query = `
+            SELECT
+                DATE_FORMAT(p.created_at, '%Y-%m') as periodo,
+                u.id as vendedor_id,
+                u.nome as vendedor_nome,
+                COUNT(*) as qtd_vendas,
+                SUM(p.valor) as valor_total,
+                SUM(p.valor * COALESCE(u.comissao_percentual, 1.0) / 100) as comissao_total
+            FROM pedidos p
+            LEFT JOIN usuarios u ON p.vendedor_id = u.id
+            WHERE p.status IN ('faturado', 'recibo')
+            AND YEAR(p.created_at) = ?
+        `;
+        const params = [anoAtual];
+
+        if (vendedor_id) {
+            query += ' AND p.vendedor_id = ?';
+            params.push(vendedor_id);
+        }
+
+        query += ' GROUP BY DATE_FORMAT(p.created_at, "%Y-%m"), u.id, u.nome ORDER BY periodo DESC, u.nome';
+
+        const [rows] = await pool.query(query, params);
+        res.json(rows);
+    } catch (error) {
+        console.error('Erro ao buscar histórico de comissões:', error);
+        res.status(500).json({ message: 'Erro ao buscar histórico de comissões' });
+    }
+});
+
+// GET /api/vendas/vendedores - Listar vendedores (usado pelo filtro de comissões)
+router.get('/vendedores', authenticateToken, async (req, res) => {
+    try {
+        const pool = await getPool();
+        const [rows] = await pool.query(`
+            SELECT u.id, u.nome, u.email
+            FROM usuarios u
+            WHERE (u.role IN ('comercial', 'vendedor') OR u.departamento IN ('Comercial', 'Vendas'))
+              AND u.status = 'ativo'
+            ORDER BY u.nome
+        `);
+        res.json(rows);
+    } catch (error) {
+        console.error('Erro ao buscar vendedores:', error);
+        res.status(500).json({ message: 'Erro ao buscar vendedores' });
     }
 });
 
