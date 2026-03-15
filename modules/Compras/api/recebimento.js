@@ -9,14 +9,14 @@ router.get('/stats', async (req, res) => {
         const hoje = new Date().toISOString().split('T')[0];
         
         // Pedidos pendentes de recebimento (aprovados ou enviados mas não recebidos)
-        const [pendentes] = await db.execute(`
+        const [pendentes] = await db.query(`
             SELECT COUNT(*) as total FROM pedidos_compra 
             WHERE status IN ('aprovado', 'enviado', 'pendente') 
             AND (data_recebimento IS NULL OR data_recebimento = '')
         `);
         
         // Pedidos atrasados (data_entrega_prevista < hoje e não recebidos)
-        const [atrasados] = await db.execute(`
+        const [atrasados] = await db.query(`
             SELECT COUNT(*) as total FROM pedidos_compra 
             WHERE status IN ('aprovado', 'enviado', 'pendente') 
             AND (data_recebimento IS NULL OR data_recebimento = '')
@@ -24,13 +24,13 @@ router.get('/stats', async (req, res) => {
         `, [hoje]);
         
         // Recebidos hoje
-        const [recebidosHoje] = await db.execute(`
+        const [recebidosHoje] = await db.query(`
             SELECT COUNT(*) as total FROM pedidos_compra 
             WHERE DATE(data_recebimento) = ?
         `, [hoje]);
         
         // Valor pendente
-        const [valorPendente] = await db.execute(`
+        const [valorPendente] = await db.query(`
             SELECT COALESCE(SUM(valor_total), 0) as total FROM pedidos_compra 
             WHERE status IN ('aprovado', 'enviado', 'pendente') 
             AND (data_recebimento IS NULL OR data_recebimento = '')
@@ -93,14 +93,14 @@ router.get('/pedidos', async (req, res) => {
         
         // Count total
         const countSql = sql.replace('pc.*, f.razao_social as fornecedor_nome', 'COUNT(*) as total');
-        const [countResult] = await db.execute(countSql, params);
+        const [countResult] = await db.query(countSql, params);
         const total = countResult[0].total;
         
         // Adicionar paginação
         sql += ` LIMIT ? OFFSET ?`;
         params.push(parseInt(limit), parseInt(offset));
         
-        const [pedidos] = await db.execute(sql, params);
+        const [pedidos] = await db.query(sql, params);
         
         res.json({
             pedidos,
@@ -140,7 +140,7 @@ router.post('/registrar', async (req, res) => {
         }
         
         // Verificar se pedido existe
-        const [pedidos] = await connection.execute(
+        const [pedidos] = await connection.query(
             'SELECT * FROM pedidos_compra WHERE id = ?',
             [pedido_id]
         );
@@ -161,7 +161,7 @@ router.post('/registrar', async (req, res) => {
         const novoStatus = tipo_recebimento === 'parcial' ? 'parcial' : 'recebido';
         
         // Atualizar pedido
-        await connection.execute(`
+        await connection.query(`
             UPDATE pedidos_compra SET 
                 data_recebimento = ?,
                 data_entrega_real = ?,
@@ -182,7 +182,7 @@ router.post('/registrar', async (req, res) => {
         
         // Registrar recebimento detalhado (se houver tabela)
         try {
-            await connection.execute(`
+            await connection.query(`
                 INSERT INTO recebimentos_compras (
                     pedido_id, data_recebimento, nota_fiscal, recebido_por, 
                     status, observacoes
@@ -205,14 +205,14 @@ router.post('/registrar', async (req, res) => {
             for (const item of itens) {
                 if (item.material_id && item.quantidade_recebida > 0) {
                     // Verificar se existe registro de estoque para o material
-                    const [estoqueExistente] = await connection.execute(
+                    const [estoqueExistente] = await connection.query(
                         'SELECT id, quantidade_atual FROM estoque WHERE material_id = ?',
                         [item.material_id]
                     );
                     
                     if (estoqueExistente.length > 0) {
                         // Atualizar estoque existente
-                        await connection.execute(`
+                        await connection.query(`
                             UPDATE estoque SET 
                                 quantidade_atual = quantidade_atual + ?,
                                 data_ultima_entrada = ?
@@ -220,7 +220,7 @@ router.post('/registrar', async (req, res) => {
                         `, [item.quantidade_recebida, data_recebimento, item.material_id]);
                     } else {
                         // Criar novo registro de estoque
-                        await connection.execute(`
+                        await connection.query(`
                             INSERT INTO estoque (material_id, quantidade_atual, data_ultima_entrada)
                             VALUES (?, ?, ?)
                         `, [item.material_id, item.quantidade_recebida, data_recebimento]);
@@ -228,7 +228,7 @@ router.post('/registrar', async (req, res) => {
                     
                     // Registrar movimentação
                     try {
-                        await connection.execute(`
+                        await connection.query(`
                             INSERT INTO movimentacoes_estoque (
                                 material_id, tipo_movimentacao, quantidade, 
                                 motivo, documento, data_movimentacao
@@ -285,7 +285,7 @@ router.get('/historico', async (req, res) => {
         sql += ` ORDER BY pc.data_recebimento DESC LIMIT ? OFFSET ?`;
         params.push(parseInt(limit), parseInt(offset));
         
-        const [recebimentos] = await db.execute(sql, params);
+        const [recebimentos] = await db.query(sql, params);
         
         res.json({ recebimentos });
     } catch (error) {
@@ -306,7 +306,7 @@ router.post('/:id/cancelar', async (req, res) => {
         const { motivo } = req.body;
         
         // Verificar se pedido existe e foi recebido
-        const [pedidos] = await connection.execute(
+        const [pedidos] = await connection.query(
             'SELECT * FROM pedidos_compra WHERE id = ?',
             [pedidoId]
         );
@@ -326,14 +326,14 @@ router.post('/:id/cancelar', async (req, res) => {
         // Se estoque foi atualizado, precisamos reverter
         if (pedido.estoque_atualizado) {
             // Buscar itens do pedido
-            const [itens] = await connection.execute(
+            const [itens] = await connection.query(
                 'SELECT * FROM pedidos_compra_itens WHERE pedido_id = ?',
                 [pedidoId]
             );
             
             for (const item of itens) {
                 if (item.material_id) {
-                    await connection.execute(`
+                    await connection.query(`
                         UPDATE estoque SET 
                             quantidade_atual = quantidade_atual - ?
                         WHERE material_id = ?
@@ -341,7 +341,7 @@ router.post('/:id/cancelar', async (req, res) => {
                     
                     // Registrar movimentação de estorno
                     try {
-                        await connection.execute(`
+                        await connection.query(`
                             INSERT INTO movimentacoes_estoque (
                                 material_id, tipo_movimentacao, quantidade, 
                                 motivo, documento, data_movimentacao
@@ -355,7 +355,7 @@ router.post('/:id/cancelar', async (req, res) => {
         }
         
         // Reverter status do pedido
-        await connection.execute(`
+        await connection.query(`
             UPDATE pedidos_compra SET 
                 data_recebimento = NULL,
                 data_entrega_real = NULL,

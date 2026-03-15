@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
         
         sql += ' ORDER BY m.descricao';
         
-        const [estoque] = await db.execute(sql, params);
+        const [estoque] = await db.query(sql, params);
         
         res.json({ estoque });
     } catch (error) {
@@ -91,7 +91,7 @@ router.get('/materiais-com-entrada', async (req, res) => {
         let materiais = [];
         
         try {
-            const [rows] = await db.execute(sql, params);
+            const [rows] = await db.query(sql, params);
             materiais = rows;
         } catch (e) {
             console.log('Tabela estoque_materias_primas não encontrada, tentando materias_primas...');
@@ -129,7 +129,7 @@ router.get('/materiais-com-entrada', async (req, res) => {
             sql += ' ORDER BY mp.descricao';
             
             try {
-                const [rows2] = await db.execute(sql, params);
+                const [rows2] = await db.query(sql, params);
                 materiais = rows2;
             } catch (e2) {
                 console.log('Tabela materias_primas não encontrada, tentando materiais...');
@@ -168,7 +168,7 @@ router.get('/materiais-com-entrada', async (req, res) => {
                 sql += ' ORDER BY m.descricao';
                 
                 try {
-                    const [rows3] = await db.execute(sql, params);
+                    const [rows3] = await db.query(sql, params);
                     materiais = rows3;
                 } catch (e3) {
                     console.error('Nenhuma tabela de materiais encontrada:', e3.message);
@@ -245,7 +245,7 @@ router.post('/movimentacao', async (req, res) => {
         }
         
         // Buscar estoque atual
-        const [estoqueAtual] = await connection.execute(
+        const [estoqueAtual] = await connection.query(
             'SELECT quantidade_atual FROM estoque WHERE material_id = ?',
             [material_id]
         );
@@ -254,7 +254,7 @@ router.post('/movimentacao', async (req, res) => {
         
         if (estoqueAtual.length === 0) {
             // Criar registro de estoque se não existir
-            await connection.execute(
+            await connection.query(
                 'INSERT INTO estoque (material_id, quantidade_atual) VALUES (?, 0)',
                 [material_id]
             );
@@ -279,13 +279,13 @@ router.post('/movimentacao', async (req, res) => {
         }
         
         // Atualizar estoque
-        await connection.execute(
+        await connection.query(
             'UPDATE estoque SET quantidade_atual = ? WHERE material_id = ?',
             [nova_quantidade, material_id]
         );
         
         // Registrar movimentação
-        await connection.execute(
+        await connection.query(
             `INSERT INTO movimentacoes_estoque (
                 material_id, tipo_movimentacao, quantidade, 
                 saldo_anterior, saldo_atual, motivo, documento,
@@ -331,7 +331,7 @@ router.get('/movimentacoes', async (req, res) => {
         let movimentacoes = [];
         
         try {
-            const [rows] = await db.execute(`
+            const [rows] = await db.query(`
                 SELECT 
                     m.id,
                     m.tipo_movimentacao as tipo,
@@ -351,7 +351,7 @@ router.get('/movimentacoes', async (req, res) => {
         } catch (e) {
             // Fallback para movimentacoes_estoque
             try {
-                const [rows2] = await db.execute(`
+                const [rows2] = await db.query(`
                     SELECT 
                         m.id,
                         m.tipo_movimentacao as tipo,
@@ -415,7 +415,7 @@ router.get('/movimentacoes/historico', async (req, res) => {
         sql += ' ORDER BY m.data_movimentacao DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
         
-        const [movimentacoes] = await db.execute(sql, params);
+        const [movimentacoes] = await db.query(sql, params);
         
         res.json({ movimentacoes });
     } catch (error) {
@@ -446,7 +446,7 @@ router.post('/ajuste', async (req, res) => {
         }
         
         // Buscar estoque atual
-        const [estoqueAtual] = await connection.execute(
+        const [estoqueAtual] = await connection.query(
             'SELECT quantidade_atual FROM estoque WHERE material_id = ?',
             [material_id]
         );
@@ -460,7 +460,7 @@ router.post('/ajuste', async (req, res) => {
         const diferenca = quantidade_contada - quantidade_atual;
         
         // Atualizar estoque
-        await connection.execute(
+        await connection.query(
             'UPDATE estoque SET quantidade_atual = ? WHERE material_id = ?',
             [quantidade_contada, material_id]
         );
@@ -469,7 +469,7 @@ router.post('/ajuste', async (req, res) => {
         const tipo_movimentacao = diferenca >= 0 ? 'entrada' : 'saida';
         const quantidade_movimento = Math.abs(diferenca);
         
-        await connection.execute(
+        await connection.query(
             `INSERT INTO movimentacoes_estoque (
                 material_id, tipo_movimentacao, quantidade, 
                 saldo_anterior, saldo_atual, motivo, observacoes,

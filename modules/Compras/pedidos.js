@@ -425,15 +425,9 @@ function calcularTotais() {
 async function salvarPedido() {
     const pedidoId = document.getElementById('pedidoId').value;
     const fornecedorId = document.getElementById('fornecedorId').value;
-    const compradorId = document.getElementById('compradorId').value;
 
     if (!fornecedorId) {
         alert('Selecione um fornecedor!');
-        return;
-    }
-
-    if (!compradorId) {
-        alert('Selecione um comprador!');
         return;
     }
 
@@ -446,8 +440,7 @@ async function salvarPedido() {
     const subtotal = itens.reduce((sum, item) => sum + item.preco_total, 0);
     const desconto = parseFloat(document.getElementById('desconto').value) || 0;
     const frete = parseFloat(document.getElementById('frete').value) || 0;
-    const valorDesconto = subtotal * (desconto / 100);
-    const valorFinal = subtotal - valorDesconto + frete;
+    const valorFinal = subtotal - desconto + frete;
 
     const fornecedor = fornecedores.find(f => f.id == fornecedorId);
 
@@ -456,7 +449,6 @@ async function salvarPedido() {
         numero_pedido: document.getElementById('numeroPedido').value,
         fornecedor_id: parseInt(fornecedorId),
         fornecedor_nome: fornecedor?.nome || fornecedor?.razao_social || 'N/A',
-        comprador_id: parseInt(compradorId),
         data_pedido: document.getElementById('dataPedido').value,
         data_entrega_prevista: document.getElementById('dataEntregaPrevista').value || null,
         status: document.getElementById('statusPedido').value,

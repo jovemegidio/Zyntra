@@ -57,11 +57,32 @@ router.get('/', async (req, res) => {
     }
 });
 
+// ============ PRÓXIMO NÚMERO ============
+router.get('/proximo-numero', async (req, res) => {
+    try {
+        const db = getDatabase();
+        const [rows] = await db.query(
+            'SELECT numero_cotacao FROM cotacoes ORDER BY id DESC LIMIT 1'
+        );
+        let proximo = 'COT-001';
+        if (rows.length > 0 && rows[0].numero_cotacao) {
+            const match = rows[0].numero_cotacao.match(/(\d+)$/);
+            if (match) {
+                proximo = 'COT-' + String(parseInt(match[1]) + 1).padStart(3, '0');
+            }
+        }
+        res.json({ numero: proximo, proximo_numero: proximo });
+    } catch (error) {
+        console.error('Erro ao gerar próximo número cotação:', error);
+        res.json({ numero: 'COT-' + String(Date.now()).slice(-4), proximo_numero: 'COT-' + String(Date.now()).slice(-4) });
+    }
+});
+
 // ============ OBTER COTAÇÃO ============
 router.get('/:id', async (req, res) => {
     try {
         const db = getDatabase();
-        const [cotacoes] = await db.execute(
+        const [cotacoes] = await db.query(
             'SELECT * FROM cotacoes WHERE id = ?',
             [req.params.id]
         );
@@ -76,7 +97,7 @@ router.get('/:id', async (req, res) => {
         
         // Buscar propostas
         try {
-            const [propostas] = await db.execute(
+            const [propostas] = await db.query(
                 `SELECT cp.*, f.razao_social as fornecedor_nome 
                  FROM propostas_cotacao cp 
                  LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id 
@@ -105,23 +126,34 @@ router.post('/', async (req, res) => {
         
         const {
             titulo,
+            numero,
             descricao,
             data_limite,
+            data_validade,
+            data_abertura,
+            quantidade,
+            unidade,
+            observacoes,
             fornecedores_ids = [],
             itens
         } = req.body;
         
-        if (!titulo || !itens || itens.length === 0) {
+        const numeroCotacao = titulo || numero || descricao;
+        const dataLimite = data_limite || data_validade;
+        const descricaoFinal = descricao || observacoes || '';
+        const dataSolicitacao = data_abertura || new Date().toISOString().split('T')[0];
+        
+        if (!numeroCotacao) {
             await connection.rollback();
-            return res.status(400).json({ error: 'Título e itens são obrigatórios' });
+            return res.status(400).json({ error: 'Número/descrição da cotação é obrigatório' });
         }
         
         // Inserir cotação
-        const [result] = await connection.execute(
+        const [result] = await connection.query(
             `INSERT INTO cotacoes (
                 numero_cotacao, descricao, data_solicitacao, data_limite, status
-            ) VALUES (?, ?, CURDATE(), ?, 'aberta')`,
-            [titulo, descricao, data_limite]
+            ) VALUES (?, ?, ?, ?, 'aberta')`,
+            [numeroCotacao, descricaoFinal, dataSolicitacao, dataLimite]
         );
         
         const cotacao_id = result.insertId;
@@ -129,7 +161,7 @@ router.post('/', async (req, res) => {
         // Criar propostas vazias para fornecedores selecionados
         if (fornecedores_ids.length > 0) {
             for (const fornecedor_id of fornecedores_ids) {
-                await connection.execute(
+                await connection.query(
                     `INSERT INTO propostas_cotacao (
                         cotacao_id, fornecedor_id, valor_total
                     ) VALUES (?, ?, 0)`,
@@ -177,7 +209,7 @@ router.post('/:id/proposta', async (req, res) => {
         }
         
         // Verificar se cotação está aberta
-        const [cotacoes] = await connection.execute(
+        const [cotacoes] = await connection.query(
             'SELECT status FROM cotacoes WHERE id = ?',
             [req.params.id]
         );
@@ -193,14 +225,14 @@ router.post('/:id/proposta', async (req, res) => {
         }
         
         // Verificar se já existe proposta deste fornecedor
-        const [propostasExistentes] = await connection.execute(
+        const [propostasExistentes] = await connection.query(
             'SELECT id FROM propostas_cotacao WHERE cotacao_id = ? AND fornecedor_id = ?',
             [req.params.id, fornecedor_id]
         );
         
         if (propostasExistentes.length > 0) {
             // Atualizar proposta existente
-            await connection.execute(
+            await connection.query(
                 `UPDATE propostas_cotacao SET 
                     valor_total = ?,
                     prazo_entrega = ?,
@@ -219,7 +251,7 @@ router.post('/:id/proposta', async (req, res) => {
             );
         } else {
             // Inserir nova proposta
-            await connection.execute(
+            await connection.query(
                 `INSERT INTO propostas_cotacao (
                     cotacao_id, fornecedor_id, valor_total, prazo_entrega,
                     condicao_pagamento, observacoes
@@ -266,7 +298,7 @@ router.put('/:id/selecionar-vencedor', async (req, res) => {
         }
         
         // Marcar proposta como vencedora
-        await connection.execute(
+        await connection.query(
             `UPDATE propostas_cotacao SET 
                 selecionada = 1
             WHERE id = ?`,
@@ -274,7 +306,7 @@ router.put('/:id/selecionar-vencedor', async (req, res) => {
         );
         
         // Marcar outras propostas como não selecionadas
-        await connection.execute(
+        await connection.query(
             `UPDATE propostas_cotacao SET 
                 selecionada = 0
             WHERE cotacao_id = ? AND id != ?`,
@@ -282,7 +314,7 @@ router.put('/:id/selecionar-vencedor', async (req, res) => {
         );
         
         // Encerrar cotação
-        await connection.execute(
+        await connection.query(
             `UPDATE cotacoes SET 
                 status = 'encerrada',
                 data_encerramento = NOW()
@@ -311,7 +343,7 @@ router.put('/:id/encerrar', async (req, res) => {
         const db = getDatabase();
         const { motivo } = req.body;
         
-        await db.execute(
+        await db.query(
             `UPDATE cotacoes SET 
                 status = 'encerrada',
                 data_encerramento = NOW(),
@@ -335,7 +367,7 @@ router.delete('/:id', async (req, res) => {
     try {
         const db = getDatabase();
         
-        await db.execute(
+        await db.query(
             "UPDATE cotacoes SET status = 'cancelada' WHERE id = ?",
             [req.params.id]
         );

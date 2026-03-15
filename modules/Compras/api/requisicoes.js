@@ -61,11 +61,32 @@ router.get('/', async (req, res) => {
     }
 });
 
+// ============ PRÓXIMO NÚMERO ============
+router.get('/proximo-numero', async (req, res) => {
+    try {
+        const db = getDatabase();
+        const [rows] = await db.query(
+            'SELECT numero FROM requisicoes_compras ORDER BY id DESC LIMIT 1'
+        );
+        let proximo = 'RC-001';
+        if (rows.length > 0 && rows[0].numero) {
+            const match = rows[0].numero.match(/(\d+)$/);
+            if (match) {
+                proximo = 'RC-' + String(parseInt(match[1]) + 1).padStart(3, '0');
+            }
+        }
+        res.json({ numero: proximo, proximo_numero: proximo });
+    } catch (error) {
+        console.error('Erro ao gerar próximo número requisição:', error);
+        res.json({ numero: 'RC-' + String(Date.now()).slice(-4), proximo_numero: 'RC-' + String(Date.now()).slice(-4) });
+    }
+});
+
 // ============ OBTER REQUISIÇÃO ============
 router.get('/:id', async (req, res) => {
     try {
         const db = getDatabase();
-        const [requisicoes] = await db.execute(
+        const [requisicoes] = await db.query(
             'SELECT * FROM requisicoes_compras WHERE id = ?',
             [req.params.id]
         );
@@ -77,7 +98,7 @@ router.get('/:id', async (req, res) => {
         const requisicao = requisicoes[0];
         
         // Buscar itens
-        const [itens] = await db.execute(
+        const [itens] = await db.query(
             'SELECT * FROM itens_requisicao WHERE requisicao_id = ?',
             [requisicao.id]
         );
@@ -118,7 +139,7 @@ router.post('/', async (req, res) => {
         let numeroRequisicao = numero;
         if (!numeroRequisicao) {
             const ano = new Date().getFullYear();
-            const [maxRows] = await connection.execute(
+            const [maxRows] = await connection.query(
                 `SELECT MAX(CAST(SUBSTRING_INDEX(numero, '-', -1) AS UNSIGNED)) as max_num 
                  FROM requisicoes_compras WHERE numero LIKE ?`,
                 [`REQ-${ano}-%`]
@@ -128,7 +149,7 @@ router.post('/', async (req, res) => {
         }
         
         // Inserir requisição
-        const [result] = await connection.execute(
+        const [result] = await connection.query(
             `INSERT INTO requisicoes_compras (
                 numero, solicitante, departamento, data_requisicao,
                 prioridade, observacoes, status
@@ -146,7 +167,7 @@ router.post('/', async (req, res) => {
         
         // Inserir itens
         for (const item of itens) {
-            await connection.execute(
+            await connection.query(
                 `INSERT INTO itens_requisicao (
                     requisicao_id, descricao, quantidade, 
                     unidade, observacao
@@ -194,7 +215,7 @@ router.put('/:id', async (req, res) => {
         } = req.body;
         
         // Verificar se requisição existe e está pendente
-        const [requisicoes] = await connection.execute(
+        const [requisicoes] = await connection.query(
             'SELECT status FROM requisicoes_compras WHERE id = ?',
             [req.params.id]
         );
@@ -210,7 +231,7 @@ router.put('/:id', async (req, res) => {
         }
         
         // Atualizar requisição
-        await connection.execute(
+        await connection.query(
             `UPDATE requisicoes_compras SET 
                 prioridade = COALESCE(?, prioridade),
                 observacoes = COALESCE(?, observacoes)
@@ -224,14 +245,14 @@ router.put('/:id', async (req, res) => {
         
         if (itens && itens.length > 0) {
             // Deletar itens antigos
-            await connection.execute(
+            await connection.query(
                 'DELETE FROM itens_requisicao WHERE requisicao_id = ?',
                 [req.params.id]
             );
             
             // Inserir novos itens
             for (const item of itens) {
-                await connection.execute(
+                await connection.query(
                     `INSERT INTO itens_requisicao (
                         requisicao_id, descricao, quantidade, 
                         unidade, observacao
@@ -268,7 +289,7 @@ router.put('/:id/aprovar', async (req, res) => {
         const db = getDatabase();
         const { aprovador, observacoes_aprovacao } = req.body;
         
-        await db.execute(
+        await db.query(
             `UPDATE requisicoes_compras SET 
                 status = 'aprovada'
             WHERE id = ?`,
@@ -295,7 +316,7 @@ router.put('/:id/reprovar', async (req, res) => {
             return res.status(400).json({ error: 'Motivo da reprovação é obrigatório' });
         }
         
-        await db.execute(
+        await db.query(
             `UPDATE requisicoes_compras SET 
                 status = 'rejeitada'
             WHERE id = ?`,
@@ -317,7 +338,7 @@ router.delete('/:id', async (req, res) => {
     try {
         const db = getDatabase();
         
-        await db.execute(
+        await db.query(
             "UPDATE requisicoes_compras SET status = 'rejeitada' WHERE id = ?",
             [req.params.id]
         );

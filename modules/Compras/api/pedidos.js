@@ -71,7 +71,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const db = getDatabase();
-        const [pedidos] = await db.execute(
+        const [pedidos] = await db.query(
             'SELECT pc.*, f.razao_social as fornecedor_nome FROM pedidos_compra pc LEFT JOIN fornecedores f ON pc.fornecedor_id = f.id WHERE pc.id = ?',
             [req.params.id]
         );
@@ -83,7 +83,7 @@ router.get('/:id', async (req, res) => {
         const pedido = pedidos[0];
         
         // Buscar itens
-        const [itens] = await db.execute(
+        const [itens] = await db.query(
             'SELECT * FROM pedidos_compra_itens WHERE pedido_id = ?',
             [pedido.id]
         );
@@ -126,11 +126,12 @@ router.post('/', async (req, res) => {
         const numero_pedido = 'PC-' + Date.now().toString().slice(-6);
         
         // Inserir pedido
-        const [result] = await connection.execute(
+        const [result] = await connection.query(
             `INSERT INTO pedidos_compra (
                 numero_pedido, fornecedor_id, data_pedido, data_entrega_prevista, 
                 valor_total, valor_final, status, observacoes
             ) VALUES (?, ?, ?, ?, ?, ?, 'pendente', ?)`,
+
             [
                 numero_pedido,
                 fornecedor_id,
@@ -146,7 +147,7 @@ router.post('/', async (req, res) => {
         
         // Inserir itens
         for (const item of itens) {
-            await connection.execute(
+            await connection.query(
                 `INSERT INTO pedidos_compra_itens (
                     pedido_id, material_id, descricao, quantidade, 
                     preco_unitario, subtotal
@@ -196,7 +197,7 @@ router.put('/:id', async (req, res) => {
         } = req.body;
         
         // Verificar se pedido existe e está pendente
-        const [pedidos] = await connection.execute(
+        const [pedidos] = await connection.query(
             'SELECT status FROM pedidos_compra WHERE id = ?',
             [req.params.id]
         );
@@ -217,14 +218,14 @@ router.put('/:id', async (req, res) => {
             valor_total = itens.reduce((sum, item) => sum + (item.quantidade * item.preco_unitario), 0);
             
             // Deletar itens antigos
-            await connection.execute(
+            await connection.query(
                 'DELETE FROM pedidos_compra_itens WHERE pedido_id = ?',
                 [req.params.id]
             );
             
             // Inserir novos itens
             for (const item of itens) {
-                await connection.execute(
+                await connection.query(
                     `INSERT INTO pedidos_compra_itens (
                         pedido_id, material_id, descricao, quantidade, 
                         preco_unitario, subtotal
@@ -242,7 +243,7 @@ router.put('/:id', async (req, res) => {
         }
         
         // Atualizar pedido
-        await connection.execute(
+        await connection.query(
             `UPDATE pedidos_compra SET 
                 fornecedor_id = COALESCE(?, fornecedor_id),
                 data_entrega_prevista = COALESCE(?, data_entrega_prevista),
@@ -286,7 +287,7 @@ router.put('/:id/status', async (req, res) => {
             return res.status(400).json({ error: 'Status inválido' });
         }
         
-        await db.execute(
+        await db.query(
             'UPDATE pedidos_compra SET status = ? WHERE id = ?',
             [status, req.params.id]
         );
@@ -306,7 +307,7 @@ router.delete('/:id', async (req, res) => {
     try {
         const db = getDatabase();
         
-        await db.execute(
+        await db.query(
             "UPDATE pedidos_compra SET status = 'cancelado' WHERE id = ?",
             [req.params.id]
         );
@@ -326,7 +327,7 @@ router.post('/:id/cancelar', async (req, res) => {
     try {
         const db = getDatabase();
         
-        await db.execute(
+        await db.query(
             "UPDATE pedidos_compra SET status = 'cancelado' WHERE id = ?",
             [req.params.id]
         );

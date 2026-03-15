@@ -99,7 +99,7 @@
     function getAuthToken() {
         const cookies = document.cookie.split(';');
         for (const c of cookies) { const [key, val] = c.trim().split('='); if (key === 'authToken' || key === 'token') return val; }
-        return localStorage.getItem('authToken') || null;
+        return localStorage.getItem('token') || localStorage.getItem('authToken') || sessionStorage.getItem('token') || null;
     }
 
     async function apiFetch(url, opts = {}) {
