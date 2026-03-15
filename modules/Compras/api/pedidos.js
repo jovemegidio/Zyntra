@@ -34,11 +34,11 @@ router.get('/', async (req, res) => {
         sql += ' ORDER BY pc.data_pedido DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
         
-        const [pedidos] = await db.execute(sql, params);
+        const [pedidos] = await db.query(sql, params);
         
         // Buscar itens de cada pedido
         for (let pedido of pedidos) {
-            const [itens] = await db.execute(
+            const [itens] = await db.query(
                 'SELECT * FROM pedidos_compra_itens WHERE pedido_id = ?',
                 [pedido.id]
             );
@@ -52,7 +52,7 @@ router.get('/', async (req, res) => {
         if (status) countParams.push(status);
         if (fornecedor_id) countParams.push(fornecedor_id);
         
-        const [countResult] = await db.execute(countSql, countParams);
+        const [countResult] = await db.query(countSql, countParams);
         const total = countResult[0].total;
         
         res.json({
@@ -122,19 +122,22 @@ router.post('/', async (req, res) => {
         // Calcular valor total
         const valor_total = itens.reduce((sum, item) => sum + (item.quantidade * item.preco_unitario), 0);
         
+        // Gerar número do pedido
+        const numero_pedido = 'PC-' + Date.now().toString().slice(-6);
+        
         // Inserir pedido
         const [result] = await connection.execute(
             `INSERT INTO pedidos_compra (
-                fornecedor_id, data_pedido, data_entrega_prevista, 
-                valor_total, status, forma_pagamento, condicoes_pagamento, observacoes
-            ) VALUES (?, ?, ?, ?, 'pendente', ?, ?, ?)`,
+                numero_pedido, fornecedor_id, data_pedido, data_entrega_prevista, 
+                valor_total, valor_final, status, observacoes
+            ) VALUES (?, ?, ?, ?, ?, ?, 'pendente', ?)`,
             [
+                numero_pedido,
                 fornecedor_id,
                 data_pedido || new Date(),
                 data_entrega_prevista,
                 valor_total,
-                forma_pagamento,
-                condicoes_pagamento,
+                valor_total,
                 observacoes
             ]
         );
@@ -244,16 +247,14 @@ router.put('/:id', async (req, res) => {
                 fornecedor_id = COALESCE(?, fornecedor_id),
                 data_entrega_prevista = COALESCE(?, data_entrega_prevista),
                 valor_total = COALESCE(?, valor_total),
-                forma_pagamento = COALESCE(?, forma_pagamento),
-                condicoes_pagamento = COALESCE(?, condicoes_pagamento),
+                valor_final = COALESCE(?, valor_final),
                 observacoes = COALESCE(?, observacoes)
             WHERE id = ?`,
             [
                 fornecedor_id,
                 data_entrega_prevista,
                 valor_total || null,
-                forma_pagamento,
-                condicoes_pagamento,
+                valor_total || null,
                 observacoes,
                 req.params.id
             ]

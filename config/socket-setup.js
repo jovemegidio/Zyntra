@@ -48,18 +48,10 @@ function setupSocketIO(httpServer, { Server, allowedOrigins, JWT_SECRET, pool })
     // Disponibilizar io globalmente
     global.io = io;
 
-    // Helper: extract authToken from cookie header string
-    function extractCookieToken(cookieHeader) {
-        if (!cookieHeader) return null;
-        const match = cookieHeader.match(/(?:^|;\s*)authToken=([^;]+)/);
-        return match ? match[1] : null;
-    }
-
     // ⚡ SECURITY: Socket.IO JWT Authentication Middleware
     io.use((socket, next) => {
         const token = socket.handshake.auth?.token || 
                       socket.handshake.headers?.authorization?.replace('Bearer ', '') ||
-                      extractCookieToken(socket.handshake.headers?.cookie) ||
                       socket.handshake.query?.token;
         if (!token) {
             if (process.env.NODE_ENV === 'development') return next();
@@ -91,7 +83,6 @@ function setupSocketIO(httpServer, { Server, allowedOrigins, JWT_SECRET, pool })
         chatTeamsNs.use((socket, next) => {
             const token = socket.handshake.auth?.token || 
                           socket.handshake.headers?.authorization?.replace('Bearer ', '') ||
-                          extractCookieToken(socket.handshake.headers?.cookie) ||
                           socket.handshake.query?.token;
             if (!token) {
                 if (process.env.NODE_ENV === 'development') return next();

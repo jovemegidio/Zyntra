@@ -183,23 +183,21 @@ router.post('/registrar', async (req, res) => {
         // Registrar recebimento detalhado (se houver tabela)
         try {
             await connection.execute(`
-                INSERT INTO recebimentos_compra (
-                    pedido_id, data_recebimento, numero_nfe, tipo_recebimento,
-                    responsavel, local_armazenamento, observacoes, usuario_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO recebimentos_compras (
+                    pedido_id, data_recebimento, nota_fiscal, recebido_por, 
+                    status, observacoes
+                ) VALUES (?, ?, ?, ?, ?, ?)
             `, [
                 pedido_id,
                 data_recebimento,
                 numero_nfe,
-                tipo_recebimento,
                 responsavel,
-                local_armazenamento,
-                observacoes,
-                req.user ? req.user.id : null
+                tipo_recebimento === 'parcial' ? 'parcial' : 'completo',
+                observacoes
             ]);
         } catch (e) {
             // Tabela pode não existir, continuar sem erro
-            console.log('Tabela recebimentos_compra não existe, continuando...');
+            console.log('Tabela recebimentos_compras não existe, continuando...');
         }
         
         // Atualizar estoque se solicitado

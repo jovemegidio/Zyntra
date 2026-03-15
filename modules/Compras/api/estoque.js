@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
         const db = getDatabase();
         const { material_id, baixo_estoque } = req.query;
         
-        let sql = `SELECT e.*, m.codigo, m.descricao, m.unidade_medida,
+        let sql = `SELECT e.*, m.codigo_material, m.descricao, m.unidade_medida,
                           m.estoque_minimo, m.estoque_maximo
                    FROM estoque e
                    INNER JOIN materiais m ON e.material_id = m.id
@@ -138,15 +138,15 @@ router.get('/materiais-com-entrada', async (req, res) => {
                 sql = `
                     SELECT DISTINCT 
                         m.id,
-                        m.codigo,
+                        m.codigo_material as codigo,
                         m.descricao,
                         m.unidade_medida as unidade,
                         m.estoque_minimo as estoque_min,
                         m.estoque_maximo as estoque_max,
                         COALESCE(e.quantidade_atual, 0) as estoque_atual,
-                        m.localizacao,
-                        COALESCE(c.nome, '') as categoria,
-                        COALESCE(e.updated_at, m.updated_at) as updated_at,
+                        NULL as localizacao,
+                        m.tipo as categoria,
+                        COALESCE(e.updated_at, NULL) as updated_at,
                         CASE 
                             WHEN COALESCE(e.quantidade_atual, 0) = 0 THEN 'critico'
                             WHEN COALESCE(e.quantidade_atual, 0) < m.estoque_minimo THEN 'baixo'
@@ -154,7 +154,6 @@ router.get('/materiais-com-entrada', async (req, res) => {
                         END as status
                     FROM materiais m
                     LEFT JOIN estoque e ON e.material_id = m.id
-                    LEFT JOIN categorias_material c ON m.categoria_id = c.id
                     WHERE EXISTS (
                         SELECT 1 FROM movimentacoes_estoque me 
                         WHERE me.material_id = m.id 
@@ -163,7 +162,7 @@ router.get('/materiais-com-entrada', async (req, res) => {
                 `;
                 
                 if (search) {
-                    sql += ' AND (m.codigo LIKE ? OR m.descricao LIKE ?)';
+                    sql += ' AND (m.codigo_material LIKE ? OR m.descricao LIKE ?)';
                 }
                 
                 sql += ' ORDER BY m.descricao';
@@ -197,8 +196,8 @@ router.get('/materiais-com-entrada', async (req, res) => {
 router.get('/:material_id', async (req, res) => {
     try {
         const db = getDatabase();
-        const [estoque] = await db.execute(
-            `SELECT e.*, m.codigo, m.descricao, m.unidade_medida,
+        const [estoque] = await db.query(
+            `SELECT e.*, m.codigo_material, m.descricao, m.unidade_medida,
                     m.estoque_minimo, m.estoque_maximo
              FROM estoque e
              INNER JOIN materiais m ON e.material_id = m.id
@@ -511,8 +510,8 @@ router.get('/alertas/estoque-baixo', async (req, res) => {
     try {
         const db = getDatabase();
         
-        const [alertas] = await db.execute(
-            `SELECT e.*, m.codigo, m.descricao, m.unidade_medida,
+        const [alertas] = await db.query(
+            `SELECT e.*, m.codigo_material, m.descricao, m.unidade_medida,
                     m.estoque_minimo, m.estoque_maximo,
                     (m.estoque_minimo - e.quantidade_atual) as quantidade_faltante
              FROM estoque e

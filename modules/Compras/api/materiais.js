@@ -8,46 +8,45 @@ router.get('/', async (req, res) => {
         const db = getDatabase();
         const { search, categoria, status, limit = 100, offset = 0 } = req.query;
         
-        let sql = `SELECT m.*, c.nome as categoria_nome 
+        let sql = `SELECT m.* 
                    FROM materiais m 
-                   LEFT JOIN categorias_material c ON m.categoria_id = c.id 
                    WHERE 1=1`;
         const params = [];
         
         if (search) {
-            sql += ' AND (m.codigo LIKE ? OR m.descricao LIKE ?)';
+            sql += ' AND (m.codigo_material LIKE ? OR m.descricao LIKE ?)';
             const searchParam = `%${search}%`;
             params.push(searchParam, searchParam);
         }
         
         if (categoria) {
-            sql += ' AND m.categoria_id = ?';
+            sql += ' AND m.tipo = ?';
             params.push(categoria);
         }
         
         if (status) {
-            sql += ' AND m.status = ?';
-            params.push(status);
+            sql += ' AND m.ativo = ?';
+            params.push(status === 'ativo' ? 1 : 0);
         }
         
         sql += ' ORDER BY m.descricao LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
         
-        const [materiais] = await db.execute(sql, params);
+        const [materiais] = await db.query(sql, params);
         
         const countSql = `SELECT COUNT(*) as total FROM materiais m WHERE 1=1` +
-            (search ? ' AND (m.codigo LIKE ? OR m.descricao LIKE ?)' : '') +
-            (categoria ? ' AND m.categoria_id = ?' : '') +
-            (status ? ' AND m.status = ?' : '');
+            (search ? ' AND (m.codigo_material LIKE ? OR m.descricao LIKE ?)' : '') +
+            (categoria ? ' AND m.tipo = ?' : '') +
+            (status ? ' AND m.ativo = ?' : '');
         const countParams = [];
         if (search) {
             const searchParam = `%${search}%`;
             countParams.push(searchParam, searchParam);
         }
         if (categoria) countParams.push(categoria);
-        if (status) countParams.push(status);
+        if (status) countParams.push(status === 'ativo' ? 1 : 0);
         
-        const [countResult] = await db.execute(countSql, countParams);
+        const [countResult] = await db.query(countSql, countParams);
         const total = countResult[0].total;
         
         res.json({
@@ -66,10 +65,9 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const db = getDatabase();
-        const [materiais] = await db.execute(
-            `SELECT m.*, c.nome as categoria_nome 
+        const [materiais] = await db.query(
+            `SELECT m.* 
              FROM materiais m 
-             LEFT JOIN categorias_material c ON m.categoria_id = c.id 
              WHERE m.id = ?`,
             [req.params.id]
         );
@@ -107,8 +105,8 @@ router.post('/', async (req, res) => {
         }
         
         // Verificar se código já existe
-        const [existente] = await db.execute(
-            'SELECT id FROM materiais WHERE codigo = ?',
+        const [existente] = await db.query(
+            'SELECT id FROM materiais WHERE codigo_material = ?',
             [codigo]
         );
         
@@ -116,23 +114,21 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Código já cadastrado' });
         }
         
-        const [result] = await db.execute(
+        const [result] = await db.query(
             `INSERT INTO materiais (
-                codigo, descricao, categoria_id, unidade_medida,
-                estoque_minimo, estoque_maximo, preco_medio,
-                fornecedor_preferencial_id, status, observacoes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                codigo_material, descricao, unidade_medida,
+                estoque_minimo, estoque_maximo, custo_unitario,
+                tipo, ativo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 codigo,
                 descricao,
-                categoria_id,
                 unidade_medida,
                 estoque_minimo || 0,
                 estoque_maximo || 0,
                 preco_medio || 0,
-                fornecedor_preferencial_id,
-                status,
-                observacoes
+                categoria_id || null,
+                status === 'inativo' ? 0 : 1
             ]
         );
         
@@ -165,7 +161,7 @@ router.put('/:id', async (req, res) => {
         } = req.body;
         
         // Verificar se material existe
-        const [materiais] = await db.execute(
+        const [materiais] = await db.query(
             'SELECT id FROM materiais WHERE id = ?',
             [req.params.id]
         );
@@ -176,8 +172,8 @@ router.put('/:id', async (req, res) => {
         
         // Verificar se código já existe em outro material
         if (codigo) {
-            const [existente] = await db.execute(
-                'SELECT id FROM materiais WHERE codigo = ? AND id != ?',
+            const [existente] = await db.query(
+                'SELECT id FROM materiais WHERE codigo_material = ? AND id != ?',
                 [codigo, req.params.id]
             );
             
@@ -186,30 +182,24 @@ router.put('/:id', async (req, res) => {
             }
         }
         
-        await db.execute(
+        await db.query(
             `UPDATE materiais SET 
-                codigo = COALESCE(?, codigo),
+                codigo_material = COALESCE(?, codigo_material),
                 descricao = COALESCE(?, descricao),
-                categoria_id = COALESCE(?, categoria_id),
                 unidade_medida = COALESCE(?, unidade_medida),
                 estoque_minimo = COALESCE(?, estoque_minimo),
                 estoque_maximo = COALESCE(?, estoque_maximo),
-                preco_medio = COALESCE(?, preco_medio),
-                fornecedor_preferencial_id = COALESCE(?, fornecedor_preferencial_id),
-                status = COALESCE(?, status),
-                observacoes = COALESCE(?, observacoes)
+                custo_unitario = COALESCE(?, custo_unitario),
+                tipo = COALESCE(?, tipo)
             WHERE id = ?`,
             [
                 codigo,
                 descricao,
-                categoria_id,
                 unidade_medida,
                 estoque_minimo,
                 estoque_maximo,
                 preco_medio,
-                fornecedor_preferencial_id,
-                status,
-                observacoes,
+                categoria_id,
                 req.params.id
             ]
         );
@@ -230,8 +220,8 @@ router.delete('/:id', async (req, res) => {
         const db = getDatabase();
         
         // Marcar como inativo ao invés de deletar
-        await db.execute(
-            "UPDATE materiais SET status = 'inativo' WHERE id = ?",
+        await db.query(
+            "UPDATE materiais SET ativo = 0 WHERE id = ?",
             [req.params.id]
         );
         
@@ -249,8 +239,8 @@ router.delete('/:id', async (req, res) => {
 router.get('/categorias/list', async (req, res) => {
     try {
         const db = getDatabase();
-        const [categorias] = await db.execute(
-            'SELECT * FROM categorias_material ORDER BY nome'
+        const [categorias] = await db.query(
+            'SELECT DISTINCT tipo as id, tipo as nome FROM materiais WHERE tipo IS NOT NULL ORDER BY tipo'
         );
         
         res.json({ categorias });
@@ -270,15 +260,18 @@ router.post('/categorias', async (req, res) => {
             return res.status(400).json({ error: 'Nome é obrigatório' });
         }
         
-        const [result] = await db.execute(
-            'INSERT INTO categorias_material (nome, descricao) VALUES (?, ?)',
-            [nome, descricao]
+        const [result] = await db.query(
+            'SELECT DISTINCT tipo as nome FROM materiais WHERE tipo = ?',
+            [nome]
         );
+        
+        if (result.length > 0) {
+            return res.status(400).json({ error: 'Categoria já existe' });
+        }
         
         res.status(201).json({
             success: true,
-            message: 'Categoria criada com sucesso',
-            categoria_id: result.insertId
+            message: 'Categoria registrada com sucesso'
         });
     } catch (error) {
         console.error('Erro ao criar categoria:', error);

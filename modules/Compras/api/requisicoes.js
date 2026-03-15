@@ -24,15 +24,19 @@ router.get('/', async (req, res) => {
         sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
         
-        const [requisicoes] = await db.execute(sql, params);
+        const [requisicoes] = await db.query(sql, params);
         
         // Buscar itens de cada requisição
         for (let r of requisicoes) {
-            const [itens] = await db.execute(
-                'SELECT * FROM itens_requisicao WHERE requisicao_id = ?',
-                [r.id]
-            );
-            r.itens = itens;
+            try {
+                const [itens] = await db.query(
+                    'SELECT * FROM itens_requisicao WHERE requisicao_id = ?',
+                    [r.id]
+                );
+                r.itens = itens;
+            } catch(e) {
+                r.itens = [];
+            }
         }
         
         const countSql = 'SELECT COUNT(*) as total FROM requisicoes_compras WHERE 1=1' +
@@ -42,7 +46,7 @@ router.get('/', async (req, res) => {
         if (status) countParams.push(status);
         if (departamento) countParams.push(departamento);
         
-        const [countResult] = await db.execute(countSql, countParams);
+        const [countResult] = await db.query(countSql, countParams);
         const total = countResult[0].total;
         
         res.json({

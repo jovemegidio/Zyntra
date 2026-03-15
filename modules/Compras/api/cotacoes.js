@@ -16,34 +16,33 @@ router.get('/', async (req, res) => {
             params.push(status);
         }
         
-        sql += ' ORDER BY data_criacao DESC LIMIT ? OFFSET ?';
+        sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
         
-        const [cotacoes] = await db.execute(sql, params);
+        const [cotacoes] = await db.query(sql, params);
         
-        // Buscar itens e propostas de cada cotação
+        // Buscar propostas de cada cotação
         for (let cotacao of cotacoes) {
-            const [itens] = await db.execute(
-                'SELECT * FROM cotacoes_itens WHERE cotacao_id = ?',
-                [cotacao.id]
-            );
-            cotacao.itens = itens;
-            
-            const [propostas] = await db.execute(
-                `SELECT cp.*, f.razao_social as fornecedor_nome 
-                 FROM cotacoes_propostas cp 
-                 LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id 
-                 WHERE cp.cotacao_id = ?`,
-                [cotacao.id]
-            );
-            cotacao.propostas = propostas;
+            cotacao.itens = [];
+            try {
+                const [propostas] = await db.query(
+                    `SELECT cp.*, f.razao_social as fornecedor_nome 
+                     FROM propostas_cotacao cp 
+                     LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id 
+                     WHERE cp.cotacao_id = ?`,
+                    [cotacao.id]
+                );
+                cotacao.propostas = propostas;
+            } catch(e) {
+                cotacao.propostas = [];
+            }
         }
         
         const countSql = 'SELECT COUNT(*) as total FROM cotacoes WHERE 1=1' +
             (status ? ' AND status = ?' : '');
         const countParams = status ? [status] : [];
         
-        const [countResult] = await db.execute(countSql, countParams);
+        const [countResult] = await db.query(countSql, countParams);
         const total = countResult[0].total;
         
         res.json({
@@ -73,22 +72,21 @@ router.get('/:id', async (req, res) => {
         
         const cotacao = cotacoes[0];
         
-        // Buscar itens
-        const [itens] = await db.execute(
-            'SELECT * FROM cotacoes_itens WHERE cotacao_id = ?',
-            [cotacao.id]
-        );
-        cotacao.itens = itens;
+        cotacao.itens = [];
         
         // Buscar propostas
-        const [propostas] = await db.execute(
-            `SELECT cp.*, f.razao_social as fornecedor_nome 
-             FROM cotacoes_propostas cp 
-             LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id 
-             WHERE cp.cotacao_id = ?`,
-            [cotacao.id]
-        );
-        cotacao.propostas = propostas;
+        try {
+            const [propostas] = await db.execute(
+                `SELECT cp.*, f.razao_social as fornecedor_nome 
+                 FROM propostas_cotacao cp 
+                 LEFT JOIN fornecedores f ON cp.fornecedor_id = f.id 
+                 WHERE cp.cotacao_id = ?`,
+                [cotacao.id]
+            );
+            cotacao.propostas = propostas;
+        } catch(e) {
+            cotacao.propostas = [];
+        }
         
         res.json(cotacao);
     } catch (error) {
@@ -121,36 +119,20 @@ router.post('/', async (req, res) => {
         // Inserir cotação
         const [result] = await connection.execute(
             `INSERT INTO cotacoes (
-                titulo, descricao, data_criacao, data_limite, status
-            ) VALUES (?, ?, NOW(), ?, 'aberta')`,
+                numero_cotacao, descricao, data_solicitacao, data_limite, status
+            ) VALUES (?, ?, CURDATE(), ?, 'aberta')`,
             [titulo, descricao, data_limite]
         );
         
         const cotacao_id = result.insertId;
         
-        // Inserir itens
-        for (const item of itens) {
-            await connection.execute(
-                `INSERT INTO cotacoes_itens (
-                    cotacao_id, material_id, descricao, quantidade, unidade
-                ) VALUES (?, ?, ?, ?, ?)`,
-                [
-                    cotacao_id,
-                    item.material_id || null,
-                    item.descricao,
-                    item.quantidade,
-                    item.unidade || 'UN'
-                ]
-            );
-        }
-        
         // Criar propostas vazias para fornecedores selecionados
         if (fornecedores_ids.length > 0) {
             for (const fornecedor_id of fornecedores_ids) {
                 await connection.execute(
-                    `INSERT INTO cotacoes_propostas (
-                        cotacao_id, fornecedor_id, status
-                    ) VALUES (?, ?, 'pendente')`,
+                    `INSERT INTO propostas_cotacao (
+                        cotacao_id, fornecedor_id, valor_total
+                    ) VALUES (?, ?, 0)`,
                     [cotacao_id, fornecedor_id]
                 );
             }
@@ -212,20 +194,20 @@ router.post('/:id/proposta', async (req, res) => {
         
         // Verificar se já existe proposta deste fornecedor
         const [propostasExistentes] = await connection.execute(
-            'SELECT id FROM cotacoes_propostas WHERE cotacao_id = ? AND fornecedor_id = ?',
+            'SELECT id FROM propostas_cotacao WHERE cotacao_id = ? AND fornecedor_id = ?',
             [req.params.id, fornecedor_id]
         );
         
         if (propostasExistentes.length > 0) {
             // Atualizar proposta existente
             await connection.execute(
-                `UPDATE cotacoes_propostas SET 
+                `UPDATE propostas_cotacao SET 
                     valor_total = ?,
                     prazo_entrega = ?,
-                    forma_pagamento = ?,
+                    condicao_pagamento = ?,
                     observacoes = ?,
-                    status = 'enviada',
-                    data_envio = NOW()
+                    selecionada = 0,
+                    data_proposta = NOW()
                 WHERE id = ?`,
                 [
                     valor_total,
@@ -238,10 +220,10 @@ router.post('/:id/proposta', async (req, res) => {
         } else {
             // Inserir nova proposta
             await connection.execute(
-                `INSERT INTO cotacoes_propostas (
+                `INSERT INTO propostas_cotacao (
                     cotacao_id, fornecedor_id, valor_total, prazo_entrega,
-                    forma_pagamento, observacoes, status, data_envio
-                ) VALUES (?, ?, ?, ?, ?, ?, 'enviada', NOW())`,
+                    condicao_pagamento, observacoes
+                ) VALUES (?, ?, ?, ?, ?, ?)`,
                 [
                     req.params.id,
                     fornecedor_id,
@@ -285,18 +267,17 @@ router.put('/:id/selecionar-vencedor', async (req, res) => {
         
         // Marcar proposta como vencedora
         await connection.execute(
-            `UPDATE cotacoes_propostas SET 
-                status = 'vencedora',
-                justificativa_selecao = ?
+            `UPDATE propostas_cotacao SET 
+                selecionada = 1
             WHERE id = ?`,
-            [justificativa, proposta_id]
+            [proposta_id]
         );
         
-        // Marcar outras propostas como perdedoras
+        // Marcar outras propostas como não selecionadas
         await connection.execute(
-            `UPDATE cotacoes_propostas SET 
-                status = 'perdedora'
-            WHERE cotacao_id = ? AND id != ? AND status = 'enviada'`,
+            `UPDATE propostas_cotacao SET 
+                selecionada = 0
+            WHERE cotacao_id = ? AND id != ?`,
             [req.params.id, proposta_id]
         );
         
