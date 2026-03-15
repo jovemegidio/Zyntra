@@ -2,13 +2,13 @@
 <html lang="pt-BR">
 <head>
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    
 
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta name="theme-color" content="#1e1e1e">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -28,7 +28,7 @@
     <script src="/js/csp-fix.js" defer></script>
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 
     <!-- Design System — Faturamento Layout -->
     <link rel="stylesheet" href="/modules/Faturamento/css/faturamento-layout.css?v=20260301">
@@ -635,7 +635,19 @@
         }
 
         function abrirModalConfiguracoes() {
-            showAlert('Configurações em desenvolvimento.', 'warning');
+            // Redirecionar para o dashboard NFe que possui o modal de configurações completo
+            window.location.href = 'index.html?openConfig=true';
+        }
+
+        // ── Helper: obter headers de autenticação ──
+        function getAuthHeaders() {
+            const headers = { 'Content-Type': 'application/json' };
+            // CSRF token do cookie
+            const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+            if (csrfMatch) {
+                headers['X-CSRF-Token'] = decodeURIComponent(csrfMatch[1]);
+            }
+            return headers;
         }
 
         // ── Avatar Name Map ──
@@ -830,9 +842,8 @@
 
                 showAlert('Gerando preview do XML...', 'warning');
 
-                const resp = await fetch('/api/api.php?action=preview', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const resp = await fetch('/api/nfe/preview', { credentials: 'include', method: 'POST',
+                    headers: getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify(nfeData)
                 });
@@ -866,9 +877,8 @@
 
                 showAlert('Validando XML...', 'warning');
 
-                const resp = await fetch('/api/nfe/validar', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const resp = await fetch('/api/nfe/validar', { credentials: 'include', method: 'POST',
+                    headers: getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify(nfeData)
                 });
@@ -902,9 +912,8 @@
 
                 showAlert('Enviando NFe para SEFAZ...', 'warning');
 
-                const resp = await fetch('/api/api.php?action=emitir', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const resp = await fetch('/api/nfe/emitir', { credentials: 'include', method: 'POST',
+                    headers: getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify(nfeData)
                 });
@@ -988,7 +997,7 @@
         // ── Carregar Emitente ──
         async function carregarEmitente() {
             try {
-                const resp = await fetch('/api/nfe/configuracoes', { credentials: 'include' });
+                const resp = await fetch('/api/nfe/configuracoes', { credentials: 'include', headers });
                 if (!resp.ok) throw new Error('Sem config');
                 const config = await resp.json();
                 console.log('Emitente carregado:', config.emitente || config);

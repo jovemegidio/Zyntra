@@ -82,9 +82,8 @@ function aplicarPeriodoCustomizado() {
 // ===== CARREGAR DADOS =====
 async function carregarDadosFluxo() {
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const response = await fetch(`/api/financeiro/fluxo-caixa?inicio=${formatarDataISO ? formatarDataISO(dataInicio) : dataInicio.toISOString().split('T')[0]}&fim=${formatarDataISO ? formatarDataISO(dataFim) : dataFim.toISOString().split('T')[0]}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'include'
         });
         
         if (!response.ok) throw new Error('Erro ao carregar fluxo de caixa');

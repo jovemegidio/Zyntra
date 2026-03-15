@@ -167,7 +167,6 @@
     async function verificarPermissoesVendas() {
         try {
             // Verificar se há token antes de fazer requisição
-            const token = localStorage.getItem('token');
             if (!token) {
                 console.log('🔒 [VENDAS] Sem token - pulando verificação de permissões');
                 return;

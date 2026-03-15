@@ -35,10 +35,8 @@ class CotacoesManager {
     }
 
     getAuthHeaders() {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         return {
             'Content-Type': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : ''
         };
     }
 
@@ -46,8 +44,9 @@ class CotacoesManager {
         try {
             // Carregar fornecedores da API
             const respForn = await fetch('/api/compras/fornecedores', {
-                headers: this.getAuthHeaders()
-            });
+                    credentials: 'include',
+                    headers: this.getAuthHeaders()
+                }));
             if (respForn.ok) {
                 const data = await respForn.json();
                 this.fornecedores = Array.isArray(data) ? data : (data.fornecedores || []);
@@ -60,8 +59,9 @@ class CotacoesManager {
         // Carregar materiais da API
         try {
             const respMat = await fetch('/api/pcp/materiais', {
-                headers: this.getAuthHeaders()
-            });
+                    credentials: 'include',
+                    headers: this.getAuthHeaders()
+                }));
             if (respMat.ok) {
                 const data = await respMat.json();
                 this.materiais = Array.isArray(data) ? data : (data.materiais || []);
@@ -76,8 +76,9 @@ class CotacoesManager {
         this.loading = true;
         try {
             const response = await fetch('/api/compras/cotacoes', {
-                headers: this.getAuthHeaders()
-            });
+                    credentials: 'include',
+                    headers: this.getAuthHeaders()
+                }));
 
             if (response.ok) {
                 const data = await response.json();
@@ -120,8 +121,7 @@ class CotacoesManager {
 
     async salvarCotacao(dados) {
         try {
-            const response = await fetch('/api/compras/cotacoes', {
-                method: 'POST',
+            const response = await fetch('/api/compras/cotacoes', { credentials: 'include', method: 'POST',
                 headers: this.getAuthHeaders(),
                 body: JSON.stringify(dados)
             });
@@ -145,8 +145,7 @@ class CotacoesManager {
         if (!confirm('Deseja realmente excluir esta cotação?')) return;
 
         try {
-            const response = await fetch(`/api/compras/cotacoes/${id}`, {
-                method: 'DELETE',
+            const response = await fetch(`/api/compras/cotacoes/${id}`, { credentials: 'include', method: 'DELETE',
                 headers: this.getAuthHeaders()
             });
 
@@ -331,35 +330,35 @@ class CotacoesManager {
                 <td><strong>${melhorOferta}</strong></td>
                 <td>${statusBadge}</td>
                 <td class="table-actions">
-                    <button class="btn-icon" onclick="cotacoesManager.visualizar(${cotacao.id})" title="Visualizar">
+                    <button class="btn-action view" onclick="cotacoesManager.visualizar(${cotacao.id})" title="Visualizar">
                         <i class="fas fa-eye"></i>
                     </button>
                     ${status === 'Rascunho' ? `
-                    <button class="btn-icon" onclick="cotacoesManager.editar(${cotacao.id})" title="Editar">
+                    <button class="btn-action edit" onclick="cotacoesManager.editar(${cotacao.id})" title="Editar">
                         <i class="fas fa-edit"></i>
                     </button>
                     ` : ''}
                     ${status === 'Em Análise' || status === 'Enviada' ? `
-                    <button class="btn-icon btn-success" onclick="cotacoesManager.registrarProposta(${cotacao.id})" title="Registrar Proposta">
+                    <button class="btn-action success" onclick="cotacoesManager.registrarProposta(${cotacao.id})" title="Registrar Proposta">
                         <i class="fas fa-plus"></i>
                     </button>
                     ` : ''}
                     ${numPropostas >= 2 ? `
-                    <button class="btn-icon btn-info" onclick="cotacoesManager.compararPropostas(${cotacao.id})" title="Comparar Propostas">
+                    <button class="btn-action info" onclick="cotacoesManager.compararPropostas(${cotacao.id})" title="Comparar Propostas">
                         <i class="fas fa-balance-scale"></i>
                     </button>
                     ` : ''}
                     ${(status === 'Em Análise' || status === 'Enviada') && numPropostas >= 1 && cotacao.melhorProposta ? `
-                    <button class="btn-icon" onclick="cotacoesManager.aprovarCotacao(${cotacao.id})" title="Aprovar e Gerar Pedido" style="background: #dcfce7; color: #16a34a;">
+                    <button class="btn-action success" onclick="cotacoesManager.aprovarCotacao(${cotacao.id})" title="Aprovar e Gerar Pedido">
                         <i class="fas fa-check-circle"></i>
                     </button>
                     ` : ''}
                     ${status === 'Aprovada' && cotacao.pedidoGerado ? `
-                    <button class="btn-icon btn-primary" onclick="cotacoesManager.verPedidoGerado('${cotacao.pedidoGerado}')" title="Ver Pedido Gerado: ${cotacao.pedidoGerado}">
+                    <button class="btn-action primary" onclick="cotacoesManager.verPedidoGerado('${cotacao.pedidoGerado}')" title="Ver Pedido Gerado: ${cotacao.pedidoGerado}">
                         <i class="fas fa-shopping-cart"></i>
                     </button>
                     ` : ''}
-                    <button class="btn-icon btn-danger" onclick="cotacoesManager.excluirCotacao(${cotacao.id})" title="Excluir">
+                    <button class="btn-action delete" onclick="cotacoesManager.excluirCotacao(${cotacao.id})" title="Excluir">
                         <i class="fas fa-trash"></i>
                     </button>
                 </td>
@@ -736,8 +735,7 @@ class CotacoesManager {
             cotacaoAtualizada.propostas.sort((a, b) => a.total - b.total);
             cotacaoAtualizada.melhorProposta = cotacaoAtualizada.propostas[0];
 
-            const response = await fetch(`/api/compras/cotacoes/${this.cotacaoAtual.id}`, {
-                method: 'PUT',
+            const response = await fetch(`/api/compras/cotacoes/${this.cotacaoAtual.id}`, { credentials: 'include', method: 'PUT',
                 headers: this.getAuthHeaders(),
                 body: JSON.stringify(cotacaoAtualizada)
             });
@@ -793,8 +791,7 @@ class CotacoesManager {
         }
 
         try {
-            const response = await fetch(`/api/compras/cotacoes/${cotacao.id}/aprovar-proposta`, {
-                method: 'POST',
+            const response = await fetch(`/api/compras/cotacoes/${cotacao.id}/aprovar-proposta`, { credentials: 'include', method: 'POST',
                 headers: this.getAuthHeaders(),
                 credentials: 'include',
                 body: JSON.stringify({
@@ -950,8 +947,7 @@ class CotacoesManager {
             }
 
             // Chamar API para aprovar e gerar pedido
-            const response = await fetch(`/api/compras/cotacoes/${cotacao.id}/aprovar-proposta`, {
-                method: 'POST',
+            const response = await fetch(`/api/compras/cotacoes/${cotacao.id}/aprovar-proposta`, { credentials: 'include', method: 'POST',
                 headers: this.getAuthHeaders(),
                 credentials: 'include',
                 body: JSON.stringify({
@@ -1094,8 +1090,7 @@ class CotacoesManager {
         if (id) {
             // Editar via API
             try {
-                const response = await fetch(`/api/compras/cotacoes/${id}`, {
-                    method: 'PUT',
+                const response = await fetch(`/api/compras/cotacoes/${id}`, { credentials: 'include', method: 'PUT',
                     headers: this.getAuthHeaders(),
                     body: JSON.stringify(cotacao)
                 });
@@ -1113,8 +1108,7 @@ class CotacoesManager {
         } else {
             // Nova via API
             try {
-                const response = await fetch('/api/compras/cotacoes', {
-                    method: 'POST',
+                const response = await fetch('/api/compras/cotacoes', { credentials: 'include', method: 'POST',
                     headers: this.getAuthHeaders(),
                     body: JSON.stringify(cotacao)
                 });

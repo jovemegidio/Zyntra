@@ -1,0 +1,368 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#1a2744">
+    <title>Aluforce: Materiais</title>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
+    <link rel="stylesheet" href="../css/pcp-layout.css">
+    <link rel="stylesheet" href="../css/pcp-components.css">
+    <script src="../js/pcp-modals.js" defer></script>
+
+    <style>
+        .stat-card.purple .stat-icon { background: linear-gradient(135deg, #9333ea, #7c3aed); color: white; }
+        .stat-card.green .stat-icon { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .stat-card.orange .stat-icon { background: linear-gradient(135deg, var(--warning-500), #d97706); color: white; }
+        .stat-card.red .stat-icon { background: linear-gradient(135deg, var(--danger-500), #dc2626); color: white; }
+
+        .stat-card .stat-content { flex: 1; }
+        .stat-card .stat-label { font-size: 13px; color: var(--gray-500); margin-bottom: 4px; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--gray-900); }
+        .stat-card .stat-trend { font-size: 12px; color: var(--gray-500); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+        .stat-card .stat-trend.up { color: var(--success-500); }
+        .stat-card .stat-trend.down { color: var(--danger-500); }
+
+        .page-header-top { display: flex; justify-content: flex-end; margin-bottom: var(--space-6); }
+        .page-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+        .card-title { display: flex; align-items: center; gap: var(--space-2); font-size: 15px; font-weight: 600; color: var(--gray-800); }
+        .card-title i { color: var(--primary-500); }
+
+        .search-bar { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; align-items: flex-end; }
+        .search-input-wrapper { position: relative; flex: 1; min-width: 200px; }
+        .search-input-wrapper i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--gray-400); }
+        .search-input { width: 100%; padding: 10px 16px 10px 42px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); font-size: 14px; }
+        .filter-select { padding: 10px 16px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); font-size: 14px; min-width: 150px; }
+
+        .card-footer { padding: var(--space-4) var(--space-6); border-top: 1px solid var(--gray-100); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+        .table-container { overflow-x: auto; }
+
+        @media (max-width: 768px) {
+            .search-bar { flex-direction: column; }
+            .filter-select { width: 100%; }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Global Header & Sidebar -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+
+    <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
+    <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-btn" title="Dashboard PCP"><i class="fas fa-tachometer-alt"></i></a>
+                <a href="estoque.html" class="sidebar-btn" title="Estoque"><i class="fas fa-boxes"></i></a>
+                <a href="materiais.html" class="sidebar-btn active" title="Materiais"><i class="fas fa-layer-group"></i></a>
+                <a href="ordem-compra.html" class="sidebar-btn" title="Ordem de Compra"><i class="fas fa-shopping-cart"></i></a>
+                <a href="../ordens-producao.html" class="sidebar-btn" title="Ordens de Produção"><i class="fas fa-clipboard-list"></i></a>
+                <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
+                <a href="faturamento.html" class="sidebar-btn" title="Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" id="btn-config"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Materiais</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span id="saudacao">Bom dia,</span>
+                        <strong id="userName">Usuário</strong>
+                    </div>
+                    <div class="user-avatar"><span id="userInitial">U</span></div>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <div class="page-content">
+                    <!-- Ações -->
+                    <div class="page-header-top">
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="exportarMateriais()"><i class="fas fa-download"></i> Exportar</button>
+                            <button class="btn btn-success" onclick="abrirNovoMaterial()"><i class="fas fa-plus"></i> Novo Material</button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card purple">
+                            <div class="stat-icon purple"><i class="fas fa-boxes"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Total de Materiais</div>
+                                <div class="stat-value" id="materiais-view-total">0</div>
+                                <div class="stat-trend up"><i class="fas fa-layer-group"></i> Com entrada via Compras</div>
+                            </div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Estoque Normal</div>
+                                <div class="stat-value" id="materiais-normal">0</div>
+                                <div class="stat-trend up"><i class="fas fa-thumbs-up"></i> Adequado</div>
+                            </div>
+                        </div>
+                        <div class="stat-card orange">
+                            <div class="stat-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Estoque Baixo</div>
+                                <div class="stat-value" id="materiais-baixo">0</div>
+                                <div class="stat-trend down"><i class="fas fa-arrow-down"></i> Atenção</div>
+                            </div>
+                        </div>
+                        <div class="stat-card red">
+                            <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Nível Crítico</div>
+                                <div class="stat-value" id="materiais-critico">0</div>
+                                <div class="stat-trend down"><i class="fas fa-exclamation"></i> Repor</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ações Rápidas -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                        <button class="btn btn-success" onclick="abrirEntradaRapidaMaterial()"><i class="fas fa-arrow-up"></i> Entrada Rápida</button>
+                        <button class="btn btn-danger" onclick="abrirSaidaRapidaMaterial()"><i class="fas fa-arrow-down"></i> Saída Rápida</button>
+                        <button class="btn btn-warning" onclick="abrirAjusteInventarioMaterial()"><i class="fas fa-sliders-h"></i> Ajuste de Inventário</button>
+                        <button class="btn btn-secondary" onclick="verHistoricoMaterial()"><i class="fas fa-history"></i> Histórico</button>
+                    </div>
+
+                    <!-- Busca -->
+                    <div class="search-bar">
+                        <div class="search-input-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="search-input" id="search-materiais" placeholder="Buscar por código, descrição ou tipo...">
+                        </div>
+                        <select class="filter-select" id="filter-tipo-material">
+                            <option value="">Todos os Tipos</option>
+                            <option value="veia">Veias</option>
+                            <option value="cabo">Cabos</option>
+                            <option value="corda">Cordas</option>
+                            <option value="cordinha">Cordinhas</option>
+                            <option value="pvc">PVC</option>
+                            <option value="polietileno">Polietileno</option>
+                            <option value="pigmento">Pigmentos</option>
+                            <option value="filamento">Filamentos</option>
+                            <option value="bobina">Bobinas</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="buscarMateriais()"><i class="fas fa-search"></i> Buscar</button>
+                    </div>
+
+                    <!-- Tabela -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-table"></i> Catálogo de Materiais</h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Descrição</th>
+                                            <th>Tipo</th>
+                                            <th>NCM</th>
+                                            <th>GTIN</th>
+                                            <th>Unidade</th>
+                                            <th>Estoque</th>
+                                            <th>Preço</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="materiais-table-body">
+                                        <tr>
+                                            <td colspan="9" style="text-align: center; padding: 60px;">
+                                                <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                                <p style="margin-top: 16px; color: var(--gray-500);">Carregando materiais...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <span style="font-size: 14px; color: var(--gray-500);">
+                                Mostrando <strong id="materiais-showing">0</strong> de <strong id="materiais-total-count">0</strong> materiais
+                            </span>
+                            <div class="pagination" id="materiais-pagination"></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="../js/pcp-common.js"></script>
+    <script>
+        let materiaisData = [];
+
+        async function carregarMateriais() {
+            try {
+                const API_BASE = getAPIBase();
+
+                // Preparar headers - usar credentials: 'include' para sessão via cookie
+                const headers = { 'Content-Type': 'application/json' };
+                if (token && token !== 'unified-session-active') {
+                }
+
+                console.log('?? Carregando materiais...');
+                // Buscar apenas materiais com recebimento em compras
+                const response = await fetch(`${API_BASE}/api/pcp/materiais?com_recebimento=true&limit=1000`, {
+                    credentials: 'include',
+                    headers: headers
+                });
+
+                if (response.status === 401) {
+                    console.log('Não autenticado');
+                    return;
+                }
+
+                if (response.ok) {
+                    const data = await response.json();
+                    materiaisData = Array.isArray(data) ? data : (data.rows || data.materiais || []);
+                    materiaisData = materiaisData.map(m => ({
+                        ...m,
+                        codigo: m.codigo || m.codigo_material || '',
+                        descricao: m.descricao || m.nome || '',
+                        estoque: m.quantidade_estoque ?? m.estoque ?? 0,
+                        estoque_minimo: m.estoque_minimo ?? 10,
+                        unidade: m.unidade_medida || m.unidade || 'UN',
+                        preco: m.custo_unitario || m.preco || 0
+                    }));
+                    atualizarEstatisticas();
+                    renderizarMateriais();
+                }
+            } catch (error) {
+                console.error('Erro ao carregar materiais:', error);
+                showToast('Erro ao carregar materiais', 'error');
+            }
+        }
+
+        function atualizarEstatisticas() {
+            const total = materiaisData.length;
+            const critico = materiaisData.filter(m => m.estoque <= (m.estoque_minimo * 0.5)).length;
+            const baixo = materiaisData.filter(m => m.estoque <= m.estoque_minimo && m.estoque > (m.estoque_minimo * 0.5)).length;
+            const normal = total - baixo - critico;
+
+            document.getElementById('materiais-view-total').textContent = total;
+            document.getElementById('materiais-normal').textContent = normal;
+            document.getElementById('materiais-baixo').textContent = baixo;
+            document.getElementById('materiais-critico').textContent = critico;
+        }
+
+        function renderizarMateriais() {
+            const tbody = document.getElementById('materiais-table-body');
+            const searchTerm = document.getElementById('search-materiais').value.toLowerCase();
+            const tipo = document.getElementById('filter-tipo-material').value;
+
+            let filtrados = materiaisData.filter(m => {
+                const matchSearch = !searchTerm ||
+                    (m.codigo && m.codigo.toLowerCase().includes(searchTerm)) ||
+                    (m.descricao && m.descricao.toLowerCase().includes(searchTerm));
+                const matchTipo = !tipo || m.tipo === tipo;
+                return matchSearch && matchTipo;
+            });
+
+            document.getElementById('materiais-showing').textContent = filtrados.length;
+            document.getElementById('materiais-total-count').textContent = materiaisData.length;
+
+            if (filtrados.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 60px;">
+                    <i class="fas fa-cubes" style="font-size: 48px; color: var(--gray-300); margin-bottom: 16px;"></i>
+                    <p style="color: var(--gray-500);">Nenhum material encontrado</p>
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtrados.map(m => `
+                <tr>
+                    <td><strong>${m.codigo || '-'}</strong></td>
+                    <td>${m.descricao || '-'}</td>
+                    <td><span class="badge badge-purple">${m.tipo || '-'}</span></td>
+                    <td>${m.ncm || '-'}</td>
+                    <td>${m.gtin || '-'}</td>
+                    <td>${m.unidade || '-'}</td>
+                    <td>${m.estoque || 0}</td>
+                    <td>${formatarMoeda(m.preco)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="editarMaterial(${m.id})"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-secondary" onclick="verMaterial(${m.id})"><i class="fas fa-eye"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function buscarMateriais() { renderizarMateriais(); }
+        function exportarMateriais() { exportarParaExcel(materiaisData, 'materiais'); }
+        function abrirEntradaRapidaMaterial() { abrirModalMovimentacaoMaterial('entrada'); }
+        function abrirSaidaRapidaMaterial() { abrirModalMovimentacaoMaterial('saida'); }
+        function abrirAjusteInventarioMaterial() { abrirModalMovimentacaoMaterial('ajuste'); }
+        function verHistoricoMaterial() { showToast('Histórico em desenvolvimento', 'info'); }
+
+        document.getElementById('search-materiais').addEventListener('keypress', e => { if (e.key === 'Enter') buscarMateriais(); });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            atualizarSaudacao();
+            carregarMateriais();
+
+            // Carregar modais via fetch
+            fetch('../templates/pcp-modals.html')
+                .then(res => res.text())
+                .then(html => {
+                    const container = document.createElement('div');
+                    container.innerHTML = html;
+                    document.body.appendChild(container);
+                })
+                .catch(err => console.warn('Modais não carregados:', err));
+        });
+    </script>
+    <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+</body>
+</html>

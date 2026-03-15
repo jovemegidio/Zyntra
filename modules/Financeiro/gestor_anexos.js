@@ -381,7 +381,6 @@ class GestorAnexos {
         formData.append('entidade', this.opções.entidade);
         formData.append('entidade_id', this.opções.entidadeId);
 
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -412,7 +411,7 @@ class GestorAnexos {
             });
             xhr.addEventListener('error', () => reject(new Error('Erro de rede')));
             xhr.open('POST', '/api/financeiro/anexar-comprovante');
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.withCredentials = true; /* Auth via httpOnly cookie */
             xhr.send(formData);
         });
     }
@@ -447,9 +446,8 @@ class GestorAnexos {
     }
 
     async buscarAnexos() {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const response = await fetch(`/api/financeiro/anexar-comprovante?entidade=${this.opções.entidade}&entidade_id=${this.opções.entidadeId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'include'
         });
         if (!response.ok) return [];
         return await response.json();
@@ -591,7 +589,7 @@ class GestorAnexos {
 
     async excluirAnexo(anexoId) {
         // TODO: Substituir por chamada real à API
-        // return await fetch(`/api/financeiro/anexos/${anexoId}`, { method: 'DELETE' }).then(r => r.json());
+        // return await fetch(`/api/financeiro/anexos/${anexoId}`, { credentials: 'include', method: 'DELETE' }).then(r => r.json());
         return { success: true };
     }
 

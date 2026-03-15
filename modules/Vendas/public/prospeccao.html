@@ -1,12 +1,12 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta name="theme-color" content="#1a2744">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -23,7 +23,7 @@
     <script src="/js/csp-fix.js" defer></script>
     
     <!-- CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
     <link rel="stylesheet" href="/css/popup-confirmacao.css?v=20260301">
     
@@ -283,6 +283,7 @@
         }
         .btn-search.secondary {
             background: rgba(255,255,255,0.2);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             box-shadow: none;
             border: 1px solid rgba(255,255,255,0.3);
@@ -768,6 +769,7 @@
             right: 0;
             bottom: 0;
             background: rgba(15, 23, 42, 0.6);
+            -webkit-backdrop-filter: blur(4px);
             backdrop-filter: blur(4px);
             z-index: 1000;
             align-items: center;
@@ -1530,7 +1532,6 @@ Aceita com ou sem formatação"></textarea>
         },
 
         getAuthHeaders() {
-            const token = localStorage.getItem('token');
             return { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' };
         },
 
@@ -1538,7 +1539,10 @@ Aceita com ou sem formatação"></textarea>
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle'}"></i> ${msg}`;
+            var iconEl = document.createElement('i');
+            iconEl.className = 'fas fa-' + (type === 'success' ? 'check-circle' : type === 'error' ? 'times-circle' : 'info-circle');
+            toast.appendChild(iconEl);
+            toast.appendChild(document.createTextNode(' ' + msg));
             container.appendChild(toast);
             setTimeout(() => toast.remove(), 4000);
         },
@@ -1826,8 +1830,7 @@ Aceita com ou sem formatação"></textarea>
             lead.status = novoStatus;
 
             try {
-                await fetch(`/api/vendas/leads/${leadId}`, {
-                    method: 'PUT',
+                await fetch(`/api/vendas/leads/${leadId}`, { credentials: 'include', method: 'PUT',
                     headers: this.getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify({ status: novoStatus })
@@ -2108,8 +2111,7 @@ Aceita com ou sem formatação"></textarea>
 
                 // Salvar na API
                 try {
-                    const saveResponse = await fetch('/api/vendas/leads', {
-                        method: 'POST',
+                    const saveResponse = await fetch('/api/vendas/leads', { credentials: 'include', method: 'POST',
                         headers: this.getAuthHeaders(),
                         credentials: 'include',
                         body: JSON.stringify(lead)
@@ -2610,8 +2612,7 @@ Aceita com ou sem formatação"></textarea>
             if (!this.leadAtual) return;
             
             try {
-                await fetch('/api/vendas/clientes', {
-                    method: 'POST',
+                await fetch('/api/vendas/clientes', { credentials: 'include', method: 'POST',
                     headers: this.getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify({
@@ -2963,8 +2964,7 @@ Aceita com ou sem formatação"></textarea>
                         if (!this.leads.find(l => l.cnpj === lead.cnpj)) {
                             // Salvar na API
                             try {
-                                const saveResp = await fetch('/api/vendas/leads', {
-                                    method: 'POST',
+                                const saveResp = await fetch('/api/vendas/leads', { credentials: 'include', method: 'POST',
                                     headers: this.getAuthHeaders(),
                                     credentials: 'include',
                                     body: JSON.stringify(lead)

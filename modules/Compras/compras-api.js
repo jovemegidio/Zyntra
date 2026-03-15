@@ -3,8 +3,8 @@ const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:$
 
 // Obter token do localStorage ou cookie
 function getAuthToken() {
-    return localStorage.getItem('token') || getCookie('token');
-}
+            return ''; /* Auth via httpOnly cookie */
+        }
 
 function getCookie(name) {
     const value = `; ${document.cookie}`;
@@ -57,8 +57,7 @@ async function obterFornecedor(id) {
 
 async function criarFornecedor(dados) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/compras/fornecedores`, {
-            method: 'POST',
+        const response = await fetch(`${API_BASE_URL}/api/compras/fornecedores`, { credentials: 'include', method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(dados)
         });
@@ -72,8 +71,7 @@ async function criarFornecedor(dados) {
 
 async function atualizarFornecedor(id, dados) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/compras/fornecedores/${id}`, {
-            method: 'PUT',
+        const response = await fetch(`${API_BASE_URL}/api/compras/fornecedores/${id}`, { credentials: 'include', method: 'PUT',
             headers: getAuthHeaders(),
             body: JSON.stringify(dados)
         });
@@ -87,8 +85,7 @@ async function atualizarFornecedor(id, dados) {
 
 async function excluirFornecedor(id) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/compras/fornecedores/${id}`, {
-            method: 'DELETE',
+        const response = await fetch(`${API_BASE_URL}/api/compras/fornecedores/${id}`, { credentials: 'include', method: 'DELETE',
             headers: getAuthHeaders()
         });
         if (!response.ok) throw new Error('Erro ao excluir fornecedor');
@@ -138,8 +135,7 @@ async function obterPedido(id) {
 
 async function criarPedido(dados) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos`, {
-            method: 'POST',
+        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos`, { credentials: 'include', method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(dados)
         });
@@ -153,8 +149,7 @@ async function criarPedido(dados) {
 
 async function aprovarPedido(id, dados) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos/${id}/aprovar`, {
-            method: 'POST',
+        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos/${id}/aprovar`, { credentials: 'include', method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(dados)
         });
@@ -168,8 +163,7 @@ async function aprovarPedido(id, dados) {
 
 async function cancelarPedido(id, motivo) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos/${id}/cancelar`, {
-            method: 'POST',
+        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos/${id}/cancelar`, { credentials: 'include', method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({ motivo })
         });
@@ -183,8 +177,7 @@ async function cancelarPedido(id, motivo) {
 
 async function receberPedido(id, dados) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos/${id}/receber`, {
-            method: 'POST',
+        const response = await fetch(`${API_BASE_URL}/api/compras/pedidos/${id}/receber`, { credentials: 'include', method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(dados)
         });

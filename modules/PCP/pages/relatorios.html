@@ -1,0 +1,933 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#1a2744">
+    <title>Aluforce: Relatórios</title>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
+    <link rel="stylesheet" href="../css/pcp-layout.css">
+    <link rel="stylesheet" href="../css/pcp-components.css">
+    <style>
+    /* ============ PAGE TITLE ============ */
+    .page-title-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:16px}
+    .page-title-bar h1{font-size:24px;font-weight:800;color:var(--gray-900);margin:0;display:flex;align-items:center;gap:12px}
+    .page-title-bar h1 .title-icon{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;font-size:20px;box-shadow:0 4px 12px rgba(59,130,246,0.3)}
+    .page-title-bar .title-actions{display:flex;gap:10px}
+    .btn-export{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border:1px solid var(--gray-200);border-radius:10px;background:#fff;color:var(--gray-600);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 1px 2px rgba(0,0,0,0.04)}
+    .btn-export:hover{border-color:var(--primary-400);color:var(--primary-600);background:var(--primary-50);box-shadow:0 4px 12px rgba(0,0,0,0.06)}
+    .btn-export i{font-size:14px}
+
+    /* ============ REPORT TABS ============ */
+    .report-tabs{display:flex;gap:6px;margin-bottom:24px;background:#fff;border-radius:16px;padding:6px;border:1px solid var(--gray-100);box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow-x:auto}
+    .report-tab{display:flex;align-items:center;gap:10px;padding:12px 22px;border:none;border-radius:12px;background:transparent;color:var(--gray-500);font-size:14px;font-weight:600;cursor:pointer;transition:all .25s;white-space:nowrap;position:relative}
+    .report-tab .tab-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .25s}
+    .report-tab:hover{color:var(--gray-700);background:var(--gray-50)}
+    .report-tab.active{background:var(--primary-500);color:#fff;box-shadow:0 4px 14px rgba(100,116,139,0.3)}
+    .report-tab.active .tab-icon{background:rgba(255,255,255,0.2)}
+    .report-tab:not(.active) .tab-icon{background:var(--gray-100);color:var(--gray-400)}
+    .report-tab .tab-label{display:flex;flex-direction:column;text-align:left}
+    .report-tab .tab-label small{font-size:11px;font-weight:400;opacity:.7;margin-top:1px}
+
+    /* ============ FILTERS ============ */
+    .filters-card{background:#fff;border-radius:16px;padding:20px 24px;border:1px solid var(--gray-100);box-shadow:0 1px 3px rgba(0,0,0,0.04);margin-bottom:24px;display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap}
+    .filter-field{display:flex;flex-direction:column;gap:6px}
+    .filter-field label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gray-400)}
+    .filter-field input,.filter-field select{padding:10px 14px;border:1.5px solid var(--gray-200);border-radius:10px;font-size:13px;font-weight:500;color:var(--gray-700);background:#fff;outline:none;transition:all .2s;min-width:140px}
+    .filter-field input:focus,.filter-field select:focus{border-color:var(--primary-500);box-shadow:0 0 0 3px rgba(100,116,139,0.1)}
+    .filter-presets{display:flex;gap:6px;margin-left:auto}
+    .preset-btn{padding:8px 14px;border:1.5px solid var(--gray-200);border-radius:8px;background:#fff;color:var(--gray-500);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .preset-btn:hover,.preset-btn.active{border-color:var(--primary-400);color:var(--primary-600);background:var(--primary-50)}
+    .btn-gerar{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:linear-gradient(135deg,var(--primary-500),var(--primary-700));color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;transition:all .25s;box-shadow:0 4px 14px rgba(100,116,139,0.25);text-transform:uppercase;letter-spacing:.5px}
+    .btn-gerar:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(100,116,139,0.35)}
+    .btn-gerar:active{transform:translateY(0)}
+
+    /* ============ REPORT SECTIONS ============ */
+    .report-section{display:none;animation:fadeInUp .4s ease}.report-section.active{display:block}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ============ KPI STRIP ============ */
+    .kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px}
+    .kpi{background:#fff;border-radius:20px;padding:24px;border:1px solid var(--gray-100);box-shadow:0 1px 3px rgba(0,0,0,0.04);position:relative;overflow:hidden;transition:all .25s}
+    .kpi:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.06)}
+    .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;border-radius:20px 20px 0 0}
+    .kpi.blue::before{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+    .kpi.green::before{background:linear-gradient(90deg,#10b981,#34d399)}
+    .kpi.purple::before{background:linear-gradient(90deg,#8b5cf6,#a78bfa)}
+    .kpi.amber::before{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+    .kpi.rose::before{background:linear-gradient(90deg,#f43f5e,#fb7185)}
+    .kpi .kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .kpi .kpi-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px}
+    .kpi.blue .kpi-icon{background:rgba(59,130,246,0.1);color:#3b82f6}
+    .kpi.green .kpi-icon{background:rgba(16,185,129,0.1);color:#10b981}
+    .kpi.purple .kpi-icon{background:rgba(139,92,246,0.1);color:#8b5cf6}
+    .kpi.amber .kpi-icon{background:rgba(245,158,11,0.1);color:#f59e0b}
+    .kpi.rose .kpi-icon{background:rgba(244,63,94,0.1);color:#f43f5e}
+    .kpi .kpi-lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400)}
+    .kpi .kpi-val{font-size:32px;font-weight:800;color:var(--gray-900);line-height:1;margin-bottom:4px}
+    .kpi .kpi-desc{font-size:12px;color:var(--gray-400);font-weight:500}
+    .kpi .kpi-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px}
+    .kpi .kpi-badge.up{background:#dcfce7;color:#16a34a}
+    .kpi .kpi-badge.down{background:#fef2f2;color:#dc2626}
+    .kpi .kpi-badge.neutral{background:var(--gray-100);color:var(--gray-500)}
+
+    /* ============ CHART CARD ============ */
+    .chart-card{background:#fff;border-radius:20px;padding:28px;border:1px solid var(--gray-100);box-shadow:0 1px 3px rgba(0,0,0,0.04);margin-bottom:24px}
+    .chart-card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .chart-card-head h3{font-size:16px;font-weight:700;color:var(--gray-800);margin:0;display:flex;align-items:center;gap:10px}
+    .chart-card-head h3 .ico{width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+    .chart-card-head .chart-actions{display:flex;gap:6px}
+    .chart-wrapper{position:relative;width:100%;height:360px}
+
+    /* ============ DATA TABLE CARD ============ */
+    .table-card{background:#fff;border-radius:20px;border:1px solid var(--gray-100);box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;margin-bottom:24px}
+    .table-card-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--gray-100)}
+    .table-card-head h3{font-size:16px;font-weight:700;color:var(--gray-800);margin:0;display:flex;align-items:center;gap:10px}
+    .table-card-head h3 .ico{width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+    .table-card-head .table-count{font-size:12px;font-weight:600;color:var(--gray-400);background:var(--gray-100);padding:4px 12px;border-radius:20px}
+    .dtable{width:100%;border-collapse:collapse}
+    .dtable thead{background:var(--gray-50)}
+    .dtable th{padding:14px 20px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--gray-400);border-bottom:1px solid var(--gray-100)}
+    .dtable td{padding:14px 20px;font-size:14px;color:var(--gray-700);border-bottom:1px solid var(--gray-50);font-weight:500}
+    .dtable tbody tr{transition:background .15s}
+    .dtable tbody tr:hover{background:var(--gray-50)}
+    .dtable tbody tr:last-child td{border-bottom:none}
+    .dtable .product-name{font-weight:600;color:var(--gray-800)}
+    .dtable .money{font-weight:700;color:var(--gray-800);font-variant-numeric:tabular-nums}
+    .dtable .mono{font-family:'SF Mono','Menlo','Consolas',monospace;font-size:13px;color:var(--gray-500)}
+    .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:10px;font-size:12px;font-weight:800}
+    .rank-badge.gold{background:linear-gradient(135deg,#fef3c7,#fde68a);color:#92400e;box-shadow:0 2px 6px rgba(253,230,138,0.5)}
+    .rank-badge.silver{background:linear-gradient(135deg,#f1f5f9,#e2e8f0);color:#475569}
+    .rank-badge.bronze{background:linear-gradient(135deg,#fed7aa,#fdba74);color:#9a3412;box-shadow:0 2px 6px rgba(253,186,116,0.4)}
+    .rank-badge.plain{background:var(--gray-100);color:var(--gray-500)}
+    .progress-bar-cell{display:flex;align-items:center;gap:10px}
+    .progress-mini{flex:1;height:6px;background:var(--gray-100);border-radius:3px;overflow:hidden;min-width:60px}
+    .progress-mini .fill{height:100%;border-radius:3px;transition:width .5s ease}
+
+    /* ============ TWO-COL GRID ============ */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+
+    /* ============ EMPTY STATE ============ */
+    .empty-state-pro{text-align:center;padding:60px 20px}
+    .empty-state-pro .empty-icon{width:80px;height:80px;border-radius:20px;background:var(--gray-50);display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:32px;color:var(--gray-300)}
+    .empty-state-pro h4{font-size:16px;font-weight:600;color:var(--gray-500);margin:0 0 6px}
+    .empty-state-pro p{font-size:13px;color:var(--gray-400);margin:0}
+
+    /* ============ SKELETON ============ */
+    .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200%;animation:shimmer 1.5s infinite;border-radius:8px}
+    @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+    /* ============ PRINT ============ */
+    @media print{
+        .sidebar,.header,.report-tabs,.filters-card,.btn-export,.btn-gerar,.filter-presets,.page-title-bar .title-actions,.sidebar-overlay{display:none!important}
+        .main-area{margin-left:0!important}
+        .kpi,.chart-card,.table-card{break-inside:avoid;box-shadow:none!important;border:1px solid #e5e7eb!important}
+        .report-section{display:block!important}
+        body{background:#fff!important}
+    }
+
+    /* ============ RESPONSIVE ============ */
+    @media(max-width:768px){
+        .report-tabs{flex-direction:column;gap:4px}
+        .report-tab{padding:10px 16px}
+        .report-tab .tab-label small{display:none}
+        .filters-card{flex-direction:column;align-items:stretch}
+        .filter-presets{margin-left:0;flex-wrap:wrap}
+        .kpi-strip{grid-template-columns:1fr 1fr}
+        .grid-2{grid-template-columns:1fr}
+        .kpi .kpi-val{font-size:24px}
+        .page-title-bar h1{font-size:20px}
+        .chart-wrapper{height:280px}
+        .dtable th,.dtable td{padding:10px 12px;font-size:12px}
+    }
+    @media(max-width:480px){
+        .kpi-strip{grid-template-columns:1fr}
+        .report-tab .tab-icon{display:none}
+    }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Global Header & Sidebar -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+
+    <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
+    <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-tachometer-alt"></i></a>
+                <a href="estoque.html" class="sidebar-btn" title="Estoque"><i class="fas fa-boxes"></i></a>
+                <a href="materiais.html" class="sidebar-btn" title="Materiais"><i class="fas fa-layer-group"></i></a>
+                <a href="ordem-compra.html" class="sidebar-btn" title="Ordem de Compra"><i class="fas fa-shopping-cart"></i></a>
+                <a href="../ordens-producao.html" class="sidebar-btn" title="Ordens de Produção"><i class="fas fa-clipboard-list"></i></a>
+                <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
+                <a href="faturamento.html" class="sidebar-btn" title="Programação de Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="relatorios.html" class="sidebar-btn active" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" id="btn-config"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <main class="main-area">
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Relatórios</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span id="saudacao">Bom dia,</span>
+                        <strong id="userName">Usuário</strong>
+                    </div>
+                    <div class="user-avatar"><span id="userInitial">U</span></div>
+                </div>
+            </header>
+            <main class="main-content">
+                <div class="page-content">
+
+                    <!-- Page Title -->
+                    <div class="page-title-bar">
+                        <h1>
+                            <span class="title-icon"><i class="fas fa-chart-pie"></i></span>
+                            Central de Relatórios
+                        </h1>
+                        <div class="title-actions">
+                            <button class="btn-export" onclick="exportarCSV()" title="Exportar CSV"><i class="fas fa-file-csv"></i> CSV</button>
+                            <button class="btn-export" onclick="window.print()" title="Imprimir / PDF"><i class="fas fa-print"></i> Imprimir</button>
+                        </div>
+                    </div>
+
+                    <!-- Report Tabs -->
+                    <div class="report-tabs">
+                        <button class="report-tab active" data-report="cabos" onclick="trocarRelatorio('cabos')">
+                            <span class="tab-icon"><i class="fas fa-bolt"></i></span>
+                            <span class="tab-label">Cabos Mais Vendidos<small>Ranking por quantidade e valor</small></span>
+                        </button>
+                        <button class="report-tab" data-report="vendas" onclick="trocarRelatorio('vendas')">
+                            <span class="tab-icon"><i class="fas fa-ranking-star"></i></span>
+                            <span class="tab-label">Ranking de Vendas<small>Por vendedor e cliente</small></span>
+                        </button>
+                        <button class="report-tab" data-report="metros" onclick="trocarRelatorio('metros')">
+                            <span class="tab-icon"><i class="fas fa-ruler-combined"></i></span>
+                            <span class="tab-label">Metros Produzidos<small>Produção diária detalhada</small></span>
+                        </button>
+                        <button class="report-tab" data-report="faturamento" onclick="trocarRelatorio('faturamento')">
+                            <span class="tab-icon"><i class="fas fa-money-bill-trend-up"></i></span>
+                            <span class="tab-label">Faturamento Mensal<small>Análise financeira anual</small></span>
+                        </button>
+                    </div>
+
+                    <!-- =============== 1. CABOS MAIS VENDIDOS =============== -->
+                    <div class="report-section active" id="section-cabos">
+                        <div class="filters-card">
+                            <div class="filter-field"><label>Período Início</label><input type="date" id="cabos-data-inicio"></div>
+                            <div class="filter-field"><label>Período Fim</label><input type="date" id="cabos-data-fim"></div>
+                            <div class="filter-field"><label>Exibir Top</label>
+                                <select id="cabos-limit"><option value="10">Top 10</option><option value="20" selected>Top 20</option><option value="50">Top 50</option></select>
+                            </div>
+                            <div class="filter-presets">
+                                <button class="preset-btn" onclick="setPreset('cabos','7d')">7 dias</button>
+                                <button class="preset-btn" onclick="setPreset('cabos','30d')">30 dias</button>
+                                <button class="preset-btn active" onclick="setPreset('cabos','ano')">Este Ano</button>
+                            </div>
+                            <button class="btn-gerar" onclick="carregarCabos()"><i class="fas fa-chart-bar"></i> Gerar Relatório</button>
+                        </div>
+
+                        <div class="kpi-strip" id="cabos-kpis">
+                            <div class="kpi blue">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-boxes-stacked"></i></span><span class="kpi-badge neutral"></span></div>
+                                <div class="kpi-val" id="cabos-total-produtos"></div>
+                                <div class="kpi-lbl">Produtos Diferentes</div>
+                            </div>
+                            <div class="kpi green">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-cubes"></i></span></div>
+                                <div class="kpi-val" id="cabos-total-qtd"></div>
+                                <div class="kpi-lbl">Quantidade Total Vendida</div>
+                            </div>
+                            <div class="kpi purple">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-coins"></i></span></div>
+                                <div class="kpi-val" id="cabos-total-valor"></div>
+                                <div class="kpi-lbl">Valor Total em Vendas</div>
+                            </div>
+                            <div class="kpi amber">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-file-invoice"></i></span></div>
+                                <div class="kpi-val" id="cabos-total-pedidos"></div>
+                                <div class="kpi-lbl">Total de Pedidos</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-card-head">
+                                <h3><span class="ico" style="background:rgba(59,130,246,0.1);color:#3b82f6"><i class="fas fa-chart-bar"></i></span> Top Cabos por Quantidade Vendida</h3>
+                            </div>
+                            <div class="chart-wrapper"><canvas id="chart-cabos-qtd"></canvas></div>
+                        </div>
+
+                        <div class="table-card">
+                            <div class="table-card-head">
+                                <h3><span class="ico" style="background:rgba(59,130,246,0.1);color:#3b82f6"><i class="fas fa-trophy"></i></span> Ranking Completo de Cabos</h3>
+                                <span class="table-count" id="cabos-count">0 registros</span>
+                            </div>
+                            <div style="overflow-x:auto">
+                                <table class="dtable"><thead><tr>
+                                    <th style="width:50px">#</th><th>Código</th><th>Descrição do Produto</th><th style="text-align:right">Qtd Vendida</th><th>Unid.</th><th style="text-align:right">Valor Total</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Preço Médio</th>
+                                </tr></thead>
+                                <tbody id="tbody-cabos"><tr><td colspan="8"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-chart-bar"></i></div><h4>Nenhum relatório gerado</h4><p>Selecione o período e clique em "Gerar Relatório"</p></div></td></tr></tbody></table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- =============== 2. RANKING DE VENDAS =============== -->
+                    <div class="report-section" id="section-vendas">
+                        <div class="filters-card">
+                            <div class="filter-field"><label>Período Início</label><input type="date" id="vendas-data-inicio"></div>
+                            <div class="filter-field"><label>Período Fim</label><input type="date" id="vendas-data-fim"></div>
+                            <div class="filter-presets">
+                                <button class="preset-btn" onclick="setPreset('vendas','7d')">7 dias</button>
+                                <button class="preset-btn" onclick="setPreset('vendas','30d')">30 dias</button>
+                                <button class="preset-btn active" onclick="setPreset('vendas','ano')">Este Ano</button>
+                            </div>
+                            <button class="btn-gerar" onclick="carregarRankingVendas()"><i class="fas fa-ranking-star"></i> Gerar Relatório</button>
+                        </div>
+
+                        <div class="kpi-strip">
+                            <div class="kpi blue">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-receipt"></i></span></div>
+                                <div class="kpi-val" id="vendas-total-pedidos"></div>
+                                <div class="kpi-lbl">Total de Pedidos</div>
+                            </div>
+                            <div class="kpi green">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-dollar-sign"></i></span></div>
+                                <div class="kpi-val" id="vendas-total-valor"></div>
+                                <div class="kpi-lbl">Faturamento Total</div>
+                            </div>
+                            <div class="kpi purple">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-tags"></i></span></div>
+                                <div class="kpi-val" id="vendas-ticket-medio"></div>
+                                <div class="kpi-lbl">Ticket Médio</div>
+                            </div>
+                            <div class="kpi amber">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-users"></i></span></div>
+                                <div class="kpi-val" id="vendas-total-vendedores"></div>
+                                <div class="kpi-lbl">Vendedores Ativos</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-card-head">
+                                <h3><span class="ico" style="background:rgba(139,92,246,0.1);color:#8b5cf6"><i class="fas fa-chart-line"></i></span> Evolução Mensal de Vendas</h3>
+                            </div>
+                            <div class="chart-wrapper"><canvas id="chart-vendas-evolucao"></canvas></div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="table-card">
+                                <div class="table-card-head">
+                                    <h3><span class="ico" style="background:rgba(59,130,246,0.1);color:#3b82f6"><i class="fas fa-user-tie"></i></span> Ranking por Vendedor</h3>
+                                    <span class="table-count" id="vendedores-count">0</span>
+                                </div>
+                                <div style="overflow-x:auto"><table class="dtable"><thead><tr><th style="width:50px">#</th><th>Vendedor</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Valor Total</th><th style="text-align:right">Ticket Médio</th></tr></thead>
+                                <tbody id="tbody-vendedores"><tr><td colspan="5"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-user-tie"></i></div><h4>Aguardando dados</h4><p>Gere o relatório para visualizar</p></div></td></tr></tbody></table></div>
+                            </div>
+                            <div class="table-card">
+                                <div class="table-card-head">
+                                    <h3><span class="ico" style="background:rgba(16,185,129,0.1);color:#10b981"><i class="fas fa-building"></i></span> Ranking por Cliente</h3>
+                                    <span class="table-count" id="clientes-count">0</span>
+                                </div>
+                                <div style="overflow-x:auto"><table class="dtable"><thead><tr><th style="width:50px">#</th><th>Cliente</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Valor Total</th><th>Últ. Pedido</th></tr></thead>
+                                <tbody id="tbody-clientes"><tr><td colspan="5"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-building"></i></div><h4>Aguardando dados</h4><p>Gere o relatório para visualizar</p></div></td></tr></tbody></table></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- =============== 3. METROS PRODUZIDOS POR DIA =============== -->
+                    <div class="report-section" id="section-metros">
+                        <div class="filters-card">
+                            <div class="filter-field"><label>Período Início</label><input type="date" id="metros-data-inicio"></div>
+                            <div class="filter-field"><label>Período Fim</label><input type="date" id="metros-data-fim"></div>
+                            <div class="filter-presets">
+                                <button class="preset-btn" onclick="setPreset('metros','7d')">7 dias</button>
+                                <button class="preset-btn active" onclick="setPreset('metros','30d')">30 dias</button>
+                                <button class="preset-btn" onclick="setPreset('metros','90d')">90 dias</button>
+                            </div>
+                            <button class="btn-gerar" onclick="carregarMetros()"><i class="fas fa-ruler-combined"></i> Gerar Relatório</button>
+                        </div>
+
+                        <div class="kpi-strip">
+                            <div class="kpi green">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-ruler"></i></span></div>
+                                <div class="kpi-val" id="metros-total-produzido"></div>
+                                <div class="kpi-lbl">Total Produzido</div>
+                                <div class="kpi-desc">unidades / metros</div>
+                            </div>
+                            <div class="kpi blue">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-chart-simple"></i></span></div>
+                                <div class="kpi-val" id="metros-media-diaria"></div>
+                                <div class="kpi-lbl">Média Diária</div>
+                            </div>
+                            <div class="kpi amber">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-arrow-up-right-dots"></i></span></div>
+                                <div class="kpi-val" id="metros-max-dia"></div>
+                                <div class="kpi-lbl">Melhor Dia (Recorde)</div>
+                            </div>
+                            <div class="kpi purple">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-calendar-check"></i></span></div>
+                                <div class="kpi-val" id="metros-dias-producao"></div>
+                                <div class="kpi-lbl">Dias com Produção</div>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-card-head">
+                                <h3><span class="ico" style="background:rgba(16,185,129,0.1);color:#10b981"><i class="fas fa-chart-area"></i></span> Produção Diária  Apontamentos</h3>
+                            </div>
+                            <div class="chart-wrapper"><canvas id="chart-metros-apontamentos"></canvas></div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-card-head">
+                                <h3><span class="ico" style="background:rgba(245,158,11,0.1);color:#f59e0b"><i class="fas fa-chart-bar"></i></span> Metragem por Ordens de Produção</h3>
+                            </div>
+                            <div class="chart-wrapper"><canvas id="chart-metros-ordens"></canvas></div>
+                        </div>
+
+                        <div class="table-card">
+                            <div class="table-card-head">
+                                <h3><span class="ico" style="background:rgba(59,130,246,0.1);color:#3b82f6"><i class="fas fa-table-list"></i></span> Detalhamento Diário de Produção</h3>
+                                <span class="table-count" id="metros-count">0 dias</span>
+                            </div>
+                            <div style="overflow-x:auto"><table class="dtable"><thead><tr><th>Data</th><th style="text-align:right">Qtd Produzida</th><th style="text-align:right">Apontamentos</th><th style="text-align:right">Tempo (min)</th><th>Máquinas</th><th>Operadores</th></tr></thead>
+                            <tbody id="tbody-metros"><tr><td colspan="6"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-industry"></i></div><h4>Aguardando dados</h4><p>Gere o relatório para visualizar a produção diária</p></div></td></tr></tbody></table></div>
+                        </div>
+                    </div>
+
+                    <!-- =============== 4. FATURAMENTO MENSAL =============== -->
+                    <div class="report-section" id="section-faturamento">
+                        <div class="filters-card">
+                            <div class="filter-field"><label>Ano de Referência</label><select id="faturamento-ano"></select></div>
+                            <button class="btn-gerar" onclick="carregarFaturamento()"><i class="fas fa-money-bill-trend-up"></i> Gerar Relatório</button>
+                        </div>
+
+                        <div class="kpi-strip">
+                            <div class="kpi green">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-sack-dollar"></i></span></div>
+                                <div class="kpi-val" id="fat-total-ano"></div>
+                                <div class="kpi-lbl">Faturamento do Ano</div>
+                            </div>
+                            <div class="kpi blue">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-file-invoice-dollar"></i></span></div>
+                                <div class="kpi-val" id="fat-total-pedidos"></div>
+                                <div class="kpi-lbl">Total de Pedidos Faturados</div>
+                            </div>
+                            <div class="kpi purple">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-tags"></i></span></div>
+                                <div class="kpi-val" id="fat-ticket-medio"></div>
+                                <div class="kpi-lbl">Ticket Médio por Pedido</div>
+                            </div>
+                            <div class="kpi amber">
+                                <div class="kpi-top"><span class="kpi-icon"><i class="fas fa-scale-balanced"></i></span></div>
+                                <div class="kpi-val" id="fat-variacao"></div>
+                                <div class="kpi-lbl">Faturamento Ano Anterior</div>
+                                <div class="kpi-badge neutral" id="fat-variacao-badge" style="display:none"><i class="fas fa-arrow-up"></i> <span></span></div>
+                            </div>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="chart-card-head">
+                                <h3><span class="ico" style="background:rgba(59,130,246,0.1);color:#3b82f6"><i class="fas fa-chart-column"></i></span> Faturamento Mensal  Visão Anual</h3>
+                            </div>
+                            <div class="chart-wrapper"><canvas id="chart-faturamento"></canvas></div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="table-card">
+                                <div class="table-card-head">
+                                    <h3><span class="ico" style="background:rgba(59,130,246,0.1);color:#3b82f6"><i class="fas fa-calendar-days"></i></span> Faturamento por Mês</h3>
+                                </div>
+                                <div style="overflow-x:auto"><table class="dtable"><thead><tr><th>Mês</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Valor Total</th><th style="text-align:right">Ticket Médio</th><th style="width:120px">% do Total</th></tr></thead>
+                                <tbody id="tbody-faturamento-meses"><tr><td colspan="5"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-calendar"></i></div><h4>Aguardando dados</h4><p>Selecione o ano e gere o relatório</p></div></td></tr></tbody></table></div>
+                            </div>
+                            <div class="table-card">
+                                <div class="table-card-head">
+                                    <h3><span class="ico" style="background:rgba(245,158,11,0.1);color:#f59e0b"><i class="fas fa-trophy"></i></span> Top Clientes do Ano</h3>
+                                    <span class="table-count" id="fat-clientes-count">0</span>
+                                </div>
+                                <div style="overflow-x:auto"><table class="dtable"><thead><tr><th style="width:50px">#</th><th>Cliente</th><th style="text-align:right">Pedidos</th><th style="text-align:right">Valor Total</th></tr></thead>
+                                <tbody id="tbody-faturamento-clientes"><tr><td colspan="4"><div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-trophy"></i></div><h4>Aguardando dados</h4><p>Gere o relatório para visualizar</p></div></td></tr></tbody></table></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </main>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1" integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
+    <script src="../js/pcp-common.js"></script>
+    <script>
+    /* ============================= GLOBALS ============================= */
+    var API = getAPIBase();
+    var MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    var MESES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    var charts = {};
+    var lastData = {};
+
+    function hdrs() {
+        var h = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        if (t && t !== 'null' && t !== 'undefined') h['Authorization'] = 'Bearer ' + t;
+        return h;
+    }
+
+    /* ============================= UI HELPERS ============================= */
+    function rankBadge(i) {
+        var n = i + 1;
+        if (n === 1) return '<span class="rank-badge gold"><i class="fas fa-crown" style="font-size:11px"></i></span>';
+        if (n === 2) return '<span class="rank-badge silver">' + n + '</span>';
+        if (n === 3) return '<span class="rank-badge bronze">' + n + '</span>';
+        return '<span class="rank-badge plain">' + n + '</span>';
+    }
+
+    function trocarRelatorio(tipo) {
+        document.querySelectorAll('.report-tab').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.report-section').forEach(function(s) { s.classList.remove('active'); });
+        document.querySelector('[data-report="' + tipo + '"]').classList.add('active');
+        document.getElementById('section-' + tipo).classList.add('active');
+    }
+
+    function setPreset(rel, preset) {
+        var hoje = new Date();
+        var fim = hoje.toISOString().slice(0, 10);
+        var inicio;
+        if (preset === '7d') inicio = new Date(hoje.getTime() - 7*86400000).toISOString().slice(0,10);
+        else if (preset === '30d') inicio = new Date(hoje.getTime() - 30*86400000).toISOString().slice(0,10);
+        else if (preset === '90d') inicio = new Date(hoje.getTime() - 90*86400000).toISOString().slice(0,10);
+        else inicio = hoje.getFullYear() + '-01-01';
+        document.getElementById(rel + '-data-inicio').value = inicio;
+        document.getElementById(rel + '-data-fim').value = fim;
+        /* Highlight active preset */
+        var card = document.getElementById('section-' + rel).querySelector('.filters-card');
+        card.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+        event.target.classList.add('active');
+    }
+
+    function emptyHTML(icon, title, desc) {
+        return '<div class="empty-state-pro"><div class="empty-icon"><i class="fas fa-' + icon + '"></i></div><h4>' + title + '</h4><p>' + desc + '</p></div>';
+    }
+
+    function destroyChart(name) { if (charts[name]) { charts[name].destroy(); charts[name] = null; } }
+
+    /* Chart.js global defaults */
+    Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+    Chart.defaults.font.size = 12;
+    Chart.defaults.color = '#6b7280';
+    Chart.defaults.plugins.tooltip.backgroundColor = '#1e293b';
+    Chart.defaults.plugins.tooltip.titleFont = { weight: '600', size: 13 };
+    Chart.defaults.plugins.tooltip.bodyFont = { size: 12 };
+    Chart.defaults.plugins.tooltip.padding = 12;
+    Chart.defaults.plugins.tooltip.cornerRadius = 10;
+    Chart.defaults.plugins.tooltip.displayColors = true;
+    Chart.defaults.plugins.tooltip.boxPadding = 4;
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+    Chart.defaults.plugins.legend.labels.padding = 16;
+
+    /* ============================= CSV EXPORT ============================= */
+    function exportarCSV() {
+        var activeSection = document.querySelector('.report-section.active');
+        if (!activeSection) return;
+        var table = activeSection.querySelector('.dtable');
+        if (!table) { showToast('Nenhuma tabela para exportar', 'warning'); return; }
+        var rows = table.querySelectorAll('tr');
+        var csv = '\uFEFF'; /* BOM for Excel */
+        rows.forEach(function(row) {
+            var cols = row.querySelectorAll('th, td');
+            var rowData = [];
+            cols.forEach(function(col) { rowData.push('"' + col.textContent.trim().replace(/"/g, '""') + '"'); });
+            csv += rowData.join(';') + '\n';
+        });
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        var tipo = activeSection.id.replace('section-', '');
+        link.download = 'relatorio_pcp_' + tipo + '_' + new Date().toISOString().slice(0,10) + '.csv';
+        link.click();
+        showToast('CSV exportado com sucesso!', 'success');
+    }
+
+    /* ============================= 1. CABOS MAIS VENDIDOS ============================= */
+    async function carregarCabos(silent) {
+        var di = document.getElementById('cabos-data-inicio').value;
+        var df = document.getElementById('cabos-data-fim').value;
+        var lim = document.getElementById('cabos-limit').value;
+        var p = new URLSearchParams();
+        if (di) p.append('data_inicio', di);
+        if (df) p.append('data_fim', df);
+        p.append('limit', lim);
+        showLoading('Gerando relatório de cabos mais vendidos...');
+        try {
+            var r = await fetch(API + '/api/pcp/relatorios/cabos-mais-vendidos?' + p.toString(), { credentials: 'include', headers: hdrs() });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var data = await r.json();
+            hideLoading();
+            lastData.cabos = data;
+            renderCabos(data);
+            if (!silent) showToast('Relatório gerado com sucesso', 'success');
+        } catch (e) { hideLoading(); showToast('Erro: ' + e.message, 'error'); }
+    }
+
+    function renderCabos(data) {
+        var res = data.resumo || {};
+        document.getElementById('cabos-total-produtos').textContent = res.total_produtos_vendidos || '0';
+        document.getElementById('cabos-total-qtd').textContent = (parseFloat(res.quantidade_total) || 0).toLocaleString('pt-BR');
+        document.getElementById('cabos-total-valor').textContent = formatarMoeda(res.valor_total || 0);
+        document.getElementById('cabos-total-pedidos').textContent = res.total_pedidos || '0';
+
+        var items = (data.ranking_por_quantidade && data.ranking_por_quantidade.length > 0) ? data.ranking_por_quantidade : data.ordens_producao || [];
+        document.getElementById('cabos-count').textContent = items.length + ' registros';
+
+        /* Chart */
+        destroyChart('cabos');
+        var top = items.slice(0, 10);
+        var lbls = top.map(function(i) { var d = i.descricao || i.produto_nome || i.codigo || 'N/A'; return d.length > 35 ? d.substring(0,35) + '' : d; });
+        var vals = top.map(function(i) { return parseFloat(i.total_quantidade) || 0; });
+        var maxVal = Math.max.apply(null, vals) || 1;
+        var colors = top.map(function(_, idx) { var o = 1 - (idx * 0.07); return 'rgba(59,130,246,' + o.toFixed(2) + ')'; });
+
+        charts.cabos = new Chart(document.getElementById('chart-cabos-qtd').getContext('2d'), {
+            type: 'bar',
+            data: { labels: lbls, datasets: [{ label: 'Quantidade Vendida', data: vals, backgroundColor: colors, borderColor: 'rgba(59,130,246,1)', borderWidth: 0, borderRadius: 8, borderSkipped: false }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return '  Quantidade: ' + ctx.raw.toLocaleString('pt-BR'); } } } },
+                scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false }, ticks: { font: { weight: '500' } } }, y: { grid: { display: false }, ticks: { font: { size: 12, weight: '500' }, color: '#374151' } } }
+            }
+        });
+
+        /* Table */
+        var tbody = document.getElementById('tbody-cabos');
+        if (items.length === 0) { tbody.innerHTML = '<tr><td colspan="8">' + emptyHTML('inbox', 'Nenhum dado encontrado', 'Não há registros de vendas para o período selecionado') + '</td></tr>'; return; }
+        var html = '';
+        items.forEach(function(item, idx) {
+            var pct = maxVal > 0 ? ((parseFloat(item.total_quantidade) || 0) / maxVal * 100) : 0;
+            html += '<tr>';
+            html += '<td>' + rankBadge(idx) + '</td>';
+            html += '<td class="mono">' + (item.codigo || item.codigo_produto || '') + '</td>';
+            html += '<td class="product-name">' + (item.descricao || item.produto_nome || '') + '</td>';
+            html += '<td style="text-align:right"><div class="progress-bar-cell"><span class="money">' + (parseFloat(item.total_quantidade) || 0).toLocaleString('pt-BR') + '</span><div class="progress-mini"><div class="fill" style="width:' + pct.toFixed(0) + '%;background:linear-gradient(90deg,#3b82f6,#60a5fa)"></div></div></div></td>';
+            html += '<td>' + (item.unidade || '') + '</td>';
+            html += '<td style="text-align:right" class="money">' + formatarMoeda(item.total_valor || 0) + '</td>';
+            html += '<td style="text-align:right">' + (item.total_pedidos || item.total_ordens || '') + '</td>';
+            html += '<td style="text-align:right" class="money">' + formatarMoeda(item.preco_medio || 0) + '</td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    /* ============================= 2. RANKING DE VENDAS ============================= */
+    async function carregarRankingVendas(silent) {
+        var di = document.getElementById('vendas-data-inicio').value;
+        var df = document.getElementById('vendas-data-fim').value;
+        var p = new URLSearchParams();
+        if (di) p.append('data_inicio', di);
+        if (df) p.append('data_fim', df);
+        showLoading('Gerando ranking de vendas...');
+        try {
+            var r = await fetch(API + '/api/pcp/relatorios/ranking-vendas?' + p.toString(), { credentials: 'include', headers: hdrs() });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var data = await r.json();
+            hideLoading();
+            lastData.vendas = data;
+            renderVendas(data);
+            if (!silent) showToast('Ranking gerado com sucesso', 'success');
+        } catch (e) { hideLoading(); showToast('Erro: ' + e.message, 'error'); }
+    }
+
+    function renderVendas(data) {
+        var t = data.totais || {};
+        document.getElementById('vendas-total-pedidos').textContent = t.total_pedidos || '0';
+        document.getElementById('vendas-total-valor').textContent = formatarMoeda(t.valor_total || 0);
+        document.getElementById('vendas-ticket-medio').textContent = formatarMoeda(t.ticket_medio || 0);
+        document.getElementById('vendas-total-vendedores').textContent = t.total_vendedores || '0';
+
+        /* Evolution Chart */
+        destroyChart('vendasEvolucao');
+        var evol = data.evolucao_mensal || [];
+        var le = evol.map(function(e) { var p = e.mes.split('-'); return MESES_ABR[parseInt(p[1])-1] + '/' + p[0].slice(2); });
+        var ve = evol.map(function(e) { return parseFloat(e.valor_total) || 0; });
+        var pe = evol.map(function(e) { return e.total_pedidos || 0; });
+
+        charts.vendasEvolucao = new Chart(document.getElementById('chart-vendas-evolucao').getContext('2d'), {
+            type: 'line',
+            data: { labels: le, datasets: [
+                { label: 'Valor Total (R$)', data: ve, borderColor: '#8b5cf6', backgroundColor: function(ctx) { var g = ctx.chart.ctx.createLinearGradient(0,0,0,350); g.addColorStop(0,'rgba(139,92,246,0.15)'); g.addColorStop(1,'rgba(139,92,246,0)'); return g; }, fill: true, tension: 0.4, borderWidth: 3, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#fff', pointBorderColor: '#8b5cf6', pointBorderWidth: 2, yAxisID: 'y' },
+                { label: 'Nº Pedidos', data: pe, borderColor: '#10b981', backgroundColor: 'transparent', fill: false, tension: 0.4, borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#10b981', borderDash: [5,3], yAxisID: 'y1' }
+            ] },
+            options: {
+                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: { type: 'linear', position: 'left', beginAtZero: true, ticks: { callback: function(v) { return 'R$ ' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v); } }, grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false } },
+                    y1: { type: 'linear', position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        /* Vendedores */
+        var vend = data.por_vendedor || [];
+        document.getElementById('vendedores-count').textContent = vend.length;
+        var tbV = document.getElementById('tbody-vendedores');
+        if (!vend.length) { tbV.innerHTML = '<tr><td colspan="5">' + emptyHTML('user-tie','Nenhum vendedor','Sem dados para o período') + '</td></tr>'; }
+        else {
+            var maxV = parseFloat(vend[0].valor_total) || 1;
+            var h = '';
+            vend.forEach(function(v, i) {
+                h += '<tr><td>' + rankBadge(i) + '</td><td class="product-name">' + (v.vendedor || '') + '</td><td style="text-align:right">' + (v.total_pedidos || 0) + '</td><td style="text-align:right" class="money">' + formatarMoeda(v.valor_total || 0) + '</td><td style="text-align:right">' + formatarMoeda(v.ticket_medio || 0) + '</td></tr>';
+            });
+            tbV.innerHTML = h;
+        }
+
+        /* Clientes */
+        var cli = data.por_cliente || [];
+        document.getElementById('clientes-count').textContent = cli.length;
+        var tbC = document.getElementById('tbody-clientes');
+        if (!cli.length) { tbC.innerHTML = '<tr><td colspan="5">' + emptyHTML('building','Nenhum cliente','Sem dados para o período') + '</td></tr>'; }
+        else {
+            var hc = '';
+            cli.forEach(function(c, i) {
+                hc += '<tr><td>' + rankBadge(i) + '</td><td class="product-name">' + (c.cliente || '') + '</td><td style="text-align:right">' + (c.total_pedidos || 0) + '</td><td style="text-align:right" class="money">' + formatarMoeda(c.valor_total || 0) + '</td><td>' + formatarData(c.ultimo_pedido) + '</td></tr>';
+            });
+            tbC.innerHTML = hc;
+        }
+    }
+
+    /* ============================= 3. METROS PRODUZIDOS ============================= */
+    async function carregarMetros(silent) {
+        var di = document.getElementById('metros-data-inicio').value;
+        var df = document.getElementById('metros-data-fim').value;
+        var p = new URLSearchParams();
+        if (di) p.append('data_inicio', di);
+        if (df) p.append('data_fim', df);
+        showLoading('Gerando relatório de produção...');
+        try {
+            var r = await fetch(API + '/api/pcp/relatorios/metros-produzidos?' + p.toString(), { credentials: 'include', headers: hdrs() });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var data = await r.json();
+            hideLoading();
+            lastData.metros = data;
+            renderMetros(data);
+            if (!silent) showToast('Relatório gerado com sucesso', 'success');
+        } catch (e) { hideLoading(); showToast('Erro: ' + e.message, 'error'); }
+    }
+
+    function renderMetros(data) {
+        var ra = data.resumo_apontamentos || {};
+        var ro = data.resumo_ordens || {};
+        document.getElementById('metros-total-produzido').textContent = (parseFloat(ra.total_produzido) || parseFloat(ro.total_quantidade) || 0).toLocaleString('pt-BR');
+        document.getElementById('metros-media-diaria').textContent = (parseFloat(ra.media_diaria) || 0).toLocaleString('pt-BR', {maximumFractionDigits:1});
+        document.getElementById('metros-max-dia').textContent = (parseFloat(ra.max_dia) || 0).toLocaleString('pt-BR');
+        document.getElementById('metros-dias-producao').textContent = ra.dias_com_producao || '0';
+
+        /* Apontamentos chart */
+        destroyChart('metrosApt');
+        var apt = data.apontamentos_diarios || [];
+        if (apt.length > 0) {
+            charts.metrosApt = new Chart(document.getElementById('chart-metros-apontamentos').getContext('2d'), {
+                type: 'line',
+                data: { labels: apt.map(function(a){ return formatarData(a.data); }), datasets: [{
+                    label: 'Quantidade Produzida', data: apt.map(function(a){ return parseFloat(a.quantidade_produzida)||0; }),
+                    borderColor: '#10b981', backgroundColor: function(ctx){ var g=ctx.chart.ctx.createLinearGradient(0,0,0,350); g.addColorStop(0,'rgba(16,185,129,0.2)'); g.addColorStop(1,'rgba(16,185,129,0)'); return g; },
+                    fill: true, tension: 0.4, borderWidth: 3, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#fff', pointBorderColor: '#10b981', pointBorderWidth: 2
+                }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false } }, x: { grid: { display: false }, ticks: { maxRotation: 45 } } } }
+            });
+        }
+
+        /* Ordens chart */
+        destroyChart('metrosOrd');
+        var ord = data.ordens_por_dia || [];
+        if (ord.length > 0) {
+            charts.metrosOrd = new Chart(document.getElementById('chart-metros-ordens').getContext('2d'), {
+                type: 'bar',
+                data: { labels: ord.map(function(o){ return formatarData(o.data); }), datasets: [
+                    { label: 'Metragem (m)', data: ord.map(function(o){ return parseFloat(o.total_metragem)||0; }), backgroundColor: 'rgba(245,158,11,0.7)', borderColor: '#f59e0b', borderWidth: 0, borderRadius: 6, yAxisID: 'y' },
+                    { label: 'Quantidade', data: ord.map(function(o){ return parseFloat(o.total_quantidade)||0; }), backgroundColor: 'rgba(59,130,246,0.6)', borderColor: '#3b82f6', borderWidth: 0, borderRadius: 6, yAxisID: 'y1' }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { type:'linear', position:'left', beginAtZero:true, title:{display:true,text:'Metragem (m)',font:{weight:'600'}}, grid:{color:'rgba(0,0,0,0.04)',drawBorder:false} }, y1: { type:'linear', position:'right', beginAtZero:true, title:{display:true,text:'Quantidade',font:{weight:'600'}}, grid:{drawOnChartArea:false} }, x: { grid:{display:false}, ticks:{maxRotation:45} } } }
+            });
+        }
+
+        /* Table */
+        var allDays = apt.length > 0 ? apt : ord;
+        document.getElementById('metros-count').textContent = allDays.length + ' dias';
+        var tbody = document.getElementById('tbody-metros');
+        if (!allDays.length) { tbody.innerHTML = '<tr><td colspan="6">' + emptyHTML('industry','Nenhuma produção registrada','Não há apontamentos ou ordens para o período') + '</td></tr>'; return; }
+        var html = '';
+        allDays.forEach(function(d) {
+            html += '<tr><td><strong>' + formatarData(d.data) + '</strong></td>';
+            html += '<td style="text-align:right" class="money">' + (parseFloat(d.quantidade_produzida || d.total_quantidade || 0)).toLocaleString('pt-BR') + '</td>';
+            html += '<td style="text-align:right">' + (d.total_apontamentos || d.total_ordens || '') + '</td>';
+            html += '<td style="text-align:right">' + (d.tempo_total_min ? parseFloat(d.tempo_total_min).toLocaleString('pt-BR') + ' min' : '') + '</td>';
+            html += '<td>' + (d.maquinas || d.produtos || '') + '</td>';
+            html += '<td>' + (d.operadores || '') + '</td></tr>';
+        });
+        tbody.innerHTML = html;
+    }
+
+    /* ============================= 4. FATURAMENTO MENSAL ============================= */
+    async function carregarFaturamento(silent) {
+        var ano = document.getElementById('faturamento-ano').value;
+        var p = new URLSearchParams(); p.append('ano', ano);
+        showLoading('Gerando relatório de faturamento...');
+        try {
+            var r = await fetch(API + '/api/pcp/relatorios/faturamento-mensal?' + p.toString(), { credentials: 'include', headers: hdrs() });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            var data = await r.json();
+            hideLoading();
+            lastData.faturamento = data;
+            renderFaturamento(data);
+            if (!silent) showToast('Relatório gerado com sucesso', 'success');
+        } catch (e) { hideLoading(); showToast('Erro: ' + e.message, 'error'); }
+    }
+
+    function renderFaturamento(data) {
+        var res = data.resumo || {};
+        document.getElementById('fat-total-ano').textContent = formatarMoeda(res.valor_total_ano || 0);
+        document.getElementById('fat-total-pedidos').textContent = res.total_pedidos_ano || '0';
+        var tAno = parseFloat(res.valor_total_ano) || 0;
+        var tPed = parseInt(res.total_pedidos_ano) || 0;
+        document.getElementById('fat-ticket-medio').textContent = formatarMoeda(tPed > 0 ? tAno / tPed : 0);
+
+        var variacao = parseFloat(res.variacao_percentual) || 0;
+        document.getElementById('fat-variacao').textContent = formatarMoeda(res.valor_ano_anterior || 0);
+        var badge = document.getElementById('fat-variacao-badge');
+        if (variacao !== 0) {
+            badge.style.display = 'inline-flex';
+            badge.className = 'kpi-badge ' + (variacao >= 0 ? 'up' : 'down');
+            badge.querySelector('i').className = 'fas fa-arrow-' + (variacao >= 0 ? 'up' : 'down');
+            badge.querySelector('span').textContent = (variacao >= 0 ? '+' : '') + variacao.toFixed(1) + '%';
+        } else { badge.style.display = 'none'; }
+
+        /* Chart */
+        destroyChart('faturamento');
+        var fm = data.faturamento_mensal || [];
+        var fp = data.faturamento_pedidos || [];
+        var mD = new Array(12).fill(0), mP = new Array(12).fill(0);
+        fm.forEach(function(f) { mD[f.mes_num-1] = parseFloat(f.valor_total)||0; mP[f.mes_num-1] = f.total_pedidos||0; });
+        fp.forEach(function(f) { if (!mD[f.mes_num-1]) mD[f.mes_num-1] = parseFloat(f.valor_total)||0; if (!mP[f.mes_num-1]) mP[f.mes_num-1] = f.total_pedidos||0; });
+
+        charts.faturamento = new Chart(document.getElementById('chart-faturamento').getContext('2d'), {
+            type: 'bar',
+            data: { labels: MESES_ABR, datasets: [
+                { label: 'Faturamento (R$)', data: mD, backgroundColor: function(ctx){ var g=ctx.chart.ctx.createLinearGradient(0,0,0,350); g.addColorStop(0,'rgba(59,130,246,0.85)'); g.addColorStop(1,'rgba(59,130,246,0.4)'); return g; }, borderColor: '#3b82f6', borderWidth: 0, borderRadius: 8, borderSkipped: false, yAxisID: 'y' },
+                { label: 'Nº Pedidos', type: 'line', data: mP, borderColor: '#f59e0b', backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#fff', pointBorderColor: '#f59e0b', pointBorderWidth: 2, tension: 0.4, yAxisID: 'y1' }
+            ] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { type:'linear', position:'left', beginAtZero:true, ticks: { callback: function(v) { return 'R$ ' + (v>=1000 ? (v/1000).toFixed(0)+'k' : v); } }, grid: { color:'rgba(0,0,0,0.04)', drawBorder:false } },
+                    y1: { type:'linear', position:'right', beginAtZero:true, grid: { drawOnChartArea:false } },
+                    x: { grid: { display:false } }
+                }
+            }
+        });
+
+        /* Table Meses */
+        var tbM = document.getElementById('tbody-faturamento-meses');
+        var allM = fm.length > 0 ? fm : fp;
+        var totalGeral = mD.reduce(function(a,b){ return a+b; }, 0) || 1;
+        if (!allM.length) { tbM.innerHTML = '<tr><td colspan="5">' + emptyHTML('calendar','Nenhum faturamento','Sem dados para o ano selecionado') + '</td></tr>'; }
+        else {
+            var hm = '';
+            allM.forEach(function(m) {
+                var val = parseFloat(m.valor_total) || 0;
+                var pct = (val / totalGeral * 100);
+                var barColor = pct > 15 ? '#10b981' : pct > 8 ? '#3b82f6' : '#94a3b8';
+                hm += '<tr>';
+                hm += '<td><strong>' + MESES[m.mes_num-1] + '</strong></td>';
+                hm += '<td style="text-align:right">' + (m.total_pedidos||0) + '</td>';
+                hm += '<td style="text-align:right" class="money">' + formatarMoeda(val) + '</td>';
+                hm += '<td style="text-align:right">' + formatarMoeda(m.ticket_medio||0) + '</td>';
+                hm += '<td><div class="progress-bar-cell"><span style="font-size:12px;font-weight:600;color:var(--gray-500);min-width:35px">' + pct.toFixed(1) + '%</span><div class="progress-mini"><div class="fill" style="width:' + pct.toFixed(0) + '%;background:' + barColor + '"></div></div></div></td>';
+                hm += '</tr>';
+            });
+            tbM.innerHTML = hm;
+        }
+
+        /* Top Clientes */
+        var topC = data.top_clientes || [];
+        document.getElementById('fat-clientes-count').textContent = topC.length;
+        var tbC = document.getElementById('tbody-faturamento-clientes');
+        if (!topC.length) { tbC.innerHTML = '<tr><td colspan="4">' + emptyHTML('trophy','Nenhum cliente','Sem dados para o ano') + '</td></tr>'; }
+        else {
+            var hc = '';
+            topC.forEach(function(c, i) {
+                hc += '<tr><td>' + rankBadge(i) + '</td><td class="product-name">' + (c.cliente || '') + '</td><td style="text-align:right">' + (c.total_pedidos||0) + '</td><td style="text-align:right" class="money">' + formatarMoeda(c.valor_total||0) + '</td></tr>';
+            });
+            tbC.innerHTML = hc;
+        }
+    }
+
+    /* ============================= INIT ============================= */
+    document.addEventListener('DOMContentLoaded', function() {
+        atualizarSaudacao();
+
+        var hoje = new Date();
+        var fim = hoje.toISOString().slice(0,10);
+        var inicio30 = new Date(hoje.getTime() - 30*86400000).toISOString().slice(0,10);
+        var inicioAno = hoje.getFullYear() + '-01-01';
+
+        document.getElementById('cabos-data-inicio').value = inicioAno;
+        document.getElementById('cabos-data-fim').value = fim;
+        document.getElementById('vendas-data-inicio').value = inicioAno;
+        document.getElementById('vendas-data-fim').value = fim;
+        document.getElementById('metros-data-inicio').value = inicio30;
+        document.getElementById('metros-data-fim').value = fim;
+
+        var sel = document.getElementById('faturamento-ano');
+        var anoAt = hoje.getFullYear();
+        for (var a = anoAt; a >= anoAt - 5; a--) {
+            var opt = document.createElement('option');
+            opt.value = a; opt.textContent = a;
+            if (a === anoAt) opt.selected = true;
+            sel.appendChild(opt);
+        }
+
+        /* Auto-load first report (silent = no toast) */
+        carregarCabos(true);
+    });
+    </script>
+    <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+</body>
+</html>

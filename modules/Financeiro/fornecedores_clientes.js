@@ -17,10 +17,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 // ===== CARREGAR DADOS =====
 async function carregarDados() {
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const [respFornecedores, respClientes] = await Promise.all([
-            fetch('/api/financeiro/fornecedores', { headers: { 'Authorization': `Bearer ${token}` } }),
-            fetch('/api/financeiro/clientes', { headers: { 'Authorization': `Bearer ${token}` } })
+            fetch('/api/financeiro/fornecedores', { credentials: 'include' }),
+            fetch('/api/financeiro/clientes', { credentials: 'include' })
         ]);
         
         if (respFornecedores.ok) {
@@ -207,13 +206,13 @@ async function salvarEntidade(event) {
     };
     
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const endpoint = tipo === 'fornecedor' ? 'fornecedores' : 'clientes';
         const url = isEdicao ? `/api/financeiro/${endpoint}/${id}` : `/api/financeiro/${endpoint}`;
         const method = isEdicao ? 'PUT' : 'POST';
         const response = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dados)
         });
         
@@ -240,11 +239,9 @@ async function excluir(id, tipo) {
     if (!confirm(`Deseja realmente excluir este ${tipoTexto}?`)) return;
     
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const endpoint = tipo === 'fornecedores' ? 'fornecedores' : 'clientes';
-        const response = await fetch(`/api/financeiro/${endpoint}/${id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
+        const response = await fetch(`/api/financeiro/${endpoint}/${id}`, { credentials: 'include', method: 'DELETE',
+            credentials: 'include'
         });
         
         if (!response.ok) throw new Error('Erro ao excluir');

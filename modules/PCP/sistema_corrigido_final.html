@@ -1,0 +1,331 @@
+﻿ï»¿    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar-pcp">
+            <a href="/dashboard" class="sidebar-logo" title="Painel Principal">
+                <i class="fas fa-home"></i>
+            </a>
+            
+            <div class="sidebar-nav-pcp">
+                <a href="index.html" class="sidebar-btn" title="Dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                </a>
+                <a href="index.html" class="sidebar-btn active" title="Produtos e Estoque" onclick="localStorage.setItem('pcp-view','produtos')">
+                    <i class="fas fa-boxes"></i>
+                </a>
+                <a href="index.html" class="sidebar-btn" title="Ordem de Compra" onclick="localStorage.setItem('pcp-view','ordem-compra')">
+                    <i class="fas fa-shopping-cart"></i>
+                </a>
+                <a href="ordens-producao.html" class="sidebar-btn" title="Ordens de Produção">
+                    <i class="fas fa-clipboard-list"></i>
+                </a>
+                <a href="index.html" class="sidebar-btn" title="Programação de Faturamento" onclick="localStorage.setItem('pcp-view','faturamento')">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </a>
+            </div>
+            
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Area -->
+        <div class="main-area-pcp">
+            <!-- Header -->
+            <header class="header-pcp">
+                <div class="header-left">
+                    <div class="header-brand">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE">
+                        <span>|</span>
+                        <span>PCP - Sistema Corrigido</span>
+                    </div>
+                </div>
+                
+                <div class="header-right">
+                    <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button class="header-btn" title="Notificações">
+                        <i class="fas fa-bell"></i>
+                    </button>
+                    
+                    <div class="user-greeting">
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                    </div>
+                    
+                    <div class="user-avatar" id="user-avatar">
+                        <img src="/avatars/default.webp" alt="" id="user-photo">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Conteúdo da Página -->
+            <div class="content">
+                <!-- Seção de Produtos -->
+                <div id="produtos-section" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-box"></i> Produtos Cadastrados</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="estoque-produtos" class="produtos-container">
+                                <div class="loading-state">
+                                    <i class="fas fa-spinner fa-spin"></i> Carregando produtos...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- Fecha main-area-pcp -->
+    </div> <!-- Fecha app-container -->
+
+    <!-- Scripts com cache-busting extremo -->
+    <script src="pcp_modern.js?v=10.0&timestamp=1727979000&force=true"></script>
+    <script src="pcp.js?v=15.0&timestamp=1727979000&force=true"></script>
+    
+    <script>
+        // configuração global
+        window.API_BASE_URL = '/api/pcp';
+        window.containers = {
+            produtos: document.getElementById('estoque-produtos')
+        };
+
+        // Função para carregar Seção de produtos
+        async function carregarSecaoProdutos() {
+            console.log('ð Carregando Seção de produtos...');
+            
+            // Atualizar Navegação
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelector('[data-section="produtos"]').classList.add('active');
+            
+            // Carregar produtos
+            if (typeof carregarProdutos === 'function') {
+                await carregarProdutos(1, 20);
+                console.log('â Produtos carregados');
+            } else {
+                console.error('â Função carregarProdutos não encontrada');
+                carregarProdutosManual();
+            }
+        }
+
+        // Função para carregar Seção de materiais
+        async function carregarSecaoMateriais() {
+            console.log('ð Carregando Seção de materiais...');
+            
+            // Atualizar Navegação
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelector('[data-section="materiais"]').classList.add('active');
+            
+            // Carregar materiais (usa mesma Função que produtos)
+            if (typeof carregarProdutos === 'function') {
+                await carregarProdutos(1, 20);
+                console.log('â Materiais carregados');
+            } else {
+                console.error('â Função carregarProdutos não encontrada');
+                carregarProdutosManual();
+            }
+        }
+
+        // Função manual para carregar produtos (fallback)
+        async function carregarProdutosManual() {
+            try {
+                console.log('ð Carregando produtos manualmente...');
+                
+                const response = await fetch('/api/pcp/produtos?limit=20');
+                if (!response.ok) {
+                    throw new Error(`Erro na API: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const produtos = data.rows || [];
+                const total = data.total || 0;
+                
+                console.log(`ð Carregados ${produtos.length} produtos de ${total} total`);
+                
+                if (produtos.length === 0) {
+                    containers.produtos.innerHTML = '<div class="loading-state">ð­ Nenhum produto encontrado</div>';
+                    return;
+                }
+                
+                const html = `
+                    <div class="info-line">Mostrando 1–${produtos.length} de ${total} produtos</div>
+                    <table class="estoque-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Descrição</th>
+                                <th>SKU</th>
+                                <th>GTIN</th>
+                                <th>Unidade</th>
+                                <th class="text-center">Estoque</th>
+                                <th>Variações</th>
+                                <th>Custo Unit.</th>
+                                <th class="text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${produtos.map(p => {
+                                const codigo = p.codigo || '';
+                                const descricao = p.nome || p.descricao || '';
+                                const sku = p.sku || '';
+                                const gtin = p.gtin || '';
+                                const unidade = p.unidade_medida || p.unidade || '';
+                                const estoque = Number(p.quantidade || 0).toFixed(2);
+                                const custo = Number(p.custo_unitario || 0).toFixed(2);
+                                
+                                // Processar variações
+                                let variacoes = [];
+                                try {
+                                    if (Array.isArray(p.variacao)) {
+                                        variacoes = p.variacao;
+                                    } else if (typeof p.variacao === 'string' && p.variacao.trim().startsWith('[')) {
+                                        variacoes = JSON.parse(p.variacao);
+                                    } else if (typeof p.variacao === 'string') {
+                                        variacoes = p.variacao.split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+                                    }
+                                } catch (e) {
+                                    variacoes = [];
+                                }
+                                
+                                const variacaoHtml = variacoes.length ? 
+                                    variacoes.map(v => `<span class="var-badge">${v}</span>`).join('') : 
+                                    '';
+                                
+                                return `
+                                    <tr data-id="${p.id}">
+                                        <td><strong>${codigo}</strong></td>
+                                        <td>${descricao}</td>
+                                        <td><span class="sku-badge">${sku || '-'}</span></td>
+                                        <td><span class="gtin-text">${gtin || '-'}</span></td>
+                                        <td>${unidade}</td>
+                                        <td class="text-center"><span class="estoque-number">${estoque}</span></td>
+                                        <td>${variacaoHtml}</td>
+                                        <td>R$ ${custo}</td>
+                                        <td class="text-center">
+                                            <button class="btn-editar-prod" data-id="${p.id}" onclick="editarProduto(${p.id})">
+                                                Editar
+                                            </button>
+                                            <button class="btn-excluir-prod" data-id="${p.id}" onclick="excluirProduto(${p.id})">
+                                                Excluir
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `;
+                
+                containers.produtos.innerHTML = html;
+                console.log('â Tabela renderizada com sucesso');
+                
+            } catch (error) {
+                console.error('â Erro ao carregar produtos:', error);
+                containers.produtos.innerHTML = `
+                    <div class="loading-state" style="color: #dc2626;">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        Erro ao carregar produtos: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Funções de Ação dos botões
+        function editarProduto(id) {
+            alert(`ð§ Editar produto ID: ${id}`);
+            console.log('ð§ Editar produto:', id);
+        }
+
+        function excluirProduto(id) {
+            if (confirm('Confirma a Exclusão do produto?')) {
+                alert(`ðï¸ Excluir produto ID: ${id}`);
+                console.log('ðï¸ Excluir produto:', id);
+            }
+        }
+
+        // InicializAção
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('ð Sistema carregado - iniciando...');
+            
+            // Atualizar saudAção dinâmica baseada na hora
+            const greetingTextEl = document.getElementById('greeting-text');
+            if (greetingTextEl) {
+                const hour = new Date().getHours();
+                let greeting = 'Bom dia';
+                if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+                else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
+                greetingTextEl.textContent = greeting;
+            }
+            
+            // Carregar dados do usuário
+            carregarUsuarioSistema();
+            
+            // Aguardar scripts carregarem
+            setTimeout(() => {
+                carregarSecaoProdutos();
+            }, 1000);
+        });
+        
+        // Função para carregar dados do usuário
+        async function carregarUsuarioSistema() {
+            try {
+                const response = await fetch('/api/me', {
+                    credentials: 'include',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    
+                    // Usar apelido se disponível, senão primeiro nome
+                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
+                    
+                    // Atualizar nome na saudAção
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) {
+                        userNameEl.textContent = primeiroNome;
+                    }
+                    
+                    // Atualizar avatar
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const fotoUrl = user.foto_perfil_url || user.avatar || user.foto;
+                    if (fotoUrl && userPhotoEl) {
+                        userPhotoEl.src = fotoUrl;
+                    }
+                }
+            } catch (error) {
+                console.log('â ï¸ Erro ao carregar usuário:', error);
+            }
+        }
+
+        // Debug
+        window.debugInfo = function() {
+            console.log('ð§ Debug Info:', {
+                API_BASE_URL: window.API_BASE_URL,
+                containers: window.containers,
+                carregarProdutos: typeof carregarProdutos,
+                handleEditProduct: typeof handleEditProduct
+            });
+        };
+    </script>
+    <script src="/js/mobile-menu.js"></script>
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+

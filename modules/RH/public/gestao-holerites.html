@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
@@ -8,16 +8,16 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Aluforce: Gestão de Holerites</title>
+    <title>Aluforce: Gest�o de Holerites</title>
     
-    <!-- Sistema de Autenticação Unificado - DEVE ser carregado primeiro -->
+    <!-- Sistema de Autentica��o Unificado - DEVE ser carregado primeiro -->
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/modern-saas.css?v=20260210">
     <link rel="stylesheet" href="/modules/RH/public/css/rh-pages.css?v=20260210">
     <style>
-        /* === GESTÃO DE HOLERITES - DESIGN INSTITUCIONAL === */
+        /* === GEST�O DE HOLERITES - DESIGN INSTITUCIONAL === */
 
         /* Layout */
         .content-area { flex: 1; overflow-y: auto; padding: 28px 32px; background: #f4f6f9; }
@@ -170,42 +170,72 @@
         .action-btn.delete { color: #ef4444; }
         .action-btn.delete:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
         
-        /* Modal */
+        /* ========================================
+           MODAL SAAS EMPRESARIAL - PADR�O UNIFICADO
+           ======================================== */
         .modal {
             display: none;
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15,23,42,0.45);
-            backdrop-filter: blur(2px);
+            top: 0; left: 0; width: 100%; height: 100%;
             z-index: 1000;
             align-items: center; justify-content: center;
+            padding: 20px;
         }
-        .modal.active { display: flex; }
+        .modal.show { display: flex; }
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15,23,42,0.7);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
         .modal-content {
             background: #fff;
-            border-radius: 14px;
+            border-radius: 16px;
             max-width: 900px;
-            width: 95%;
+            width: 100%;
             max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            overflow: hidden;
+            position: relative;
+            z-index: 1001;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+            transform: scale(0.95) translateY(10px);
+            opacity: 0;
+            transition: all 0.25s ease-out;
+        }
+        .modal.show .modal-content {
+            transform: scale(1) translateY(0);
+            opacity: 1;
         }
         .modal-header {
-            padding: 18px 24px;
+            padding: 20px 24px;
             border-bottom: 1px solid #e5e7eb;
             display: flex; justify-content: space-between; align-items: center;
-            background: #fafbfc;
+            background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%);
         }
-        .modal-header h2 { font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px; color: #111827; }
+        .modal-header h2, .modal-header h3 {
+            font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 12px; color: white; margin: 0;
+        }
+        .modal-header h2 i, .modal-header h3 i {
+            width: 36px; height: 36px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+        }
         .modal-close {
-            width: 34px; height: 34px;
-            border: 1px solid #e5e7eb; background: #fff;
-            color: #9ca3af; border-radius: 8px;
-            cursor: pointer; font-size: 14px;
-            transition: background 0.15s;
+            width: 36px; height: 36px;
+            border: none; background: rgba(255,255,255,0.15);
+            color: white; border-radius: 8px;
+            cursor: pointer; font-size: 18px;
+            transition: background 0.2s;
+            display: flex; align-items: center; justify-content: center;
         }
-        .modal-close:hover { background: #f3f4f6; color: #374151; }
-        .modal-body { padding: 24px; }
+        .modal-close:hover { background: rgba(255,255,255,0.25); }
+        .modal-body { padding: 24px; overflow-y: auto; max-height: calc(90vh - 140px); background: #f9fafb; }
+        .modal-body::-webkit-scrollbar { width: 6px; }
+        .modal-body::-webkit-scrollbar-track { background: transparent; }
+        .modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .modal-footer {
             padding: 16px 24px;
             background: #fafbfc;
@@ -330,17 +360,18 @@
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel de Controle"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
                 <a href="areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
-                <a href="pages/funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
-                <a href="gestao-holerites.html" class="sidebar-btn active" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
+                <a href="pages/funcionarios.html" class="sidebar-btn" title="Funcion�rios"><i class="fas fa-users"></i></a>
+                <a href="gestao-holerites.html" class="sidebar-btn active" title="Gest�o de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="pages/folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-check-alt"></i></a>
+                <a href="pages/gestao-ponto.html" class="sidebar-btn" title="Gest�o do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="pages/importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
-                <a href="pages/ferias.html" class="sidebar-btn" title="Férias"><i class="fas fa-umbrella-beach"></i></a>
-                <a href="pages/beneficios.html" class="sidebar-btn" title="Benefícios"><i class="fas fa-gift"></i></a>
-                <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calendário RH"><i class="fas fa-calendar-alt"></i></a>
+                <a href="pages/ferias.html" class="sidebar-btn" title="F�rias"><i class="fas fa-umbrella-beach"></i></a>
+                <a href="pages/beneficios.html" class="sidebar-btn" title="Benef�cios"><i class="fas fa-gift"></i></a>
+                <a href="pages/calendario-rh.html" class="sidebar-btn" title="Calend�rio RH"><i class="fas fa-calendar-alt"></i></a>
             </nav>
             <div class="sidebar-bottom">
-                <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avaliações"><i class="fas fa-star"></i></a>
-                <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcionário"><i class="fas fa-user"></i></a>
+                <a href="pages/avaliacoes.html" class="sidebar-btn" title="Avalia��es"><i class="fas fa-star"></i></a>
+                <a href="funcionario.html" class="sidebar-btn" title="Portal do Funcion�rio"><i class="fas fa-user"></i></a>
             </div>
         </aside>
 
@@ -356,16 +387,16 @@
                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
-                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Holerites</span>
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">�</span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gest�o de Holerites</span>
                     </div>
                 </div>
                 <div class="header-right">
                     <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
                     <div class="user-greeting">
-                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usu�rio</strong></span>
                         <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="Foto do usuário" id="user-photo">
+                            <img src="" alt="Foto do usu�rio" id="user-photo">
                             <span id="user-initials">U</span>
                         </div>
                     </div>
@@ -413,7 +444,7 @@
                         <div class="stat-icon red"><i class="fas fa-eye-slash"></i></div>
                         <div class="stat-info">
                             <h3 id="stat-pendentes">0</h3>
-                            <p>Não Visualizados</p>
+                            <p>N�o Visualizados</p>
                         </div>
                     </div>
                 </div>
@@ -421,18 +452,18 @@
                 <!-- Controls -->
                 <div class="controls-bar">
                     <div class="form-group">
-                        <label class="form-label">Funcionário</label>
+                        <label class="form-label">Funcion�rio</label>
                         <select class="form-select" id="filtro-funcionario">
                             <option value="">Todos</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Mês</label>
+                        <label class="form-label">M�s</label>
                         <select class="form-select" id="filtro-mes">
                             <option value="">Todos</option>
                             <option value="1">Janeiro</option>
                             <option value="2">Fevereiro</option>
-                            <option value="3">Março</option>
+                            <option value="3">Mar�o</option>
                             <option value="4">Abril</option>
                             <option value="5">Maio</option>
                             <option value="6">Junho</option>
@@ -464,18 +495,18 @@
                         <label class="form-label">Tipo</label>
                         <select class="form-select" id="filtro-tipo">
                             <option value="">Todos</option>
-                            <option value="salario">Salário</option>
+                            <option value="salario">Sal�rio</option>
                             <option value="adiantamento">Adiantamento</option>
-                            <option value="ferias">Férias</option>
-                            <option value="13_salario">13º Salário</option>
-                            <option value="rescisao">Rescisão</option>
+                            <option value="ferias">F�rias</option>
+                            <option value="13_salario">13� Sal�rio</option>
+                            <option value="rescisao">Rescis�o</option>
                         </select>
                     </div>
                     <button class="btn btn-primary" onclick="carregarHolerites()">
                         <i class="fas fa-search"></i> Filtrar
                     </button>
                     <button class="btn btn-outline" onclick="exportarRelatorio()">
-                        <i class="fas fa-download"></i> Relatório
+                        <i class="fas fa-download"></i> Relat�rio
                     </button>
                 </div>
 
@@ -484,14 +515,14 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Funcionário</th>
-                                <th>Competência</th>
+                                <th>Funcion�rio</th>
+                                <th>Compet�ncia</th>
                                 <th>Tipo</th>
-                                <th>Salário Líquido</th>
+                                <th>Sal�rio L�quido</th>
                                 <th>Status</th>
-                                <th>Visualização</th>
-                                <th>Confirmação</th>
-                                <th>Ações</th>
+                                <th>Visualiza��o</th>
+                                <th>Confirma��o</th>
+                                <th>A��es</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-holerites">
@@ -505,39 +536,31 @@
 
     <!-- Modal Novo/Editar Holerite -->
     <div class="modal" id="modal-holerite">
+        <div class="modal-overlay" onclick="fecharModal()"></div>
         <div class="modal-content">
-            <div style="height:4px;width:100%;background:linear-gradient(90deg,#10b981,#059669);border-radius:20px 20px 0 0;"></div>
-            <div style="padding:24px 28px 0;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:14px;">
-                    <div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#d1fae5,#a7f3d0);display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-file-invoice-dollar" style="font-size:20px;color:#059669;"></i>
-                    </div>
-                    <div>
-                        <h2 style="font-size:1.1rem;font-weight:700;color:#111827;margin:0;"><span id="modal-titulo">Novo Holerite</span></h2>
-                        <p style="font-size:0.8rem;color:#6b7280;margin:0;">Preencha os dados do demonstrativo</p>
-                    </div>
-                </div>
-                <button onclick="fecharModal()" style="width:34px;height:34px;border:1px solid #e5e7eb;background:#f3f4f6;border-radius:10px;cursor:pointer;font-size:16px;color:#6b7280;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'"><i class="fas fa-times"></i></button>
+            <div class="modal-header">
+                <h2><i class="fas fa-file-invoice-dollar"></i> <span id="modal-titulo">Novo Holerite</span></h2>
+                <button class="modal-close" onclick="fecharModal()"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <form id="form-holerite">
                     <input type="hidden" id="holerite-id">
                     
-                    <!-- Dados Básicos -->
-                    <div class="section-title"><i class="fas fa-info-circle"></i> Informações Básicas</div>
+                    <!-- Dados B�sicos -->
+                    <div class="section-title"><i class="fas fa-info-circle"></i> Informa��es B�sicas</div>
                     <div class="form-grid">
                         <div class="form-group">
-                            <label class="form-label">Funcionário *</label>
+                            <label class="form-label">Funcion�rio *</label>
                             <select class="form-select" id="holerite-funcionario" required>
                                 <option value="">Selecione...</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Mês *</label>
+                            <label class="form-label">M�s *</label>
                             <select class="form-select" id="holerite-mes" required>
                                 <option value="1">Janeiro</option>
                                 <option value="2">Fevereiro</option>
-                                <option value="3">Março</option>
+                                <option value="3">Mar�o</option>
                                 <option value="4">Abril</option>
                                 <option value="5">Maio</option>
                                 <option value="6">Junho</option>
@@ -564,9 +587,9 @@
                             </button>
                         </div>
                         <div class="item-row" style="font-weight: 600; font-size: 0.75rem; color: #64748b;">
-                            <span>Código</span>
-                            <span>Descrição</span>
-                            <span>Referência</span>
+                            <span>C�digo</span>
+                            <span>Descri��o</span>
+                            <span>Refer�ncia</span>
                             <span>Valor (R$)</span>
                             <span></span>
                         </div>
@@ -584,9 +607,9 @@
                             </button>
                         </div>
                         <div class="item-row" style="font-weight: 600; font-size: 0.75rem; color: #64748b;">
-                            <span>Código</span>
-                            <span>Descrição</span>
-                            <span>Referência</span>
+                            <span>C�digo</span>
+                            <span>Descri��o</span>
+                            <span>Refer�ncia</span>
                             <span>Valor (R$)</span>
                             <span></span>
                         </div>
@@ -606,7 +629,7 @@
                             <div class="total-value red" id="total-descontos">R$ 0,00</div>
                         </div>
                         <div class="total-box liquido">
-                            <div class="total-label">Salário Líquido</div>
+                            <div class="total-label">Sal�rio L�quido</div>
                             <div class="total-value purple" id="total-liquido">R$ 0,00</div>
                         </div>
                     </div>
@@ -626,22 +649,14 @@
 
     <!-- Modal Visualizar -->
     <div class="modal" id="modal-visualizar">
+        <div class="modal-overlay" onclick="fecharModalVisualizar()"></div>
         <div class="modal-content" style="max-width: 700px;">
-            <div style="height:4px;width:100%;background:linear-gradient(90deg,#6366f1,#4f46e5);border-radius:20px 20px 0 0;"></div>
-            <div style="padding:24px 28px 0;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:14px;">
-                    <div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#eef2ff,#e0e7ff);display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-eye" style="font-size:20px;color:#4f46e5;"></i>
-                    </div>
-                    <div>
-                        <h2 style="font-size:1.1rem;font-weight:700;color:#111827;margin:0;">Detalhes do Holerite</h2>
-                        <p style="font-size:0.8rem;color:#6b7280;margin:0;">Visualização completa do demonstrativo</p>
-                    </div>
-                </div>
-                <button onclick="fecharModalVisualizar()" style="width:34px;height:34px;border:1px solid #e5e7eb;background:#f3f4f6;border-radius:10px;cursor:pointer;font-size:16px;color:#6b7280;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'"><i class="fas fa-times"></i></button>
+            <div class="modal-header">
+                <h2><i class="fas fa-eye"></i> Detalhes do Holerite</h2>
+                <button class="modal-close" onclick="fecharModalVisualizar()"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body" id="visualizar-content">
-                <!-- Conteúdo via JS -->
+                <!-- Conte�do via JS -->
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="fecharModalVisualizar()">Fechar</button>
@@ -651,29 +666,21 @@
 
     <!-- Modal Importar PDF -->
     <div class="modal" id="modal-importar">
+        <div class="modal-overlay" onclick="fecharModalImportar()"></div>
         <div class="modal-content" style="max-width: 700px;">
-            <div style="height:3px;width:100%;background:#059669;border-radius:14px 14px 0 0;"></div>
-            <div style="padding:18px 24px 0;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <div style="width:40px;height:40px;border-radius:10px;background:#ecfdf5;display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-file-upload" style="font-size:18px;color:#059669;"></i>
-                    </div>
-                    <div>
-                        <h2 style="font-size:1rem;font-weight:700;color:#111827;margin:0;">Importar Holerites</h2>
-                        <p style="font-size:0.75rem;color:#6b7280;margin:0;">PDF Consolidado da contabilidade</p>
-                    </div>
-                </div>
-                <button onclick="fecharModalImportar()" style="width:34px;height:34px;border:1px solid #e5e7eb;background:#fff;border-radius:8px;cursor:pointer;font-size:14px;color:#9ca3af;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fff'"><i class="fas fa-times"></i></button>
+            <div class="modal-header">
+                <h2><i class="fas fa-file-upload"></i> Importar Holerites</h2>
+                <button class="modal-close" onclick="fecharModalImportar()"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
                     <h4 style="color: #166534; margin-bottom: 8px;"><i class="fas fa-info-circle"></i> Como funciona</h4>
                     <ul style="color: #15803d; font-size: 0.875rem; margin: 0; padding-left: 20px; line-height: 1.8;">
-                        <li>Faça upload do <strong>PDF consolidado</strong> da contabilidade com os holerites de todos os funcionários</li>
-                        <li>O sistema identifica automaticamente cada funcionário pelo <strong>nome ou CPF</strong> presente no documento</li>
-                        <li>O <strong>tipo (ADTO/MENSAL)</strong> e a <strong>data (mês/ano)</strong> são detectados automaticamente do PDF</li>
-                        <li>O PDF é separado automaticamente, gerando um <strong>arquivo individual por funcionário</strong></li>
-                        <li>Importe PDFs de <strong>Adiantamento</strong> e <strong>Mensal</strong> separadamente — cada um com seu arquivo da contabilidade</li>
+                        <li>Fa�a upload do <strong>PDF consolidado</strong> da contabilidade com os holerites de todos os funcion�rios</li>
+                        <li>O sistema identifica automaticamente cada funcion�rio pelo <strong>nome ou CPF</strong> presente no documento</li>
+                        <li>O <strong>tipo (ADTO/MENSAL)</strong> e a <strong>data (m�s/ano)</strong> s�o detectados automaticamente do PDF</li>
+                        <li>O PDF � separado automaticamente, gerando um <strong>arquivo individual por funcion�rio</strong></li>
+                        <li>Importe PDFs de <strong>Adiantamento</strong> e <strong>Mensal</strong> separadamente � cada um com seu arquivo da contabilidade</li>
                     </ul>
                 </div>
 
@@ -682,18 +689,18 @@
                         <div class="form-group">
                             <label class="form-label">Tipo de Holerite *</label>
                             <select class="form-select" id="import-tipo" required>
-                                <option value="auto">🔍 Auto-detectar (MENSAL/ADTO)</option>
-                                <option value="salario">Salário</option>
+                                <option value="auto">?? Auto-detectar (MENSAL/ADTO)</option>
+                                <option value="salario">Sal�rio</option>
                                 <option value="adiantamento">Adiantamento</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Mês de Referência</label>
+                            <label class="form-label">M�s de Refer�ncia</label>
                             <select class="form-select" id="import-mes">
-                                <option value="">🔍 Auto-detectar do PDF</option>
+                                <option value="">?? Auto-detectar do PDF</option>
                                 <option value="1">Janeiro</option>
                                 <option value="2">Fevereiro</option>
-                                <option value="3">Março</option>
+                                <option value="3">Mar�o</option>
                                 <option value="4">Abril</option>
                                 <option value="5">Maio</option>
                                 <option value="6">Junho</option>
@@ -718,7 +725,7 @@
                             <div id="drop-zone-content">
                                 <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: #9ca3af; margin-bottom: 12px;"></i>
                                 <p style="font-weight: 600; color: #374151; margin-bottom: 4px;">Clique ou arraste o PDF aqui</p>
-                                <p style="font-size: 0.75rem; color: #9ca3af;">Formato aceito: PDF (máximo 20MB)</p>
+                                <p style="font-size: 0.75rem; color: #9ca3af;">Formato aceito: PDF (m�ximo 20MB)</p>
                             </div>
                         </div>
                     </div>
@@ -726,12 +733,12 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px; background: #f0fdf4; padding: 12px 16px; border-radius: 8px; border: 1px solid #bbf7d0;">
                         <i class="fas fa-check-circle" style="color: #16a34a; font-size: 1.1rem;"></i>
                         <span style="font-size: 0.875rem; color: #166534;">
-                            <strong>Publicação automática</strong> — os holerites serão publicados imediatamente após a importação
+                            <strong>Publica��o autom�tica</strong> � os holerites ser�o publicados imediatamente ap�s a importa��o
                         </span>
                     </div>
                 </form>
 
-                <!-- Resultado da importação -->
+                <!-- Resultado da importa��o -->
                 <div id="import-resultado" style="display: none;"></div>
 
                 <!-- Progress bar -->
@@ -756,51 +763,35 @@
 
     <!-- Modal Consentimentos -->
     <div class="modal" id="modal-consentimentos">
+        <div class="modal-overlay" onclick="document.getElementById('modal-consentimentos').classList.remove('show')"></div>
         <div class="modal-content" style="max-width: 800px;">
-            <div style="height:3px;width:100%;background:#6366f1;border-radius:14px 14px 0 0;"></div>
-            <div style="padding:18px 24px 0;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <div style="width:40px;height:40px;border-radius:10px;background:#eef2ff;display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-file-signature" style="font-size:18px;color:#6366f1;"></i>
-                    </div>
-                    <div>
-                        <h2 style="font-size:1rem;font-weight:700;color:#111827;margin:0;">Consentimentos</h2>
-                        <p style="font-size:0.75rem;color:#6b7280;margin:0;">Holerite Digital - Termos assinados</p>
-                    </div>
-                </div>
-                <button onclick="document.getElementById('modal-consentimentos').classList.remove('active')" style="width:34px;height:34px;border:1px solid #e5e7eb;background:#fff;border-radius:8px;cursor:pointer;font-size:14px;color:#9ca3af;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fff'"><i class="fas fa-times"></i></button>
+            <div class="modal-header">
+                <h2><i class="fas fa-file-signature"></i> Consentimentos</h2>
+                <button class="modal-close" onclick="document.getElementById('modal-consentimentos').classList.remove('show')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px;margin-bottom:20px;">
-                    <p style="color:#4338ca;font-size:0.85rem;margin:0;"><i class="fas fa-info-circle"></i> Funcionários que assinaram o termo de consentimento digital para recebimento de holerites. Este documento tem validade jurídica.</p>
+                    <p style="color:#4338ca;font-size:0.85rem;margin:0;"><i class="fas fa-info-circle"></i> Funcion�rios que assinaram o termo de consentimento digital para recebimento de holerites. Este documento tem validade jur�dica.</p>
                 </div>
                 <div id="consentimentos-content">
                     <p style="text-align:center;color:#94a3b8;padding:40px 0;"><i class="fas fa-spinner fa-spin"></i> Carregando...</p>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline" onclick="document.getElementById('modal-consentimentos').classList.remove('active')">Fechar</button>
+                <button type="button" class="btn btn-outline" onclick="document.getElementById('modal-consentimentos').classList.remove('show')">Fechar</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal Relatório de Visualizações -->
+    <!-- Modal Relat�rio de Visualiza��es -->
     <div class="modal" id="modal-relatorio">
+        <div class="modal-overlay" onclick="document.getElementById('modal-relatorio').classList.remove('show')"></div>
         <div class="modal-content" style="max-width: 900px; height: 85vh; display: flex; flex-direction: column;">
-            <div style="height:3px;width:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:14px 14px 0 0;"></div>
-            <div style="padding:18px 24px 0;display:flex;align-items:center;justify-content:space-between;">
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <div style="width:40px;height:40px;border-radius:10px;background:#eef2ff;display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-chart-bar" style="font-size:18px;color:#6366f1;"></i>
-                    </div>
-                    <div>
-                        <h2 style="font-size:1rem;font-weight:700;color:#111827;margin:0;">Relatório de Visualizações</h2>
-                        <p style="font-size:0.75rem;color:#6b7280;margin:0;">Acompanhamento de holerites visualizados</p>
-                    </div>
-                </div>
+            <div class="modal-header">
+                <h2><i class="fas fa-chart-bar"></i> Relat�rio de Visualiza��es</h2>
                 <div style="display:flex;gap:8px;">
-                    <button onclick="window.open(document.getElementById('relatorio-iframe').src, '_blank')" style="width:34px;height:34px;border:1px solid #e5e7eb;background:#fff;border-radius:8px;cursor:pointer;font-size:14px;color:#6366f1;display:flex;align-items:center;justify-content:center;" title="Abrir em nova aba" onmouseover="this.style.background='#eef2ff'" onmouseout="this.style.background='#fff'"><i class="fas fa-external-link-alt"></i></button>
-                    <button onclick="document.getElementById('modal-relatorio').classList.remove('active')" style="width:34px;height:34px;border:1px solid #e5e7eb;background:#fff;border-radius:8px;cursor:pointer;font-size:14px;color:#9ca3af;display:flex;align-items:center;justify-content:center;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fff'"><i class="fas fa-times"></i></button>
+                    <button class="modal-close" onclick="window.open(document.getElementById('relatorio-iframe').src, '_blank')" title="Abrir em nova aba" style="background:rgba(255,255,255,0.15);"><i class="fas fa-external-link-alt"></i></button>
+                    <button class="modal-close" onclick="document.getElementById('modal-relatorio').classList.remove('show')"><i class="fas fa-times"></i></button>
                 </div>
             </div>
             <div style="flex:1;padding:16px 24px 24px;overflow:hidden;">
@@ -821,11 +812,7 @@
     <script>
         // Helpers
         function getAuthHeaders() {
-            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-            return {
-                'Authorization': token ? `Bearer ${token}` : '',
-                'Content-Type': 'application/json'
-            };
+            return { 'Content-Type': 'application/json' }; /* Auth via httpOnly cookie */
         }
 
         function formatCurrency(value) {
@@ -846,7 +833,7 @@
             setTimeout(() => toast.remove(), 4000);
         }
 
-        const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+        const meses = ['', 'Janeiro', 'Fevereiro', 'Mar�o', 'Abril', 'Maio', 'Junho', 
                       'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
         let funcionarios = [];
@@ -894,7 +881,7 @@
                     }
                 }
             } catch (e) {
-                console.error('Erro ao carregar usuário:', e);
+                console.error('Erro ao carregar usu�rio:', e);
             }
         }
 
@@ -919,7 +906,7 @@
                     });
                 }
             } catch (e) {
-                console.error('Erro ao carregar funcionários:', e);
+                console.error('Erro ao carregar funcion�rios:', e);
             }
         }
 
@@ -930,7 +917,7 @@
                     eventosPadrao = await resp.json();
                 }
             } catch (e) {
-                console.error('Erro ao carregar eventos padrão:', e);
+                console.error('Erro ao carregar eventos padr�o:', e);
             }
         }
 
@@ -970,7 +957,7 @@
                             <div class="empty-state">
                                 <i class="fas fa-file-invoice"></i>
                                 <h3>Nenhum holerite encontrado</h3>
-                                <p>Clique em "Novo Holerite" para começar</p>
+                                <p>Clique em "Novo Holerite" para come�ar</p>
                             </div>
                         </td>
                     </tr>
@@ -979,7 +966,7 @@
             }
 
             tbody.innerHTML = holerites.map(h => {
-                const tipoLabel = h.tipo === 'adiantamento' ? 'Adiantamento' : 'Salário';
+                const tipoLabel = h.tipo === 'adiantamento' ? 'Adiantamento' : 'Sal�rio';
                 const tipoColor = h.tipo === 'adiantamento' ? '#f59e0b' : '#10b981';
                 const tipoIcon = h.tipo === 'adiantamento' ? 'fa-hand-holding-usd' : 'fa-money-bill-wave';
                 return `
@@ -995,7 +982,7 @@
                     <td>
                         ${h.visualizado ? 
                             `<span class="view-badge visualizado"><i class="fas fa-eye"></i> ${h.total_visualizacoes}x</span>` :
-                            `<span class="view-badge nao-visualizado"><i class="fas fa-eye-slash"></i> Não visto</span>`
+                            `<span class="view-badge nao-visualizado"><i class="fas fa-eye-slash"></i> N�o visto</span>`
                         }
                     </td>
                     <td>
@@ -1050,17 +1037,17 @@
             document.getElementById('lista-proventos').innerHTML = '';
             document.getElementById('lista-descontos').innerHTML = '';
             
-            // Adicionar salário base por padrão
-            adicionarItem('provento', '001', 'Salário Base', '220h', 0);
+            // Adicionar sal�rio base por padr�o
+            adicionarItem('provento', '001', 'Sal�rio Base', '220h', 0);
             adicionarItem('desconto', '101', 'INSS', '', 0);
             adicionarItem('desconto', '102', 'IRRF', '', 0);
             
             calcularTotais();
-            document.getElementById('modal-holerite').classList.add('active');
+            document.getElementById('modal-holerite').classList.add('show');
         }
 
         function fecharModal() {
-            document.getElementById('modal-holerite').classList.remove('active');
+            document.getElementById('modal-holerite').classList.remove('show');
         }
 
         // Adicionar item
@@ -1073,7 +1060,7 @@
             row.id = `item-${id}`;
             row.innerHTML = `
                 <input type="text" placeholder="001" value="${codigo}" data-field="codigo">
-                <input type="text" placeholder="Descrição" value="${descricao}" data-field="descricao" required>
+                <input type="text" placeholder="Descri��o" value="${descricao}" data-field="descricao" required>
                 <input type="text" placeholder="220h" value="${referencia}" data-field="referencia">
                 <input type="number" step="0.01" placeholder="0,00" value="${valor}" data-field="valor" onchange="calcularTotais()">
                 <button type="button" class="remove-item-btn" onclick="removerItem('${id}')"><i class="fas fa-times"></i></button>
@@ -1159,7 +1146,7 @@
 
         async function salvarHolerite(dados) {
             if (!dados.funcionario_id || !dados.mes || !dados.ano) {
-                showToast('error', 'Preencha funcionário, mês e ano');
+                showToast('error', 'Preencha funcion�rio, m�s e ano');
                 return;
             }
 
@@ -1213,7 +1200,7 @@
                     });
                     
                     calcularTotais();
-                    document.getElementById('modal-holerite').classList.add('active');
+                    document.getElementById('modal-holerite').classList.add('show');
                 }
             } catch (e) {
                 console.error('Erro:', e);
@@ -1226,7 +1213,7 @@
                 const resp = await fetch(`/api/rh/holerites/${id}`, { headers: getAuthHeaders() });
                 if (resp.ok) {
                     const h = await resp.json();
-                    const tipoLabel = h.tipo === 'adiantamento' ? 'ADIANTAMENTO' : 'SALÁRIO';
+                    const tipoLabel = h.tipo === 'adiantamento' ? 'ADIANTAMENTO' : 'SAL�RIO';
                     const tipoColor = h.tipo === 'adiantamento' ? '#f59e0b' : '#10b981';
                     
                     const content = document.getElementById('visualizar-content');
@@ -1234,7 +1221,7 @@
                         <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: white; padding: 28px; border-radius: 16px; margin-bottom: 24px;">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                                 <div>
-                                    <h3 style="margin-bottom: 4px; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.5px;">ALUFORCE INDÚSTRIA E COMÉRCIO LTDA</h3>
+                                    <h3 style="margin-bottom: 4px; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.5px;">ALUFORCE IND�STRIA E COM�RCIO LTDA</h3>
                                     <p style="opacity: 0.7; font-size: 0.85rem;">Demonstrativo de Pagamento</p>
                                 </div>
                                 <div style="text-align:right;">
@@ -1246,7 +1233,7 @@
                         
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px;">
                             <div style="background: #f8fafc; padding: 16px 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                                <div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;font-weight:600;letter-spacing:0.5px;margin-bottom:4px;">Funcionário</div>
+                                <div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;font-weight:600;letter-spacing:0.5px;margin-bottom:4px;">Funcion�rio</div>
                                 <div style="font-weight:600;color:#1e293b;">${h.funcionario_nome}</div>
                             </div>
                             <div style="background: #f8fafc; padding: 16px 20px; border-radius: 12px; border: 1px solid #e2e8f0;">
@@ -1271,8 +1258,8 @@
                             <table style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
                                 <thead>
                                     <tr style="background: #f1f5f9;">
-                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Código</th>
-                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Descrição</th>
+                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">C�digo</th>
+                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Descri��o</th>
                                         <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ref.</th>
                                         <th style="padding: 10px 14px; text-align: right; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Valor</th>
                                     </tr>
@@ -1298,8 +1285,8 @@
                             <table style="width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
                                 <thead>
                                     <tr style="background: #f1f5f9;">
-                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Código</th>
-                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Descrição</th>
+                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">C�digo</th>
+                                        <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Descri��o</th>
                                         <th style="padding: 10px 14px; text-align: left; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ref.</th>
                                         <th style="padding: 10px 14px; text-align: right; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Valor</th>
                                     </tr>
@@ -1328,7 +1315,7 @@
                                 <div class="total-value red">${formatCurrency(h.total_descontos)}</div>
                             </div>
                             <div class="total-box liquido">
-                                <div class="total-label">Salário Líquido</div>
+                                <div class="total-label">Sal�rio L�quido</div>
                                 <div class="total-value purple">${formatCurrency(h.salario_liquido)}</div>
                             </div>
                         </div>
@@ -1343,10 +1330,10 @@
                         
                         ${h.visualizado ? `
                             <div style="margin-top: 24px; padding: 18px 20px; background: #f0fdf4; border-radius: 12px; border: 1px solid #bbf7d0;">
-                                <h4 style="color: #166534; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600;"><i class="fas fa-eye"></i> Informações de Visualização</h4>
+                                <h4 style="color: #166534; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600;"><i class="fas fa-eye"></i> Informa��es de Visualiza��o</h4>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.8rem;color:#15803d;">
                                     <p><strong>Primeira:</strong> ${h.data_primeira_visualizacao ? new Date(h.data_primeira_visualizacao).toLocaleString('pt-BR') : 'N/A'}</p>
-                                    <p><strong>Última:</strong> ${h.data_ultima_visualizacao ? new Date(h.data_ultima_visualizacao).toLocaleString('pt-BR') : 'N/A'}</p>
+                                    <p><strong>�ltima:</strong> ${h.data_ultima_visualizacao ? new Date(h.data_ultima_visualizacao).toLocaleString('pt-BR') : 'N/A'}</p>
                                     <p><strong>Total:</strong> ${h.total_visualizacoes}x</p>
                                     <p><strong>IP:</strong> ${h.ip_visualizacao || 'N/A'}</p>
                                 </div>
@@ -1354,12 +1341,12 @@
                             </div>
                         ` : `
                             <div style="margin-top: 24px; padding: 16px 20px; background: #fef2f2; border-radius: 12px; border: 1px solid #fecaca;">
-                                <p style="color: #991b1b; font-size: 0.85rem;"><i class="fas fa-eye-slash"></i> Este holerite ainda não foi visualizado pelo funcionário.</p>
+                                <p style="color: #991b1b; font-size: 0.85rem;"><i class="fas fa-eye-slash"></i> Este holerite ainda n�o foi visualizado pelo funcion�rio.</p>
                             </div>
                         `}
                     `;
                     
-                    document.getElementById('modal-visualizar').classList.add('active');
+                    document.getElementById('modal-visualizar').classList.add('show');
                 }
             } catch (e) {
                 console.error('Erro:', e);
@@ -1368,15 +1355,14 @@
         }
 
         function fecharModalVisualizar() {
-            document.getElementById('modal-visualizar').classList.remove('active');
+            document.getElementById('modal-visualizar').classList.remove('show');
         }
 
         async function publicarDireto(id) {
-            if (!confirm('Deseja publicar este holerite? O funcionário será notificado.')) return;
+            if (!confirm('Deseja publicar este holerite? O funcion�rio ser� notificado.')) return;
             
             try {
-                const resp = await fetch(`/api/rh/holerites/${id}/publicar`, {
-                    method: 'POST',
+                const resp = await fetch(`/api/rh/holerites/${id}/publicar`, { credentials: 'include', method: 'POST',
                     headers: getAuthHeaders()
                 });
                 
@@ -1393,16 +1379,15 @@
         }
 
         async function excluirHolerite(id) {
-            if (!confirm('Tem certeza que deseja excluir este holerite? Esta ação não pode ser desfeita.')) return;
+            if (!confirm('Tem certeza que deseja excluir este holerite? Esta a��o n�o pode ser desfeita.')) return;
             
             try {
-                const resp = await fetch(`/api/rh/holerites/${id}`, {
-                    method: 'DELETE',
+                const resp = await fetch(`/api/rh/holerites/${id}`, { credentials: 'include', method: 'DELETE',
                     headers: getAuthHeaders()
                 });
                 
                 if (resp.ok) {
-                    showToast('success', 'Holerite excluído com sucesso!');
+                    showToast('success', 'Holerite exclu�do com sucesso!');
                     carregarHolerites();
                 } else {
                     showToast('error', 'Erro ao excluir holerite');
@@ -1418,17 +1403,16 @@
                 ano: document.getElementById('filtro-ano').value
             });
             document.getElementById('relatorio-iframe').src = url;
-            document.getElementById('modal-relatorio').classList.add('active');
+            document.getElementById('modal-relatorio').classList.add('show');
         }
 
         function downloadPDF(id) {
-            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
             window.open(`/api/rh/holerites/${id}/download-pdf?token=${token}`, '_blank');
         }
 
         // ====== CONSENTIMENTOS ======
         async function abrirModalConsentimentos() {
-            document.getElementById('modal-consentimentos').classList.add('active');
+            document.getElementById('modal-consentimentos').classList.add('show');
             const container = document.getElementById('consentimentos-content');
             container.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:40px 0;"><i class="fas fa-spinner fa-spin"></i> Carregando...</p>';
 
@@ -1443,7 +1427,7 @@
                         <div style="text-align:center;padding:40px 0;color:#94a3b8;">
                             <i class="fas fa-file-signature" style="font-size:2.5rem;margin-bottom:12px;display:block;"></i>
                             <h3 style="color:#64748b;margin-bottom:4px;">Nenhum consentimento registrado</h3>
-                            <p style="font-size:0.85rem;">Os funcionários ainda não assinaram o termo digital.</p>
+                            <p style="font-size:0.85rem;">Os funcion�rios ainda n�o assinaram o termo digital.</p>
                         </div>`;
                     return;
                 }
@@ -1453,7 +1437,7 @@
                     <table style="width:100%;border-collapse:separate;border-spacing:0;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
                         <thead>
                             <tr style="background:#f1f5f9;">
-                                <th style="padding:10px 14px;text-align:left;font-size:0.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Funcionário</th>
+                                <th style="padding:10px 14px;text-align:left;font-size:0.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Funcion�rio</th>
                                 <th style="padding:10px 14px;text-align:left;font-size:0.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">CPF</th>
                                 <th style="padding:10px 14px;text-align:left;font-size:0.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Assinatura</th>
                                 <th style="padding:10px 14px;text-align:left;font-size:0.7rem;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Data</th>
@@ -1480,7 +1464,7 @@
             }
         }
 
-        // ====== IMPORTAÇÃO DE PDF ======
+        // ====== IMPORTA��O DE PDF ======
         function abrirModalImportarPDF() {
             document.getElementById('import-mes').value = '';
             document.getElementById('import-ano').value = new Date().getFullYear();
@@ -1493,13 +1477,13 @@
             document.getElementById('drop-zone-content').innerHTML = `
                 <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: #9ca3af; margin-bottom: 12px;"></i>
                 <p style="font-weight: 600; color: #374151; margin-bottom: 4px;">Clique ou arraste o PDF aqui</p>
-                <p style="font-size: 0.75rem; color: #9ca3af;">Formato aceito: PDF (máximo 20MB)</p>
+                <p style="font-size: 0.75rem; color: #9ca3af;">Formato aceito: PDF (m�ximo 20MB)</p>
             `;
-            document.getElementById('modal-importar').classList.add('active');
+            document.getElementById('modal-importar').classList.add('show');
         }
 
         function fecharModalImportar() {
-            document.getElementById('modal-importar').classList.remove('active');
+            document.getElementById('modal-importar').classList.remove('show');
         }
 
         // Drop zone interatividade
@@ -1518,7 +1502,7 @@
                     fileInput.files = files;
                     atualizarDropZone(fileInput);
                 } else {
-                    showToast('error', 'Apenas arquivos PDF são aceitos');
+                    showToast('error', 'Apenas arquivos PDF s�o aceitos');
                 }
             });
 
@@ -1538,7 +1522,7 @@
                 content.innerHTML = `
                     <i class="fas fa-file-pdf" style="font-size: 2.5rem; color: var(--success-green); margin-bottom: 12px;"></i>
                     <p style="font-weight: 600; color: #166534; margin-bottom: 4px;">${file.name}</p>
-                    <p style="font-size: 0.75rem; color: #15803d;">${sizeMB} MB — Pronto para importar</p>
+                    <p style="font-size: 0.75rem; color: #15803d;">${sizeMB} MB � Pronto para importar</p>
                 `;
             }
         }
@@ -1556,7 +1540,7 @@
 
             const file = fileInput.files[0];
             if (file.size > 20 * 1024 * 1024) {
-                showToast('error', 'Arquivo muito grande (máximo 20MB)');
+                showToast('error', 'Arquivo muito grande (m�ximo 20MB)');
                 return;
             }
 
@@ -1581,14 +1565,10 @@
                 formData.append('publicar_automaticamente', true);
 
                 progressBar.style.width = '30%';
-                progressText.textContent = 'Processando e separando por funcionário...';
+                progressText.textContent = 'Processando e separando por funcion�rio...';
 
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-                const resp = await fetch('/api/rh/holerites/importar-pdf', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': token ? `Bearer ${token}` : ''
-                    },
+                const resp = await fetch('/api/rh/holerites/importar-pdf', { credentials: 'include', method: 'POST',
+                    credentials: 'include',
                     body: formData
                 });
 
@@ -1600,17 +1580,17 @@
                 progressBar.style.width = '100%';
 
                 if (resp.ok) {
-                    progressText.textContent = 'Importação concluída!';
+                    progressText.textContent = 'Importa��o conclu�da!';
                     showToast('success', data.message);
                     exibirResultadoImportacao(data.resultados);
                     carregarHolerites(); // Atualizar tabela
                 } else {
-                    progressText.textContent = 'Erro na importação';
+                    progressText.textContent = 'Erro na importa��o';
                     showToast('error', data.message || 'Erro ao importar PDF');
                 }
             } catch (e) {
                 console.error('Erro:', e);
-                progressText.textContent = 'Erro na importação';
+                progressText.textContent = 'Erro na importa��o';
                 showToast('error', 'Erro ao importar PDF: ' + e.message);
             } finally {
                 btnImportar.disabled = false;
@@ -1628,14 +1608,14 @@
                     <div style="padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
                         <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
                             <i class="fas fa-chart-bar" style="color: var(--primary-pink);"></i>
-                            Resultado da Importação
+                            Resultado da Importa��o
                         </h4>
                     </div>
                     <div style="padding: 20px;">
                         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
                             <div style="text-align: center; padding: 12px; background: #f5f3ff; border-radius: 8px;">
                                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--primary-pink);">${resultados.total_paginas}</div>
-                                <div style="font-size: 0.75rem; color: #64748b;">Páginas no PDF</div>
+                                <div style="font-size: 0.75rem; color: #64748b;">P�ginas no PDF</div>
                             </div>
                             <div style="text-align: center; padding: 12px; background: #f0fdf4; border-radius: 8px;">
                                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--success-green);">${resultados.importados}</div>
@@ -1643,7 +1623,7 @@
                             </div>
                             <div style="text-align: center; padding: 12px; background: #fffbeb; border-radius: 8px;">
                                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning-yellow);">${resultados.nao_identificados}</div>
-                                <div style="font-size: 0.75rem; color: #64748b;">Não Identificados</div>
+                                <div style="font-size: 0.75rem; color: #64748b;">N�o Identificados</div>
                             </div>
                             <div style="text-align: center; padding: 12px; background: #fef2f2; border-radius: 8px;">
                                 <div style="font-size: 1.5rem; font-weight: 700; color: var(--danger-red);">${(resultados.erros || []).length}</div>
@@ -1655,9 +1635,9 @@
                             <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
                                 <thead>
                                     <tr style="background: #f8fafc;">
-                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Páginas</th>
-                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Funcionário</th>
-                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Identificação</th>
+                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">P�ginas</th>
+                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Funcion�rio</th>
+                                        <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Identifica��o</th>
                                         <th style="padding: 8px 12px; text-align: left; font-size: 0.75rem; color: #64748b;">Status</th>
                                     </tr>
                                 </thead>
@@ -1665,7 +1645,7 @@
                                     ${resultados.detalhes.map(d => `
                                         <tr style="border-bottom: 1px solid #f1f5f9;">
                                             <td style="padding: 8px 12px;">${d.paginas ? d.paginas.join(', ') : '-'}</td>
-                                            <td style="padding: 8px 12px; font-weight: 500;">${d.funcionario || '<em style="color: #ef4444;">Não identificado</em>'}</td>
+                                            <td style="padding: 8px 12px; font-weight: 500;">${d.funcionario || '<em style="color: #ef4444;">N�o identificado</em>'}</td>
                                             <td style="padding: 8px 12px; color: #64748b;">${d.matchedBy || '-'}</td>
                                             <td style="padding: 8px 12px;">
                                                 <span style="padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 500;
@@ -1674,7 +1654,7 @@
                                                       'background: #fef3c7; color: #92400e;'}">
                                                     ${d.status === 'importado' ? '? Importado' :
                                                       d.status === 'atualizado' ? '?? Atualizado' :
-                                                      '?? Não identificado'}
+                                                      '?? N�o identificado'}
                                                 </span>
                                             </td>
                                         </tr>

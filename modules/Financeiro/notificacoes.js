@@ -16,9 +16,8 @@ class SistemaNotificacoes {
     // ===== CARREGAR NOTIFICAÇÕES =====
     async carregarNotificacoes() {
         try {
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
             const response = await fetch('/api/financeiro/alertas', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             if (response.ok) {
                 this.notificacoes = await response.json();
@@ -85,8 +84,10 @@ class SistemaNotificacoes {
         try {
             // TODO: Salvar na API
             // await fetch('/api/financeiro/notificacoes', {
-            //     method: 'POST',
-            //     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    //     method: 'POST',
+            //     headers: { 'Content-Type': 'application/json'
+                }),
             //     body: JSON.stringify(notificação)
             // });
 
@@ -104,8 +105,10 @@ class SistemaNotificacoes {
         try {
             // TODO: Atualizar na API
             // await fetch(`/api/financeiro/notificacoes/${id}`, {
-            //     method: 'PATCH',
-            //     headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    //     method: 'PATCH',
+            //     headers: { 'Content-Type': 'application/json'
+                }),
             //     body: JSON.stringify({ lida: true })
             // });
 
@@ -222,18 +225,30 @@ class SistemaNotificacoes {
     mostrarToast(notificação) {
         const toast = document.createElement('div');
         toast.className = `notificação-toast ${notificação.cor}`;
-        toast.innerHTML = `
-            <div class="toast-icon">
-                <i class="fas ${notificação.icone}"></i>
-            </div>
-            <div class="toast-content">
-                <div class="toast-titulo">${notificação.titulo}</div>
-                <div class="toast-mensagem">${notificação.mensagem}</div>
-            </div>
-            <button class="toast-close" onclick="this.parentElement.remove()">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
+        var iconDiv = document.createElement('div');
+        iconDiv.className = 'toast-icon';
+        var iconEl = document.createElement('i');
+        iconEl.className = 'fas ' + notificação.icone;
+        iconDiv.appendChild(iconEl);
+        toast.appendChild(iconDiv);
+        var contentDiv = document.createElement('div');
+        contentDiv.className = 'toast-content';
+        var titleDiv = document.createElement('div');
+        titleDiv.className = 'toast-titulo';
+        titleDiv.textContent = notificação.titulo;
+        contentDiv.appendChild(titleDiv);
+        var msgDiv = document.createElement('div');
+        msgDiv.className = 'toast-mensagem';
+        msgDiv.textContent = notificação.mensagem;
+        contentDiv.appendChild(msgDiv);
+        toast.appendChild(contentDiv);
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'toast-close';
+        closeBtn.addEventListener('click', function() { toast.remove(); });
+        var closeIcon = document.createElement('i');
+        closeIcon.className = 'fas fa-times';
+        closeBtn.appendChild(closeIcon);
+        toast.appendChild(closeBtn);
 
         document.body.appendChild(toast);
 

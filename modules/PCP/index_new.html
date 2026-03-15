@@ -1,0 +1,1677 @@
+﻿ï»¿
+
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Overlay Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+        <!-- SIDEBAR -->
+        <nav class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Painel Principal">
+                <i class="fas fa-home"></i>
+            </a>
+            
+            <div class="sidebar-nav">
+                <a href="index.html" class="sidebar-btn active" title="Dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                </a>
+                <a href="index.html" class="sidebar-btn" title="Produtos e Estoque" onclick="localStorage.setItem('pcp-view','produtos')">
+                    <i class="fas fa-boxes"></i>
+                </a>
+                <a href="index.html" class="sidebar-btn" title="Ordem de Compra" onclick="localStorage.setItem('pcp-view','ordem-compra')">
+                    <i class="fas fa-shopping-cart"></i>
+                </a>
+                <a href="ordens-producao.html" class="sidebar-btn" title="Ordens de Produção">
+                <i class="fas fa-clipboard-list"></i>
+            </a>
+            <a href="index.html" class="sidebar-btn" title="Programação de Faturamento" onclick="localStorage.setItem('pcp-view','faturamento')">
+                <i class="fas fa-file-invoice-dollar"></i>
+            </a>
+        </div>
+        
+        <div class="sidebar-bottom">
+            <button class="sidebar-btn" title="Configurações" id="btn-config">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Area -->
+    <div class="main-area">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                <div class="header-brand">
+                    <span>PCP</span>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <button class="header-btn" title="Atualizar" onclick="location.reload()">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button class="header-btn" title="Notificações">
+                    <i class="fas fa-bell"></i>
+                </button>
+                
+                <div class="user-greeting">
+                    <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                </div>
+                
+                <div class="user-avatar" id="user-avatar">
+                    <img src="/avatars/default.webp" alt="" id="user-photo">
+                    <span id="user-initials" style="display:none;align-items:center;justify-content:center;width:100%;height:100%;color:white;font-weight:600;font-size:14px;border-radius:50%;">U</span>
+                </div>
+            </div>
+        </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- ============================================
+             VIEW: DASHBOARD
+             ============================================ -->
+        <div id="view-dashboard" class="view active">
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon blue">
+                                <i class="fas fa-tachometer-alt"></i>
+                            </div>
+                            <div>
+                                <h1 class="page-title">Dashboard PCP</h1>
+                                <p class="page-subtitle">Visão geral do Planejamento e Controle da Produção</p>
+                            </div>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="location.reload()">
+                                <i class="fas fa-sync-alt"></i> Atualizar
+                            </button>
+                            <button class="btn btn-primary" onclick="showModal('modal-nova-ordem')">
+                                <i class="fas fa-plus"></i> Nova Ordem
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-boxes"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Total de Produtos</div>
+                            <div class="stat-value" id="stat-produtos">0</div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-arrow-up"></i> Ativos no sistema
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card green">
+                        <div class="stat-icon green">
+                            <i class="fas fa-clipboard-check"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Ordens em Produção</div>
+                            <div class="stat-value" id="stat-ordens">0</div>
+                            <div class="stat-trend neutral">
+                                <i class="fas fa-clock"></i> Em andamento
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card orange">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Estoque Baixo</div>
+                            <div class="stat-value" id="stat-estoque-baixo">0</div>
+                            <div class="stat-trend down">
+                                <i class="fas fa-arrow-down"></i> Requer atenção
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card cyan">
+                        <div class="stat-icon cyan">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Entregas Pendentes</div>
+                            <div class="stat-value" id="stat-entregas">0</div>
+                            <div class="stat-trend neutral">
+                                <i class="fas fa-clock"></i> Esta semana
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Grid -->
+                <div class="content-grid">
+                    <!-- Quick Actions Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-bolt"></i> Ações Rápidas
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="quick-actions-list">
+                                <button class="quick-action-btn" onclick="showModal('modal-nova-ordem')">
+                                    <div class="quick-action-icon" style="background: linear-gradient(135deg, var(--primary-500), var(--primary-600));">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </div>
+                                    <div class="quick-action-content">
+                                        <div class="quick-action-title">Nova Ordem de Produção</div>
+                                        <div class="quick-action-desc">Criar uma nova ordem de Produção</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+
+                                <button class="quick-action-btn" onclick="showModal('modal-novo-produto')">
+                                    <div class="quick-action-icon" style="background: linear-gradient(135deg, var(--success-500), var(--success-600));">
+                                        <i class="fas fa-box-open"></i>
+                                    </div>
+                                    <div class="quick-action-content">
+                                        <div class="quick-action-title">Cadastrar Produto</div>
+                                        <div class="quick-action-desc">Adicionar novo item ao catálogo</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+
+                                <button class="quick-action-btn" onclick="navigateTo('materiais')">
+                                    <div class="quick-action-icon" style="background: linear-gradient(135deg, var(--warning-500), var(--warning-600));">
+                                        <i class="fas fa-cubes"></i>
+                                    </div>
+                                    <div class="quick-action-content">
+                                        <div class="quick-action-title">Gestão de Materiais</div>
+                                        <div class="quick-action-desc">Controlar inventário de materiais</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+
+                                <button class="quick-action-btn" onclick="navigateTo('relatorios')">
+                                    <div class="quick-action-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                                        <i class="fas fa-chart-bar"></i>
+                                    </div>
+                                    <div class="quick-action-content">
+                                        <div class="quick-action-title">Relatórios</div>
+                                        <div class="quick-action-desc">Visualizar relatórios e análises</div>
+                                    </div>
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alerts Card -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fas fa-exclamation-triangle"></i> Alertas do Sistema
+                            </h3>
+                            <span class="badge badge-danger" id="alerts-count">0</span>
+                        </div>
+                        <div class="card-body" id="alerts-container">
+                            <div class="empty-state">
+                                <div class="empty-state-icon">
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                                <h4 class="empty-state-title">Tudo certo!</h4>
+                                <p class="empty-state-desc">não há alertas no momento.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Orders -->
+                <div class="card" style="margin-top: var(--space-6);">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-clipboard-list"></i> Ordens Recentes
+                        </h3>
+                        <button class="btn btn-sm btn-secondary" onclick="navigateTo('ordens')">
+                            Ver Todas <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Produto</th>
+                                        <th>Quantidade</th>
+                                        <th>Status</th>
+                                        <th>Previsão</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-orders-table">
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; padding: 40px;">
+                                            <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                            <p style="margin-top: 16px; color: var(--gray-500);">Carregando ordens...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+             VIEW: PRODUTOS E ESTOQUE (UNIFICADA)
+             ============================================ -->
+        <div id="view-produtos" class="view">
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon green">
+                                <i class="fas fa-boxes"></i>
+                            </div>
+                            <div>
+                                <h1 class="page-title">Produtos e Estoque</h1>
+                                <p class="page-subtitle">Gestão unificada de produtos e controle de estoque</p>
+                            </div>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="exportarProdutos()">
+                                <i class="fas fa-download"></i> Exportar
+                            </button>
+                            <button class="btn btn-success" onclick="showModal('modal-novo-produto')">
+                                <i class="fas fa-plus"></i> Novo Produto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards Produtos -->
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-box"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Total de Produtos</div>
+                            <div class="stat-value" id="produtos-total">0</div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-check"></i> Cadastrados
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card green">
+                        <div class="stat-icon green">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Estoque Normal</div>
+                            <div class="stat-value" id="produtos-normal">0</div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-thumbs-up"></i> Saudável
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card orange">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Estoque Baixo</div>
+                            <div class="stat-value" id="produtos-baixo">0</div>
+                            <div class="stat-trend down">
+                                <i class="fas fa-arrow-down"></i> atenção
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card red">
+                        <div class="stat-icon red">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Nível Crítico</div>
+                            <div class="stat-value" id="produtos-critico">0</div>
+                            <div class="stat-trend down">
+                                <i class="fas fa-exclamation"></i> Urgente
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs de Navegação -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="todos">
+                        <i class="fas fa-list"></i> Todos os Produtos
+                    </button>
+                    <button class="tab-btn" data-tab="estoque-baixo">
+                        <i class="fas fa-exclamation-triangle"></i> Estoque Baixo
+                    </button>
+                    <button class="tab-btn" data-tab="movimentacoes">
+                        <i class="fas fa-exchange-alt"></i> Movimentações
+                    </button>
+                    <button class="tab-btn" data-tab="categorias">
+                        <i class="fas fa-tags"></i> Categorias
+                    </button>
+                </div>
+
+                <!-- Barra de Busca -->
+                <div class="search-bar">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="search-input" id="search-produtos" placeholder="Buscar por código, nome, SKU ou GTIN...">
+                    </div>
+                    <select class="filter-select" id="filter-categoria">
+                        <option value="">Todas as Categorias</option>
+                        <option value="duplex">Duplex</option>
+                        <option value="triplex">Triplex</option>
+                        <option value="quadriplex">Quadriplex</option>
+                        <option value="singelo">Singelo (UN 10 - 300)</option>
+                        <option value="protegido">Protegido (PRO 10 - 300 15KV)</option>
+                        <option value="potencia">Potencia (POT)</option>
+                    </select>
+                    <select class="filter-select" id="filter-estoque">
+                        <option value="">Todos os Status</option>
+                        <option value="normal">Estoque Normal</option>
+                        <option value="baixo">Estoque Baixo</option>
+                        <option value="critico">Nível Crítico</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="buscarProdutos()">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+
+                <!-- Tabela de Produtos -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-table"></i> Catálogo de Produtos
+                        </h3>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-sm btn-secondary view-toggle active" data-view="table">
+                                <i class="fas fa-table"></i>
+                            </button>
+                            <button class="btn btn-sm btn-secondary view-toggle" data-view="cards">
+                                <i class="fas fa-th-large"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container" id="produtos-table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nome / Descrição</th>
+                                        <th>SKU</th>
+                                        <th>Categoria</th>
+                                        <th>Estoque</th>
+                                        <th>Mínimo</th>
+                                        <th>Preço</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="produtos-table-body">
+                                    <tr>
+                                        <td colspan="9" style="text-align: center; padding: 60px;">
+                                            <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                            <p style="margin-top: 16px; color: var(--gray-500);">Carregando produtos...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Grid View (hidden by default) -->
+                        <div class="products-grid" id="produtos-grid-container" style="display: none; padding: 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+                            <!-- Cards serão inseridos via JS -->
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span style="font-size: 14px; color: var(--gray-500);">
+                                Mostrando <strong id="produtos-showing">0</strong> de <strong id="produtos-total-count">0</strong> produtos
+                            </span>
+                            <div class="pagination" id="produtos-pagination">
+                                <!-- Paginação será inserida via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+             VIEW: MATERIAIS
+             ============================================ -->
+        <div id="view-materiais" class="view">
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon orange">
+                                <i class="fas fa-cubes"></i>
+                            </div>
+                            <div>
+                                <h1 class="page-title">Gestão de Materiais</h1>
+                                <p class="page-subtitle">Controle completo do inventário de materiais</p>
+                            </div>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="exportarMateriais()">
+                                <i class="fas fa-file-export"></i> Exportar PDF
+                            </button>
+                            <button class="btn btn-primary" onclick="showModal('modal-novo-material')">
+                                <i class="fas fa-plus"></i> Novo Material
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards Materiais -->
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Materiais Ativos</div>
+                            <div class="stat-value" id="materiais-total">0</div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-arrow-up"></i> +5.2% este mês
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card green">
+                        <div class="stat-icon green">
+                            <i class="fas fa-warehouse"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Valor em Estoque</div>
+                            <div class="stat-value" id="materiais-valor">R$ 0</div>
+                            <div class="stat-trend up">
+                                <i class="fas fa-chart-line"></i> Atualizado
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card orange">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Pendentes Recebimento</div>
+                            <div class="stat-value" id="materiais-pendentes">0</div>
+                            <div class="stat-trend neutral">
+                                <i class="fas fa-truck"></i> Em trânsito
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card red">
+                        <div class="stat-icon red">
+                            <i class="fas fa-bell"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Requer atenção</div>
+                            <div class="stat-value" id="materiais-alerta">0</div>
+                            <div class="stat-trend down">
+                                <i class="fas fa-exclamation"></i> Verificar
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra de Busca Materiais -->
+                <div class="search-bar">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="search-input" id="search-materiais" placeholder="Buscar material por código, nome ou fornecedor...">
+                    </div>
+                    <select class="filter-select" id="filter-tipo-material">
+                        <option value="">Todos os Tipos</option>
+                        <option value="materia-prima">Matéria Prima</option>
+                        <option value="componente">Componente</option>
+                        <option value="embalagem">Embalagem</option>
+                        <option value="insumo">Insumo</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="buscarMateriais()">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+
+                <!-- Tabela de Materiais -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-clipboard-list"></i> Lista de Materiais
+                        </h3>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Material</th>
+                                        <th>Tipo</th>
+                                        <th>Unidade</th>
+                                        <th>Qtd Atual</th>
+                                        <th>Mínimo</th>
+                                        <th>Fornecedor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="materiais-table-body">
+                                    <tr>
+                                        <td colspan="9" style="text-align: center; padding: 60px;">
+                                            <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                            <p style="margin-top: 16px; color: var(--gray-500);">Carregando materiais...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+             VIEW: ORDEM DE COMPRA
+             ============================================ -->
+        <div id="view-ordem-compra" class="view">
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon purple">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                            <div>
+                                <h1 class="page-title">Ordem de Compra</h1>
+                                <p class="page-subtitle">geração e controle de ordens de compra</p>
+                            </div>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" onclick="showModal('modal-nova-oc')">
+                                <i class="fas fa-plus"></i> Nova OC
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards OC -->
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">OCs Abertas</div>
+                            <div class="stat-value" id="oc-abertas">0</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card green">
+                        <div class="stat-icon green">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Aprovadas</div>
+                            <div class="stat-value" id="oc-aprovadas">0</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card orange">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Aguardando</div>
+                            <div class="stat-value" id="oc-aguardando">0</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card cyan">
+                        <div class="stat-icon cyan">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Valor Total</div>
+                            <div class="stat-value" id="oc-valor">R$ 0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de OCs -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-list-alt"></i> Ordens de Compra
+                        </h3>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nº OC</th>
+                                        <th>Fornecedor</th>
+                                        <th>Data</th>
+                                        <th>Previsão Entrega</th>
+                                        <th>Valor Total</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="oc-table-body">
+                                    <tr>
+                                        <td colspan="7" style="text-align: center; padding: 60px;">
+                                            <div class="empty-state">
+                                                <div class="empty-state-icon">
+                                                    <i class="fas fa-shopping-cart"></i>
+                                                </div>
+                                                <h4 class="empty-state-title">Nenhuma OC encontrada</h4>
+                                                <p class="empty-state-desc">Clique em "Nova OC" para criar uma ordem de compra.</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+             VIEW: FATURAMENTO
+             ============================================ -->
+        <div id="view-faturamento" class="view">
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon cyan">
+                                <i class="fas fa-file-invoice-dollar"></i>
+                            </div>
+                            <div>
+                                <h1 class="page-title">Programação de Faturamento</h1>
+                                <p class="page-subtitle">Controle de faturamento e expEdição</p>
+                            </div>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" onclick="showModal('modal-novo-faturamento')">
+                                <i class="fas fa-plus"></i> Novo Faturamento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards Faturamento -->
+                <div class="stats-grid">
+                    <div class="stat-card blue">
+                        <div class="stat-icon blue">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Programados</div>
+                            <div class="stat-value" id="fat-programados">0</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card green">
+                        <div class="stat-icon green">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Faturados</div>
+                            <div class="stat-value" id="fat-emitidos">0</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card orange">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Pendentes</div>
+                            <div class="stat-value" id="fat-pendentes">0</div>
+                        </div>
+                    </div>
+
+                    <div class="stat-card red">
+                        <div class="stat-icon red">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-label">Cancelados</div>
+                            <div class="stat-value" id="fat-cancelados">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs Faturamento -->
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab-fat="todos">
+                        <i class="fas fa-list"></i> Todos
+                    </button>
+                    <button class="tab-btn" data-tab-fat="programados">
+                        <i class="fas fa-clock"></i> Programados
+                    </button>
+                    <button class="tab-btn" data-tab-fat="emitidos">
+                        <i class="fas fa-check-circle"></i> Emitidos
+                    </button>
+                    <button class="tab-btn" data-tab-fat="cancelados">
+                        <i class="fas fa-times-circle"></i> Cancelados
+                    </button>
+                </div>
+
+                <!-- Lista de Faturamentos -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-file-invoice"></i> Lista de Faturamentos
+                        </h3>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nº Pedido</th>
+                                        <th>Cliente</th>
+                                        <th>Data Programada</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="faturamento-table-body">
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; padding: 60px;">
+                                            <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                            <p style="margin-top: 16px; color: var(--gray-500);">Carregando faturamentos...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================
+             VIEW: RELATÍ“RIOS
+             ============================================ -->
+        <div id="view-relatorios" class="view">
+            <div class="page-content">
+                <div class="page-header">
+                    <div class="page-header-top">
+                        <div class="page-title-wrapper">
+                            <div class="page-icon purple">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <div>
+                                <h1 class="page-title">Relatórios</h1>
+                                <p class="page-subtitle">Análises e relatórios do sistema PCP</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grid de Relatórios -->
+                <div class="content-grid-3">
+                    <div class="card" style="cursor: pointer;" onclick="gerarRelatorio('producao')">
+                        <div class="card-body" style="text-align: center; padding: 40px;">
+                            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--primary-500), var(--primary-600)); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                                <i class="fas fa-industry" style="font-size: 28px; color: white;"></i>
+                            </div>
+                            <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Relatório de Produção</h3>
+                            <p style="font-size: 14px; color: var(--gray-500);">Análise detalhada da Produção por período</p>
+                        </div>
+                    </div>
+
+                    <div class="card" style="cursor: pointer;" onclick="gerarRelatorio('estoque')">
+                        <div class="card-body" style="text-align: center; padding: 40px;">
+                            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--success-500), var(--success-600)); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                                <i class="fas fa-boxes" style="font-size: 28px; color: white;"></i>
+                            </div>
+                            <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Relatório de Estoque</h3>
+                            <p style="font-size: 14px; color: var(--gray-500);">Posição atual e movimentações</p>
+                        </div>
+                    </div>
+
+                    <div class="card" style="cursor: pointer;" onclick="gerarRelatorio('materiais')">
+                        <div class="card-body" style="text-align: center; padding: 40px;">
+                            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--warning-500), var(--warning-600)); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                                <i class="fas fa-cubes" style="font-size: 28px; color: white;"></i>
+                            </div>
+                            <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Relatório de Materiais</h3>
+                            <p style="font-size: 14px; color: var(--gray-500);">Consumo e necessidades de materiais</p>
+                        </div>
+                    </div>
+
+                    <div class="card" style="cursor: pointer;" onclick="gerarRelatorio('entregas')">
+                        <div class="card-body" style="text-align: center; padding: 40px;">
+                            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--info-500), var(--info-600)); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                                <i class="fas fa-truck" style="font-size: 28px; color: white;"></i>
+                            </div>
+                            <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Relatório de Entregas</h3>
+                            <p style="font-size: 14px; color: var(--gray-500);">Prazos e performance de entregas</p>
+                        </div>
+                    </div>
+
+                    <div class="card" style="cursor: pointer;" onclick="gerarRelatorio('compras')">
+                        <div class="card-body" style="text-align: center; padding: 40px;">
+                            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                                <i class="fas fa-shopping-cart" style="font-size: 28px; color: white;"></i>
+                            </div>
+                            <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">Relatório de Compras</h3>
+                            <p style="font-size: 14px; color: var(--gray-500);">Análise de compras e fornecedores</p>
+                        </div>
+                    </div>
+
+                    <div class="card" style="cursor: pointer;" onclick="gerarRelatorio('kpis')">
+                        <div class="card-body" style="text-align: center; padding: 40px;">
+                            <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--danger-500), var(--danger-600)); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                                <i class="fas fa-tachometer-alt" style="font-size: 28px; color: white;"></i>
+                            </div>
+                            <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">KPIs de Performance</h3>
+                            <p style="font-size: 14px; color: var(--gray-500);">Indicadores chave de desempenho</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    </div> <!-- Fecha main-area -->
+    </div> <!-- Fecha app-container -->
+
+    <!-- ============================================
+         MODAIS
+         ============================================ -->
+    
+    <!-- Modal: Nova Ordem de Produção -->
+    <div class="modal-overlay" id="modal-nova-ordem">
+        <div class="modal-op-wrapper">
+            <!-- ÍÂrea Principal do Modal -->
+            <div class="modal-op-main">
+                <!-- Header do Modal -->
+                <div class="modal-op-header">
+                    <h3 class="modal-op-title">Nova Ordem de Produção</h3>
+                    <button class="modal-op-close" onclick="hideModal('modal-nova-ordem')">
+                        Fechar <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <!-- Conteúdo do Modal -->
+                <div class="modal-op-body">
+                    <!-- Seção: Produto -->
+                    <div class="modal-op-section">
+                        <div class="modal-op-product-row">
+                            <div class="modal-op-avatar">
+                                <span>OP</span>
+                            </div>
+                            <div class="modal-op-product-field">
+                                <label class="modal-op-label">Produto <i class="fas fa-external-link-alt"></i></label>
+                                <input type="text" class="modal-op-input-lg" id="op-produto" placeholder="Selecione o produto...">
+                            </div>
+                            <button class="modal-op-btn-outline" onclick="buscarProdutoOP()">
+                                <i class="fas fa-search"></i> Buscar Produto
+                            </button>
+                            <div class="modal-op-date-field">
+                                <label class="modal-op-label">Previsão de Conclusão <i class="fas fa-info-circle"></i></label>
+                                <input type="date" class="modal-op-input-date" id="op-previsao">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção: Campos de Valores -->
+                    <div class="modal-op-values-row">
+                        <div class="modal-op-value-field">
+                            <label>Quantidade a Produzir</label>
+                            <input type="number" id="op-quantidade" value="1" min="1">
+                        </div>
+                        <div class="modal-op-value-field">
+                            <label>Custo Estimado <i class="fas fa-pencil-alt"></i></label>
+                            <input type="text" id="op-custo-estimado" value="0,00">
+                        </div>
+                        <div class="modal-op-value-field">
+                            <label>Custo M²o de Obra</label>
+                            <input type="text" id="op-custo-mao-obra" value="0,00">
+                        </div>
+                        <div class="modal-op-value-field">
+                            <label>Custo Materiais</label>
+                            <input type="text" id="op-custo-materiais" value="0,00">
+                        </div>
+                        <div class="modal-op-value-field highlight">
+                            <label>Custo Total</label>
+                            <input type="text" id="op-custo-total" value="R$ 0,00" readonly>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção: Campos de Seleção -->
+                    <div class="modal-op-select-row">
+                        <div class="modal-op-select-field">
+                            <label>Responsável *</label>
+                            <select id="op-responsavel">
+                                <option value="">Selecione o responsável...</option>
+                                <option value="1">João Silva</option>
+                                <option value="2">Maria Santos</option>
+                            </select>
+                        </div>
+                        <div class="modal-op-select-field">
+                            <label>Prioridade <i class="fas fa-pencil-alt"></i></label>
+                            <select id="op-prioridade">
+                                <option value="normal">Normal</option>
+                                <option value="alta">Alta</option>
+                                <option value="urgente">Urgente</option>
+                            </select>
+                        </div>
+                        <div class="modal-op-select-field">
+                            <label>Centro de Custo</label>
+                            <select id="op-centro-custo">
+                                <option value="">Padrão</option>
+                                <option value="1">Produção</option>
+                                <option value="2">Manutenção</option>
+                            </select>
+                        </div>
+                        <a href="#" class="modal-op-link" onclick="atualizarCustosOP()">
+                            <i class="fas fa-sync-alt"></i> Atualizar custos dos itens
+                        </a>
+                    </div>
+                    
+                    <!-- Abas -->
+                    <div class="modal-op-tabs">
+                        <button class="modal-op-tab active" data-tab="itens" onclick="switchOPTab('itens')">
+                            Itens da Produção
+                        </button>
+                        <button class="modal-op-tab" data-tab="materiais" onclick="switchOPTab('materiais')">
+                            Materiais
+                        </button>
+                        <button class="modal-op-tab" data-tab="mao-obra" onclick="switchOPTab('mao-obra')">
+                            M²o de Obra
+                        </button>
+                        <button class="modal-op-tab" data-tab="info" onclick="switchOPTab('info')">
+                            Informações Adicionais
+                        </button>
+                        <button class="modal-op-tab" data-tab="obs" onclick="switchOPTab('obs')">
+                            Observações
+                        </button>
+                    </div>
+                    
+                    <!-- Conteúdo das Abas -->
+                    <div class="modal-op-tab-content">
+                        <!-- Aba: Itens da Produção -->
+                        <div class="modal-op-tab-pane active" id="op-tab-itens">
+                            <!-- Botões de Ação -->
+                            <div class="modal-op-tab-actions">
+                                <button class="modal-op-btn-action add" onclick="novoItemOP()">
+                                    <i class="fas fa-plus"></i> Novo Item
+                                </button>
+                                <button class="modal-op-btn-action edit" onclick="editarItemOP()">
+                                    <i class="fas fa-pencil-alt"></i> Editar Item
+                                </button>
+                                <button class="modal-op-btn-action delete" onclick="excluirItemOP()">
+                                    <i class="fas fa-trash"></i> Excluir Item
+                                </button>
+                            </div>
+                            
+                            <!-- Tabela -->
+                            <div class="modal-op-table-container">
+                                <table class="modal-op-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Produto <i class="fas fa-sort"></i></th>
+                                            <th>Descrição do Produto</th>
+                                            <th>Quantidade</th>
+                                            <th>Quantidade (Parcial)</th>
+                                            <th>Local de Estoque</th>
+                                            <th>Custo Unitário</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="op-itens-tbody">
+                                        <tr class="modal-op-empty-row">
+                                            <td colspan="6">
+                                                <i class="fas fa-inbox"></i>
+                                                <span>Nenhum item adicionado</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Rodapé da Tabela -->
+                            <div class="modal-op-table-footer">
+                                <span class="modal-op-records-info">0 - 0 de 0 registros</span>
+                                <div class="modal-op-pagination">
+                                    <button class="modal-op-page-btn" disabled><i class="fas fa-angle-double-left"></i></button>
+                                    <button class="modal-op-page-btn" disabled><i class="fas fa-angle-left"></i> anterior</button>
+                                    <span class="modal-op-page-num active">1</span>
+                                    <button class="modal-op-page-btn">próximo <i class="fas fa-angle-right"></i></button>
+                                    <button class="modal-op-page-btn"><i class="fas fa-angle-double-right"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Aba: Materiais -->
+                        <div class="modal-op-tab-pane" id="op-tab-materiais">
+                            <div class="modal-op-tab-actions">
+                                <button class="modal-op-btn-action add" onclick="novoMaterialOP()">
+                                    <i class="fas fa-plus"></i> Novo Material
+                                </button>
+                            </div>
+                            <div class="modal-op-table-container">
+                                <table class="modal-op-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Material</th>
+                                            <th>Quantidade</th>
+                                            <th>Unidade</th>
+                                            <th>Custo Unit.</th>
+                                            <th>Custo Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="op-materiais-tbody">
+                                        <tr class="modal-op-empty-row">
+                                            <td colspan="6">
+                                                <i class="fas fa-inbox"></i>
+                                                <span>Nenhum material adicionado</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Aba: M²o de Obra -->
+                        <div class="modal-op-tab-pane" id="op-tab-mao-obra">
+                            <div class="modal-op-tab-actions">
+                                <button class="modal-op-btn-action add" onclick="novaMaoObraOP()">
+                                    <i class="fas fa-plus"></i> Adicionar M²o de Obra
+                                </button>
+                            </div>
+                            <div class="modal-op-table-container">
+                                <table class="modal-op-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Função</th>
+                                            <th>Horas</th>
+                                            <th>Valor/Hora</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="op-mao-obra-tbody">
+                                        <tr class="modal-op-empty-row">
+                                            <td colspan="5">
+                                                <i class="fas fa-inbox"></i>
+                                                <span>Nenhuma mão de obra adicionada</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Aba: Informações Adicionais -->
+                        <div class="modal-op-tab-pane" id="op-tab-info">
+                            <div class="modal-op-info-grid">
+                                <div class="modal-op-info-field">
+                                    <label>Cliente</label>
+                                    <input type="text" id="op-cliente" placeholder="Nome do cliente">
+                                </div>
+                                <div class="modal-op-info-field">
+                                    <label>Pedido de Venda</label>
+                                    <input type="text" id="op-pedido-venda" placeholder="Nº do pedido">
+                                </div>
+                                <div class="modal-op-info-field">
+                                    <label>Lote</label>
+                                    <input type="text" id="op-lote" placeholder="Número do lote">
+                                </div>
+                                <div class="modal-op-info-field">
+                                    <label>Setor</label>
+                                    <select id="op-setor">
+                                        <option value="">Selecione...</option>
+                                        <option value="1">Produção</option>
+                                        <option value="2">Montagem</option>
+                                        <option value="3">Acabamento</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Aba: Observações -->
+                        <div class="modal-op-tab-pane" id="op-tab-obs">
+                            <div class="modal-op-obs-field">
+                                <label>Observações da Ordem de Produção</label>
+                                <textarea id="op-observacoes" rows="6" placeholder="Digite as observações..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer com Nova OP -->
+                    <div class="modal-op-footer-action">
+                        <button class="modal-op-btn-new" onclick="novaOrdemProducaoRapida()">
+                            <i class="fas fa-plus-circle"></i> Nova Ordem de Produção
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sidebar de Ações -->
+            <div class="modal-op-sidebar">
+                <button class="modal-op-sidebar-btn primary" onclick="salvarOrdemProducao()">
+                    <i class="fas fa-save"></i> Salvar
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="incluirOP()">
+                    <i class="fas fa-plus"></i> Incluir
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="imprimirOP()">
+                    <i class="fas fa-print"></i> Imprimir
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="duplicarOP()">
+                    <i class="fas fa-copy"></i> Duplicar
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="conferirOP()">
+                    <i class="fas fa-check-circle"></i> Conferir
+                </button>
+                <button class="modal-op-sidebar-btn highlight" onclick="iniciarProducao()">
+                    <i class="fas fa-play"></i> Iniciar Produção
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="anexosOP()">
+                    <i class="fas fa-paperclip"></i> Anexos
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="historicoOP()">
+                    <i class="fas fa-history"></i> Histórico de Alterações
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="tarefasOP()">
+                    <i class="fas fa-tasks"></i> Tarefas
+                </button>
+                <button class="modal-op-sidebar-btn outline" onclick="ordemParcial()">
+                    <i class="fas fa-divide"></i> Ordem Parcial
+                </button>
+                <button class="modal-op-sidebar-btn danger" onclick="excluirOP()">
+                    <i class="fas fa-trash"></i> Excluir
+                </button>
+                <button class="modal-op-sidebar-btn" onclick="cancelarOP()">
+                    <i class="fas fa-ban"></i> Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Novo Produto -->
+    <div class="modal-overlay" id="modal-novo-produto">
+        <div class="modal" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3 class="modal-title"><i class="fas fa-box-open"></i> Cadastrar Novo Produto</h3>
+                <button class="modal-close" onclick="hideModal('modal-novo-produto')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="form-novo-produto">
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label class="form-label">Código <span class="required">*</span></label>
+                            <input type="text" class="form-input" name="codigo" required placeholder="Ex: PROD001">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">SKU</label>
+                            <input type="text" class="form-input" name="sku" placeholder="SKU do produto">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">GTIN/EAN</label>
+                            <input type="text" class="form-input" name="gtin" placeholder="Código de barras">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nome do Produto <span class="required">*</span></label>
+                        <input type="text" class="form-input" name="nome" required placeholder="Nome completo do produto">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Descrição</label>
+                        <textarea class="form-input" name="descricao" rows="2" placeholder="Descrição detalhada..."></textarea>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label class="form-label">Categoria</label>
+                            <select class="form-input" name="categoria">
+                                <option value="">Selecione...</option>
+                                <option value="duplex">Duplex</option>
+                                <option value="triplex">Triplex</option>
+                                <option value="quadriplex">Quadriplex</option>
+                                <option value="singelo">Singelo (UN 10 - 300)</option>
+                                <option value="protegido">Protegido (PRO 10 - 300 15KV)</option>
+                                <option value="potencia">Potencia (POT)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Unidade</label>
+                            <select class="form-input" name="unidade">
+                                <option value="un">Unidade (UN)</option>
+                                <option value="m">Metro (M)</option>
+                                <option value="kg">Quilograma (KG)</option>
+                                <option value="cx">Caixa (CX)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">NCM</label>
+                            <input type="text" class="form-input" name="ncm" placeholder="00000000">
+                        </div>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label class="form-label">Preço de Venda</label>
+                            <input type="text" class="form-input" name="preco" placeholder="R$ 0,00">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Estoque Atual</label>
+                            <input type="number" class="form-input" name="estoque" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Estoque Mínimo</label>
+                            <input type="number" class="form-input" name="estoque_minimo" placeholder="0">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideModal('modal-novo-produto')">Cancelar</button>
+                <button class="btn btn-success" onclick="salvarProduto()">
+                    <i class="fas fa-save"></i> Cadastrar Produto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS -->
+    <script>
+        // ============================================
+        // NAVEGAÇÃO ENTRE VIEWS
+        // ============================================
+        function navigateTo(viewName) {
+            // Esconde todas as views
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            
+            // Mostra a view selecionada
+            const view = document.getElementById('view-' + viewName);
+            if (view) {
+                view.classList.add('active');
+            }
+            
+            // Atualiza botões da sidebar
+            document.querySelectorAll('.sidebar-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.view === viewName) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+
+        // Event listeners para Navegação
+        document.querySelectorAll('.sidebar-btn[data-view]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                navigateTo(btn.dataset.view);
+            });
+        });
+
+        // ============================================
+        // DARK MODE
+        // ============================================
+        const darkModeBtn = document.getElementById('btn-dark-mode');
+        darkModeBtn?.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const icon = darkModeBtn.querySelector('i');
+            icon.classList.toggle('fa-moon');
+            icon.classList.toggle('fa-sun');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        });
+
+        // Carregar preferência salva
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+            const icon = darkModeBtn?.querySelector('i');
+            if (icon) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+        }
+
+        // ============================================
+        // MODAIS
+        // ============================================
+        function showModal(modalId) {
+            const overlay = document.getElementById(modalId);
+            if (overlay) {
+                document.body.classList.add('modal-open');
+                overlay.classList.add('active');
+                // Força o modal para o final do body para evitar problemas de stacking context
+                document.body.appendChild(overlay);
+            }
+        }
+
+        function hideModal(modalId) {
+            const overlay = document.getElementById(modalId);
+            if (overlay) {
+                overlay.classList.remove('active');
+                document.body.classList.remove('modal-open');
+            }
+        }
+
+        // Fechar modal ao clicar fora
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('active');
+                }
+            });
+        });
+
+        // ============================================
+        // REFRESH
+        // ============================================
+        document.getElementById('btn-refresh')?.addEventListener('click', () => {
+            location.reload();
+        });
+
+        // ============================================
+        // MODAL NOVA ORDEM DE PRODUÇÃO
+        // ============================================
+        
+        // Alternar entre abas
+        function switchOPTab(tabName) {
+            // Remove active de todas as abas
+            document.querySelectorAll('.modal-op-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.modal-op-tab-pane').forEach(pane => {
+                pane.classList.remove('active');
+            });
+            
+            // Ativa a aba selecionada
+            document.querySelector(`.modal-op-tab[data-tab="${tabName}"]`)?.classList.add('active');
+            document.getElementById(`op-tab-${tabName}`)?.classList.add('active');
+        }
+
+        // Buscar produto
+        function buscarProdutoOP() {
+            const produto = document.getElementById('op-produto')?.value;
+            console.log('Buscando produto:', produto);
+            // TODO: Implementar busca de produto via API
+            alert('Funcionalidade de busca em desenvolvimento.');
+        }
+
+        // Salvar ordem de Produção
+        function salvarOrdemProducao() {
+            const dados = {
+                produto: document.getElementById('op-produto')?.value,
+                previsao: document.getElementById('op-previsao')?.value,
+                quantidade: document.getElementById('op-quantidade')?.value,
+                custo_estimado: document.getElementById('op-custo-estimado')?.value,
+                custo_mao_obra: document.getElementById('op-custo-mao-obra')?.value,
+                custo_materiais: document.getElementById('op-custo-materiais')?.value,
+                prioridade: document.getElementById('op-prioridade')?.value || 'normal',
+                centro_custo: document.getElementById('op-centro-custo')?.value || '',
+                responsavel: document.getElementById('op-responsavel')?.value || '',
+                cliente: document.getElementById('op-cliente')?.value || '',
+                pedido_venda: document.getElementById('op-pedido-venda')?.value || '',
+                lote: document.getElementById('op-lote')?.value || '',
+                setor: document.getElementById('op-setor')?.value || '',
+                observacoes: document.getElementById('op-observacoes')?.value || ''
+            };
+            
+            console.log('Salvando ordem de Produção:', dados);
+            
+            // Validação básica
+            if (!dados.produto) {
+                alert('Por favor, selecione um produto.');
+                return;
+            }
+            if (!dados.quantidade || dados.quantidade < 1) {
+                alert('Por favor, informe uma quantidade válida.');
+                return;
+            }
+            
+            // TODO: Implementar salvamento via API
+            alert('Ordem de Produção salva com sucesso!');
+            hideModal('modal-nova-ordem');
+        }
+
+        // Funções dos botões de Ação da tabela
+        function novoItemOP() {
+            alert('Adicionar novo item - Em desenvolvimento');
+        }
+
+        function editarItemOP() {
+            alert('Editar item selecionado - Em desenvolvimento');
+        }
+
+        function excluirItemOP() {
+            alert('Excluir item selecionado - Em desenvolvimento');
+        }
+
+        function novoMaterialOP() {
+            alert('Adicionar novo material - Em desenvolvimento');
+        }
+
+        function novaMaoObraOP() {
+            alert('Adicionar mão de obra - Em desenvolvimento');
+        }
+
+        function atualizarCustosOP() {
+            alert('Atualizando custos dos itens...');
+        }
+
+        function novaOrdemProducaoRapida() {
+            alert('Nova ordem de Produção rápida - Em desenvolvimento');
+        }
+
+        // Funções da sidebar
+        function incluirOP() {
+            alert('Incluir - Em desenvolvimento');
+        }
+
+        function imprimirOP() {
+            alert('Imprimir ordem de Produção - Em desenvolvimento');
+        }
+
+        function duplicarOP() {
+            alert('Duplicar ordem de Produção - Em desenvolvimento');
+        }
+
+        function conferirOP() {
+            alert('Conferir ordem de Produção - Em desenvolvimento');
+        }
+
+        function iniciarProducao() {
+            alert('Iniciar Produção - Em desenvolvimento');
+        }
+
+        function anexosOP() {
+            alert('Gerenciar anexos - Em desenvolvimento');
+        }
+
+        function historicoOP() {
+            alert('Histórico de alterações - Em desenvolvimento');
+        }
+
+        function tarefasOP() {
+            alert('Gerenciar tarefas - Em desenvolvimento');
+        }
+
+        function ordemParcial() {
+            alert('Criar ordem parcial - Em desenvolvimento');
+        }
+
+        function excluirOP() {
+            if (confirm('Tem certeza que deseja excluir esta ordem de Produção?')) {
+                alert('Ordem de Produção excluída');
+                hideModal('modal-nova-ordem');
+            }
+        }
+
+        function cancelarOP() {
+            if (confirm('Tem certeza que deseja cancelar esta ordem de Produção?')) {
+                hideModal('modal-nova-ordem');
+            }
+        }
+
+        // Inicializar data Padrão ao abrir o modal
+        function initModalNovaOrdem() {
+            const hoje = new Date();
+            const dataFormatada = hoje.toISOString().split('T')[0];
+            const inputPrevisao = document.getElementById('op-previsao');
+            if (inputPrevisao && !inputPrevisao.value) {
+                inputPrevisao.value = dataFormatada;
+            }
+        }
+
+        // Observer para quando o modal for aberto
+        const modalNovaOrdem = document.getElementById('modal-nova-ordem');
+        if (modalNovaOrdem) {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.attributeName === 'class' && modalNovaOrdem.classList.contains('active')) {
+                        initModalNovaOrdem();
+                    }
+                });
+            });
+            observer.observe(modalNovaOrdem, { attributes: true });
+        }
+
+        // ============================================
+        // INICIALIZAÇÃO
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('PCP Module Initialized');
+            // Carregar dados do usuário
+            carregarDadosUsuario();
+            // Carregar dados iniciais aqui
+            loadDashboardData();
+        });
+
+        // Função para carregar dados do usuário logado
+        async function carregarDadosUsuario() {
+            try {
+                const response = await fetch('/api/user/me', {
+                    credentials: 'include',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    console.log('ðÅ¸‘Â¤ Dados do usuário recebidos:', user);
+                    
+                    const nomeCompleto = user.nome || user.name || 'Usuário';
+                    const primeiroNome = nomeCompleto.split(' ')[0];
+                    
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = primeiroNome;
+                    
+                    const userPhotoEl = document.getElementById('user-photo');
+                    const userAvatarDiv = document.getElementById('user-avatar');
+                    
+                    const fotoUrl = user.foto_perfil_url || user.avatar || user.foto;
+                    
+                    if (fotoUrl && fotoUrl !== '/avatars/default.webp' && userPhotoEl) {
+                        userPhotoEl.src = fotoUrl;
+                        userPhotoEl.onerror = function() {
+                            mostrarIniciaisAvatar(nomeCompleto, userAvatarDiv);
+                        };
+                    } else {
+                        mostrarIniciaisAvatar(nomeCompleto, userAvatarDiv);
+                    }
+                    
+                    localStorage.setItem('userData', JSON.stringify({
+                        nome: nomeCompleto,
+                        email: user.email,
+                        avatar: fotoUrl
+                    }));
+                    
+                    console.log('â Usuário carregado:', primeiroNome);
+                } else {
+                    carregarUsuarioLocalStorage();
+                }
+            } catch (error) {
+                console.error('ÂÅ Erro ao carregar dados do usuário:', error);
+                carregarUsuarioLocalStorage();
+            }
+        }
+        
+        function mostrarIniciaisAvatar(nomeCompleto, avatarDiv) {
+            const iniciais = nomeCompleto.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || 'U';
+            const cores = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
+            const cor = cores[nomeCompleto.charCodeAt(0) % cores.length];
+            
+            if (avatarDiv) {
+                avatarDiv.innerHTML = `<span style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:${cor};color:white;font-weight:600;border-radius:50%;font-size:14px;">${iniciais}</span>`;
+            }
+        }
+        
+        function carregarUsuarioLocalStorage() {
+            try {
+                const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+                if (userData.nome) {
+                    const userNameEl = document.getElementById('user-name');
+                    if (userNameEl) userNameEl.textContent = userData.nome.split(' ')[0];
+                    if (userData.avatar) {
+                        const userPhotoEl = document.getElementById('user-photo');
+                        if (userPhotoEl) userPhotoEl.src = userData.avatar;
+                    }
+                }
+            } catch (e) {
+                console.log('Erro ao carregar usuário do localStorage');
+            }
+        }
+
+        // Função placeholder para carregar dados
+        async function loadDashboardData() {
+            // TODO: Implementar chamadas API
+            console.log('Loading dashboard data...');
+        }
+    </script>
+    <script src="/js/mobile-menu.js"></script>
+    <script src="/js/auth-unified.js?v=20260131c"></script>
+    <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+
+    <!-- Zyntra Chat Teams -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+</body>
+</html>
+
+
+
+
+
+
+

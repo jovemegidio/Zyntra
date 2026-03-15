@@ -1,0 +1,1659 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#1a2744">
+    <title>Aluforce: Gestão de Produção</title>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
+    <link rel="stylesheet" href="../css/pcp-layout.css">
+    <link rel="stylesheet" href="../css/pcp-components.css">
+
+    <style>
+        .stat-card.blue .stat-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+        .stat-card.green .stat-icon { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .stat-card.orange .stat-icon { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+        .stat-card.purple .stat-icon { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
+
+        .stat-card .stat-content { flex: 1; }
+        .stat-card .stat-label { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; color: #111827; }
+        .stat-card .stat-trend { font-size: 12px; color: #6b7280; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+
+        .page-header-top { display: flex; justify-content: flex-end; margin-bottom: var(--space-6); }
+        .page-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+        .card-title { display: flex; align-items: center; gap: var(--space-2); font-size: 15px; font-weight: 600; color: var(--gray-800); }
+        .card-title i { color: var(--primary-500); }
+        .table-container { overflow-x: auto; }
+
+        .pcp-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-label { font-size: 12px; color: var(--gray-600); font-weight: 500; }
+        .filter-input, .filter-select { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-md); font-size: 14px; }
+
+        .pcp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .pcp-table thead { background: linear-gradient(135deg, var(--primary-500), var(--primary-600)); color: white; }
+        .pcp-table th { padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; white-space: nowrap; }
+        .pcp-table td { padding: 8px; border-bottom: 1px solid var(--gray-100); }
+        .pcp-table tr:hover { background: var(--gray-50); }
+
+        .th-color { text-align: center !important; width: 40px; }
+        .th-pt { background: #374151 !important; }
+        .th-cz { background: #6b7280 !important; }
+        .th-vm { background: #dc2626 !important; }
+        .th-az { background: #2563eb !important; }
+
+        .table-view-toggle { display: flex; gap: 4px; }
+
+        .pcp-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+
+        @media (max-width: 768px) {
+            .pcp-filters { flex-direction: column; }
+            .filter-group { width: 100%; }
+            .pcp-table { font-size: 11px; }
+            .pcp-table th, .pcp-table td { padding: 6px 4px; }
+            .hide-mobile { display: none; }
+        }
+
+        /* ===== BOTÕES PREMIUM - Nova Máquina / Nova Tarefa ===== */
+        .btn-nova-premium {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-nova-premium::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transition: left 0.5s ease;
+        }
+        .btn-nova-premium:hover::before {
+            left: 100%;
+        }
+        .btn-nova-premium:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+            transform: translateY(-2px);
+        }
+        .btn-nova-premium:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+        }
+        .btn-nova-premium i {
+            font-size: 12px;
+            background: rgba(255,255,255,0.2);
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        .btn-nova-premium:hover i {
+            background: rgba(255,255,255,0.3);
+            transform: rotate(90deg);
+        }
+/* ===== RESPONSIVO ===== */
+        @media (max-width: 768px) {
+            .btn-nova-premium {
+                padding: 8px 14px;
+                font-size: 12px;
+                gap: 6px;
+            }
+            .btn-nova-premium i {
+                width: 18px;
+                height: 18px;
+                font-size: 10px;
+            }
+        }
+
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Global Header & Sidebar -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+
+    <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
+    <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-btn" title="Dashboard PCP"><i class="fas fa-tachometer-alt"></i></a>
+                <a href="estoque.html" class="sidebar-btn" title="Estoque"><i class="fas fa-boxes"></i></a>
+                <a href="materiais.html" class="sidebar-btn" title="Materiais"><i class="fas fa-layer-group"></i></a>
+                <a href="ordem-compra.html" class="sidebar-btn" title="Ordem de Compra"><i class="fas fa-shopping-cart"></i></a>
+                <a href="../ordens-producao.html" class="sidebar-btn" title="Ordens de Produção"><i class="fas fa-clipboard-list"></i></a>
+                <a href="gestao-producao.html" class="sidebar-btn active" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
+                <a href="faturamento.html" class="sidebar-btn" title="Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" id="btn-config"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Produção</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span id="saudacao">Bom dia,</span>
+                        <strong id="userName">Usuário</strong>
+                    </div>
+                    <div class="user-avatar"><span id="userInitial">U</span></div>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <div class="page-content">
+
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card blue">
+                            <div class="stat-icon blue"><i class="fas fa-clipboard-list"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Total Pedidos</div>
+                                <div class="stat-value" id="pcp-total-pedidos">0</div>
+                                <div class="stat-trend"><i class="fas fa-users"></i> <span id="pcp-clientes">0</span> clientes</div>
+                            </div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-icon green"><i class="fas fa-check-double"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Concluídos</div>
+                                <div class="stat-value" id="pcp-concluidos">0</div>
+                                <div class="stat-trend"><i class="fas fa-play-circle"></i> <span id="pcp-em-producao">0</span> em produção</div>
+                            </div>
+                        </div>
+                        <div class="stat-card orange">
+                            <div class="stat-icon orange"><i class="fas fa-weight-hanging"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Peso Total (kg)</div>
+                                <div class="stat-value" id="pcp-peso-total">0</div>
+                                <div class="stat-trend"><i class="fas fa-ruler"></i> <span id="pcp-metragem">0</span>m</div>
+                            </div>
+                        </div>
+                        <div class="stat-card purple">
+                            <div class="stat-icon purple"><i class="fas fa-dollar-sign"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Valor Total</div>
+                                <div class="stat-value" id="pcp-valor-total">R$ 0</div>
+                                <div class="stat-trend"><i class="fas fa-boxes"></i> <span id="pcp-qtd-total">0</span> unidades</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Máquinas -->
+                    <div class="card" style="margin-top: 24px;">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title"><i class="fas fa-cogs"></i> Extrusoras e Máquinas</h3>
+                            <button class="btn-nova-premium" onclick="abrirModalNovaMaquina()"><i class="fas fa-plus"></i> Nova Máquina</button>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Nome da Máquina</th>
+                                            <th>Setor</th>
+                                            <th>Capacidade</th>
+                                            <th>Status</th>
+                                            <th class="hide-mobile">Última Manutenção</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="maquinas-tbody">
+                                        <tr><td colspan="7" style="text-align: center; padding: 40px;"><p style="color: var(--gray-500);">Carregando máquinas...</p></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tarefas / Diário de Produção -->
+                    <div class="card" style="margin-top: 24px;">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title"><i class="fas fa-tasks"></i> Tarefas e Registros</h3>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="date" id="diario-data" class="filter-input" style="padding: 8px 12px; border-radius: 8px;" onchange="carregarDiarioProducao()">
+                                <button class="btn-nova-premium" onclick="abrirNovaTarefa()"><i class="fas fa-plus"></i> Nova Tarefa</button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Hora</th>
+                                            <th>Máquina</th>
+                                            <th>Operador</th>
+                                            <th>Pedido</th>
+                                            <th>Produção (un)</th>
+                                            <th>Refugo</th>
+                                            <th>Observações</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="diario-tbody">
+                                        <tr><td colspan="8" style="text-align: center; padding: 40px;"><p style="color: var(--gray-500);">Selecione uma data para ver o diário</p></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Estilos do Modal SaaS Empresarial Cinza -->
+    <style>
+        .modal-maquina-saas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(17, 24, 39, 0.6);
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .modal-maquina-content {
+            background: white;
+            border-radius: 16px;
+            width: 95%;
+            max-width: 720px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25);
+            animation: modalSlideUp 0.3s ease;
+        }
+        @keyframes modalSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-maquina-header {
+            padding: 20px 28px;
+            background: linear-gradient(135deg, #374151 0%, #4b5563 50%, #6b7280 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-maquina-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .modal-maquina-header h3 i {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+        .modal-maquina-close {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .modal-maquina-close:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+        .modal-maquina-body {
+            padding: 28px;
+            max-height: calc(90vh - 150px);
+            overflow-y: auto;
+            background: #fafafa;
+        }
+        .modal-maquina-body::-webkit-scrollbar {
+            width: 6px;
+        }
+        .modal-maquina-body::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+        .form-section-maq {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .form-section-maq:last-child {
+            margin-bottom: 0;
+        }
+        .section-title-maq {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin: 0 0 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .section-title-maq i {
+            color: #6b7280;
+            font-size: 16px;
+        }
+        .section-title-maq.warning i { color: #f59e0b; }
+        .form-row-maq {
+            display: grid;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .form-row-maq:last-child { margin-bottom: 0; }
+        .form-row-maq.cols-2 { grid-template-columns: 1fr 2fr; }
+        .form-row-maq.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .form-row-maq.cols-equal { grid-template-columns: 1fr 1fr; }
+        .form-group-maq {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group-maq label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+        .form-group-maq label span.required {
+            color: #ef4444;
+            margin-left: 2px;
+        }
+        .form-input-maq {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1f2937;
+            background: white;
+            transition: all 0.2s;
+        }
+        .form-input-maq:hover {
+            border-color: var(--gray-400);
+        }
+        .form-input-maq:focus {
+            outline: none;
+            border-color: #6b7280;
+            box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.15);
+        }
+        .form-input-maq::placeholder {
+            color: var(--gray-400);
+        }
+        textarea.form-input-maq {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .photo-upload-area {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .photo-upload-btn {
+            width: 90px;
+            height: 90px;
+            border: 2px dashed #d1d5db;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f9fafb;
+        }
+        .photo-upload-btn:hover {
+            border-color: #6b7280;
+            background: var(--gray-100);
+        }
+        .photo-upload-btn i {
+            font-size: 24px;
+            color: var(--gray-400);
+            margin-bottom: 4px;
+        }
+        .photo-upload-btn span {
+            font-size: 11px;
+            color: var(--gray-400);
+        }
+        .modal-maquina-footer {
+            padding: 16px 28px;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            background: white;
+        }
+        .btn-maq-cancel {
+            padding: 10px 20px;
+            border: 1px solid var(--gray-300);
+            background: white;
+            color: var(--gray-600);
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-maq-cancel:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+        .btn-maq-save {
+            padding: 10px 24px;
+            border: none;
+            background: linear-gradient(135deg, var(--gray-700), var(--gray-600));
+            color: #ffffff;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(55, 65, 81, 0.25);
+        }
+        .btn-maq-save:hover {
+            background: linear-gradient(135deg, var(--gray-600), var(--gray-500));
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(55, 65, 81, 0.35);
+        }
+        @media (max-width: 640px) {
+            .form-row-maq.cols-2,
+            .form-row-maq.cols-3,
+            .form-row-maq.cols-equal { grid-template-columns: 1fr; }
+            .modal-maquina-body { padding: 20px; }
+        }
+    </style>
+
+    <!-- Modal Editar/Nova Máquina - SaaS Empresarial Cinza -->
+    <div class="modal-maquina-saas" id="modalMaquina">
+        <div class="modal-maquina-content">
+            <div class="modal-maquina-header">
+                <h3 id="modalMaquinaTitulo"><i class="fas fa-cogs"></i> Nova Máquina</h3>
+                <button class="modal-maquina-close" onclick="fecharModalMaquina()">&times;</button>
+            </div>
+            <div class="modal-maquina-body">
+                <form id="formMaquina">
+                    <input type="hidden" id="maquina-id">
+
+                    <!-- Dados da Máquina -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq"><i class="fas fa-info-circle"></i> Dados da Máquina</h4>
+                        <div class="form-row-maq cols-2">
+                            <div class="form-group-maq">
+                                <label>Código <span class="required">*</span></label>
+                                <input type="text" id="maquina-codigo" class="form-input-maq" required placeholder="Ex: EXT-001">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Nome da Máquina <span class="required">*</span></label>
+                                <input type="text" id="maquina-nome" class="form-input-maq" required placeholder="Digite o nome da máquina">
+                            </div>
+                        </div>
+                        <div class="form-row-maq cols-3">
+                            <div class="form-group-maq">
+                                <label>Setor</label>
+                                <select id="maquina-setor" class="form-input-maq">
+                                    <option value="">Selecione...</option>
+                                    <option value="Extrusão">Extrusão</option>
+                                    <option value="Buncher">Buncher</option>
+                                    <option value="Embalagem">Embalagem</option>
+                                    <option value="Linha 6">Linha 6</option>
+                                    <option value="Linha 8">Linha 8</option>
+                                    <option value="Linha 10">Linha 10</option>
+                                    <option value="Linha 11">Linha 11</option>
+                                </select>
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Capacidade</label>
+                                <input type="text" id="maquina-capacidade" class="form-input-maq" placeholder="Ex: 500 kg/h">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Status</label>
+                                <select id="maquina-status" class="form-input-maq">
+                                    <option value="ativa">Ativa</option>
+                                    <option value="manutencao">Em Manutenção</option>
+                                    <option value="inativa">Inativa</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Descrição / Especificações</label>
+                                <textarea id="maquina-descricao" class="form-input-maq" rows="3" placeholder="Informações adicionais sobre a máquina..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Última Manutenção -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq warning"><i class="fas fa-tools"></i> Última Manutenção</h4>
+                        <div class="form-row-maq cols-equal">
+                            <div class="form-group-maq">
+                                <label>Data da Manutenção</label>
+                                <input type="date" id="maquina-manutencao-data" class="form-input-maq">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Tipo de Manutenção</label>
+                                <select id="maquina-manutencao-tipo" class="form-input-maq">
+                                    <option value="">Selecione...</option>
+                                    <option value="preventiva">Preventiva</option>
+                                    <option value="corretiva">Corretiva</option>
+                                    <option value="preditiva">Preditiva</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Descrição do Serviço</label>
+                                <textarea id="maquina-manutencao-descricao" class="form-input-maq" rows="2" placeholder="Descreva o serviço realizado..."></textarea>
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Responsável</label>
+                                <input type="text" id="maquina-manutencao-responsavel" class="form-input-maq" placeholder="Nome do técnico responsável">
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Fotos da Manutenção</label>
+                                <div class="photo-upload-area">
+                                    <label class="photo-upload-btn">
+                                        <i class="fas fa-camera"></i>
+                                        <span>Adicionar</span>
+                                        <input type="file" id="maquina-fotos" accept="image/*" multiple style="display:none;" onchange="previewFotosMaquina(this)">
+                                    </label>
+                                    <div id="fotos-preview" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Próxima Manutenção -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq"><i class="fas fa-calendar-alt"></i> Próxima Manutenção</h4>
+                        <div class="form-row-maq cols-equal">
+                            <div class="form-group-maq">
+                                <label>Data Prevista</label>
+                                <input type="date" id="maquina-proxima-manutencao" class="form-input-maq">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Custo Estimado (R$)</label>
+                                <input type="number" id="maquina-custo" class="form-input-maq" step="0.01" placeholder="0,00">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-maquina-footer" style="display:flex;justify-content:space-between;align-items:center;">
+                <div id="btn-excluir-maquina-wrapper" style="display:none;">
+                    <button class="btn-maq-cancel" style="background:#fef2f2;color:#ef4444;border:1px solid #fecaca;" onclick="excluirMaquinaDoModal()">
+                        <i class="fas fa-trash-can"></i> Excluir
+                    </button>
+                </div>
+                <div style="display:flex;gap:12px;margin-left:auto;">
+                    <button class="btn-maq-cancel" onclick="fecharModalMaquina()">Cancelar</button>
+                    <button class="btn-maq-save" onclick="salvarMaquina()"><i class="fas fa-save"></i> Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Diário de Produção -->
+    <div class="modal-overlay" id="modalDiario" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px;">
+        <div style="background:white;border-radius:16px;width:95%;max-width:500px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="padding:20px 24px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:white;display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:10px;"><i class="fas fa-book"></i> Registro de Produção</h3>
+                <button onclick="fecharModalDiario()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:8px;cursor:pointer;font-size:18px;">&times;</button>
+            </div>
+            <div style="padding:24px;">
+                <form id="formDiario">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                        <div>
+                            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Hora</label>
+                            <input type="time" id="diario-hora" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Máquina</label>
+                            <select id="diario-maquina" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;"></select>
+                        </div>
+                    </div>
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Pedido</label>
+                        <input type="text" id="diario-pedido" placeholder="Número do pedido" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;">
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+                        <div>
+                            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Produção (un)</label>
+                            <input type="number" id="diario-producao" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Refugo (un)</label>
+                            <input type="number" id="diario-refugo" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px;">Observações</label>
+                        <textarea id="diario-obs" rows="2" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;resize:vertical;"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:12px;">
+                <button onclick="fecharModalDiario()" class="btn btn-secondary">Cancelar</button>
+                <button onclick="salvarRegistroDiario()" class="btn btn-primary"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Recebimento de Fornecedor (Ronaldo / M.Elétrico) -->
+    <div class="modal-maquina-saas" id="modalRecebimento">
+        <div class="modal-maquina-content">
+            <div class="modal-maquina-header" style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 50%, #3182ce 100%);">
+                <h3 id="modalRecebimentoTitulo"><i class="fas fa-truck-loading"></i> Relatório de Recebimento - Fornecedor / M.Elétrico</h3>
+                <button class="modal-maquina-close" onclick="fecharModalRecebimento()">&times;</button>
+            </div>
+            <div class="modal-maquina-body">
+                <form id="formRecebimento">
+                    <!-- Dados do Recebimento -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq"><i class="fas fa-clipboard-list"></i> Dados do Recebimento</h4>
+                        <div class="form-row-maq cols-equal">
+                            <div class="form-group-maq">
+                                <label>Data <span class="required">*</span></label>
+                                <input type="date" id="receb-data" class="form-input-maq" required>
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Nome <span class="required">*</span></label>
+                                <input type="text" id="receb-nome" class="form-input-maq" required placeholder="Nome do colaborador">
+                            </div>
+                        </div>
+                        <div class="form-row-maq cols-equal">
+                            <div class="form-group-maq">
+                                <label>Nº NF <span class="required">*</span></label>
+                                <input type="text" id="receb-nf" class="form-input-maq" required placeholder="Número da Nota Fiscal">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Fornecedor <span class="required">*</span></label>
+                                <input type="text" id="receb-fornecedor" class="form-input-maq" required placeholder="Nome do fornecedor">
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Material <span class="required">*</span></label>
+                                <input type="text" id="receb-material" class="form-input-maq" required placeholder="Descrição do material recebido">
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Observação</label>
+                                <textarea id="receb-observacao" class="form-input-maq" rows="3" placeholder="Observações adicionais..."></textarea>
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Responsável</label>
+                                <input type="text" id="receb-responsavel" class="form-input-maq" placeholder="Nome do responsável pelo recebimento">
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-maquina-footer">
+                <button class="btn-maq-cancel" onclick="fecharModalRecebimento()">Cancelar</button>
+                <button class="btn-maq-save" onclick="salvarRecebimento()" style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Diário de Produção Extrusão (Lucas, Bruno, Luiz, etc.) -->
+    <div class="modal-maquina-saas" id="modalExtrusao">
+        <div class="modal-maquina-content" style="max-width: 850px;">
+            <div class="modal-maquina-header" style="background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 50%, #a78bfa 100%);">
+                <h3 id="modalExtrusaoTitulo"><i class="fas fa-industry"></i> Diário de Produção - Extrusão</h3>
+                <button class="modal-maquina-close" onclick="fecharModalExtrusao()">&times;</button>
+            </div>
+            <div class="modal-maquina-body">
+                <form id="formExtrusao">
+                    <!-- Lote de Produção -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq"><i class="fas fa-barcode"></i> Lote de Produção</h4>
+                        <div class="form-row-maq cols-3">
+                            <div class="form-group-maq">
+                                <label>Data <span class="required">*</span></label>
+                                <input type="date" id="ext-data" class="form-input-maq" required>
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Nº Lote <span class="required">*</span></label>
+                                <input type="text" id="ext-lote" class="form-input-maq" required placeholder="Ex: LT220126/1">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Nº Extrusora <span class="required">*</span></label>
+                                <select id="ext-extrusora" class="form-input-maq" required>
+                                    <option value="">Selecione...</option>
+                                    <option value="EXT-45">EXT-45</option>
+                                    <option value="EXT-60">EXT-60</option>
+                                    <option value="EXT-75">EXT-75</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Descrição do Produto <span class="required">*</span></label>
+                                <input type="text" id="ext-descricao" class="form-input-maq" required placeholder="Ex: Multiplex 10 F.R. Preto CL">
+                            </div>
+                        </div>
+                        <div class="form-row-maq cols-3">
+                            <div class="form-group-maq">
+                                <label>Seção (mm²)</label>
+                                <input type="text" id="ext-secao" class="form-input-maq" placeholder="Ex: 10">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Metragem (m) <span class="required">*</span></label>
+                                <input type="number" id="ext-metragem" class="form-input-maq" required placeholder="Ex: 1000">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Nº Bobinas</label>
+                                <input type="number" id="ext-bobinas" class="form-input-maq" placeholder="Ex: 1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lotes Matérias Primas -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq warning"><i class="fas fa-cubes"></i> Lotes Matérias Primas</h4>
+                        <div class="form-row-maq cols-3">
+                            <div class="form-group-maq">
+                                <label>Corda (Lote)</label>
+                                <input type="text" id="ext-corda" class="form-input-maq" placeholder="Lote da corda">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Polímero (Lote)</label>
+                                <input type="text" id="ext-polimero" class="form-input-maq" placeholder="Ex: Estoque">
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Corante (Lote)</label>
+                                <input type="text" id="ext-corante" class="form-input-maq" placeholder="Ex: Pigmento 19">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Inspeção -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq"><i class="fas fa-search-plus"></i> Inspeção</h4>
+                        <div class="form-row-maq cols-equal">
+                            <div class="form-group-maq">
+                                <label>Visual</label>
+                                <select id="ext-visual" class="form-input-maq">
+                                    <option value="OK">OK</option>
+                                    <option value="NOK">NOK</option>
+                                    <option value="Pendente">Pendente</option>
+                                </select>
+                            </div>
+                            <div class="form-group-maq">
+                                <label>Ø mm (Diâmetro)</label>
+                                <input type="text" id="ext-diametro" class="form-input-maq" placeholder="Ex: 5.2">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Operador -->
+                    <div class="form-section-maq">
+                        <h4 class="section-title-maq"><i class="fas fa-user-hard-hat"></i> Operador</h4>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Nome do Operador <span class="required">*</span></label>
+                                <input type="text" id="ext-operador" class="form-input-maq" required placeholder="Nome do operador">
+                            </div>
+                        </div>
+                        <div class="form-row-maq">
+                            <div class="form-group-maq">
+                                <label>Observações</label>
+                                <textarea id="ext-observacoes" class="form-input-maq" rows="2" placeholder="Observações adicionais..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-maquina-footer">
+                <button class="btn-maq-cancel" onclick="fecharModalExtrusao()">Cancelar</button>
+                <button class="btn-maq-save" onclick="salvarExtrusao()" style="background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);"><i class="fas fa-save"></i> Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/pcp-common.js"></script>
+    <script>
+        let maquinasData = [];
+
+        async function carregarMaquinasPCP() {
+            try {
+                const API_BASE = getAPIBase();
+                const maqResponse = await fetch(`${API_BASE}/api/pcp/maquinas`);
+                if (maqResponse.ok) {
+                    const maqData = await maqResponse.json();
+                    maquinasData = Array.isArray(maqData) ? maqData : (maqData.data || []);
+                    renderizarMaquinas();
+                }
+            } catch (error) {
+                console.error('Erro ao carregar máquinas:', error);
+            }
+        }
+
+
+        function renderizarMaquinas() {
+            const tbody = document.getElementById('maquinas-tbody');
+            if (!tbody) return;
+            if (maquinasData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;"><p style="color: var(--gray-500);">Nenhuma máquina cadastrada</p></td></tr>';
+                return;
+            }
+            tbody.innerHTML = maquinasData.map(m => `
+                <tr>
+                    <td><strong>${m.codigo}</strong></td>
+                    <td>${m.nome}</td>
+                    <td>${m.setor || '-'}</td>
+                    <td>${m.capacidade || '-'}</td>
+                    <td><span class="status-badge ${m.status === 'ativa' ? 'concluido' : m.status === 'manutencao' ? 'em_producao' : 'pendente'}">${m.status === 'ativa' ? '? ativa' : m.status === 'manutencao' ? '? manutenção' : '? inativa'}</span></td>
+                    <td class="hide-mobile">${formatarData(m.ultima_manutencao)}</td>
+                    <td><button class="btn btn-sm btn-secondary" onclick="editarMaquina(${m.id})" title="Editar"><i class="fas fa-edit"></i></button></td>
+                </tr>
+            `).join('');
+        }
+
+
+        // ========== MÁQUINAS ==========
+        function abrirModalNovaMaquina() {
+            document.getElementById('modalMaquinaTitulo').innerHTML = '<i class="fas fa-cogs"></i> Nova Máquina';
+            document.getElementById('formMaquina').reset();
+            document.getElementById('maquina-id').value = '';
+            document.getElementById('fotos-preview').innerHTML = '';
+            document.getElementById('modalMaquina').style.display = 'flex';
+            // Esconder botão excluir ao criar nova
+            const btnExcluir = document.getElementById('btn-excluir-maquina-wrapper');
+            if (btnExcluir) btnExcluir.style.display = 'none';
+        }
+
+        function fecharModalMaquina() {
+            document.getElementById('modalMaquina').style.display = 'none';
+        }
+
+        function editarMaquina(id) {
+            const maquina = maquinasData.find(m => m.id === id);
+            if (!maquina) {
+                showToast('Máquina não encontrada', 'error');
+                return;
+            }
+
+            document.getElementById('modalMaquinaTitulo').innerHTML = '<i class="fas fa-edit"></i> Editar Máquina';
+            document.getElementById('maquina-id').value = maquina.id;
+            document.getElementById('maquina-codigo').value = maquina.codigo || '';
+            document.getElementById('maquina-nome').value = maquina.nome || '';
+            document.getElementById('maquina-setor').value = maquina.setor || '';
+            document.getElementById('maquina-capacidade').value = maquina.capacidade || '';
+            document.getElementById('maquina-status').value = maquina.status || 'ativa';
+            document.getElementById('maquina-descricao').value = maquina.descricao || '';
+            document.getElementById('maquina-manutencao-data').value = (maquina.ultima_manutencao || '').substring(0, 10);
+            document.getElementById('maquina-manutencao-tipo').value = maquina.tipo_manutencao || '';
+            document.getElementById('maquina-manutencao-descricao').value = maquina.descricao_manutencao || '';
+            document.getElementById('maquina-manutencao-responsavel').value = maquina.responsavel_manutencao || '';
+            document.getElementById('maquina-proxima-manutencao').value = (maquina.proxima_manutencao || '').substring(0, 10);
+            document.getElementById('maquina-custo').value = maquina.custo_manutencao || '';
+
+            // Carregar fotos existentes
+            document.getElementById('fotos-preview').innerHTML = '';
+            if (maquina.fotos && maquina.fotos.length > 0) {
+                maquina.fotos.forEach(foto => {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'width:80px;height:80px;border-radius:8px;overflow:hidden;position:relative;';
+                    div.innerHTML = `<img src="${foto}" style="width:100%;height:100%;object-fit:cover;">`;
+                    document.getElementById('fotos-preview').appendChild(div);
+                });
+            }
+
+            document.getElementById('modalMaquina').style.display = 'flex';
+            // Mostrar botão excluir ao editar
+            const btnExcluir = document.getElementById('btn-excluir-maquina-wrapper');
+            if (btnExcluir) btnExcluir.style.display = 'block';
+        }
+
+        function previewFotosMaquina(input) {
+            const preview = document.getElementById('fotos-preview');
+            if (input.files) {
+                Array.from(input.files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const div = document.createElement('div');
+                        div.style.cssText = 'width:80px;height:80px;border-radius:8px;overflow:hidden;position:relative;';
+                        div.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;"><button onclick="this.parentElement.remove()" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;background:#ef4444;color:white;border:none;cursor:pointer;font-size:12px;">&times;</button>`;
+                        preview.appendChild(div);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+        }
+
+        async function salvarMaquina() {
+            const id = document.getElementById('maquina-id').value;
+            const dados = {
+                codigo: document.getElementById('maquina-codigo').value,
+                nome: document.getElementById('maquina-nome').value,
+                setor: document.getElementById('maquina-setor').value,
+                capacidade: document.getElementById('maquina-capacidade').value,
+                status: document.getElementById('maquina-status').value,
+                descricao: document.getElementById('maquina-descricao').value,
+                ultima_manutencao: document.getElementById('maquina-manutencao-data').value,
+                tipo_manutencao: document.getElementById('maquina-manutencao-tipo').value,
+                descricao_manutencao: document.getElementById('maquina-manutencao-descricao').value,
+                responsavel_manutencao: document.getElementById('maquina-manutencao-responsavel').value,
+                proxima_manutencao: document.getElementById('maquina-proxima-manutencao').value,
+                custo_manutencao: document.getElementById('maquina-custo').value
+            };
+
+            if (!dados.codigo || !dados.nome) {
+                showToast('Preencha código e nome da máquina', 'warning');
+                return;
+            }
+
+            try {
+                const API_BASE = getAPIBase();
+                const url = id ? `${API_BASE}/api/pcp/maquinas/${id}` : `${API_BASE}/api/pcp/maquinas`;
+                const method = id ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    credentials: 'include',
+                    method,
+                    headers: { 'Content-Type': 'application/json'
+                }),
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast(id ? 'Máquina atualizada!' : 'Máquina cadastrada!', 'success');
+                    fecharModalMaquina();
+                        } else {
+                    showToast('Erro ao salvar máquina', 'error');
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            }
+        }
+
+        async function excluirMaquinaDoModal() {
+            const id = document.getElementById('maquina-id').value;
+            const nome = document.getElementById('maquina-nome').value || 'esta máquina';
+            if (!id) return;
+
+            if (typeof window.showConfirmDialog === 'function') {
+                window.showConfirmDialog({
+                    title: 'Excluir Máquina',
+                    message: `Deseja realmente excluir a máquina <strong>${nome}</strong>? Esta ação não pode ser desfeita.`,
+                    confirmText: 'Sim, Excluir',
+                    cancelText: 'Cancelar',
+                    type: 'danger',
+                    onConfirm: async () => {
+                        await executarExclusaoMaquina(id, nome);
+                    }
+                });
+            } else if (confirm(`Deseja realmente excluir a máquina "${nome}"? Esta ação não pode ser desfeita.`)) {
+                await executarExclusaoMaquina(id, nome);
+            }
+        }
+
+        async function executarExclusaoMaquina(id, nome) {
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/maquinas/${id}`, { credentials: 'include', method: 'DELETE',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    showToast(`Máquina "${nome}" excluída com sucesso!`, 'success');
+                    fecharModalMaquina();
+                    carregarMaquinasPCP();
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    showToast(data.message || 'Erro ao excluir máquina', 'error');
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            }
+        }
+
+        // ========== NOVA TAREFA - BASEADO NO USUÁRIO ==========
+        async function abrirNovaTarefa() {
+            // Obter nome do usuário logado
+            const userName = document.getElementById('userName')?.textContent?.toLowerCase().trim() || '';
+
+            // Lista de admins com acesso ao seletor (nomes e emails)
+            const adminsComSeletor = ['clemerson', 'fernando', 'andreia', 'andréia', 'douglas'];
+            const emailsComSeletor = ['ti@aluforce.ind.br', 'ti@aluforce.com.br'];
+
+            // Buscar dados do usuário da API para garantir email correto
+            let userEmail = '';
+            let userRole = '';
+            try {
+                const headers = { 'Accept': 'application/json' };
+                if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+                const response = await fetch('/api/me', { credentials: 'include', headers });
+                if (response.ok) {
+                    const user = await response.json();
+                    userEmail = (user.email || '').toLowerCase();
+                    userRole = (user.role || '').toLowerCase();
+                    console.log('[abrirNovaTarefa] API /api/me retornou:', user.nome, user.email, user.role);
+                }
+            } catch (e) {
+                console.log('[abrirNovaTarefa] Erro ao buscar /api/me:', e);
+            }
+
+            // Verificar se é admin pelo role, nome ou email
+            const isAdmin = userRole === 'admin' || userRole === 'administrador' ||
+                           adminsComSeletor.some(admin => userName.includes(admin)) ||
+                           emailsComSeletor.includes(userEmail);
+
+            console.log('[abrirNovaTarefa] userName:', userName, 'email:', userEmail, 'role:', userRole, 'isAdmin:', isAdmin);
+
+            // Mapeamento de usuários para modais
+            const modaisUsuarios = {
+                'ronaldo': 'recebimento',
+                'material eletrico': 'recebimento',
+                'm.eletrico': 'recebimento',
+                'm. eletrico': 'recebimento',
+                'lucas': 'extrusao',
+                'bruno': 'extrusao',
+                'luiz': 'extrusao',
+                'extrusao': 'extrusao',
+                'producao': 'extrusao'
+            };
+
+            // Admin pode ver todos - mostra seletor
+            if (isAdmin) {
+                console.log('[abrirNovaTarefa] Abrindo seletor de tarefas para admin');
+                mostrarSeletorTarefas();
+                return;
+            }
+
+            // Verificar modal específico do usuário
+            const modalEspecifico = modaisUsuarios[userName];
+
+            if (modalEspecifico === 'recebimento') {
+                abrirModalRecebimento();
+            } else if (modalEspecifico === 'extrusao') {
+                abrirModalExtrusao();
+            } else {
+                // Modal padrão de diário de produção
+                novoRegistroDiario();
+            }
+        }
+
+        function mostrarSeletorTarefas() {
+            // Remover qualquer seletor anterior
+            const seletorAntigo = document.getElementById('modalSeletorTarefas');
+            if (seletorAntigo) seletorAntigo.remove();
+
+            const seletorHtml = `
+                <div class="modal-maquina-saas" id="modalSeletorTarefas" style="display: flex;" onclick="if(event.target===this)this.remove()">
+                    <div class="modal-maquina-content" style="max-width: 450px;">
+                        <div class="modal-maquina-header">
+                            <h3><i class="fas fa-tasks"></i> Selecionar Tipo de Tarefa</h3>
+                            <button class="modal-maquina-close" onclick="document.getElementById('modalSeletorTarefas').remove()">&times;</button>
+                        </div>
+                        <div class="modal-maquina-body" style="padding: 20px;">
+                            <div style="display: flex; flex-direction: column; gap: 12px;">
+                                <button onclick="document.getElementById('modalSeletorTarefas').remove(); novoRegistroDiario();"
+                                    style="padding: 16px 20px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px;">
+                                    <i class="fas fa-book" style="font-size: 20px;"></i>
+                                    <div style="text-align: left;">
+                                        <div>Registro de Produção</div>
+                                        <small style="opacity: 0.8; font-weight: 400;">Diário de produção das máquinas</small>
+                                    </div>
+                                </button>
+                                <button onclick="document.getElementById('modalSeletorTarefas').remove(); abrirModalExtrusao();"
+                                    style="padding: 16px 20px; background: linear-gradient(135deg, #7c3aed, #a78bfa); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px;">
+                                    <i class="fas fa-industry" style="font-size: 20px;"></i>
+                                    <div style="text-align: left;">
+                                        <div>Diário de Extrusão</div>
+                                        <small style="opacity: 0.8; font-weight: 400;">Produção, lote e matérias-primas</small>
+                                    </div>
+                                </button>
+                                <button onclick="document.getElementById('modalSeletorTarefas').remove(); abrirModalRecebimento();"
+                                    style="padding: 16px 20px; background: linear-gradient(135deg, #1e3a5f, #3182ce); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 12px;">
+                                    <i class="fas fa-truck-loading" style="font-size: 20px;"></i>
+                                    <div style="text-align: left;">
+                                        <div>Recebimento de Fornecedor</div>
+                                        <small style="opacity: 0.8; font-weight: 400;">Relatório de recebimento M.Elétrico</small>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', seletorHtml);
+        }
+
+        // ========== MODAL RECEBIMENTO ==========
+        function abrirModalRecebimento() {
+            const userName = document.getElementById('userName')?.textContent || '';
+            document.getElementById('receb-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('receb-nome').value = userName;
+            document.getElementById('receb-responsavel').value = userName;
+            document.getElementById('formRecebimento').reset();
+            document.getElementById('receb-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('receb-nome').value = userName;
+            document.getElementById('modalRecebimento').style.display = 'flex';
+        }
+
+        function fecharModalRecebimento() {
+            document.getElementById('modalRecebimento').style.display = 'none';
+        }
+
+        async function salvarRecebimento() {
+            const dados = {
+                data: document.getElementById('receb-data').value,
+                nome: document.getElementById('receb-nome').value,
+                numero_nf: document.getElementById('receb-nf').value,
+                fornecedor: document.getElementById('receb-fornecedor').value,
+                material: document.getElementById('receb-material').value,
+                observacao: document.getElementById('receb-observacao').value,
+                responsavel: document.getElementById('receb-responsavel').value
+            };
+
+            if (!dados.data || !dados.nome || !dados.numero_nf || !dados.fornecedor || !dados.material) {
+                showToast('Preencha todos os campos obrigatórios', 'warning');
+                return;
+            }
+
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/recebimentos`, { credentials: 'include', method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast('Recebimento registrado com sucesso!', 'success');
+                    fecharModalRecebimento();
+                    // Recarregar lista se houver
+                    if (typeof carregarRecebimentos === 'function') {
+                        carregarRecebimentos();
+                    }
+                } else {
+                    showToast('Erro ao salvar recebimento', 'error');
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            }
+        }
+
+        // ========== MODAL EXTRUSÃO ==========
+        function abrirModalExtrusao() {
+            const userName = document.getElementById('userName')?.textContent || '';
+            document.getElementById('formExtrusao').reset();
+            document.getElementById('ext-data').value = new Date().toISOString().split('T')[0];
+            document.getElementById('ext-operador').value = userName;
+
+            // Gerar número do lote automaticamente (LTDDMMYY/N)
+            const hoje = new Date();
+            const dd = String(hoje.getDate()).padStart(2, '0');
+            const mm = String(hoje.getMonth() + 1).padStart(2, '0');
+            const yy = String(hoje.getFullYear()).slice(-2);
+            document.getElementById('ext-lote').value = `LT${dd}${mm}${yy}/1`;
+
+            document.getElementById('modalExtrusao').style.display = 'flex';
+        }
+
+        function fecharModalExtrusao() {
+            document.getElementById('modalExtrusao').style.display = 'none';
+        }
+
+        async function salvarExtrusao() {
+            const dados = {
+                data: document.getElementById('ext-data').value,
+                lote: document.getElementById('ext-lote').value,
+                extrusora: document.getElementById('ext-extrusora').value,
+                descricao: document.getElementById('ext-descricao').value,
+                secao: document.getElementById('ext-secao').value,
+                metragem: document.getElementById('ext-metragem').value,
+                bobinas: document.getElementById('ext-bobinas').value,
+                lote_corda: document.getElementById('ext-corda').value,
+                lote_polimero: document.getElementById('ext-polimero').value,
+                lote_corante: document.getElementById('ext-corante').value,
+                inspecao_visual: document.getElementById('ext-visual').value,
+                diametro: document.getElementById('ext-diametro').value,
+                operador: document.getElementById('ext-operador').value,
+                observacoes: document.getElementById('ext-observacoes').value
+            };
+
+            if (!dados.data || !dados.lote || !dados.extrusora || !dados.descricao || !dados.metragem || !dados.operador) {
+                showToast('Preencha todos os campos obrigatórios', 'warning');
+                return;
+            }
+
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/extrusao`, { credentials: 'include', method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast('Registro de extrusão salvo com sucesso!', 'success');
+                    fecharModalExtrusao();
+                    // Recarregar dados se houver
+                    if (typeof carregarExtrusoes === 'function') {
+                        carregarExtrusoes();
+                    }
+                } else {
+                    const err = await response.json().catch(() => ({}));
+                    showToast(err.message || 'Erro ao salvar registro', 'error');
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            }
+        }
+
+        // ========== DIÁRIO DE PRODUÇÃO ==========
+        function novoRegistroDiario() {
+            const select = document.getElementById('diario-maquina');
+            select.innerHTML = '<option value="">Selecione...</option>' +
+                maquinasData.map(m => `<option value="${m.id}">${m.codigo} - ${m.nome}</option>`).join('');
+
+            document.getElementById('diario-hora').value = new Date().toTimeString().substring(0, 5);
+            document.getElementById('modalDiario').style.display = 'flex';
+        }
+
+        function fecharModalDiario() {
+            document.getElementById('modalDiario').style.display = 'none';
+        }
+
+        async function carregarDiarioProducao() {
+            const data = document.getElementById('diario-data').value;
+            if (!data) return;
+
+            const tbody = document.getElementById('diario-tbody');
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;"><div class="loading-spinner"></div></td></tr>';
+
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/diario-producao?data=${data}`, { credentials: 'include' });
+                if (response.ok) {
+                    const registros = await response.json();
+                    if (registros.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af;">Nenhum registro nesta data</td></tr>';
+                    } else {
+                        tbody.innerHTML = registros.map(r => `
+                            <tr>
+                                <td>${r.hora || '-'}</td>
+                                <td>${r.maquina_nome || r.maquina || '-'}</td>
+                                <td>${r.operador || '-'}</td>
+                                <td>${r.pedido || '-'}</td>
+                                <td style="text-align:right;font-weight:600;">${r.producao || 0}</td>
+                                <td style="text-align:right;color:#ef4444;">${r.refugo || 0}</td>
+                                <td>${r.observacoes || '-'}</td>
+                                <td><button class="btn btn-sm btn-secondary" onclick="editarRegistroDiario(${r.id})"><i class="fas fa-edit"></i></button></td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#ef4444;">Erro ao carregar diário</td></tr>';
+            }
+        }
+
+        async function salvarRegistroDiario() {
+            const dados = {
+                data: document.getElementById('diario-data').value || new Date().toISOString().split('T')[0],
+                hora: document.getElementById('diario-hora').value,
+                maquina_id: document.getElementById('diario-maquina').value,
+                pedido: document.getElementById('diario-pedido').value,
+                producao: document.getElementById('diario-producao').value,
+                refugo: document.getElementById('diario-refugo').value,
+                observacoes: document.getElementById('diario-obs').value
+            };
+
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/diario-producao`, { credentials: 'include', method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    showToast('Registro salvo!', 'success');
+                    fecharModalDiario();
+                    carregarDiarioProducao();
+                } else {
+                    showToast('Erro ao salvar registro', 'error');
+                }
+            } catch (e) {
+                showToast('Erro: ' + e.message, 'error');
+            }
+        }
+
+        function editarRegistroDiario(id) {
+            showToast('Editar registro ' + id, 'info');
+        }
+
+        function verPedidoPCP(id) { showToast('Ver pedido ' + id, 'info'); }
+
+        // Calculadora de Materiais para um pedido - Modal Profissional
+        function calcularMateriais(id) {
+            const pedido = producaoData.find(p => p.id === id);
+            if (!pedido) {
+                showToast('Pedido não encontrado', 'error');
+                return;
+            }
+
+            // Cálculos baseados no pedido
+            const quantidade = parseFloat(pedido.quantidade) || 0;
+            const metragem = parseFloat(pedido.metragem) || 0;
+            const pesoAl = parseFloat(pedido.al_kg) || 0;
+            const pesoPe = parseFloat(pedido.pe_kg) || 0;
+
+            // Estimativa de materiais
+            const aluminioTotal = (pesoAl * quantidade).toFixed(2);
+            const polietilenoTotal = (pesoPe * quantidade).toFixed(2);
+            const pesoTotal = ((pesoAl + pesoPe) * quantidade).toFixed(2);
+
+            // Custos estimados (valores de referência)
+            const custoAluminio = (parseFloat(aluminioTotal) * 12.50).toFixed(2);
+            const custoPolietileno = (parseFloat(polietilenoTotal) * 8.90).toFixed(2);
+            const custoTotal = (parseFloat(custoAluminio) + parseFloat(custoPolietileno)).toFixed(2);
+
+            const dataHoje = new Date().toLocaleDateString('pt-BR');
+            const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+            // Modal Profissional e Institucional
+            const modalHtml = `
+                <div class="modal-overlay" id="modal-calcular" onclick="if(event.target===this)this.remove()" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;">
+                    <div style="background:white;border-radius:16px;width:95%;max-width:600px;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,0.35);">
+                        <!-- Header Institucional -->
+                        <div style="background:linear-gradient(135deg,#1a365d 0%,#2c5282 50%,#2b6cb0 100%);padding:24px;color:white;position:relative;">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                                <div>
+                                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:28px;filter:brightness(10);" onerror="this.style.display='none'">
+                                        <div style="width:1px;height:24px;background:rgba(255,255,255,0.3);"></div>
+                                        <span style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.9;">Sistema PCP</span>
+                                    </div>
+                                    <h3 style="margin:0;font-size:20px;font-weight:600;">Cálculo de Materiais</h3>
+                                    <p style="margin:4px 0 0;font-size:12px;opacity:0.8;"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i>${dataHoje} às ${horaAtual}</p>
+                                </div>
+                                <button onclick="document.getElementById('modal-calcular').remove()" style="background:rgba(255,255,255,0.15);border:none;color:white;width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:20px;transition:background 0.2s;">&times;</button>
+                            </div>
+                        </div>
+
+                        <!-- Body -->
+                        <div style="padding:24px;">
+                            <!-- Informações do Pedido -->
+                            <div style="background:#f8fafc;border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid #e2e8f0;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                                    <h4 style="margin:0;font-size:14px;color:#475569;display:flex;align-items:center;gap:8px;"><i class="fas fa-clipboard-list" style="color:#3b82f6;"></i>Dados do Pedido</h4>
+                                    <span style="background:#3b82f6;color:white;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;">#${pedido.pedido || 'N/A'}</span>
+                                </div>
+                                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;">
+                                    <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+                                        <span style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Produto</span>
+                                        <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#1e293b;">${pedido.produto || 'Não especificado'}</p>
+                                    </div>
+                                    <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+                                        <span style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Cliente</span>
+                                        <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#1e293b;">${pedido.cliente || '-'}</p>
+                                    </div>
+                                    <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+                                        <span style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Quantidade</span>
+                                        <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#1e293b;">${quantidade.toLocaleString('pt-BR')} un</p>
+                                    </div>
+                                    <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+                                        <span style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Metragem Total</span>
+                                        <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#1e293b;">${metragem.toLocaleString('pt-BR')} m</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Materiais Necessários -->
+                            <h4 style="margin:0 0 16px;font-size:14px;color:#1e293b;display:flex;align-items:center;gap:8px;"><i class="fas fa-cubes" style="color:#f59e0b;"></i>Materiais Necessários</h4>
+                            <div style="display:grid;gap:12px;margin-bottom:24px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:10px;border-left:4px solid #f59e0b;">
+                                    <div>
+                                        <span style="font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:0.5px;">Alumínio</span>
+                                        <p style="margin:4px 0 0;font-size:20px;font-weight:700;color:#78350f;">${aluminioTotal} kg</p>
+                                    </div>
+                                    <div style="text-align:right;">
+                                        <span style="font-size:11px;color:#92400e;">Custo estimado</span>
+                                        <p style="margin:2px 0 0;font-size:16px;font-weight:600;color:#78350f;">R$ ${parseFloat(custoAluminio).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;align-items:center;padding:16px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-radius:10px;border-left:4px solid #3b82f6;">
+                                    <div>
+                                        <span style="font-size:12px;color:#1e40af;text-transform:uppercase;letter-spacing:0.5px;">Polietileno</span>
+                                        <p style="margin:4px 0 0;font-size:20px;font-weight:700;color:#1e3a8a;">${polietilenoTotal} kg</p>
+                                    </div>
+                                    <div style="text-align:right;">
+                                        <span style="font-size:11px;color:#1e40af;">Custo estimado</span>
+                                        <p style="margin:2px 0 0;font-size:16px;font-weight:600;color:#1e3a8a;">R$ ${parseFloat(custoPolietileno).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Totais -->
+                            <div style="background:linear-gradient(135deg,#1a365d,#2c5282);border-radius:12px;padding:20px;color:white;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;">
+                                    <div>
+                                        <span style="font-size:12px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px;">Peso Total de Materiais</span>
+                                        <p style="margin:4px 0 0;font-size:28px;font-weight:700;">${pesoTotal} kg</p>
+                                    </div>
+                                    <div style="text-align:right;">
+                                        <span style="font-size:12px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px;">Custo Total Estimado</span>
+                                        <p style="margin:4px 0 0;font-size:24px;font-weight:700;color:#4ade80;">R$ ${parseFloat(custoTotal).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cálculo de Bobinas -->
+                            <div id="secao-bobina-calc" style="margin-top:24px;">
+                                <h4 style="margin:0 0 16px;font-size:14px;color:#1e293b;display:flex;align-items:center;gap:8px;">
+                                    <i class="fas fa-circle-notch" style="color:#7c3aed;"></i>Recomendação de Bobina
+                                </h4>
+                                <div id="bobina-calc-result" style="background:#f8fafc;border-radius:12px;padding:20px;border:1px solid #e2e8f0;">
+                                    <div style="text-align:center;color:#94a3b8;">
+                                        <i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i>
+                                        Buscando recomendação de bobina...
+                                    </div>
+                                </div>
+                            </div>
+
+                                                        <!-- Nota de Rodapé -->
+                            <p style="margin:16px 0 0;font-size:11px;color:#94a3b8;text-align:center;"><i class="fas fa-info-circle" style="margin-right:4px;"></i>Valores calculados com base nos custos médios de matéria-prima. Sujeito a variações de mercado.</p>
+                        </div>
+
+                        <!-- Footer -->
+                        <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f9fafb;">
+                            <span style="font-size:11px;color:#94a3b8;">ALUFORCE - Sistema de Gestão Industrial</span>
+                            <div style="display:flex;gap:12px;">
+                                <button onclick="document.getElementById('modal-calcular').remove()" class="btn btn-secondary">Fechar</button>
+                                <button onclick="imprimirCalculo('${pedido.pedido}','${dataHoje}')" class="btn btn-primary"><i class="fas fa-print"></i> Imprimir</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            // Auto-calcular bobina recomendada
+            (async function() {
+                try {
+                    const produto = (pedido.produto || '').toUpperCase();
+                    let catBobina = '';
+                    if (produto.includes('QUADRUPLEX') || produto.includes('QUADRIP')) catBobina = 'MULTIPLEX QUADRUPLEX';
+                    else if (produto.includes('TRIPLEX')) catBobina = 'MULTIPLEX TRIPLEX';
+                    else if (produto.includes('DUPLEX')) catBobina = 'MULTIPLEX DUPLEX';
+                    else if (produto.includes('PROTEGIDO') || produto.includes('XLPETR')) catBobina = 'PROTEGIDO AL/XLPETR';
+                    else if (produto.includes('POTENCIA') || produto.includes('POTÊNCIA') || produto.includes('PVC')) catBobina = 'POTÊNCIA AL/XLPE/PVC';
+                    else catBobina = 'UNIPOLAR AL/XLPE';
+
+                    // Extrair seção do produto (ex: "Multiplex 10" -> "10")
+                    const secaoMatch = produto.match(/(\d+)\s*mm/i) || produto.match(/\s(\d+)\s/);
+                    const secaoBob = secaoMatch ? secaoMatch[1] : '';
+
+                    const resultDiv = document.getElementById('bobina-calc-result');
+
+                    if (!secaoBob || !metragem || metragem <= 0) {
+                        resultDiv.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:8px;"><i class="fas fa-info-circle" style="margin-right:6px;color:#3b82f6;"></i>Seção ou metragem não detectada automaticamente no produto.</div>';
+                        return;
+                    }
+
+                    const API = (typeof getAPIBase === 'function') ? getAPIBase() : '';
+                    const hdr = { 'Content-Type': 'application/json' };
+                    if (token && token !== 'unified-session-active') hdr['Authorization'] = 'Bearer ' + token;
+
+                    const resp = await fetch(API + '/api/pcp/bobinas/calcular', { credentials: 'include', method: 'POST', credentials: 'include', headers: hdr,
+                        body: JSON.stringify({ categoria: catBobina, secao: secaoBob, metragem: metragem })
+                    });
+
+                    if (!resp.ok) {
+                        resultDiv.innerHTML = '<div style="text-align:center;color:#f59e0b;padding:8px;"><i class="fas fa-exclamation-triangle" style=margin-right:6px;color:#f59e0b;"></i>Seção ou metragem não cadastrada na tabela de bobinas.</div>';
+                        return;
+                    }
+
+                    const data = await resp.json();
+                    const r = data.recomendacao;
+                    const u = data.bobina_unica;
+
+                    let html = '';
+                    if (r) {
+                        html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;">';
+                        html += '<div style="background:linear-gradient(135deg,#7c3aed,#6d28d9);color:white;padding:12px 20px;border-radius:12px;text-align:center;min-width:100px;">';
+                        html += '<div style="font-size:10px;opacity:0.8;text-transform:uppercase;letter-spacing:0.5px;">Bobina</div>';
+                        html += '<div style="font-size:24px;font-weight:800;">' + r.bobina + '</div>';
+                        html += '</div>';
+                        html += '<div style="flex:1;">';
+                        html += '<div style="font-size:13px;color:#64748b;">Recomendada para ' + data.secao + ' ' + data.categoria + '</div>';
+                        html += '<div style="display:flex;gap:20px;margin-top:8px;">';
+                        html += '<span style="font-size:13px;"><strong>' + r.capacidade.toLocaleString('pt-BR') + '</strong> m/bobina</span>';
+                        html += '<span style="font-size:13px;"><strong>' + r.qtd_bobinas + '</strong> bobina(s)</span>';
+                        html += '<span style="font-size:13px;color:#22c55e;font-weight:600;"><i class="fas fa-check-circle" style="margin-right:3px;"></i>' + r.aproveitamento + ' aprov.</span>';
+                        html += '</div>';
+                        html += '</div></div>';
+                    }
+
+                    if (u && (!r || u.bobina !== r.bobina)) {
+                        html += '<div style="background:#dbeafe;padding:10px 16px;border-radius:8px;font-size:13px;color:#1e40af;display:flex;align-items:center;gap:8px;">';
+                        html += '<i class="fas fa-lightbulb" style="color:#f59e0b;"></i>';
+                        html += 'Cabe tudo em <strong>1 bobina ' + u.bobina + '</strong> (' + u.capacidade.toLocaleString('pt-BR') + 'm) · Sobra: ' + u.sobra.toLocaleString('pt-BR') + 'm';
+                        html += '</div>';
+                    }
+
+                    if (!r && !u) {
+                        html = '<div style="text-align:center;color:#94a3b8;">Nenhuma bobina encontrada para esta combinação</div>';
+                    }
+
+                    resultDiv.innerHTML = html;
+                } catch (e) {
+                    console.error('[BOBINA] Erro no cálculo automático:', e);
+                    document.getElementById('bobina-calc-result').innerHTML = '<div style="text-align:center;color:#94a3b8;">Erro ao calcular bobina</div>';
+                }
+            })();
+        }
+
+        function imprimirCalculo(pedido, data) {
+            showToast('Preparando impressão do pedido ' + pedido, 'info');
+            window.print();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            atualizarSaudacao();
+            carregarMaquinasPCP();
+        });
+    </script>
+    <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
+    <script src="/js/user-dropdown.js?v=20260226" defer></script>
+
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+</body>
+</html>

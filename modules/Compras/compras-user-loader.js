@@ -43,16 +43,11 @@
      */
     async function fetchUserData() {
         try {
-            const token = localStorage.getItem('token');
             const headers = {
                 'Accept': 'application/json',
                 'Cache-Control': 'no-cache'
             };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            const response = await fetch('/api/me', {
-                method: 'GET',
+            const response = await fetch('/api/me', { credentials: 'include', method: 'GET',
                 credentials: 'include',
                 headers: headers
             });

@@ -291,21 +291,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Helper: cria headers com Authorization se token existir
+// Helper: cria headers adicionais para fetch (auth via httpOnly cookie, não mais via localStorage)
 function getAuthHeaders(additional = {}) {
-    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-    const headers = Object.assign({}, additional || {});
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    return headers;
+    return Object.assign({}, additional || {});
 }
 
 // SSO Helper: cria configuração de fetch com credentials para cookies httpOnly
 function ssoFetch(url, options = {}) {
     return fetch(url, {
         ...options,
-        credentials: 'include', // SSO: envia cookie automaticamente
+        credentials: 'include',
         headers: {
-            ...getAuthHeaders(options.headers || {})
+            ...(options.headers || {})
         }
     });
 }
@@ -355,7 +352,6 @@ function safeRedirectToLogin() {
                     if (window.__APP_READY === true) { clearInterval(iv); return resolve(false); }
 
                     // if localStorage has a token and userData now, bail and don't redirect
-                    const t = window.localStorage.getItem('authToken') || window.localStorage.getItem('token');
                     const u = window.localStorage.getItem('userData');
                     if (t && u) { clearInterval(iv); return resolve(false); }
 
@@ -369,7 +365,6 @@ function safeRedirectToLogin() {
             if (!shouldRedirect) return;
             try {
                 // final check before redirecting
-                const t = window.localStorage.getItem('authToken') || window.localStorage.getItem('token');
                 const u = window.localStorage.getItem('userData');
                 if (t && u) {
                     console.debug('safeRedirectToLogin: token/userData present at final check, not redirecting');
@@ -1131,7 +1126,7 @@ function initAdminPage() {
                                 const ok = await showConfirm('Apagar este aviso?');
                                 if (!ok) return;
                                 try {
-                                    const dres = await fetch(`/api/avisos/${a.id}`, { method: 'DELETE', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
+                                    const dres = await fetch(`/api/avisos/${a.id}`, { credentials: 'include', method: 'DELETE', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
                                     const dj = await dres.json(); if (!dres.ok) throw new Error(dj.message || 'Erro');
                                     showToast('Aviso apagado.', 'success');
                                     carregarDashboard();
@@ -1428,8 +1423,7 @@ function initAdminPage() {
         const formData = new FormData(formNovoFuncionario);
         const dadosFuncionario = Object.fromEntries(formData.entries());
         try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
+            const response = await fetch(API_URL, { credentials: 'include', method: 'POST',
                 headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify(dadosFuncionario)
             });
@@ -1465,7 +1459,7 @@ function initAdminPage() {
         if (statusDiv) statusDiv.textContent = 'A enviar...';
         setBtnLoading(submitBtn, true, 'Enviando...');
         try {
-            const response = await fetch(`${API_URL}/${currentFuncionarioId}/foto`, { method: 'POST', headers: getAuthHeaders(), body: formData });
+            const response = await fetch(`${API_URL}/${currentFuncionarioId}/foto`, { credentials: 'include', method: 'POST', headers: getAuthHeaders(), body: formData });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message || 'Falha no upload');
             if (statusDiv) statusDiv.textContent = "Foto enviada com sucesso!";
@@ -1506,8 +1500,7 @@ function initAdminPage() {
                 if (map[id]) payload[map[id]] = val;
             });
             try {
-                const resp = await fetch(`${API_URL}/${currentFuncionarioId}`, {
-                    method: 'PUT',
+                const resp = await fetch(`${API_URL}/${currentFuncionarioId}`, { credentials: 'include', method: 'PUT',
                     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify(payload)
                 });
@@ -1551,8 +1544,7 @@ function initAdminPage() {
         if (statusDiv) statusDiv.textContent = 'A enviar...';
         setBtnLoading(submitBtn, true, 'Enviando...');
         try {
-            const response = await fetch(`${API_URL}/${currentFuncionarioId}/holerite`, {
-                method: 'POST',
+            const response = await fetch(`${API_URL}/${currentFuncionarioId}/holerite`, { credentials: 'include', method: 'POST',
                 headers: getAuthHeaders(),
                 body: formData,
             });
@@ -1592,8 +1584,7 @@ function initAdminPage() {
             if (statusDiv) statusDiv.textContent = 'A enviar...';
             setBtnLoading(submitBtn, true, 'Enviando...');
             try {
-                const response = await fetch(`${API_URL}/${currentFuncionarioId}/atéstado`, {
-                    method: 'POST',
+                const response = await fetch(`${API_URL}/${currentFuncionarioId}/atéstado`, { credentials: 'include', method: 'POST',
                     headers: getAuthHeaders(),
                     body: formData
                 });
@@ -1621,8 +1612,7 @@ function initAdminPage() {
             if (!input) return showToast('Campo de data náo encontrado.', 'error');
             const val = input.value || null;
             try {
-                const resp = await fetch(`${API_URL}/${currentFuncionarioId}`, {
-                    method: 'PUT',
+                const resp = await fetch(`${API_URL}/${currentFuncionarioId}`, { credentials: 'include', method: 'PUT',
                     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({ data_nascimento: val })
                 });
@@ -1686,7 +1676,7 @@ function initAdminPage() {
                     const ok = await showConfirm('Apagar este aviso?');
                     if (!ok) return;
                     try {
-                        const dres = await fetch(`/api/avisos/${a.id}`, { method: 'DELETE', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
+                        const dres = await fetch(`/api/avisos/${a.id}`, { credentials: 'include', method: 'DELETE', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
                         const dj = await dres.json();
                         if (!dres.ok) throw new Error(dj.message || 'Erro');
                         carregarAvisos();
@@ -1829,7 +1819,7 @@ function initAdminPage() {
                     const ok = await showConfirm('Apagar este aviso definitivamente?');
                     if (!ok) return;
                     try {
-                        const dres = await fetch(`/api/avisos/${a.id}`, { method: 'DELETE', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
+                        const dres = await fetch(`/api/avisos/${a.id}`, { credentials: 'include', method: 'DELETE', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
                         const dj = await dres.json(); if (!dres.ok) throw new Error(dj.message || 'Erro');
                         showToast('Aviso apagado.', 'success');
                         renderModalAvisosList(); carregarAvisos();
@@ -1875,12 +1865,12 @@ function initAdminPage() {
             const editId = modalAvisoForm.getAttribute('data-edit-id');
             try {
                 if (editId) {
-                    const resp = await fetch(`/api/avisos/${editId}`, { method: 'PUT', headers: getAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ titulo, mensagem }) });
+                    const resp = await fetch(`/api/avisos/${editId}`, { credentials: 'include', method: 'PUT', headers: getAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ titulo, mensagem }) });
                     const j = await resp.json(); if (!resp.ok) throw new Error(j.message || 'Erro');
                     showToast('Aviso atualizado.', 'success');
                     modalAvisoForm.removeAttribute('data-edit-id');
                 } else {
-                    const resp = await fetch('/api/avisos', { method: 'POST', headers: getAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ titulo, mensagem }) });
+                    const resp = await fetch('/api/avisos', { credentials: 'include', method: 'POST', headers: getAuthHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ titulo, mensagem }) });
                     const j = await resp.json(); if (!resp.ok) throw new Error(j.message || 'Erro');
                     showToast('Aviso criado.', 'success');
                 }
@@ -1920,11 +1910,10 @@ function initAdminPage() {
 // == PORTAL DO FUNCIONÁRIO
 // ===================================================================================
 async function initEmployeePage() {
-    let authToken = localStorage.getItem('authToken');
     let localUserData = JSON.parse(localStorage.getItem('userData'));
 
     // Diagnostic: log initial localStorage state to help debug white-screen reports
-    try { console.log('initEmployeePage start', { authTokenPresent: !!(localStorage.getItem('authToken') || localStorage.getItem('token')), userDataPresent: !!localUserData, bodyVisibility: document && document.body && document.body.style ? document.body.style.visibility : null }); } catch (e) {}
+    try { console.log('initEmployeePage start', { authMode: 'httpOnly-cookie', userDataPresent: !!localUserData, bodyVisibility: document && document.body && document.body.style ? document.body.style.visibility : null }); } catch (e) {}
 
     // Debug: verificar se usuário deveria ir para área admin
     console.log('🔍 DEBUG initEmployeePage - Verificando redirecionamento admin:', {
@@ -1939,17 +1928,15 @@ async function initEmployeePage() {
         return;
     }
 
-    // Re-read localStorage to catch tokens injected after initial script evaluation
-    try { authToken = localStorage.getItem('authToken') || localStorage.getItem('token'); } catch (e) { authToken = authToken; }
+    // httpOnly cookie handles auth - just verify userData is available
     try { localUserData = JSON.parse(localStorage.getItem('userData') || 'null') || localUserData; } catch (e) { /* ignore */ }
-    if (!authToken || !localUserData || !localUserData.id) {
+    if (!localUserData || !localUserData.id) {
         console.log('initEmployeePage: no token or userData at start', { authToken: !!authToken, localUserDataExists: !!localUserData });
         // If token exists but userData is missing, try to populate it synchronously via /api/me
         try {
-            const tokenCheck = localStorage.getItem('authToken') || localStorage.getItem('token');
-            if (tokenCheck && (!localUserData || !localUserData.id)) {
+            if (!localUserData || !localUserData.id) {
                 try {
-                    const resp = await fetch('/api/me', { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
+                    const resp = await fetch('/api/me', { credentials: 'include', headers: { 'Content-Type': 'application/json' } });
                     if (resp && resp.ok) {
                         const me = await resp.json();
                         if (me && me.id) {
@@ -1962,7 +1949,7 @@ async function initEmployeePage() {
         } catch (e) { /* ignore */ }
 
         // If still no token/userData, show overlay and poll for injected values (automation or delayed writes)
-        if (!localStorage.getItem('authToken') && !localStorage.getItem('token') || !localUserData || !localUserData.id) {
+        if (!localUserData || !localUserData.id) {
             try {
                 // create overlay only once
                 if (!document.getElementById('auth-overlay')) {
@@ -1992,7 +1979,6 @@ async function initEmployeePage() {
             const waitForToken = () => new Promise((resolve) => {
                 const iv = setInterval(() => {
                     try {
-                        const t = localStorage.getItem('authToken') || localStorage.getItem('token');
                         const u = JSON.parse(localStorage.getItem('userData') || 'null');
                         if (t && u && u.id) {
                             console.log('initEmployeePage: detected token/userData via polling', { tokenPresent: !!t, userId: u && u.id ? u.id : null, elapsed: Date.now() - start });
@@ -2037,7 +2023,7 @@ async function initEmployeePage() {
                                     let found = false;
                                     while (Date.now() - start2 < 3000 && !found) {
                                         await new Promise(r => setTimeout(r, 250));
-                                        try { const t = localStorage.getItem('authToken') || localStorage.getItem('token'); const u = JSON.parse(localStorage.getItem('userData') || 'null'); if (t && u && u.id) { found = true; break; } } catch(e){}
+                                        try { const u = JSON.parse(localStorage.getItem('userData') || 'null'); if (u && u.id) { found = true; break; } } catch(e){}
                                     }
                                     if (found) {
                                         try { const ov2 = document.getElementById('auth-overlay'); if (ov2) ov2.remove(); } catch(e){}
@@ -2055,7 +2041,6 @@ async function initEmployeePage() {
                             const diag = document.getElementById('auth-overlay-diagnostics');
                             if (diag) {
                                 try {
-                                    const rawToken = localStorage.getItem('authToken') || localStorage.getItem('token') || null;
                                     let userRaw = null;
                                     try { userRaw = localStorage.getItem('userData') || null; } catch(e) { userRaw = null; }
                                     const diagObj = {
@@ -2094,9 +2079,9 @@ async function initEmployeePage() {
             try { localUserData = JSON.parse(localStorage.getItem('userData') || 'null'); } catch (e) { /* ignore */ }
         }
         // If we have a token but no userData yet, try to fetch /api/me using the token (final attempt)
-        if ((!localUserData || !localUserData.id) && (localStorage.getItem('authToken') || localStorage.getItem('token'))) {
+        if (!localUserData || !localUserData.id) {
             try {
-                const resp = await fetch('/api/me', { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
+                const resp = await fetch('/api/me', { credentials: 'include', headers: { 'Content-Type': 'application/json' } });
                 if (resp && resp.ok) {
                     const me = await resp.json();
                     if (me && me.id) {
@@ -2272,55 +2257,37 @@ async function carregarEmployeeDashboard(userData) {
 function subscribeAvisosSSE() {
     if (!window.EventSource) return; // browser doesn't support SSE
     try {
-        let triedNoToken = false;
-        let triedHandshake = false;
-        const tryOpen = (useToken) => {
-            const token = localStorage.getItem('authToken') || localStorage.getItem('token');
-            const url = (useToken && token) ? `/api/avisos/stream?token=${encodeURIComponent(token)}` : '/api/avisos/stream';
+        // SECURITY: Never send long-lived tokens as URL query params.
+        // Always use handshake first to obtain a short-lived SSE token (20s).
+        (async () => {
+            try {
+                const resp = await fetch('/api/avisos/sse-handshake', { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (resp && resp.ok) {
+                    const j = await resp.json();
+                    if (j && j.url) {
+                        console.log('SSE handshake succeeded, opening EventSource with temporary URL');
+                        openSSE(j.url);
+                        return;
+                    }
+                }
+            } catch (handErr) {
+                console.warn('SSE handshake failed', handErr);
+            }
+            // handshake failed — fallback to polling
+            console.log('SSE handshake failed; falling back to polling.');
+            try { startAvisosPolling(); } catch (err) {}
+        })();
+
+        function openSSE(url) {
             const es = new EventSource(url, { withCredentials: false });
             let opened = false;
-            es.addEventListener('open', () => { opened = true; console.log('Conectado ao stream de avisos (SSE).', { url }); });
+            es.addEventListener('open', () => { opened = true; console.log('Conectado ao stream de avisos (SSE).'); });
             es.addEventListener('error', (e) => {
-                console.warn('Erro no stream de avisos SSE', e, { url, opened });
+                console.warn('Erro no stream de avisos SSE', e);
                 try { es.close(); } catch (err) {}
-                // If we failed before opening and we used the main token, prefer attempting an authenticated handshake
-                // (this is necessary because EventSource cannot set custom headers). Only if handshake fails, retry
-                // without token once as a final attempt before falling back to polling.
-                if (!opened && useToken && !triedHandshake) {
-                    triedHandshake = true;
-                    (async () => {
-                        try {
-                            const resp = await fetch('/api/avisos/sse-handshake', { method: 'POST', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
-                            if (resp && resp.ok) {
-                                const j = await resp.json();
-                                if (j && j.url) {
-                                    console.log('SSE handshake succeeded, opening EventSource with temporary URL');
-                                    tryOpenUrl(j.url);
-                                    return;
-                                }
-                            }
-                        } catch (handErr) {
-                            console.warn('SSE handshake failed', handErr);
-                        }
-                        // handshake failed; try once without token
-                        if (!triedNoToken) {
-                            triedNoToken = true;
-                            console.log('SSE handshake failed; retrying without token as fallback.');
-                            setTimeout(() => tryOpen(false), 300);
-                            return;
-                        }
-                        // fallback: start polling
-                        try { startAvisosPolling(); } catch (err) {}
-                    })();
-                    return;
-                }
-                // If we failed before opening and haven't yet tried the no-token fallback, try it
-                if (!opened && useToken && !triedNoToken) {
-                    triedNoToken = true;
-                    console.log('SSE failed with token; retrying without token as fallback.');
-                    setTimeout(() => tryOpen(false), 300);
-                    return;
-                }
                 // start polling fallback so avisos still update
                 try { startAvisosPolling(); } catch (err) { /* ignore */ }
             });
@@ -2387,22 +2354,9 @@ function subscribeAvisosSSE() {
             // expose es for debugging
             window._avisosSSE = es;
             return es;
-        };
-        // initial attempt: prefer token if present
-        tryOpen(true);
-        // helper to open using an explicit url (temporary token)
-        function tryOpenUrl(explicitUrl) {
-            try {
-                const es2 = new EventSource(explicitUrl, { withCredentials: false });
-                es2.addEventListener('open', () => { console.log('Conectado ao stream de avisos (SSE) via handshake.', { explicitUrl }); });
-                es2.addEventListener('error', (e) => { console.warn('Erro no stream de avisos SSE (handshake url)', e, { explicitUrl }); try { es2.close(); } catch(_){}; try { startAvisosPolling(); } catch(_){} });
-                es2.addEventListener('novo_aviso', (ev) => { try { const aviso = JSON.parse(ev.data); /* reuse existing handler logic by dispatching a custom event */ const ev2 = new MessageEvent('novo_aviso', { data: ev.data }); window.dispatchEvent(ev2); } catch (e) { console.warn('Falha ao processar aviso SSE (handshake) ', e); } });
-                window._avisosSSE = es2;
-                return es2;
-            } catch (e) { console.warn('tryOpenUrl failed', e); try { startAvisosPolling(); } catch(_){} }
         }
     } catch (e) {
-        console.warn('Náo foi possível abrir EventSource para avisos:', e);
+        console.warn('Não foi possível abrir EventSource para avisos:', e);
     }
 }
 
@@ -2412,11 +2366,10 @@ subscribeAvisosSSE();
 // Polling fallback: if EventSource not supported or connection fails, poll every 30s
 let _avisosPollingTimer = null;
 function startAvisosPolling() {
-    if (window.EventSource) return; // prefer SSE
     if (_avisosPollingTimer) return;
     async function poll() {
         try {
-            const resp = await fetch('/api/dashboard/summary', { headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
+            const resp = await fetch('/api/dashboard/summary', { credentials: 'include', headers: { 'Content-Type': 'application/json' } });
             if (!resp.ok) return;
             const summary = await resp.json();
             const avisos = summary.avisos || [];
@@ -2456,7 +2409,7 @@ function markAvisoRead(id) {
     // Prefer server-side persistence; fall back to localStorage if network fails
     (async () => {
         try {
-            const resp = await fetch(`/api/avisos/${id}/read`, { method: 'POST', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
+            const resp = await fetch(`/api/avisos/${id}/read`, { credentials: 'include', method: 'POST', headers: getAuthHeaders({ 'Content-Type': 'application/json' }) });
             if (!resp.ok) throw new Error('Falha ao marcar como lido no servidor');
         } catch (e) {
             // network error or server failure -> persist locally
@@ -2682,8 +2635,7 @@ function setupEmployeeEventListeners(userData) {
         }
 
         try {
-            const response = await fetch(`/api/funcionarios/${userData.id}`, {
-                method: 'PUT',
+            const response = await fetch(`/api/funcionarios/${userData.id}`, { credentials: 'include', method: 'PUT',
                 headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify(dadosParaSalvar),
             });
@@ -2721,8 +2673,7 @@ function setupEmployeeEventListeners(userData) {
             if (descEl && descEl.value && descEl.value.trim()) formData.append('descriçáo', descEl.value.trim());
             statusDiv.textContent = 'A enviar...';
             try {
-                const response = await fetch(`/api/funcionarios/${userData.id}/atéstado`, {
-                    method: 'POST',
+                const response = await fetch(`/api/funcionarios/${userData.id}/atéstado`, { credentials: 'include', method: 'POST',
                     body: formData,
                 });
                 const result = await response.json();
@@ -2854,15 +2805,15 @@ function setupEmployeeEventListeners(userData) {
     
     // Funçáo para recarregar dados do usuário
     reloadUserData() {
-        const token = localStorage.getItem('authToken');
         if (!token) {
             console.log('Náo há token de autenticaçáo');
             return;
         }
 
         fetch('/api/user-data', {
-            headers: this.getAuthHeaders()
-        })
+                    credentials: 'include',
+                    headers: this.getAuthHeaders()
+                }))
         .then(response => response.json())
         .then(data => {
             if (data.success && data.userData) {

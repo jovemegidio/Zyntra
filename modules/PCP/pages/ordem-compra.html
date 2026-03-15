@@ -1,0 +1,1184 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#1a2744">
+    <title>Aluforce: Ordem de Compra</title>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
+    <link rel="stylesheet" href="../css/pcp-layout.css">
+    <link rel="stylesheet" href="../css/pcp-components.css">
+    <script src="../js/pcp-modals.js" defer></script>
+
+    <style>
+        .stat-card.blue .stat-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+        .stat-card.green .stat-icon { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .stat-card.orange .stat-icon { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+        .stat-card.cyan .stat-icon { background: linear-gradient(135deg, #06b6d4, #0891b2); color: white; }
+
+        .stat-card .stat-content { flex: 1; }
+        .stat-card .stat-label { font-size: 13px; color: #6b7280; margin-bottom: 4px; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; color: #111827; }
+
+        .page-header-top { display: flex; justify-content: flex-end; margin-bottom: var(--space-6); }
+        .page-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+        .card-title { display: flex; align-items: center; gap: var(--space-2); font-size: 15px; font-weight: 600; color: var(--gray-800); }
+        .card-title i { color: var(--primary-500); }
+        .table-container { overflow-x: auto; }
+
+        .empty-state-icon { width: 64px; height: 64px; background: var(--gray-100); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+        .empty-state-icon i { font-size: 24px; color: var(--gray-400); }
+        .empty-state-title { font-size: 16px; font-weight: 600; color: var(--gray-700); margin-bottom: 4px; }
+        .empty-state-desc { font-size: 14px; color: var(--gray-500); }
+
+        /* Modal Styles - PCP Gray Theme */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: flex-start; justify-content: center; z-index: 9999; padding: 20px; overflow-y: auto; }
+        .modal-overlay.active { display: flex; }
+        .modal-pedido-compra { background: white; border-radius: 12px; width: 100%; max-width: 900px; margin: 20px auto; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Modal Header - Gray Theme */
+        .modal-pedido-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: linear-gradient(135deg, #334155 0%, #475569 100%); color: white; border-bottom: 3px solid #0f766e; }
+        .modal-pedido-header h2 { margin: 0; font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .modal-pedido-header h2 i { color: #5eead4; }
+        .modal-pedido-header .close-btn { width: 30px; height: 30px; border: none; background: rgba(255,255,255,0.15); border-radius: 8px; color: white; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .modal-pedido-header .close-btn:hover { background: #ef4444; transform: scale(1.1); }
+
+        /* Modal Body */
+        .modal-pedido-body { padding: 24px; max-height: calc(100vh - 200px); overflow-y: auto; }
+
+        /* Form Row with Avatar */
+        .form-row-avatar { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+        .avatar-placeholder { width: 48px; height: 48px; background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 2px solid #e5e7eb; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .avatar-placeholder i { font-size: 18px; color: #6b7280; }
+        .form-row-avatar .form-fields { flex: 1; display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: end; }
+
+        /* Form Groups */
+        .form-group-oc { margin-bottom: 16px; }
+        .form-group-oc label { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
+        .form-group-oc label .required { color: #ef4444; }
+        .form-group-oc label i { color: #6b7280; font-size: 12px; }
+        .form-control-oc { width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; transition: all 0.2s; background: white; }
+        .form-control-oc:focus { outline: none; border-color: #6b7280; box-shadow: 0 0 0 3px rgba(107,114,128,0.1); }
+        .form-control-oc:hover { border-color: #9ca3af; }
+
+        /* Input with search icon */
+        .input-with-icon { position: relative; }
+        .input-with-icon input { padding-right: 40px; }
+        .input-with-icon .search-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; cursor: pointer; }
+        .input-with-icon .search-icon:hover { color: #6b7280; }
+
+        /* Grid Layouts */
+        .form-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+        .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+        /* Totais Bar - Gray Theme */
+        .totais-bar { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 16px; background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-radius: 10px; margin-bottom: 20px; justify-content: space-between; border: 1px solid #e2e8f0; }
+        .total-item { text-align: center; padding: 6px 10px; flex: 1; min-width: 100px; border-right: 1px solid #e2e8f0; }
+        .total-item:last-child { border-right: none; }
+        .total-item .label { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.3px; }
+        .total-item .value { font-size: 15px; font-weight: 700; color: #334155; }
+        .total-item.destaque { background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 8px; border-right: none; margin-left: 8px; }
+        .total-item.destaque .value { color: #059669; font-size: 17px; }
+
+        /* Tabs - Gray Theme - Compactas sem scroll */
+        .tabs-oc { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; flex-wrap: wrap; background: #f8fafc; border-radius: 8px 8px 0 0; }
+        .tab-oc { padding: 12px 14px; background: none; border: none; font-size: 12px; font-weight: 500; color: #64748b; cursor: pointer; position: relative; white-space: nowrap; transition: all 0.2s; flex: 1; min-width: auto; text-align: center; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .tab-oc:hover { color: #1e293b; background: #f1f5f9; }
+        .tab-oc.active { color: #0f766e; font-weight: 600; background: white; border-bottom-color: #0f766e; }
+        .tab-oc.active::after { display: none; }
+
+        /* Tab Content */
+        .tab-content-oc { display: none; }
+        .tab-content-oc.active { display: block; }
+
+        /* Table Itens - Gray Theme */
+        .table-itens { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .table-itens th { background: #f9fafb; padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; color: #6b7280; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+        .table-itens th .resize-handle { display: inline-block; width: 8px; cursor: col-resize; position: absolute; right: 0; top: 0; bottom: 0; }
+        .table-itens td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+        .table-itens .filter-icon { color: #9ca3af; cursor: pointer; margin-left: 4px; }
+
+        /* Action Buttons - Gray Theme */
+        /* Action Buttons - Usando variaveis do design system */
+        .btn-novo-item { background: var(--success-500); color: white; border: none; padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition-base); }
+        .btn-novo-item:hover { background: var(--success-600); }
+        .btn-editar-item { background: var(--warning-500); color: white; border: none; padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition-base); }
+        .btn-editar-item:hover { background: var(--warning-600); }
+        .btn-excluir-item { background: var(--danger-500); color: white; border: none; padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition-base); }
+        .btn-excluir-item:hover { background: var(--danger-600); }
+
+        /* Sidebar Actions - Gray Theme */
+        .modal-sidebar { position: absolute; right: 0; top: 0; bottom: 0; width: 56px; background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%); border-left: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; padding-top: 80px; gap: 10px; }
+        .sidebar-action { width: 40px; height: 40px; border: none; background: white; border-radius: 10px; color: #64748b; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.08); transition: all 0.2s; }
+        .sidebar-action:hover { background: #0f766e; color: white; transform: scale(1.05); box-shadow: 0 4px 12px rgba(15,118,110,0.25); }
+        .sidebar-action.primary { background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%); color: white; box-shadow: 0 4px 12px rgba(15,118,110,0.35); }
+        .sidebar-action.primary:hover { background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); transform: scale(1.08); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .form-grid-3, .form-grid-2 { grid-template-columns: 1fr; }
+            .form-row-avatar { flex-direction: column; align-items: center; }
+            .form-row-avatar .form-fields { width: 100%; grid-template-columns: 1fr; }
+            .totais-bar { justify-content: flex-start; }
+            .tabs-oc { flex-wrap: nowrap; }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Global Header & Sidebar -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+
+    <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
+    <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-btn" title="Dashboard PCP"><i class="fas fa-tachometer-alt"></i></a>
+                <a href="estoque.html" class="sidebar-btn" title="Estoque"><i class="fas fa-boxes"></i></a>
+                <a href="materiais.html" class="sidebar-btn" title="Materiais"><i class="fas fa-layer-group"></i></a>
+                <a href="ordem-compra.html" class="sidebar-btn active" title="Ordem de Compra"><i class="fas fa-shopping-cart"></i></a>
+                <a href="../ordens-producao.html" class="sidebar-btn" title="Ordens de Produção"><i class="fas fa-clipboard-list"></i></a>
+                <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
+                <a href="faturamento.html" class="sidebar-btn" title="Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" id="btn-config"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Ordens de Compra</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span id="saudacao">Bom dia,</span>
+                        <strong id="userName">Usuário</strong>
+                    </div>
+                    <div class="user-avatar"><span id="userInitial">U</span></div>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <div class="page-content">
+                    <div class="page-header-top">
+                        <div class="page-actions">
+                            <button class="btn-nova-oc-premium" id="btn-nova-oc" onclick="novaOrdemCompra()">
+                                <span class="btn-icon"><i class="fas fa-plus"></i></span>
+                                <span class="btn-text">Nova OC</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <style>
+                        .btn-nova-oc-premium {
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 10px;
+                            padding: 12px 24px;
+                            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 50%, #3182ce 100%);
+                            color: white;
+                            border: none;
+                            border-radius: 12px;
+                            font-size: 14px;
+                            font-weight: 600;
+                            cursor: pointer;
+                            box-shadow: 0 4px 15px rgba(49, 130, 206, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+                            transition: all 0.3s ease;
+                            position: relative;
+                            overflow: hidden;
+                        }
+                        .btn-nova-oc-premium::before {
+                            content: '';
+                            position: absolute;
+                            top: 0;
+                            left: -100%;
+                            width: 100%;
+                            height: 100%;
+                            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+                            transition: left 0.5s ease;
+                        }
+                        .btn-nova-oc-premium:hover::before {
+                            left: 100%;
+                        }
+                        .btn-nova-oc-premium:hover {
+                            transform: translateY(-2px);
+                            box-shadow: 0 6px 20px rgba(49, 130, 206, 0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+                        }
+                        .btn-nova-oc-premium:active {
+                            transform: translateY(0);
+                            box-shadow: 0 2px 10px rgba(49, 130, 206, 0.3);
+                        }
+                        .btn-nova-oc-premium .btn-icon {
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            width: 28px;
+                            height: 28px;
+                            background: rgba(255,255,255,0.2);
+                            border-radius: 8px;
+                            font-size: 13px;
+                        }
+                        .btn-nova-oc-premium .btn-text {
+                            letter-spacing: 0.5px;
+                        }
+                    </style>
+
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card blue">
+                            <div class="stat-icon blue"><i class="fas fa-file-alt"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">OCs Abertas</div>
+                                <div class="stat-value" id="oc-abertas">0</div>
+                            </div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-icon green"><i class="fas fa-check-double"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Aprovadas</div>
+                                <div class="stat-value" id="oc-aprovadas">0</div>
+                            </div>
+                        </div>
+                        <div class="stat-card orange">
+                            <div class="stat-icon orange"><i class="fas fa-hourglass-half"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Aguardando</div>
+                                <div class="stat-value" id="oc-aguardando">0</div>
+                            </div>
+                        </div>
+                        <div class="stat-card cyan">
+                            <div class="stat-icon cyan"><i class="fas fa-dollar-sign"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Valor Total</div>
+                                <div class="stat-value" id="oc-valor">R$ 0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-list-alt"></i> Ordens de Compra</h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nº OC</th>
+                                            <th>Fornecedor</th>
+                                            <th>Data</th>
+                                            <th>Previsão Entrega</th>
+                                            <th>Valor Total</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="oc-table-body">
+                                        <tr>
+                                            <td colspan="7" style="text-align: center; padding: 60px;">
+                                                <div class="empty-state">
+                                                    <div class="empty-state-icon"><i class="fas fa-shopping-cart"></i></div>
+                                                    <h4 class="empty-state-title">Nenhuma OC encontrada</h4>
+                                                    <p class="empty-state-desc">Clique em "Nova OC" para criar uma ordem de compra.</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal Novo Pedido de Compra - Design Profissional Institucional -->
+    <div class="modal-overlay" id="modalNovoPedidoCompra">
+        <div style="background:#fff;width:100%;max-width:950px;border-radius:16px;box-shadow:0 25px 60px rgba(0,0,0,0.4);overflow:hidden;animation:slideUp 0.3s ease;margin:20px;">
+
+            <!-- Header Premium -->
+            <div style="background:linear-gradient(135deg, #1e293b 0%, #334155 100%);color:#fff;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;">
+                <div style="display:flex;align-items:center;gap:16px;">
+                    <div style="width:50px;height:50px;background:rgba(255,255,255,0.15);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+                        <i class="fas fa-file-invoice-dollar" style="font-size:22px;color:#60a5fa;"></i>
+                    </div>
+                    <div>
+                        <h2 style="margin:0;font-size:20px;font-weight:700;letter-spacing:0.5px;">Novo Pedido de Compra</h2>
+                        <p style="margin:4px 0 0;font-size:13px;opacity:0.8;">PCP - Solicitação de Materiais</p>
+                    </div>
+                </div>
+                <button onclick="fecharModalNovoPedido()" style="width:40px;height:40px;background:rgba(255,255,255,0.1);border:none;border-radius:10px;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;" onmouseover="this.style.background='#ef4444'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div style="padding:28px;max-height:calc(100vh - 220px);overflow-y:auto;background:#f8fafc;">
+
+                <!-- Seção: Dados do Fornecedor -->
+                <div style="background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">
+                        <div style="width:32px;height:32px;background:linear-gradient(135deg,#3b82f6,#2563eb);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-building" style="color:#fff;font-size:14px;"></i>
+                        </div>
+                        <h3 style="margin:0;font-size:15px;font-weight:600;color:#1e293b;">Dados do Fornecedor</h3>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;">
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">
+                                <i class="fas fa-search" style="color:#3b82f6;margin-right:4px;"></i> Fornecedor <span style="color:#ef4444;">*</span>
+                            </label>
+                            <div style="position:relative;">
+                                <input type="text" class="form-control-oc" id="oc-fornecedor" placeholder="Digite para buscar fornecedor..."
+                                       oninput="buscarFornecedor()" autocomplete="off" style="padding-right:40px;">
+                                <i class="fas fa-search" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#94a3b8;"></i>
+                            </div>
+                            <small style="color:#64748b;font-size:11px;margin-top:4px;display:block;"><i class="fas fa-link" style="color:#3b82f6;"></i> Integrado com módulo Compras</small>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">
+                                <i class="fas fa-calendar" style="color:#3b82f6;margin-right:4px;"></i> Data Emissão
+                            </label>
+                            <input type="date" class="form-control-oc" id="oc-data-emissao" style="background:#f1f5f9;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">
+                                <i class="fas fa-truck" style="color:#3b82f6;margin-right:4px;"></i> Previsão Entrega
+                            </label>
+                            <input type="date" class="form-control-oc" id="oc-previsao-entrega">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção: Configurações da Compra -->
+                <div style="background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">
+                        <div style="width:32px;height:32px;background:linear-gradient(135deg,#8b5cf6,#7c3aed);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                            <i class="fas fa-cog" style="color:#fff;font-size:14px;"></i>
+                        </div>
+                        <h3 style="margin:0;font-size:15px;font-weight:600;color:#1e293b;">Configurações da Compra</h3>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;">
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Categoria</label>
+                            <select class="form-control-oc" id="oc-categoria">
+                                <option value="">Selecione...</option>
+                                <option value="materia-prima">Matéria Prima</option>
+                                <option value="insumos">Insumos</option>
+                                <option value="equipamentos">Equipamentos</option>
+                                <option value="servicos">Serviços</option>
+                                <option value="outros">Outros</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Comprador</label>
+                            <select class="form-control-oc" id="oc-comprador">
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Condição Pagamento</label>
+                            <select class="form-control-oc" id="oc-parcelas">
+                                <option value="avista">À Vista</option>
+                                <option value="15dias">15 dias</option>
+                                <option value="30dias">30 dias</option>
+                                <option value="30-60">30/60 dias</option>
+                                <option value="30-60-90">30/60/90 dias</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Departamento</label>
+                            <select class="form-control-oc" id="oc-departamento">
+                                <option value="producao">Produção</option>
+                                <option value="almoxarifado">Almoxarifado</option>
+                                <option value="manutencao">Manutenção</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção: Itens do Pedido -->
+                <div style="background:#fff;border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f1f5f9;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="width:32px;height:32px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+                                <i class="fas fa-boxes" style="color:#fff;font-size:14px;"></i>
+                            </div>
+                            <h3 style="margin:0;font-size:15px;font-weight:600;color:#1e293b;">Itens do Pedido</h3>
+                        </div>
+                        <button onclick="adicionarItemOC()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(34,197,94,0.3);transition:all 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <i class="fas fa-plus"></i> Adicionar Item
+                        </button>
+                    </div>
+
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;">
+                            <thead>
+                                <tr style="background:#f8fafc;">
+                                    <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">#</th>
+                                    <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Código</th>
+                                    <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Descrição do Material</th>
+                                    <th style="padding:12px 16px;text-align:center;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Qtd</th>
+                                    <th style="padding:12px 16px;text-align:center;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Un</th>
+                                    <th style="padding:12px 16px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Preço Unit.</th>
+                                    <th style="padding:12px 16px;text-align:right;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Total</th>
+                                    <th style="padding:12px 16px;text-align:center;font-size:12px;font-weight:600;color:#64748b;border-bottom:2px solid #e2e8f0;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="oc-itens-tbody">
+                                <tr>
+                                    <td colspan="8" style="text-align:center;padding:40px;color:#94a3b8;">
+                                        <i class="fas fa-inbox" style="font-size:32px;margin-bottom:12px;display:block;color:#cbd5e1;"></i>
+                                        <p style="margin:0;font-size:14px;">Nenhum item adicionado</p>
+                                        <p style="margin:4px 0 0;font-size:12px;">Clique em "Adicionar Item" para começar</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Seção: Totais e Resumo -->
+                <div style="background:linear-gradient(135deg,#f8fafc,#e2e8f0);border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #e2e8f0;">
+                    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;">
+                        <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
+                            <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Subtotal</p>
+                            <p style="margin:6px 0 0;font-size:18px;font-weight:700;color:#1e293b;" id="oc-total-mercadorias">R$ 0,00</p>
+                        </div>
+                        <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
+                            <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Desconto</p>
+                            <p style="margin:6px 0 0;font-size:18px;font-weight:700;color:#ef4444;" id="oc-total-desconto">R$ 0,00</p>
+                        </div>
+                        <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
+                            <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Frete</p>
+                            <p style="margin:6px 0 0;font-size:18px;font-weight:700;color:#1e293b;" id="oc-total-frete">R$ 0,00</p>
+                        </div>
+                        <div style="text-align:center;padding:12px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;">
+                            <p style="margin:0;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Impostos</p>
+                            <p style="margin:6px 0 0;font-size:18px;font-weight:700;color:#f59e0b;" id="oc-total-impostos">R$ 0,00</p>
+                        </div>
+                        <div style="text-align:center;padding:16px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:8px;">
+                            <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.9);text-transform:uppercase;letter-spacing:0.5px;">Total Geral</p>
+                            <p style="margin:6px 0 0;font-size:22px;font-weight:800;color:#fff;" id="oc-valor-total">R$ 0,00</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Seção: Frete e Observações -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                    <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #e2e8f0;">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+                            <div style="width:28px;height:28px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:6px;display:flex;align-items:center;justify-content:center;">
+                                <i class="fas fa-truck" style="color:#fff;font-size:12px;"></i>
+                            </div>
+                            <h4 style="margin:0;font-size:14px;font-weight:600;color:#1e293b;">Frete e Despesas</h4>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Valor do Frete</label>
+                                <input type="number" class="form-control-oc" id="oc-frete" value="0" min="0" step="0.01" onchange="calcularTotaisOC()">
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Tipo de Frete</label>
+                                <select class="form-control-oc" id="oc-tipo-frete">
+                                    <option value="cif">CIF (Fornecedor)</option>
+                                    <option value="fob">FOB (Comprador)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top:12px;">
+                            <label style="display:block;font-size:12px;font-weight:600;color:#475569;margin-bottom:6px;">Outras Despesas</label>
+                            <input type="number" class="form-control-oc" id="oc-outras-despesas" value="0" min="0" step="0.01" onchange="calcularTotaisOC()">
+                        </div>
+                    </div>
+
+                    <div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #e2e8f0;">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+                            <div style="width:28px;height:28px;background:linear-gradient(135deg,#6366f1,#4f46e5);border-radius:6px;display:flex;align-items:center;justify-content:center;">
+                                <i class="fas fa-sticky-note" style="color:#fff;font-size:12px;"></i>
+                            </div>
+                            <h4 style="margin:0;font-size:14px;font-weight:600;color:#1e293b;">Observações</h4>
+                        </div>
+                        <textarea class="form-control-oc" id="oc-observacoes" rows="4" placeholder="Observações sobre o pedido de compra..." style="resize:none;"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="padding:20px 28px;background:#fff;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+                <div style="display:flex;align-items:center;gap:8px;color:#64748b;font-size:13px;">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Os dados serão integrados automaticamente ao módulo Compras</span>
+                </div>
+                <div style="display:flex;gap:12px;">
+                    <button onclick="fecharModalNovoPedido()" style="padding:12px 24px;background:#f1f5f9;color:#475569;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button onclick="salvarPedidoCompra()" style="padding:12px 28px;background:linear-gradient(135deg,#1e293b,#334155);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 14px rgba(30,41,59,0.4);transition:all 0.2s;display:inline-flex;align-items:center;gap:8px;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                        <i class="fas fa-save"></i> Salvar Pedido
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/pcp-common.js"></script>
+    <script>
+        let ordensCompraData = [];
+
+        async function carregarOrdensCompra() {
+            try {
+                const API_BASE = getAPIBase();
+
+                // Preparar headers - usar credentials: 'include' para sessão via cookie
+                const headers = { 'Content-Type': 'application/json' };
+                if (token && token !== 'unified-session-active') {
+                }
+
+                console.log('?? Carregando ordens de compra...');
+                // Buscar pedidos da API de Compras (filtrar por origem PCP)
+                const responseCompras = await fetch(`${API_BASE}/api/compras/pedidos?origem=PCP`, {
+                    credentials: 'include',
+                    headers: headers
+                });
+
+                // Se receber 401, não continuar
+                if (responseCompras.status === 401) {
+                    console.log('Não autenticado, aguardando redirecionamento...');
+                    return;
+                }
+
+                let pedidosCompras = [];
+                if (responseCompras.ok) {
+                    const data = await responseCompras.json();
+                    const arrayPedidos = Array.isArray(data) ? data : (Array.isArray(data.pedidos) ? data.pedidos : []);
+                    pedidosCompras = arrayPedidos.map(p => ({
+                        id: p.id,
+                        numero: p.numero_pedido,
+                        fornecedor: p.fornecedor_nome || p.fornecedor_razao,
+                        fornecedor_id: p.fornecedor_id,
+                        data_emissao: p.data_pedido,
+                        previsao_entrega: p.data_entrega_prevista,
+                        valor_total: p.valor_total,
+                        status: p.status,
+                        observacoes: p.observacoes,
+                        origem: 'compras',
+                        integracao: true
+                    }));
+                }
+
+                // Também buscar da API PCP (legado) se existir
+                try {
+                    const responsePCP = await fetch(`${API_BASE}/api/pcp/ordens-compra`, {
+                        credentials: 'include',
+                        headers: headers
+                    });
+                    if (responsePCP.ok) {
+                        const pcpData = await responsePCP.json();
+                        const pedidosPCP = (pcpData || []).map(p => ({
+                            ...p,
+                            origem: 'pcp',
+                            integracao: false
+                        }));
+                        ordensCompraData = [...pedidosCompras, ...pedidosPCP];
+                    } else {
+                        ordensCompraData = pedidosCompras;
+                    }
+                } catch (e) {
+                    ordensCompraData = pedidosCompras;
+                }
+
+                atualizarEstatisticas();
+                renderizarOrdensCompra();
+            } catch (error) {
+                console.error('Erro ao carregar OCs:', error);
+            }
+        }
+
+        function atualizarEstatisticas() {
+            const pendentes = ordensCompraData.filter(oc => oc.status === 'pendente' || oc.status === 'aberta').length;
+            const aprovadas = ordensCompraData.filter(oc => oc.status === 'aprovada' || oc.status === 'aprovado').length;
+            const aguardando = ordensCompraData.filter(oc => oc.status === 'aguardando' || oc.status === 'em_aprovacao').length;
+            const valorTotal = ordensCompraData.reduce((sum, oc) => sum + (parseFloat(oc.valor_total) || 0), 0);
+
+            document.getElementById('oc-abertas').textContent = pendentes;
+            document.getElementById('oc-aprovadas').textContent = aprovadas;
+            document.getElementById('oc-aguardando').textContent = aguardando;
+            document.getElementById('oc-valor').textContent = formatarMoeda(valorTotal);
+        }
+
+        function renderizarOrdensCompra() {
+            const tbody = document.getElementById('oc-table-body');
+
+            if (ordensCompraData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 60px;">
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="fas fa-shopping-cart"></i></div>
+                        <h4 class="empty-state-title">Nenhuma OC encontrada</h4>
+                        <p class="empty-state-desc">Clique em "Nova OC" para criar uma ordem de compra integrada com Compras.</p>
+                    </div>
+                </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = ordensCompraData.map(oc => `
+                <tr>
+                    <td>
+                        <strong>#${oc.numero || oc.id || '-'}</strong>
+                        ${oc.integracao ? '<i class="fas fa-link" style="color:#059669;margin-left:4px;" title="Integrado com Compras"></i>' : ''}
+                    </td>
+                    <td>${oc.fornecedor || oc.fornecedor_nome || '-'}</td>
+                    <td>${formatarData(oc.data || oc.data_emissao || oc.created_at)}</td>
+                    <td>${formatarData(oc.previsao_entrega || oc.data_previsao)}</td>
+                    <td>${formatarMoeda(oc.valor_total || oc.total || 0)}</td>
+                    <td><span class="status-badge ${oc.status || 'pendente'}">${formatarStatus(oc.status)}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="verOC(${oc.id})" title="Visualizar"><i class="fas fa-eye"></i></button>
+                        <button class="btn btn-sm btn-secondary" onclick="editarOC(${oc.id})" title="Editar"><i class="fas fa-edit"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function formatarStatus(status) {
+            const statusMap = {
+                'pendente': 'Pendente',
+                'aberta': 'Aberta',
+                'em_aprovacao': 'Em Aprovação',
+                'aguardando': 'Aguardando',
+                'aprovada': 'Aprovada',
+                'aprovado': 'Aprovado',
+                'recebida': 'Recebida',
+                'cancelada': 'Cancelada',
+                'rejeitada': 'Rejeitada'
+            };
+            return statusMap[status] || status || 'Pendente';
+        }
+
+        function novaOrdemCompra() {
+            // Abrir modal de novo pedido
+            const modal = document.getElementById('modalNovoPedidoCompra');
+            modal.classList.add('active');
+
+            // Setar data de emissão (hoje)
+            const hoje = new Date();
+            document.getElementById('oc-data-emissao').value = hoje.toISOString().slice(0, 10);
+
+            // Setar data de previsão padrão (hoje + 15 dias)
+            const hoje2 = new Date();
+            hoje.setDate(hoje.getDate() + 15);
+            document.getElementById('oc-previsao-entrega').value = hoje.toISOString().split('T')[0];
+
+            // Carregar compradores
+            carregarCompradoresOC();
+        }
+
+        function fecharModalNovoPedido() {
+            document.getElementById('modalNovoPedidoCompra').classList.remove('active');
+            limparFormularioOC();
+        }
+
+        function limparFormularioOC() {
+            document.getElementById('oc-fornecedor').value = '';
+            document.getElementById('oc-categoria').value = '';
+            document.getElementById('oc-comprador').value = '';
+            document.getElementById('oc-parcelas').value = 'avista';
+            document.getElementById('oc-total-mercadorias').textContent = 'R$ 0,00';
+            document.getElementById('oc-total-desconto').textContent = 'R$ 0,00';
+            document.getElementById('oc-total-ipi').textContent = 'R$ 0,00';
+            document.getElementById('oc-total-icms-st').textContent = 'R$ 0,00';
+            document.getElementById('oc-valor-total').textContent = 'R$ 0,00';
+            document.getElementById('oc-itens-tbody').innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 30px; color: #9ca3af;"><i class="fas fa-filter" style="font-size: 20px; margin-bottom: 8px; display: block;"></i>Nenhum item adicionado</td></tr>`;
+        }
+
+        function mudarTabOC(tab) {
+            // Remove active from all tabs
+            document.querySelectorAll('.tab-oc').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content-oc').forEach(c => c.classList.remove('active'));
+
+            // Activate selected tab
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        let itensOC = [];
+
+        function adicionarItemOC() {
+            const codigo = prompt('Código do produto:');
+            if (!codigo) return;
+
+            const descricao = prompt('Descrição do produto:');
+            if (!descricao) return;
+
+            const quantidade = parseFloat(prompt('Quantidade:', '1')) || 1;
+            const precoUnit = parseFloat(prompt('Preço unitário:', '0')) || 0;
+
+            itensOC.push({
+                id: itensOC.length + 1,
+                codigo,
+                descricao,
+                quantidade,
+                precoUnit,
+                total: quantidade * precoUnit
+            });
+
+            renderizarItensOC();
+            calcularTotaisOC();
+        }
+
+        function editarItemOC() {
+            if (itensOC.length === 0) {
+                showToast('Nenhum item para editar', 'warning');
+                return;
+            }
+            const id = parseInt(prompt('Digite o número do item a editar:'));
+            const item = itensOC.find(i => i.id === id);
+            if (!item) {
+                showToast('Item não encontrado', 'error');
+                return;
+            }
+
+            item.quantidade = parseFloat(prompt('Nova quantidade:', item.quantidade)) || item.quantidade;
+            item.precoUnit = parseFloat(prompt('Novo preço unitário:', item.precoUnit)) || item.precoUnit;
+            item.total = item.quantidade * item.precoUnit;
+
+            renderizarItensOC();
+            calcularTotaisOC();
+        }
+
+        function excluirItemOC() {
+            if (itensOC.length === 0) {
+                showToast('Nenhum item para excluir', 'warning');
+                return;
+            }
+            const id = parseInt(prompt('Digite o número do item a excluir:'));
+            const idx = itensOC.findIndex(i => i.id === id);
+            if (idx === -1) {
+                showToast('Item não encontrado', 'error');
+                return;
+            }
+
+            itensOC.splice(idx, 1);
+            renderizarItensOC();
+            calcularTotaisOC();
+            showToast('Item excluído', 'success');
+        }
+
+        function renderizarItensOC() {
+            const tbody = document.getElementById('oc-itens-tbody');
+            if (itensOC.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 30px; color: #9ca3af;"><i class="fas fa-filter" style="font-size: 20px; margin-bottom: 8px; display: block;"></i>Nenhum item adicionado</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = itensOC.map(item => `
+                <tr>
+                    <td>${item.id}</td>
+                    <td>${item.codigo}</td>
+                    <td>${item.descricao}</td>
+                    <td style="text-align: center;">${item.quantidade}</td>
+                    <td style="text-align: right;">${formatarMoeda(item.precoUnit)}</td>
+                    <td style="text-align: right; font-weight: 600;">${formatarMoeda(item.total)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function calcularTotaisOC() {
+            const totalMercadorias = itensOC.reduce((sum, i) => sum + i.total, 0);
+            const frete = parseFloat(document.getElementById('oc-frete')?.value || 0);
+            const outras = parseFloat(document.getElementById('oc-outras-despesas')?.value || 0);
+            const valorTotal = totalMercadorias + frete + outras;
+
+            document.getElementById('oc-total-mercadorias').textContent = formatarMoeda(totalMercadorias);
+            document.getElementById('oc-valor-total').textContent = formatarMoeda(valorTotal);
+        }
+
+        async function carregarCompradoresOC() {
+            try {
+                const API_BASE = getAPIBase();
+
+                if (!token) return;
+
+                const headers = { 'Authorization': `Bearer ${token}` };
+
+                // Tentar primeiro a rota de usuários com role
+                let response = await fetch(`${API_BASE}/api/usuarios?role=comprador`, {
+                    credentials: 'include',
+                    headers: headers
+                });
+
+                // Se a rota não existir (404), tentar rota alternativa
+                if (response.status === 404) {
+                    response = await fetch(`${API_BASE}/api/usuarios`, {
+                        credentials: 'include',
+                        headers: headers
+                    });
+                }
+
+                if (response.ok) {
+                    let usuarios = await response.json();
+                    // Se retornar todos os usuários, filtrar por compradores
+                    if (Array.isArray(usuarios)) {
+                        usuarios = usuarios.filter(u =>
+                            u.role === 'comprador' ||
+                            u.cargo?.toLowerCase().includes('compra') ||
+                            u.departamento?.toLowerCase().includes('compra')
+                        );
+                    }
+                    const select = document.getElementById('oc-comprador');
+                    if (select) {
+                        select.innerHTML = '<option value="">Selecione...</option>' +
+                            usuarios.map(u => `<option value="${u.id}">${u.nome || u.name}</option>`).join('');
+                    }
+                }
+            } catch (e) {
+                console.warn('Erro ao carregar compradores:', e);
+            }
+        }
+
+        function buscarFornecedor() {
+            const inputFornecedor = document.getElementById('oc-fornecedor');
+            const termo = inputFornecedor.value;
+
+            if (termo.length < 2) {
+                fecharListaFornecedores();
+                return;
+            }
+
+            buscarFornecedores(termo).then(fornecedores => {
+                if (fornecedores.length === 0) {
+                    fecharListaFornecedores();
+                    return;
+                }
+
+                // Criar lista de sugestões
+                let listaEl = document.getElementById('lista-fornecedores-oc');
+                if (!listaEl) {
+                    listaEl = document.createElement('div');
+                    listaEl.id = 'lista-fornecedores-oc';
+                    listaEl.style.cssText = `
+                        position: absolute;
+                        background: #fff;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                        max-height: 200px;
+                        overflow-y: auto;
+                        z-index: 9999;
+                        width: 100%;
+                        top: 100%;
+                        left: 0;
+                    `;
+                    inputFornecedor.parentElement.style.position = 'relative';
+                    inputFornecedor.parentElement.appendChild(listaEl);
+                }
+
+                listaEl.innerHTML = fornecedores.map(f => `
+                    <div class="fornecedor-item" style="padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6; transition: background 0.2s;"
+                         onmouseover="this.style.background='#f3f4f6'"
+                         onmouseout="this.style.background='#fff'"
+                         onclick="selecionarFornecedor(${f.id}, '${(f.razao_social || f.nome_fantasia || '').replace(/'/g, "\\'")}')">
+                        <div style="font-weight: 600; color: #1f2937;">${f.razao_social || f.nome_fantasia}</div>
+                        <div style="font-size: 11px; color: #6b7280;">${f.cnpj ? 'CNPJ: ' + f.cnpj : ''} ${f.cidade ? ' ' + f.cidade + '/' + f.uf : ''}</div>
+                    </div>
+                `).join('');
+            });
+        }
+
+        function selecionarFornecedor(id, nome) {
+            const input = document.getElementById('oc-fornecedor');
+            input.value = nome;
+            input.dataset.fornecedorId = id;
+            fecharListaFornecedores();
+            showToast(`Fornecedor selecionado: ${nome}`, 'success');
+        }
+
+        function fecharListaFornecedores() {
+            const lista = document.getElementById('lista-fornecedores-oc');
+            if (lista) lista.remove();
+        }
+
+        // Fechar lista ao clicar fora
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#oc-fornecedor') && !e.target.closest('#lista-fornecedores-oc')) {
+                fecharListaFornecedores();
+            }
+        });
+
+        async function salvarPedidoCompra() {
+            const fornecedorId = document.getElementById('oc-fornecedor').dataset.fornecedorId;
+            const fornecedorNome = document.getElementById('oc-fornecedor').value;
+
+            if (!fornecedorId || !fornecedorNome) {
+                showToast('Selecione um fornecedor válido', 'warning');
+                return;
+            }
+
+            if (itensOC.length === 0) {
+                showToast('Adicione pelo menos um item', 'warning');
+                return;
+            }
+
+            // Gerar número do pedido: OC-PCP-YYYYMMDD-XXXX
+            const hoje = new Date();
+            const dataStr = hoje.toISOString().slice(0,10).replace(/-/g,'');
+            const random = Math.floor(1000 + Math.random() * 9000);
+            const numeroPedido = `OC-PCP-${dataStr}-${random}`;
+
+            // Formatar itens para API de Compras
+            const itensFormatados = itensOC.map(item => ({
+                codigo_produto: item.codigo || item.id?.toString() || 'MAT-PCP',
+                descricao: item.nome || item.descricao,
+                quantidade: parseFloat(item.quantidade) || 1,
+                unidade: item.unidade || 'UN',
+                preco_unitario: parseFloat(item.preco) || parseFloat(item.preco_unitario) || 0,
+                preco_total: parseFloat(item.total) || (parseFloat(item.quantidade) * parseFloat(item.preco_unitario)) || 0,
+                observacoes: item.observacoes || `Solicitado pelo PCP`
+            }));
+
+            const dados = {
+                numero_pedido: numeroPedido,
+                fornecedor_id: parseInt(fornecedorId),
+                data_pedido: document.getElementById('oc-data-emissao')?.value || hoje.toISOString().slice(0,10),
+                data_entrega_prevista: document.getElementById('oc-previsao-entrega').value || null,
+                observacoes: `[PCP] ${document.getElementById('oc-observacoes')?.value || 'Pedido originado do módulo PCP'}`,
+                itens: itensFormatados,
+                // Campos extras do PCP
+                origem: 'PCP',
+                categoria: document.getElementById('oc-categoria').value,
+                comprador_id: document.getElementById('oc-comprador').value || null,
+                condicao_pagamento: document.getElementById('oc-parcelas').value,
+                frete: parseFloat(document.getElementById('oc-frete')?.value || 0),
+                outras_despesas: parseFloat(document.getElementById('oc-outras-despesas')?.value || 0)
+            };
+
+            try {
+                const API_BASE = getAPIBase();
+
+                // Integração com módulo Compras - usa a mesma API
+                const response = await fetch(`${API_BASE}/api/compras/pedidos`, { credentials: 'include', method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showToast(`Pedido ${numeroPedido} criado com sucesso! Integrado ao módulo Compras.`, 'success');
+                    fecharModalNovoPedido();
+                    itensOC = [];
+                    carregarOrdensCompra();
+
+                    // Notificação visual opcional
+                    if (result.id) {
+                        console.log(`[PCP?Compras] Pedido ID: ${result.id} criado com sucesso`);
+                    }
+                } else {
+                    const err = await response.json();
+                    showToast(err.message || err.error || 'Erro ao criar pedido', 'error');
+                }
+            } catch (e) {
+                console.error('[PCP] Erro ao salvar pedido:', e);
+                showToast('Erro ao salvar: ' + e.message, 'error');
+            }
+        }
+
+        // Buscar fornecedores do módulo Compras
+        async function buscarFornecedores(termo) {
+            if (!termo || termo.length < 2) return [];
+
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/fornecedores?q=${encodeURIComponent(termo)}&limit=10`, {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    return await response.json();
+                }
+            } catch (e) {
+                console.error('[PCP] Erro ao buscar fornecedores:', e);
+            }
+            return [];
+        }
+
+        function verOC(id) {
+            const oc = ordensCompraData.find(o => o.id === id);
+            if (!oc) return showToast('OC não encontrada', 'error');
+
+            const modalHtml = `
+                <div class="modal-overlay" id="modal-ver-oc" onclick="if(event.target===this)this.remove()">
+                    <div class="modal" style="max-width:600px;">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-shopping-cart"></i> Ordem de Compra #${oc.numero || oc.id}</h3>
+                            <button class="modal-close" onclick="document.getElementById('modal-ver-oc').remove()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                                <div><label style="font-size:12px;color:#6b7280;">Fornecedor</label><p style="font-weight:600;">${oc.fornecedor || oc.fornecedor_nome || '-'}</p></div>
+                                <div><label style="font-size:12px;color:#6b7280;">Status</label><p><span class="status-badge ${oc.status || 'pendente'}">${oc.status || 'Pendente'}</span></p></div>
+                                <div><label style="font-size:12px;color:#6b7280;">Data Emissão</label><p>${formatarData(oc.data || oc.data_emissao || oc.created_at)}</p></div>
+                                <div><label style="font-size:12px;color:#6b7280;">Previsão Entrega</label><p>${formatarData(oc.previsao_entrega || oc.data_previsao)}</p></div>
+                                <div><label style="font-size:12px;color:#6b7280;">Valor Total</label><p style="font-size:20px;font-weight:700;color:#059669;">${formatarMoeda(oc.valor_total || oc.total || 0)}</p></div>
+                            </div>
+                            ${oc.observacoes ? `<div style="margin-top:16px;"><label style="font-size:12px;color:#6b7280;">Observações</label><p>${oc.observacoes}</p></div>` : ''}
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="document.getElementById('modal-ver-oc').remove()">Fechar</button>
+                            <button class="btn btn-primary" onclick="document.getElementById('modal-ver-oc').remove();editarOC(${oc.id})"><i class="fas fa-edit"></i> Editar</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        function editarOC(id) {
+            const oc = ordensCompraData.find(o => o.id === id);
+            if (!oc) return showToast('OC não encontrada', 'error');
+
+            const modalHtml = `
+                <div class="modal-overlay" id="modal-editar-oc" onclick="if(event.target===this)this.remove()">
+                    <div class="modal" style="max-width:600px;">
+                        <div class="modal-header">
+                            <h3><i class="fas fa-edit"></i> Editar OC #${oc.numero || oc.id}</h3>
+                            <button class="modal-close" onclick="document.getElementById('modal-editar-oc').remove()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="form-editar-oc">
+                                <div class="form-group">
+                                    <label>Fornecedor</label>
+                                    <input type="text" class="form-control" id="edit-fornecedor" value="${oc.fornecedor || oc.fornecedor_nome || ''}">
+                                </div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                                    <div class="form-group">
+                                        <label>Status</label>
+                                        <select class="form-control" id="edit-status">
+                                            <option value="pendente" ${oc.status==='pendente'?'selected':''}>Pendente</option>
+                                            <option value="aprovada" ${oc.status==='aprovada'?'selected':''}>Aprovada</option>
+                                            <option value="recebida" ${oc.status==='recebida'?'selected':''}>Recebida</option>
+                                            <option value="cancelada" ${oc.status==='cancelada'?'selected':''}>Cancelada</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Previsão Entrega</label>
+                                        <input type="date" class="form-control" id="edit-previsao" value="${(oc.previsao_entrega || oc.data_previsao || '').substring(0,10)}">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Observações</label>
+                                    <textarea class="form-control" id="edit-obs" rows="3">${oc.observacoes || ''}</textarea>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-secondary" onclick="document.getElementById('modal-editar-oc').remove()">Cancelar</button>
+                            <button class="btn btn-primary" onclick="salvarEdicaoOC(${oc.id})"><i class="fas fa-save"></i> Salvar</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        async function salvarEdicaoOC(id) {
+            const dados = {
+                fornecedor: document.getElementById('edit-fornecedor').value,
+                status: document.getElementById('edit-status').value,
+                previsao_entrega: document.getElementById('edit-previsao').value,
+                observacoes: document.getElementById('edit-obs').value
+            };
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/ordens-compra/${id}`, { credentials: 'include', method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(dados)
+                });
+                if (response.ok) {
+                    showToast('OC atualizada com sucesso!', 'success');
+                    document.getElementById('modal-editar-oc').remove();
+                    carregarOrdensCompra();
+                } else {
+                    showToast('Erro ao atualizar OC', 'error');
+                }
+            } catch (e) {
+                showToast('Erro ao salvar: ' + e.message, 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            atualizarSaudacao();
+            carregarOrdensCompra();
+
+            // Carregar modais via fetch
+            fetch('../templates/pcp-modals.html')
+                .then(res => res.text())
+                .then(html => {
+                    const container = document.createElement('div');
+                    container.innerHTML = html;
+                    document.body.appendChild(container);
+                })
+                .catch(err => console.warn('Modais não carregados:', err));
+        });
+
+        // Atualizar lista global de OCs quando carregar
+        const originalCarregarOC = typeof carregarOrdensCompra === 'function' ? carregarOrdensCompra : null;
+        if (originalCarregarOC) {
+            const newCarregarOC = async function() {
+                await originalCarregarOC();
+                if (typeof ordensCompraList !== 'undefined' && typeof ordensData !== 'undefined') {
+                    window.ordensCompraList = ordensData;
+                }
+            };
+            window.carregarOrdensCompra = newCarregarOC;
+        }
+    </script>
+    <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+</body>
+</html>

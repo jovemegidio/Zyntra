@@ -1,0 +1,779 @@
+<!-- ============================================ -->
+<!-- MODAL: NOVA ORDEM DE PRODUÇÃO - SaaS Modern -->
+<!-- ============================================ -->
+<div id="modal-nova-ordem" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.85); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 20px;">
+    <div class="modal-dialog" role="document" style="background: white; border-radius: 20px; max-width: 1400px; width: 100%; max-height: 95vh; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.05); animation: modalSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);">    <!-- Mobile Enterprise Design System -->
+    <link rel="stylesheet" href="/css/design-system-mobile.css?v=20260202">
+    <link rel="stylesheet" href="/css/responsive-global.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-master-2026.css?v=20260202">
+    <link rel="stylesheet" href="/css/mobile-enterprise-enhancements.css?v=20260202">
+
+        
+        <style>
+            @keyframes modalSlideIn {
+                from { opacity: 0; transform: translateY(-40px) scale(0.96); }
+                to { opacity: 1; transform: translateY(0) scale(1); }
+            }
+            
+            #modal-nova-ordem .modal-scroll::-webkit-scrollbar { width: 10px; }
+            #modal-nova-ordem .modal-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+            #modal-nova-ordem .modal-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; }
+            #modal-nova-ordem .modal-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+            
+            #modal-nova-ordem input:focus,
+            #modal-nova-ordem select:focus,
+            #modal-nova-ordem textarea:focus {
+                outline: none;
+                border-color: #4F46E5 !important;
+                box-shadow: 0 0 0 4px rgba(79,70,229,0.1) !important;
+            }
+            
+            #modal-nova-ordem .form-card {
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                padding: 24px;
+                transition: all 0.2s;
+            }
+            
+            #modal-nova-ordem .form-card:hover {
+                box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            }
+            
+            #modal-nova-ordem .label-required::after {
+                content: '*';
+                color: #ef4444;
+                margin-left: 4px;
+            }
+            
+            .produtos-table {
+                width: 100%;
+                border-collapse: separate;
+                border-spacing: 0;
+                margin-top: 16px;
+            }
+            
+            .produtos-table thead th {
+                background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+                padding: 12px;
+                text-align: left;
+                font-size: 12px;
+                font-weight: 700;
+                color: #6b7280;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #e5e7eb;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+            
+            .produtos-table thead th:first-child { border-top-left-radius: 8px; }
+            .produtos-table thead th:last-child { border-top-right-radius: 8px; }
+            
+            .produtos-table tbody tr {
+                transition: background 0.15s;
+            }
+            
+            .produtos-table tbody tr:hover {
+                background: #f9fafb;
+            }
+            
+            .produtos-table td {
+                padding: 10px 12px;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            
+            .produtos-table input,
+            .produtos-table select {
+                width: 100%;
+                padding: 8px 10px;
+                border: 1.5px solid #e5e7eb;
+                border-radius: 6px;
+                font-size: 13px;
+                transition: all 0.2s;
+            }
+            
+            .produtos-table input:focus,
+            .produtos-table select:focus {
+                border-color: #4F46E5;
+                box-shadow: 0 0 0 3px rgba(79,70,229,0.08);
+            }
+            
+            .produtos-table input[readonly] {
+                background: #f9fafb;
+                color: #6b7280;
+                cursor: not-allowed;
+            }
+            
+            .btn-add-row {
+                background: linear-gradient(135deg, #4F46E5, #6366F1);
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                transition: all 0.2s;
+                box-shadow: 0 2px 4px rgba(79,70,229,0.2);
+            }
+            
+            .btn-add-row:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(79,70,229,0.3);
+            }
+            
+            .btn-add-row:active {
+                transform: translateY(0);
+            }
+            
+            .btn-remove-row {
+                background: #ef4444;
+                color: white;
+                border: none;
+                padding: 6px 10px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 600;
+                transition: all 0.2s;
+            }
+            
+            .btn-remove-row:hover {
+                background: #dc2626;
+                transform: scale(1.05);
+            }
+            
+            .total-section {
+                background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+                border: 2px solid #0ea5e9;
+                border-radius: 12px;
+                padding: 20px;
+                margin-top: 20px;
+            }
+            
+            .total-value {
+                font-size: 28px;
+                font-weight: 800;
+                color: #0369a1;
+                text-align: right;
+            }
+        </style>
+        
+        <!-- Header Moderno -->
+        <div class="modal-header" style="background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%); padding: 28px 40px; border-bottom: none; position: relative; overflow: hidden;">
+            <!-- Background Pattern -->
+            <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.1; background-image: 
+                radial-gradient(circle at 20% 50%, white 1px, transparent 1px),
+                radial-gradient(circle at 80% 80%, white 1px, transparent 1px);
+                background-size: 50px 50px;">
+            </div>
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; position: relative; z-index: 1;">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 16px rgba(0,0,0,0.1);">
+                        <i class="fas fa-file-invoice" style="color: white; font-size: 22px;"></i>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; color: white; font-size: 24px; font-weight: 700; line-height: 1.2; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">Nova Ordem de Produção</h2>
+                        <p style="margin: 4px 0 0 0; color: rgba(255,255,255,0.9); font-size: 13px; font-weight: 500;">Preencha os dados para emitir a ordem em Excel</p>
+                    </div>
+                </div>
+                <button type="button" onclick="fecharModalNovaOrdem()" 
+                    style="background: rgba(255,255,255,0.15); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.2); color: white; width: 40px; height: 40px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 24px; font-weight: 300;"
+                    onmouseover="this.style.background='rgba(255,255,255,0.25)'; this.style.transform='rotate(90deg)'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.15)'; this.style.transform='rotate(0)'">×</button>
+            </div>
+        </div>
+        
+        <!-- Corpo do Modal com Scroll -->
+        <div class="modal-scroll" style="max-height: calc(95vh - 200px); overflow-y: auto; padding: 32px 40px;">
+            <form id="form-nova-ordem" onsubmit="submitNovaOrdem(event)">
+                
+                <!-- Dados Principais (Linha 1) -->
+                <div class="form-card" style="margin-bottom: 24px;">
+                    <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-info-circle" style="color: #4F46E5;"></i>
+                        Dados da Ordem
+                    </h3>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Orçamento</label>
+                            <input type="text" id="num_orcamento" placeholder="Nº Orçamento" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Revisão</label>
+                            <input type="text" id="revisao" placeholder="Revisão" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;" class="label-required">Pedido</label>
+                            <input type="text" id="num_pedido" required placeholder="Nº Pedido" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Data Liberação</label>
+                            <input type="date" id="data_liberacao" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Grid Principal: 2 Colunas -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                    
+                    <!-- COLUNA ESQUERDA -->
+                    <div style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- Cliente -->
+                        <div class="form-card">
+                            <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-building" style="color: #10B981;"></i>
+                                Dados do Cliente
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;" class="label-required">Nome do Cliente</label>
+                                    <input type="text" id="cliente" required placeholder="Razão social ou nome fantasia" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                    <div>
+                                        <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Contato</label>
+                                        <input type="text" id="contato_cliente" placeholder="Nome do contato" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                    </div>
+                                    <div>
+                                        <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Telefone</label>
+                                        <input type="tel" id="fone_cliente" placeholder="(00) 00000-0000" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Email</label>
+                                    <input type="email" id="email_cliente" placeholder="contato@empresa.com" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Tipo de Frete</label>
+                                    <select id="tipo_frete" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white;">
+                                        <option value="">Selecione...</option>
+                                        <option value="CIF">CIF - Por conta do remetente</option>
+                                        <option value="FOB">FOB - Por conta do destinatário</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Endereço -->
+                        <div class="form-card">
+                            <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-map-marker-alt" style="color: #F59E0B;"></i>
+                                Endereço & Cobrança
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">CEP</label>
+                                    <input type="text" id="cep" placeholder="00000-000" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Endereço Completo</label>
+                                    <input type="text" id="endereco" placeholder="Rua, nº, bairro, cidade - UF" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">CPF/CNPJ</label>
+                                    <input type="text" id="cpf_cnpj" placeholder="00.000.000/0000-00" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">E-mail para NF-e</label>
+                                    <input type="email" id="email_nfe" placeholder="nfe@empresa.com" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- COLUNA DIREITA -->
+                    <div style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- Comercial -->
+                        <div class="form-card">
+                            <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-handshake" style="color: #8B5CF6;"></i>
+                                Comercial
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Vendedor</label>
+                                    <input type="text" id="vendedor" placeholder="Nome do vendedor responsável" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;" class="label-required">Prazo de Entrega</label>
+                                    <input type="date" id="prazo_entrega" required style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Transportadora -->
+                        <div class="form-card">
+                            <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-truck" style="color: #EF4444;"></i>
+                                Transportadora
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Nome da Transportadora</label>
+                                    <input type="text" id="transportadora_nome" placeholder="Nome da transportadora" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Telefone</label>
+                                    <input type="tel" id="transportadora_fone" placeholder="(00) 00000-0000" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">CEP</label>
+                                    <input type="text" id="transportadora_cep" placeholder="00000-000" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Condições de Pagamento -->
+                        <div class="form-card">
+                            <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-credit-card" style="color: #0EA5E9;"></i>
+                                Condições de Pagamento
+                            </h3>
+                            <div style="display: flex; flex-direction: column; gap: 16px;">
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Forma de Pagamento</label>
+                                    <select id="forma_pagamento" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white;">
+                                        <option value="">Selecione...</option>
+                                        <option value="PARCELADO">PARCELADO</option>
+                                        <option value="À VISTA">À VISTA</option>
+                                        <option value="ANTECIPADO">ANTECIPADO</option>
+                                        <option value="ENTREGA">ENTREGA</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Método de Pagamento</label>
+                                    <select id="metodo_pagamento" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: white;">
+                                        <option value="">Selecione...</option>
+                                        <option value="TRANSFERÊNCIA">TRANSFERÊNCIA</option>
+                                        <option value="DEPÓSITO">DEPÓSITO</option>
+                                        <option value="FATURAMENTO">FATURAMENTO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px;">Percentual (%)</label>
+                                    <input type="number" id="percentual_pagamento" step="0.01" min="0" max="100" placeholder="0.00" style="width: 100%; padding: 11px 14px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Produtos (Full Width) -->
+                <div class="form-card" style="margin-bottom: 24px;">
+                    <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-boxes" style="color: #EC4899;"></i>
+                        Produtos da Ordem
+                    </h3>
+                    
+                    <div style="background: #f9fafb; border: 2px dashed #d1d5db; border-radius: 12px; padding: 20px;">
+                        <p style="font-size: 13px; color: #6b7280; margin: 0 0 16px 0; font-weight: 500;">
+                            <i class="fas fa-info-circle" style="color: #6366f1;"></i>
+                            Adicione os produtos que comporão esta ordem. O valor total será calculado automaticamente.
+                        </p>
+                        
+                        <div style="overflow-x: auto;">
+                            <table class="produtos-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 100px;">CÓDIGO</th>
+                                        <th style="width: 250px;">PRODUTO</th>
+                                        <th style="width: 100px;">P. LÍQUIDO</th>
+                                        <th style="width: 100px;">LOTE</th>
+                                        <th style="width: 100px;">EMBALAGEM</th>
+                                        <th style="width: 100px;">LANCE(S)</th>
+                                        <th style="width: 80px;">QTDE</th>
+                                        <th style="width: 100px;">VALOR UNIT.</th>
+                                        <th style="width: 100px;">TOTAL</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="produtos-lista">
+                                    <tr>
+                                        <td><input type="text" placeholder="Código" class="produto-codigo"></td>
+                                        <td><input type="text" placeholder="Nome do produto" class="produto-nome"></td>
+                                        <td><input type="text" placeholder="Peso Líq." class="produto-peso-liquido"></td>
+                                        <td><input type="text" placeholder="Lote" class="produto-lote"></td>
+                                        <td>
+                                            <select class="produto-embalagem" style="width: 100%; padding: 8px 10px; border: 1.5px solid #e5e7eb; border-radius: 6px; font-size: 13px; background: white;">
+                                                <option value="">Selecione...</option>
+                                                <option value="Bobina" selected>Bobina</option>
+                                                <option value="Rolo">Rolo</option>
+                                                <option value="Lance">Lance</option>
+                                                <option value="Caixa">Caixa</option>
+                                            </select>
+                                        </td>
+                                        <td><input type="text" placeholder="Ex: 1x100" class="produto-lances" value="1x100"></td>
+                                        <td><input type="number" placeholder="0" min="1" class="produto-qtde" onchange="calcularTotalLinha(this)"></td>
+                                        <td><input type="number" placeholder="0,00" step="0.01" class="produto-valor" onchange="calcularTotalLinha(this)"></td>
+                                        <td><input type="number" placeholder="0,00" step="0.01" class="produto-total" readonly></td>
+                                        <td><button type="button" class="btn-remove-row" onclick="removerProdutoLinha(this)" title="Remover">×</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <button type="button" class="btn-add-row" onclick="adicionarProdutoLinha()" style="margin-top: 16px;">
+                            <i class="fas fa-plus"></i> Adicionar Produto
+                        </button>
+                        
+                        <div class="total-section">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <p style="margin: 0; font-size: 13px; font-weight: 600; color: #0369a1;">VALOR TOTAL DA ORDEM</p>
+                                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Soma de todos os produtos</p>
+                                </div>
+                                <div class="total-value">
+                                    R$ <span id="ordem-total-geral">0,00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Observações -->
+                <div class="form-card">
+                    <h3 style="font-size: 17px; font-weight: 700; color: #111827; margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-comment-alt" style="color: #64748b;"></i>
+                        Observações
+                    </h3>
+                    <textarea id="observacoes" placeholder="Observações adicionais sobre a ordem (opcional)" rows="4" style="width: 100%; padding: 14px 16px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit;"></textarea>
+                </div>
+                
+                <!-- Botões de Ação -->
+                <div style="display: flex; gap: 12px; padding-top: 32px; margin-top: 24px; border-top: 2px solid #f3f4f6; justify-content: flex-end;">
+                    <button type="button" onclick="fecharModalNovaOrdem()"
+                        style="background: white; color: #6b7280; border: 2px solid #e5e7eb; padding: 14px 28px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 14px;"
+                        onmouseover="this.style.borderColor='#d1d5db'; this.style.background='#f9fafb'"
+                        onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white'">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit"
+                        style="background: linear-gradient(135deg, #10B981, #059669); color: white; border: none; padding: 14px 40px; border-radius: 10px; font-weight: 700; cursor: pointer; transition: all 0.2s; font-size: 14px; box-shadow: 0 4px 12px rgba(16,185,129,0.3);"
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(16,185,129,0.4)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(16,185,129,0.3)'">
+                        <i class="fas fa-file-excel"></i> Gerar Ordem em Excel
+                    </button>
+                </div>
+                
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Funções de Manipulação da Tabela de Produtos
+function adicionarProdutoLinha() {
+    const tbody = document.getElementById('produtos-lista');
+    const newRow = tbody.rows[0].cloneNode(true);
+    
+    // Limpar valores dos inputs
+    newRow.querySelectorAll('input').forEach(input => {
+        input.value = '';
+        if (input.classList.contains('produto-total')) {
+            input.value = '0.00';
+        }
+        if (input.classList.contains('produto-lances')) {
+            input.value = '1x100';
+        }
+    });
+    newRow.querySelector('select').selectedIndex = 1; // Bobina como Padrão
+    
+    tbody.appendChild(newRow);
+}
+
+function removerProdutoLinha(btn) {
+    const tbody = document.getElementById('produtos-lista');
+    if (tbody.rows.length > 1) {
+        btn.closest('tr').remove();
+        calcularTotalGeral();
+    } else {
+        alert('Você precisa ter pelo menos 1 produto na ordem.');
+    }
+}
+
+function calcularTotalLinha(input) {
+    const row = input.closest('tr');
+    const qtde = parseFloat(row.querySelector('.produto-qtde').value) || 0;
+    const valor = parseFloat(row.querySelector('.produto-valor').value) || 0;
+    const total = qtde * valor;
+    
+    row.querySelector('.produto-total').value = total.toFixed(2);
+    calcularTotalGeral();
+}
+
+function calcularTotalGeral() {
+    const tbody = document.getElementById('produtos-lista');
+    let total = 0;
+    
+    tbody.querySelectorAll('.produto-total').forEach(input => {
+        total += parseFloat(input.value) || 0;
+    });
+    
+    document.getElementById('ordem-total-geral').textContent = total.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+// Função de Envio do Formulário
+async function submitNovaOrdem(event) {
+    event.preventDefault();
+    
+    // Coletar todos os dados do formulário
+    const produtos = [];
+    const tbody = document.getElementById('produtos-lista');
+    
+    tbody.querySelectorAll('tr').forEach(row => {
+        const codigo = row.querySelector('.produto-codigo').value;
+        const nome = row.querySelector('.produto-nome').value;
+        const pesoLiquido = row.querySelector('.produto-peso-liquido').value;
+        const lote = row.querySelector('.produto-lote').value;
+        const embalagem = row.querySelector('.produto-embalagem').value;
+        const lances = row.querySelector('.produto-lances').value;
+        const qtde = parseFloat(row.querySelector('.produto-qtde').value) || 0;
+        const valorUnit = parseFloat(row.querySelector('.produto-valor').value) || 0;
+        const valorTotal = parseFloat(row.querySelector('.produto-total').value) || 0;
+        
+        if (codigo || nome || qtde > 0) {
+            produtos.push({
+                codigo,
+                descricao: nome, // ð§ Usar 'descricao' ao invés de 'nome' para compatibilidade
+                nome,
+                peso_liquido: pesoLiquido,
+                lote: lote,
+                embalagem,
+                lances,
+                quantidade: qtde,
+                valor_unitario: valorUnit,
+                valor_total: valorTotal
+            });
+        }
+    });
+    
+    if (produtos.length === 0) {
+        alert('Adicione pelo menos um produto à ordem!');
+        return;
+    }
+    
+    const dados = {
+        // Dados Principais
+        num_orcamento: document.getElementById('num_orcamento').value,
+        revisao: document.getElementById('revisao').value,
+        num_pedido: document.getElementById('num_pedido').value,
+        data_liberacao: document.getElementById('data_liberacao').value,
+        
+        // Cliente
+        cliente: document.getElementById('cliente').value,
+        contato_cliente: document.getElementById('contato_cliente').value,
+        fone_cliente: document.getElementById('fone_cliente').value,
+        email_cliente: document.getElementById('email_cliente').value,
+        tipo_frete: document.getElementById('tipo_frete').value,
+        
+        // Endereço
+        cep: document.getElementById('cep').value,
+        endereco: document.getElementById('endereco').value,
+        cpf_cnpj: document.getElementById('cpf_cnpj').value,
+        email_nfe: document.getElementById('email_nfe').value,
+        
+        // Comercial
+        vendedor: document.getElementById('vendedor').value,
+        prazo_entrega: document.getElementById('prazo_entrega').value,
+        
+        // Transportadora
+        transportadora_nome: document.getElementById('transportadora_nome').value,
+        transportadora_fone: document.getElementById('transportadora_fone').value,
+        transportadora_cep: document.getElementById('transportadora_cep').value,
+        
+        // Pagamento
+        forma_pagamento: document.getElementById('forma_pagamento').value,
+        metodo_pagamento: document.getElementById('metodo_pagamento').value,
+        percentual_pagamento: parseFloat(document.getElementById('percentual_pagamento').value) || 0,
+        
+        // Observações
+        observacoes: document.getElementById('observacoes').value,
+        
+        // Produtos
+        produtos: produtos
+    };
+    
+    // Referência do botão ANTES do try para que o finally tenha acesso
+    const btnSubmit = event.target.querySelector('button[type="submit"]');
+    const textoOriginal = btnSubmit.innerHTML;
+    
+    try {
+        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando no sistema...';
+        btnSubmit.disabled = true;
+        
+        // ========== 1. SALVAR NO BANCO DE DADOS + KANBAN ==========
+        const numeroOP = dados.num_pedido || `OP-${Date.now()}`;
+        const qtdTotal = produtos.reduce((acc, p) => acc + (parseFloat(p.quantidade) || 0), 0);
+        
+        const payloadKanban = {
+            // Cabeçalho
+            numero: numeroOP,
+            revisao: dados.revisao || '01',
+            numero_pedido: dados.num_pedido,
+            numero_orcamento: dados.num_orcamento,
+            num_pedido: dados.num_pedido,
+            num_orcamento: dados.num_orcamento,
+            data_liberacao: dados.data_liberacao,
+            
+            // Cliente
+            cliente: dados.cliente,
+            cliente_nome: dados.cliente,
+            contato_cliente: dados.contato_cliente,
+            cliente_contato: dados.contato_cliente,
+            fone_cliente: dados.fone_cliente,
+            cliente_telefone: dados.fone_cliente,
+            email_cliente: dados.email_cliente,
+            tipo_frete: dados.tipo_frete,
+            
+            // Endereço
+            cep_cliente: dados.cep,
+            endereco_cliente: dados.endereco,
+            cpf_cnpj: dados.cpf_cnpj,
+            cliente_cpf_cnpj: dados.cpf_cnpj,
+            email_nfe: dados.email_nfe,
+            cliente_email_nfe: dados.email_nfe,
+            
+            // Comercial
+            vendedor: dados.vendedor,
+            prazo_entrega: dados.prazo_entrega,
+            
+            // Transportadora
+            transportadora_nome: dados.transportadora_nome,
+            transportadora_fone: dados.transportadora_fone,
+            transportadora_cep: dados.transportadora_cep,
+            
+            // Pagamento
+            forma_pagamento: dados.forma_pagamento,
+            metodo_pagamento: dados.metodo_pagamento,
+            percentual_pagamento: dados.percentual_pagamento,
+            
+            // Observações
+            observacoes: dados.observacoes,
+            
+            // Produtos (formato compatível com endpoint kanban)
+            produtos: produtos.map(p => ({
+                codigo: p.codigo || '',
+                descricao: p.descricao || p.nome || '',
+                nome: p.nome || '',
+                embalagem: p.embalagem || '',
+                lances: p.lances || '',
+                quantidade: parseFloat(p.quantidade) || 0,
+                unidade_medida: 'M',
+                valor_unitario: parseFloat(p.valor_unitario) || 0,
+                total: parseFloat(p.valor_total) || 0,
+                peso_liquido: p.peso_liquido || '',
+                lote: p.lote || ''
+            })),
+            
+            // Campos para visualização no Kanban
+            produto: produtos.map(p => p.descricao || p.codigo).filter(Boolean).join(', ').substring(0, 200) || dados.cliente,
+            dataConclusao: dados.prazo_entrega || dados.data_liberacao || null,
+            data_previsao_entrega: dados.prazo_entrega || null,
+            quantidade: qtdTotal || 1,
+            unidade: 'M'
+        };
+        
+        let ordemSalva = false;
+        try {
+            const kanbanResp = await fetch('/api/pcp/ordens-kanban', { credentials: 'include', method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    
+                },
+                credentials: 'include',
+                body: JSON.stringify(payloadKanban)
+            });
+            
+            if (kanbanResp.ok) {
+                const kanbanResult = await kanbanResp.json();
+                console.log('â OP salva no banco + Kanban, ID:', kanbanResult.id, 'OP Principal:', kanbanResult.idOrdensProd);
+                ordemSalva = true;
+            } else {
+                const errData = await kanbanResp.text();
+                console.warn('â ï¸ Aviso ao salvar no Kanban:', errData);
+                // Se for 409 (duplicado), avisar mas continuar com o Excel
+                if (kanbanResp.status === 409) {
+                    console.warn('OP com este número já existe no banco. Continuando com geração do Excel...');
+                    ordemSalva = true; // Já existe, não é erro
+                }
+            }
+        } catch (kanbanErr) {
+            console.warn('â ï¸ Não foi possível salvar no banco/Kanban:', kanbanErr.message);
+            // Continua para gerar o Excel mesmo assim
+        }
+        
+        // ========== 2. GERAR EXCEL ==========
+        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando Excel...';
+        
+        const response = await fetch('/api/gerar-ordem-excel', { credentials: 'include', method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                
+            },
+            credentials: 'include',
+            body: JSON.stringify(dados)
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao gerar arquivo Excel');
+        }
+        
+        // Baixar o arquivo
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Ordem_Producao_${dados.num_pedido || Date.now()}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Sucesso
+        const msgSucesso = ordemSalva 
+            ? 'â Ordem salva no sistema (Kanban + Banco) e Excel gerado com sucesso!' 
+            : 'â ï¸ Excel gerado, mas não foi possível salvar no sistema. Verifique a conexão.';
+        alert(msgSucesso);
+        fecharModalNovaOrdem();
+        document.getElementById('form-nova-ordem').reset();
+        calcularTotalGeral();
+        
+        // Atualizar views se disponíveis (Kanban, Dashboard, etc)
+        if (typeof loadDashboardData === 'function') loadDashboardData();
+        if (typeof carregarControlePCP === 'function') carregarControlePCP();
+        if (typeof carregarOrdensKanban === 'function') carregarOrdensKanban();
+        if (typeof renderizarKanban === 'function') renderizarKanban();
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao gerar ordem de Produção: ' + error.message);
+    } finally {
+        // Restaurar Botão
+        btnSubmit.innerHTML = textoOriginal;
+        btnSubmit.disabled = false;
+    }
+}
+
+function fecharModalNovaOrdem() {
+    document.getElementById('modal-nova-ordem').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+</script>
+
+
+
+
+
+

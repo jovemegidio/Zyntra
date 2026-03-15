@@ -2009,7 +2009,7 @@
 
             // Buscar dados atualizados do servidor (garante áreas/permissões corretas)
             fetch('/api/me', {
-                headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || localStorage.getItem('token') || '') },
+                credentials: 'include',
                 credentials: 'include'
             })
             .then(r => r.ok ? r.json() : null)
@@ -2487,12 +2487,10 @@
                 try {
                     const formData = new FormData();
                     formData.append('avatar', fotoFile);
-                    const token = sessionStorage.getItem('tabAuthToken') || localStorage.getItem('authToken');
                     const upHeaders = {};
                     if (token) upHeaders['Authorization'] = `Bearer ${token}`;
 
-                    const uploadResp = await fetch('/api/upload-avatar', {
-                        method: 'POST',
+                    const uploadResp = await fetch('/api/upload-avatar', { credentials: 'include', method: 'POST',
                         headers: upHeaders,
                         credentials: 'include',
                         body: formData
@@ -2511,11 +2509,8 @@
 
             // Salvar apelido no servidor
             try {
-                const token = sessionStorage.getItem('tabAuthToken') || localStorage.getItem('authToken');
                 const headers = { 'Content-Type': 'application/json' };
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-                await fetch('/api/me', {
-                    method: 'PUT',
+                await fetch('/api/me', { credentials: 'include', method: 'PUT',
                     headers: headers,
                     credentials: 'include',
                     body: JSON.stringify({ apelido: apelido || null })

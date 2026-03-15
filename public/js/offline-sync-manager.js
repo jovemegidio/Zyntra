@@ -245,10 +245,8 @@
 
                 try {
                     // Atualizar token (pode ter renovado)
-                    const token = localStorage.getItem('authToken') || localStorage.getItem('token');
                     const headers = { ...item.headers };
                     if (token && token !== 'unified-session-active') {
-                        headers['Authorization'] = 'Bearer ' + token;
                     }
                     if (!headers['Content-Type']) {
                         headers['Content-Type'] = 'application/json';

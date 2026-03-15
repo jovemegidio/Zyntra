@@ -162,12 +162,9 @@
                 this.setLoading(true);
 
                 // Get token from localStorage or cookies
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
 
-                const response = await fetch('/api/upload-avatar', {
-                    method: 'POST',
+                const response = await fetch('/api/upload-avatar', { credentials: 'include', method: 'POST',
                     headers: token ? {
-                        'Authorization': `Bearer ${token}`
                     } : {},
                     credentials: 'include', // Include cookies
                     body: formData
@@ -296,12 +293,11 @@
                 this.setLoading(true);
 
                 // Get token from localStorage or use cookie authentication
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
 
                 const response = await fetch('/api/me', {
+                    credentials: 'include',
                     headers: token ? {
-                        'Authorization': `Bearer ${token}`
-                    } : {},
+                }) : {},
                     credentials: 'include' // Include cookies for authentication
                 });
 
@@ -381,10 +377,8 @@
                 }
 
                 // Get token from localStorage or use cookie authentication
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token');
 
-                const response = await fetch('/api/me', {
-                    method: 'PUT',
+                const response = await fetch('/api/me', { credentials: 'include', method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})

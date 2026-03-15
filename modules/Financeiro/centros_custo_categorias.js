@@ -61,9 +61,8 @@ async function carregarCentrosCusto() {
 }
 
 async function buscarCentrosCusto() {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     const response = await fetch('/api/financeiro/centros-custo', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
     });
     if (!response.ok) throw new Error('Erro ao buscar centros de custo');
     return await response.json();
@@ -208,10 +207,9 @@ async function salvarCentroCusto(event) {
 }
 
 async function criarCentroCusto(dados) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch('/api/financeiro/centros-custo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    const response = await fetch('/api/financeiro/centros-custo', { credentials: 'include', method: 'POST',
+        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dados)
     });
     if (!response.ok) throw new Error('Erro ao criar centro de custo');
@@ -219,10 +217,9 @@ async function criarCentroCusto(dados) {
 }
 
 async function atualizarCentroCusto(id, dados) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch(`/api/financeiro/centros-custo/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    const response = await fetch(`/api/financeiro/centros-custo/${id}`, { credentials: 'include', method: 'PUT',
+        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dados)
     });
     if (!response.ok) throw new Error('Erro ao atualizar centro de custo');
@@ -248,10 +245,8 @@ async function excluirCentroCusto(id) {
 }
 
 async function deletarCentroCusto(id) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch(`/api/financeiro/centros-custo/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+    const response = await fetch(`/api/financeiro/centros-custo/${id}`, { credentials: 'include', method: 'DELETE',
+        credentials: 'include'
     });
     if (!response.ok) throw new Error('Erro ao excluir centro de custo');
     return await response.json();
@@ -281,9 +276,8 @@ async function carregarCategorias() {
 }
 
 async function buscarCategorias() {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     const response = await fetch('/api/financeiro/categorias', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
     });
     if (!response.ok) throw new Error('Erro ao buscar categorias');
     return await response.json();
@@ -421,10 +415,9 @@ async function salvarCategoria(event) {
 }
 
 async function criarCategoria(dados) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch('/api/financeiro/categorias', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    const response = await fetch('/api/financeiro/categorias', { credentials: 'include', method: 'POST',
+        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dados)
     });
     if (!response.ok) throw new Error('Erro ao criar categoria');
@@ -432,10 +425,9 @@ async function criarCategoria(dados) {
 }
 
 async function atualizarCategoria(id, dados) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch(`/api/financeiro/categorias/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    const response = await fetch(`/api/financeiro/categorias/${id}`, { credentials: 'include', method: 'PUT',
+        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dados)
     });
     if (!response.ok) throw new Error('Erro ao atualizar categoria');
@@ -461,10 +453,8 @@ async function excluirCategoria(id) {
 }
 
 async function deletarCategoria(id) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch(`/api/financeiro/categorias/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+    const response = await fetch(`/api/financeiro/categorias/${id}`, { credentials: 'include', method: 'DELETE',
+        credentials: 'include'
     });
     if (!response.ok) throw new Error('Erro ao excluir categoria');
     return await response.json();

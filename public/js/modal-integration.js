@@ -415,7 +415,6 @@
                 console.log('📢 Conectado ao sistema de notificações em tempo real');
 
                 // Identificar usuário
-                const token = localStorage.getItem('token');
                 if (token) {
                     notificationSocket.emit('authenticate', { token });
                 }
@@ -503,16 +502,25 @@
         // Também mostrar toast na tela
         const toast = document.createElement('div');
         toast.className = 'realtime-notification-toast';
-        toast.innerHTML = `
-            <div class="rtn-icon ${data.type || 'info'}">
-                <i class="fas ${data.icon || 'fa-bell'}"></i>
-            </div>
-            <div class="rtn-content">
-                <strong>${data.title}</strong>
-                <p>${data.message}</p>
-            </div>
-            <button class="rtn-close">&times;</button>
-        `;
+        var iconDiv = document.createElement('div');
+        iconDiv.className = 'rtn-icon ' + (data.type || 'info');
+        var iconI = document.createElement('i');
+        iconI.className = 'fas ' + (data.icon || 'fa-bell');
+        iconDiv.appendChild(iconI);
+        toast.appendChild(iconDiv);
+        var contentDiv = document.createElement('div');
+        contentDiv.className = 'rtn-content';
+        var titleEl = document.createElement('strong');
+        titleEl.textContent = data.title;
+        contentDiv.appendChild(titleEl);
+        var msgP = document.createElement('p');
+        msgP.textContent = data.message;
+        contentDiv.appendChild(msgP);
+        toast.appendChild(contentDiv);
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'rtn-close';
+        closeBtn.textContent = '\u00D7';
+        toast.appendChild(closeBtn);
 
         // Adicionar estilos se não existirem
         if (!document.getElementById('realtime-notification-styles')) {

@@ -1614,7 +1614,6 @@
 
         // Função para obter headers de autenticação (JWT token)
         function getAuthHeaders() {
-            const token = localStorage.getItem('authToken') || localStorage.getItem('token') || sessionStorage.getItem('token');
             return token ? { 'Authorization': `Bearer ${token}` } : {};
         }
 
@@ -1623,7 +1622,10 @@
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
             try {
-                const response = await fetch(url, { ...options, signal: controller.signal });
+                const response = await fetch(url, {
+                    credentials: 'include',
+                    ...options, signal: controller.signal
+                }));
                 clearTimeout(timeoutId);
                 return response;
             } catch (error) {
@@ -2734,8 +2736,7 @@
             
             try {
                 // Salvar no banco de dados
-                const response = await fetch('/api/vendas/condicoes-pagamento', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/condicoes-pagamento', { credentials: 'include', method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         ...getAuthHeaders()
@@ -2917,8 +2918,7 @@
             console.log('📝 Salvando edição do pedido:', pedidoAtualModal.id, dados);
             
             try {
-                const response = await fetch(`/api/vendas/pedidos/${pedidoAtualModal.id}`, {
-                    method: 'PATCH',
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtualModal.id}`, { credentials: 'include', method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
                         ...getAuthHeaders()
@@ -2980,8 +2980,7 @@
             };
             
             // Enviar para API
-            fetch('/api/vendas/pedidos', {
-                method: 'POST',
+            fetch('/api/vendas/pedidos', { credentials: 'include', method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                 body: JSON.stringify(novoPedido)
             })
@@ -3035,8 +3034,7 @@
             }
             
             // Atualizar status e gerar faturamento
-            fetch(`/api/vendas/pedidos/${pedidoAtualModal.id}/faturar`, {
-                method: 'POST',
+            fetch(`/api/vendas/pedidos/${pedidoAtualModal.id}/faturar`, { credentials: 'include', method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                 body: JSON.stringify({
                     data_faturamento: new Date().toISOString().split('T')[0],
@@ -3047,8 +3045,7 @@
             .then(async res => {
                 if (!res.ok) {
                     // Tenta faturar pelo método alternativo (atualizar status)
-                    return fetch(`/api/vendas/pedidos/${pedidoAtualModal.id}`, {
-                        method: 'PUT',
+                    return fetch(`/api/vendas/pedidos/${pedidoAtualModal.id}`, { credentials: 'include', method: 'PUT',
                         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                         body: JSON.stringify({
                             status: 'faturado',
@@ -3145,8 +3142,7 @@
         // Função para excluir pedido
         async function excluirPedido(id) {
             try {
-                const response = await fetch(`/api/vendas/pedidos/${id}`, {
-                    method: 'DELETE',
+                const response = await fetch(`/api/vendas/pedidos/${id}`, { credentials: 'include', method: 'DELETE',
                     credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
@@ -3724,8 +3720,7 @@
             if (!confirmado) return;
             
             try {
-                const response = await fetch(`/api/vendas/pedidos/${pedidoId}/faturamento-parcial`, {
-                    method: 'POST',
+                const response = await fetch(`/api/vendas/pedidos/${pedidoId}/faturamento-parcial`, { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     body: JSON.stringify({
                         tipo_faturamento: tipoFaturamento,
@@ -3780,8 +3775,7 @@
             if (!confirmado) return;
             
             try {
-                const response = await fetch(`/api/vendas/pedidos/${pedidoId}/remessa-entrega`, {
-                    method: 'POST',
+                const response = await fetch(`/api/vendas/pedidos/${pedidoId}/remessa-entrega`, { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     body: JSON.stringify({
                         cfop,

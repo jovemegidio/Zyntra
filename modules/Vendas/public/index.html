@@ -3,7 +3,7 @@
 <head>
     <!-- Meta Tags -->
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta name="theme-color" content="#1a2744">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,16 +19,16 @@
     <script src="/js/auth-unified.js?v=20260301" defer></script>
 
     <!-- Favicon e Ícones PWA -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json">
 
     <!-- CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Performance: Skeleton Loaders -->
     <link rel="stylesheet" href="/css/skeleton-loader.css?v=20260213">
@@ -1207,6 +1207,7 @@
             right: 0;
             bottom: 0;
             background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.9) 100%);
+            -webkit-backdrop-filter: blur(8px);
             backdrop-filter: blur(8px);
             z-index: 2000;
             align-items: center;
@@ -6321,7 +6322,7 @@
             <!-- Header com estilo institucional -->
             <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0c4a6e 100%); padding: 24px 28px; border: none;">
                 <div style="display: flex; align-items: center; gap: 14px;">
-                    <div style="width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+                    <div style="width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);">
                         <i class="fas fa-file-pdf" style="font-size: 20px; color: #fff;"></i>
                     </div>
                     <div>
@@ -9072,10 +9073,12 @@
             // Criar toast
             const toast = document.createElement('div');
             toast.className = `toast-notification toast-${type}`;
-            toast.innerHTML = `
-                <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-                <span>${message}</span>
-            `;
+            var iconEl = document.createElement('i');
+            iconEl.className = 'fas ' + (type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle');
+            toast.appendChild(iconEl);
+            var msgSpan = document.createElement('span');
+            msgSpan.textContent = message;
+            toast.appendChild(msgSpan);
 
             // Estilos inline para o toast
             toast.style.cssText = `
@@ -9289,16 +9292,10 @@
             try {
                 const statusAPI = colunaParaStatus[novoStatus] || novoStatus;
                 // Buscar token de múltiplas fontes possóveis
-                const token = localStorage.getItem('authToken') || localStorage.getItem('token') || sessionStorage.getItem('authToken');
 
                 const headers = { 'Content-Type': 'application/json' };
                 // SÉ adicionar Authorization se tiver token válido
-                if (token && token !== 'null' && token !== 'undefined') {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
-
-                const resp = await fetch(`/api/vendas/pedidos/${pedidoId}/status`, {
-                    method: 'PUT',
+                const resp = await fetch(`/api/vendas/pedidos/${pedidoId}/status`, { credentials: 'include', method: 'PUT',
                     credentials: 'include', // Envia cookies automaticamente
                     headers: headers,
                     body: JSON.stringify({ status: statusAPI })
@@ -9534,9 +9531,8 @@
                 const id = parseInt(pedidoId);
                 console.log('🔄 Atualizando card do pedido:', id);
                 
-                const token = localStorage.getItem('token');
                 const response = await fetch(`/api/vendas/pedidos/${id}`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include',
                     credentials: 'include'
                 });
                 
@@ -9827,13 +9823,9 @@
 
                     try {
                         // Gerar número de NF via backend (numeração sequencial segura)
-                        const token = localStorage.getItem('token');
-                        const responseNF = await fetch(`/api/vendas/pedidos/${pedidoId}/gerar-nf`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
+                        const responseNF = await fetch(`/api/vendas/pedidos/${pedidoId}/gerar-nf`, { credentials: 'include', method: 'POST',
+                            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                             credentials: 'include'
                         });
 
@@ -9869,13 +9861,9 @@
                 // Registrar mudança de etapa no histórico
                 if (pedidoId && etapaOrigem !== etapaDestino) {
                     try {
-                        const token = localStorage.getItem('token');
-                        await fetch(`/api/vendas/pedidos/${pedidoId}/historico`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
+                        await fetch(`/api/vendas/pedidos/${pedidoId}/historico`, { credentials: 'include', method: 'POST',
+                            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                             credentials: 'include',
                             body: JSON.stringify({
                                 tipo: 'status',
@@ -10257,15 +10245,11 @@
 
             try {
                 // Obter token de autenticação
-                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
 
                 // Salvar no backend via API
-                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token ? `Bearer ${token}` : ''
-                    },
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}`, { credentials: 'include', method: 'PATCH',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify(dadosAtualizacao)
                 });
@@ -10411,15 +10395,11 @@
                     valorTotal = itensPedidoAtual.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
                 }
 
-                const token = localStorage.getItem('token') || sessionStorage.getItem('token');
 
                 // Criar o pedido no banco de dados
-                const response = await fetch('/api/vendas/pedidos/novo', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
+                const response = await fetch('/api/vendas/pedidos/novo', { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({
                         status: 'orcamento',
@@ -10509,11 +10489,10 @@
                 showNotification('Duplicando pedido...', 'info');
 
                 // Criar cópia do pedido via API
-                const resp = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/duplicar`, {
-                    method: 'POST',
+                const resp = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/duplicar`, { credentials: 'include', method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        
                     }
                 });
 
@@ -10559,9 +10538,8 @@
             showNotification('Gerando DANFE...', 'info');
 
             try {
-                const token = localStorage.getItem('token');
                 const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/danfe`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include',
                     credentials: 'include'
                 });
 
@@ -10630,7 +10608,6 @@
         async function carregarDadosCompletosCliente() {
             if (!pedidoAtual) return;
 
-            const token = localStorage.getItem('token');
             const headers = { 'Authorization': `Bearer ${token}` };
 
             // Tentar buscar pelo cliente_id primeiro (tabela clientes)
@@ -10780,7 +10757,7 @@
                 <!DOCTYPE html>
                 <html>
                 <head>
-                    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+                    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
                     <title>Recibo - Pedido ${pedidoAtual.id}</title>
                     <style>
                         @page { margin: 10mm; size: A4; }
@@ -10824,11 +10801,11 @@
                                 <img src="/images/Logo Monocromatico - Azul - Aluforce.png" alt="ALUFORCE" onerror="this.outerHTML='<div style=font-size:22px;font-weight:700;color:#0284c7>ALUFORCE</div>'">
                             </div>
                             <div class="empresa-info">
-                                <div class="razao">I. M. DOS REIS INDÚSTRIA E COMÉRCIO DE CONDUTORES</div>
-                                <div>CNPJ: 08.192.479/0001-60 | IE: 103.385.861-110</div>
-                                <div>RUA ERNESTINA, 270 - VILA SÃO JOÃO</div>
-                                <div>Ferraz de Vasconcelos - SP | CEP: 08527-400</div>
-                                <div>Tel: (11) 94723-8729</div>
+                                <div class="razao">${getEmpresaRazao()}</div>
+                                <div>CNPJ: ${getEmpresaCnpj()} | IE: ${getEmpresaIe()}</div>
+                                <div>${getEmpresaEndereco()}</div>
+                                <div>${getEmpresaCidade()}</div>
+                                <div>Tel: ${getEmpresaTel()}</div>
                             </div>
                         </div>
 
@@ -10925,7 +10902,6 @@
             showNotification(`Gerando PDF...`, 'info');
 
             try {
-                let token = localStorage.getItem('token');
                 if (!token) {
                     const cookies = document.cookie.split('; ');
                     for (const cookie of cookies) {
@@ -10938,14 +10914,11 @@
 
                 const pdfUrl = `/api/vendas/pedidos/${pedidoAtual.id}/pdf`;
                 const headers = { 'Content-Type': 'application/json' };
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-
                 // Tentar gerar via API com timeout de 15 segundos
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-                const response = await fetch(pdfUrl, {
-                    method: 'GET',
+                const response = await fetch(pdfUrl, { credentials: 'include', method: 'GET',
                     headers: headers,
                     credentials: 'include',
                     signal: controller.signal
@@ -11084,7 +11057,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
 <title>${d.nomeArquivo}</title>
 <style>
 @page { margin: 10mm 12mm; size: A4; }
@@ -11173,10 +11146,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             <div class="header-info">
                 <div class="brand">Cabos de Alumínio</div>
                 <div class="empresa-dados">
-                    I. M. DOS REIS - ALUFORCE INDUSTRIA E COMERCIO DE CONDUTORES<br>
-                    CNPJ: 08.192.479/0001-60 &nbsp;|&nbsp; IE: 103.385.861-110<br>
-                    Rua Ernestina, 270 - Vila São João - Ferraz de Vasconcelos/SP - CEP: 08527-400<br>
-                    (11) 94723-8729 &nbsp;|&nbsp; contato@aluforce.ind.br
+                    ${getEmpresaRazao()}<br>
+                    CNPJ: ${getEmpresaCnpj()} &nbsp;|&nbsp; IE: ${getEmpresaIe()}<br>
+                    ${getEmpresaEndereco()} - ${getEmpresaCidade()}<br>
+                    ${getEmpresaTel()} &nbsp;|&nbsp; contato@aluforce.ind.br
                 </div>
             </div>
         </div>
@@ -11475,7 +11448,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
             
             const modalHtml = `
-            <div id="modal-escolha-faturamento-kanban" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease-out;">
+            <div id="modal-escolha-faturamento-kanban" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease-out;">
                 <div style="background: #ffffff; border-radius: 16px; width: 95%; max-width: 420px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); animation: slideUp 0.3s ease-out;">
                     <!-- Header com ícone grande -->
                     <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 24px; text-align: center; position: relative;">
@@ -11553,13 +11526,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             fecharModalEscolhaFaturamentoKanban();
             
             try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/faturar`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/faturar`, { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ gerarNFe: true })
                 });
@@ -11614,13 +11583,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             fecharModalEscolhaFaturamento();
             
             try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/faturar`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/faturar`, { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ gerarNFe: true })
                 });
@@ -11886,13 +11851,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             fecharModalFaturamentoParcialKanban();
             
             try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/faturamento-parcial`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/faturamento-parcial`, { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({
                         tipo_faturamento: 'parcial_50',
@@ -11966,13 +11927,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             fecharModalFaturamentoParcialKanban();
             
             try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/remessa-entrega`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/remessa-entrega`, { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({
                         cfop,
@@ -12017,9 +11974,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         // Função auxiliar para listar pendentes de remessa
         async function listarPendentesRemessa() {
             try {
-                const token = localStorage.getItem('token');
                 const response = await fetch('/api/vendas/faturamento/parciais-pendentes', {
-                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include',
                     credentials: 'include'
                 });
                 
@@ -13328,9 +13284,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             document.getElementById('modal-historico').classList.add('active');
 
             try {
-                const token = localStorage.getItem('token');
                 const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/historico`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include',
                     credentials: 'include'
                 });
 
@@ -13410,7 +13365,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             const historico = [
                 {
                     created_at: new Date().toISOString(),
-                    user_name: localStorage.getItem('userName') || 'Usuário',
+                    user_name: (JSON.parse(localStorage.getItem('userData') || '{}').nome) || 'Usuário',
                     action: 'criacao',
                     descricao: 'Pedido criado no sistema'
                 }
@@ -13466,13 +13421,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             if (!pedidoAtual) return;
 
             try {
-                const token = localStorage.getItem('token');
-                await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/historico`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
+                await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/historico`, { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ action, descricao })
                 });
@@ -13643,8 +13594,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
             try {
                 // Chamar API para cancelar o pedido
-                const response = await fetch(`/api/vendas/pedidos/${pedidoId}/status`, {
-                    method: 'PUT',
+                const response = await fetch(`/api/vendas/pedidos/${pedidoId}/status`, { credentials: 'include', method: 'PUT',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'cancelado' })
@@ -13764,20 +13714,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
             try {
                 // Tentar obter token de várias fontes (múltiplas tentativas)
-                let token = localStorage.getItem('authToken') ||
-                            localStorage.getItem('token') ||
-                            sessionStorage.getItem('authToken') ||
-                            sessionStorage.getItem('token');
 
-                // Também tenta buscar do cookie
-                if (!token) {
-                    const cookies = document.cookie.split(';');
-                    for (let cookie of cookies) {
-                        const [name, value] = cookie.trim().split('=');
-                        if (name === 'authToken' || name === 'token') {
-                            token = decodeURIComponent(value);
-                            break;
-                        }
                     }
                 }
 
@@ -13789,10 +13726,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 const headers = {
                     'Content-Type': 'application/json'
                 };
-
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
 
                 const response = await fetch(`/api/vendas/produtos/autocomplete/${encodeURIComponent(termo)}`, {
                     headers,
@@ -14113,10 +14046,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
             try {
                 // Obter token de autenticação
-                let token = localStorage.getItem('authToken') ||
-                            localStorage.getItem('token') ||
-                            sessionStorage.getItem('authToken') ||
-                            sessionStorage.getItem('token');
                 if (!token) {
                     const cookies = document.cookie.split(';');
                     for (let cookie of cookies) {
@@ -14129,8 +14058,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 }
 
                 const headers = { 'Content-Type': 'application/json' };
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-
                 // Usar endpoint correto de produtos (tabela produtos)
                 let url = '/api/produtos?limit=50';
                 if (termo) url += `&termo=${encodeURIComponent(termo)}`;
@@ -14227,9 +14154,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         // Carregar itens do pedido da API
         async function carregarItensPedido(pedidoId) {
             try {
-                const token = localStorage.getItem('token');
                 const response = await fetch(`/api/vendas/pedidos/${pedidoId}/itens`, {
-                    headers: { 'Authorization': `Bearer ${token}` },
+                    credentials: 'include',
                     credentials: 'include'
                 });
                 if (response.ok) {
@@ -14572,29 +14498,22 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 return;
             }
 
-            const token = localStorage.getItem('token');
 
             try {
                 let response;
                 if (modoEdicaoItem && itemSelecionado) {
                     // Atualizar item existente
-                    response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/itens/${itemSelecionado.id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
+                    response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/itens/${itemSelecionado.id}`, { credentials: 'include', method: 'PUT',
+                        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
                         body: JSON.stringify(itemData)
                     });
                 } else {
                     // Criar novo item
-                    response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/itens`, {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
+                    response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/itens`, { credentials: 'include', method: 'POST',
+                        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                         credentials: 'include',
                         body: JSON.stringify(itemData)
                     });
@@ -14684,12 +14603,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 return;
             }
 
-            const token = localStorage.getItem('token');
 
             try {
-                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/itens/${itemSelecionado.id}`, {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${token}` },
+                const response = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/itens/${itemSelecionado.id}`, { credentials: 'include', method: 'DELETE',
+                    credentials: 'include',
                     credentials: 'include'
                 });
 
@@ -14974,12 +14891,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
             // Buscar dados
             try {
-                const token = localStorage.getItem('token');
                 const params = new URLSearchParams();
                 if (clienteNome) params.set('nome', clienteNome);
 
                 const resp = await fetch(`/api/vendas/clientes/${clienteId || 0}/historico?${params.toString()}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    credentials: 'include'
                 });
                 const data = await resp.json();
 
@@ -15079,14 +14995,13 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             showNotification('Calculando impostos dos itens...', 'info');
-            const token = localStorage.getItem('token');
 
             try {
                 // Para pedidos já salvos, chamar API
                 if (pedidoAtual.id && pedidoAtual.id !== 'NOVO' && !modoNovoPedido) {
-                    const resp = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/atualizar-impostos`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    const resp = await fetch(`/api/vendas/pedidos/${pedidoAtual.id}/atualizar-impostos`, { credentials: 'include', method: 'POST',
+                        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ cenario_fiscal: document.getElementById('edit-cenario-fiscal')?.value })
                     });
                     const result = await resp.json();
@@ -15117,7 +15032,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                         if (item.produto_id) {
                             try {
                                 const resp = await fetch(`/api/vendas/produtos/${item.produto_id}/fiscal`, {
-                                    headers: { 'Authorization': `Bearer ${token}` }
+                                    credentials: 'include'
                                 });
                                 if (resp.ok) {
                                     const fiscal = await resp.json();
@@ -15183,8 +15098,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
             // Excluir no backend via API PRIMEIRO
             try {
-                const resp = await fetch(`/api/vendas/pedidos/${pedidoId}`, {
-                    method: 'DELETE',
+                const resp = await fetch(`/api/vendas/pedidos/${pedidoId}`, { credentials: 'include', method: 'DELETE',
                     credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json'
@@ -16981,14 +16895,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
             try {
                 // Salvar no backend via API
-                const token = localStorage.getItem('token');
-                const response = await fetch('/api/vendas/pedidos', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/pedidos', { credentials: 'include', method: 'POST',
                     credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': token ? `Bearer ${token}` : ''
-                    },
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         empresa_id: clienteId || null,
                         cliente_nome: cliente.toUpperCase(),
@@ -17023,13 +16933,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 // Salvar impostos do pedido se houver dados calculados
                 if (impostosCalculados && novoOrc.id) {
                     try {
-                        await fetch(`/api/vendas/pedidos/${novoOrc.id}/impostos`, {
-                            method: 'POST',
+                        await fetch(`/api/vendas/pedidos/${novoOrc.id}/impostos`, { credentials: 'include', method: 'POST',
                             credentials: 'include',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': token ? `Bearer ${token}` : ''
-                            },
+                            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 impostos: impostosCalculados,
                                 cenario_codigo: cenarioFiscal
@@ -17478,13 +17385,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 try {
                     // Verificar se tem nfe_id (ID da NFe no banco)
                     if (pedido.nfe_id) {
-                        const token = localStorage.getItem('token');
-                        const response = await fetch(`/api/nfe/${pedido.nfe_id}/transmitir`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            }
+                        const response = await fetch(`/api/nfe/${pedido.nfe_id}/transmitir`, { credentials: 'include', method: 'POST',
+                            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
                         });
 
                         if (response.ok) {
@@ -17714,7 +17617,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
 
         // Helper: obtém token de autenticação de todas as fontes disponíveis
         function getAuthToken() {
-            return localStorage.getItem('authToken') || localStorage.getItem('token') || sessionStorage.getItem('authToken') || '';
+            return ''; /* Auth via httpOnly cookie */
         }
 
         // Helper: retorna headers com Authorization para chamadas API autenticadas
@@ -17722,11 +17625,23 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             const headers = {};
             if (contentType) headers['Content-Type'] = contentType;
             const token = getAuthToken();
-            if (token && token !== 'null' && token !== 'undefined') {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
             return headers;
         }
+
+        // Dados da empresa (carregados da API para templates de impressão)
+        let dadosEmpresa = {};
+        async function carregarDadosEmpresa() {
+            try {
+                const res = await fetch('/api/configuracoes/empresa', { credentials: 'include', headers: getAuthHeaders() });
+                if (res.ok) dadosEmpresa = await res.json();
+            } catch(e) { console.error('[Vendas] Erro ao carregar dados da empresa:', e); }
+        }
+        function getEmpresaRazao() { return dadosEmpresa.razao_social || dadosEmpresa.nome || 'I. M. DOS REIS INDÚSTRIA E COMÉRCIO DE CONDUTORES'; }
+        function getEmpresaCnpj() { return dadosEmpresa.cnpj || '08.192.479/0001-60'; }
+        function getEmpresaIe() { return dadosEmpresa.ie || '103.385.861-110'; }
+        function getEmpresaEndereco() { return dadosEmpresa.endereco || 'RUA ERNESTINA, 270 - VILA SÃO JOÃO'; }
+        function getEmpresaCidade() { return dadosEmpresa.cidade ? `${dadosEmpresa.cidade} - ${dadosEmpresa.uf || 'SP'} | CEP: ${dadosEmpresa.cep || ''}` : 'Ferraz de Vasconcelos - SP | CEP: 08527-400'; }
+        function getEmpresaTel() { return dadosEmpresa.telefone || '(11) 94723-8729'; }
 
         // Lista de admins por email/nome
         const ADMINS_EMAILS = ['ti@aluforce.ind.br', 'andreia@aluforce.ind.br', 'douglas@aluforce.ind.br', 'thiago.scarcella@aluforce.ind.br', 'clemerson@aluforce.ind.br', 'fernando@aluforce.ind.br'];
@@ -18300,7 +18215,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             try {
                 // API gratuita ReceitaWS
                 const response = await fetch(`https://receitaws.com.br/v1/cnpj/${cnpj}`, {
-                    headers: { 'Accept': 'application/json' }
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json'
+                })
                 });
 
                 if (!response.ok) throw new Error('CNPJ não encontrado');
@@ -18600,8 +18517,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/vendas/clientes', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/clientes', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     credentials: 'include',
                     body: JSON.stringify(cliente)
@@ -18701,8 +18617,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/vendas/clientes', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/clientes', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
                     credentials: 'include',
                     body: JSON.stringify(cliente)
@@ -18968,8 +18883,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/vendas/produtos', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/produtos', { credentials: 'include', method: 'POST',
                     headers: getAuthHeaders('application/json'),
                     credentials: 'include',
                     body: JSON.stringify(produto)
@@ -19160,7 +19074,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         // Marcar notificação como lida
         async function marcarComoLida(id) {
             try {
-                await fetch(`/api/notifications/${id}/read`, { method: 'POST', credentials: 'include' });
+                await fetch(`/api/notifications/${id}/read`, { credentials: 'include', method: 'POST', credentials: 'include' });
                 const notif = notificacoes.find(n => n.id === id);
                 if (notif) {
                     notif.lida = true;
@@ -19203,8 +19117,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         // Marcar todas como lidas
         async function marcarTodasLidas() {
             try {
-                await fetch('/api/notifications/read-all', {
-                    method: 'POST',
+                await fetch('/api/notifications/read-all', { credentials: 'include', method: 'POST',
                     credentials: 'include',
                     headers: getAuthHeaders()
                 });
@@ -19322,8 +19235,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 onConfirm: async () => {
                     try {
                         for (const notif of notificacoes) {
-                            await fetch(`/api/notifications/${notif.id}`, {
-                                method: 'DELETE',
+                            await fetch(`/api/notifications/${notif.id}`, { credentials: 'include', method: 'DELETE',
                                 credentials: 'include',
                                 headers: getAuthHeaders()
                             });
@@ -19366,16 +19278,17 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                     width: 100%;
                     height: 100%;
                     background: rgba(15, 23, 42, 0.7);
+                    -webkit-backdrop-filter: blur(8px);
                     backdrop-filter: blur(8px);
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     z-index: 10000;
-                    animation: fadeInHistorico 0.25s ease;
+                    animation: fadeInHistórico 0.25s ease;
                 ">
                     <style>
-                        @keyframes fadeInHistorico { from { opacity: 0; } to { opacity: 1; } }
-                        @keyframes slideUpHistorico { from { transform: translateY(30px) scale(0.96); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+                        @keyframes fadeInHistórico { from { opacity: 0; } to { opacity: 1; } }
+                        @keyframes slideUpHistórico { from { transform: translateY(30px) scale(0.96); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
                         .historico-notif-item { cursor: default; }
                         .historico-notif-item:hover { background: linear-gradient(90deg, #f8fafc, #ffffff) !important; }
                         .historico-notif-item:hover .notif-icon-wrapper { transform: scale(1.05); }
@@ -19393,7 +19306,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                         display: flex;
                         flex-direction: column;
                         box-shadow: 0 0 0 1px rgba(0,0,0,0.05), 0 25px 50px -12px rgba(0,0,0,0.25), 0 0 80px rgba(99, 102, 241, 0.08);
-                        animation: slideUpHistorico 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+                        animation: slideUpHistórico 0.35s cubic-bezier(0.16, 1, 0.3, 1);
                         overflow: hidden;
                     ">
                         <div class="modal-header" style="
@@ -19407,7 +19320,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                             <div style="position: absolute; top: 0; left: 0; right: 0; height: 100%; background: url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2280%22 cy=%2220%22 r=%2240%22 fill=%22rgba(255,255,255,0.05)%22/><circle cx=%2210%22 cy=%2290%22 r=%2230%22 fill=%22rgba(255,255,255,0.03)%22/></svg>'); pointer-events: none;"></div>
                             <div style="padding: 24px 28px; display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1;">
                                 <div style="display: flex; align-items: center; gap: 16px;">
-                                    <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);">
+                                    <div style="width: 48px; height: 48px; background: rgba(255,255,255,0.2); border-radius: 14px; display: flex; align-items: center; justify-content: center; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);">
                                         <i class="fas fa-bell" style="font-size: 22px; color: white;"></i>
                                     </div>
                                     <div>
@@ -19420,6 +19333,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                                 <div style="display: flex; gap: 10px; align-items: center;">
                                     <button onclick="exportarHistoricoNotificacoes()" class="historico-btn" style="
                                         background: rgba(255,255,255,0.2);
+                                        -webkit-backdrop-filter: blur(10px);
                                         backdrop-filter: blur(10px);
                                         border: 1px solid rgba(255,255,255,0.2);
                                         color: white;
@@ -19939,8 +19853,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         // Criar notificação no servidor (chamado de outras partes do código)
         async function criarNotificacaoServidor(tipo, titulo, mensagem, data = {}) {
             try {
-                await fetch('/api/notifications', {
-                    method: 'POST',
+                await fetch('/api/notifications', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ type: tipo, title: titulo, message: mensagem, data })
@@ -20005,8 +19918,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/vendas/condicoes-pagamento', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/condicoes-pagamento', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ nome, dias, descricao: document.getElementById('nova-condicao-descricao').value })
                 });
@@ -20052,8 +19964,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/vendas/tipos-frete', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/tipos-frete', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ codigo, descricao })
                 });
@@ -20099,8 +20010,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/vendas/regioes', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/regioes', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nome,
@@ -20141,8 +20051,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/cargos', {
-                    method: 'POST',
+                const response = await fetch('/api/cargos', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nome,
@@ -20185,8 +20094,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
             }
 
             try {
-                const response = await fetch('/api/vendas/vendedores', {
-                    method: 'POST',
+                const response = await fetch('/api/vendas/vendedores', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nome,
@@ -20336,7 +20244,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 <!DOCTYPE html>
                 <html>
                 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
                     <title>Aluforce: Relatório de Vendas</title>
                     <style>
                         body { font-family: Arial, sans-serif; padding: 20px; }
@@ -20643,7 +20551,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                 <html lang="pt-BR">
                 <head>
                     <meta charset="UTF-8">
-                    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+                    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
                     <title>Aluforce: ${titulo}</title>
                     <style>
                         @page { margin: 10mm; size: A4; }
@@ -20717,11 +20625,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                                 <img src="/images/Logo Monocromatico - Azul - Aluforce.png" alt="ALUFORCE" onerror="this.outerHTML='<div style=font-size:20px;font-weight:700;color:#1a365d>ALUFORCE</div>'">
                             </div>
                             <div class="empresa-info">
-                                <div class="razao">I. M. DOS REIS INDÚSTRIA E COMÉRCIO DE CONDUTORES</div>
-                                <div>CNPJ: 08.192.479/0001-60 | IE: 103.385.861-110</div>
-                                <div>RUA ERNESTINA, 270 - VILA SÃO JOÃO</div>
-                                <div>Ferraz de Vasconcelos - SP | CEP: 08527-400</div>
-                                <div>Tel: (11) 94723-8729</div>
+                                <div class="razao">${getEmpresaRazao()}</div>
+                                <div>CNPJ: ${getEmpresaCnpj()} | IE: ${getEmpresaIe()}</div>
+                                <div>${getEmpresaEndereco()}</div>
+                                <div>${getEmpresaCidade()}</div>
+                                <div>Tel: ${getEmpresaTel()}</div>
                             </div>
                         </div>
                         <div class="header-line"></div>
@@ -20766,7 +20674,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                         <!-- FOOTER -->
                         <div class="footer">
                             <div>Documento gerado automaticamente pelo sistema ALUFORCE</div>
-                            <div style="margin-top: 2px;">I. M. DOS REIS INDÚSTRIA E COMÉRCIO DE CONDUTORES | CNPJ: 08.192.479/0001-60</div>
+                            <div style="margin-top: 2px;">${getEmpresaRazao()} | CNPJ: ${getEmpresaCnpj()}</div>
                             <div style="margin-top: 4px; font-style: italic;">Este documento é válido apenas para fins de consulta interna.</div>
                         </div>
                     </div>
@@ -20797,8 +20705,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
         // INIT
         // ========================================
         document.addEventListener('DOMContentLoaded', async () => {
-            // PRIMEIRO: Carregar dados do usuário logado (DEVE aguardar)
-            await carregarUsuarioLogado();
+            // PRIMEIRO: Carregar dados do usuário logado e dados da empresa
+            await Promise.all([carregarUsuarioLogado(), carregarDadosEmpresa()]);
 
             // Carregar configurações de impostos do sistema
             await carregarConfigImpostosSistema();
@@ -20867,7 +20775,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e2
                     // Buscar dados completos do cliente via API
                     try {
                         const response = await fetch(`/api/clientes/${clienteId}`, {
-                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                            credentials: 'include'
                         });
                         if (response.ok) {
                             const cliente = await response.json();

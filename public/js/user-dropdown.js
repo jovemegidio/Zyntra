@@ -206,10 +206,7 @@
 
     async function loadUserData() {
         try {
-            // v7.3 FIX: Usar token do sessionStorage (isolado por aba) em vez de apenas cookie
             var _headers = { 'Accept': 'application/json' };
-            var _tabToken = sessionStorage.getItem('tabAuthToken') || localStorage.getItem('authToken');
-            if (_tabToken) _headers['Authorization'] = 'Bearer ' + _tabToken;
             const response = await fetch('/api/me', { credentials: 'include', headers: _headers });
             if (!response.ok) return;
             const user = await response.json();

@@ -1,208 +1,181 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
     <meta name="theme-color" content="#1a1a2e">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Aluforce: Gestão do Ponto</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/modern-saas.css?v=20260210">
+    <link rel="stylesheet" href="/modules/RH/public/css/rh-pages.css?v=20260210">
     <style>
-        :root {
-            --sidebar-width: 48px;
-            --header-height: 42px;
-            --primary-pink: #ec4899;
-            --primary-dark: #1a1a2e;
-            --success-green: #22c55e;
-            --warning-yellow: #eab308;
-            --danger-red: #ef4444;
-            --info-blue: #3b82f6;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; overflow-x: hidden; }
-        .app-container { display: flex; min-height: 100vh; }
+        /* === GESTÃO DO PONTO - DESIGN INSTITUCIONAL === */
 
-        /* Sidebar */
-        .sidebar { width: var(--sidebar-width); background: var(--primary-dark); display: flex; flex-direction: column; align-items: center; padding: 12px 0; position: fixed; height: 100vh; z-index: 100; }
-        .sidebar-logo { width: 36px; height: 36px; background: var(--primary-pink); border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; text-decoration: none; }
-        .sidebar-logo i { color: white; font-size: 18px; }
-        .sidebar-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-        .sidebar-btn { width: 40px; height: 40px; border: none; background: transparent; color: #8b8b9a; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; text-decoration: none; position: relative; }
-        .sidebar-btn:hover { background: rgba(255,255,255,0.1); color: white; }
-        .sidebar-btn.active { background: var(--primary-pink); color: white; }
-        .sidebar-btn::after { content: attr(title); position: absolute; left: 54px; background: #1a1a2e; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-        .sidebar-btn::before { content: ''; position: absolute; left: 46px; border: 6px solid transparent; border-right-color: #1a1a2e; opacity: 0; pointer-events: none; transition: all 0.2s ease; z-index: 1001; }
-        .sidebar-btn:hover::after, .sidebar-btn:hover::before { opacity: 1; }
-        .sidebar-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
-
-        /* Main */
-        .main-area { flex: 1; margin-left: var(--sidebar-width); display: flex; flex-direction: column; }
-        .header { height: var(--header-height); background: var(--primary-dark); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; /* position: global-header-sidebar.css */ top: 0; z-index: 50; }
-        .header-brand { display: flex; align-items: center; gap: 8px; color: white; font-size: 14px; }
-        .header-brand img { height: 24px; }
-        .header-brand span { color: #8b8b9a; }
-        .header-right { display: flex; align-items: center; gap: 12px; }
-        .header-btn { width: 36px; height: 36px; border: none; background: transparent; color: #8b8b9a; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .header-btn:hover { background: rgba(255,255,255,0.1); color: white; }
-        .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-size: 14px; font-weight: 600; }
-
-        /* Content */
-        .content-area { flex: 1; padding: 24px; overflow-y: auto; }
-        .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+        /* Layout */
+        .content-area { flex: 1; padding: 28px 32px; overflow-y: auto; background: #f4f6f9; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 16px; }
         .page-title { font-size: 1.75rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 12px; }
         .page-title i { color: var(--primary-pink); }
         .page-subtitle { color: #64748b; margin-top: 4px; }
-        .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+        .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
         /* Buttons */
-        .btn { padding: 10px 20px; border: none; border-radius: 10px; font-size: 0.875rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; text-decoration: none; }
-        .btn-primary { background: var(--primary-pink); color: white; }
-        .btn-primary:hover { background: #db2777; transform: translateY(-1px); }
-        .btn-success { background: var(--success-green); color: white; }
-        .btn-success:hover { background: #16a34a; }
-        .btn-outline { background: white; color: #64748b; border: 1px solid #e2e8f0; }
-        .btn-outline:hover { background: #f8fafc; border-color: #cbd5e1; }
-        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
-        .btn-warning { background: var(--warning-yellow); color: #1e293b; }
-        .btn-warning:hover { background: #ca8a04; color: white; }
+        .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; transition: background 0.15s, box-shadow 0.15s; text-decoration: none; letter-spacing: 0.01em; }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover { background: #4f46e5; box-shadow: 0 2px 8px rgba(99,102,241,0.25); }
+        .btn-success { background: #059669; color: white; }
+        .btn-success:hover { background: #047857; }
+        .btn-outline { background: #fff; color: #475569; border: 1px solid #d1d5db; }
+        .btn-outline:hover { background: #f9fafb; border-color: #9ca3af; }
+        .btn-sm { padding: 5px 11px; font-size: 0.75rem; }
+        .btn-warning { background: #d97706; color: white; }
+        .btn-warning:hover { background: #b45309; }
 
         /* Stats */
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .stat-card { background: white; border-radius: 16px; padding: 20px; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 16px; transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
-        .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
-        .stat-icon.purple { background: rgba(236, 72, 153,0.1); color: var(--primary-pink); }
-        .stat-icon.green { background: rgba(34,197,94,0.1); color: var(--success-green); }
-        .stat-icon.yellow { background: rgba(234,179,8,0.1); color: var(--warning-yellow); }
-        .stat-icon.red { background: rgba(239,68,68,0.1); color: var(--danger-red); }
-        .stat-icon.blue { background: rgba(59,130,246,0.1); color: var(--info-blue); }
-        .stat-content h4 { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
-        .stat-content .value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-bottom: 28px; }
+        .stat-card { background: #fff; border-radius: 10px; padding: 18px 20px; border: 1px solid #e5e7eb; display: flex; align-items: center; gap: 16px; transition: box-shadow 0.2s; }
+        .stat-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0; }
+        .stat-icon.purple { background: #eef2ff; color: #6366f1; }
+        .stat-icon.green { background: #ecfdf5; color: #059669; }
+        .stat-icon.yellow { background: #fffbeb; color: #d97706; }
+        .stat-icon.red { background: #fef2f2; color: #dc2626; }
+        .stat-icon.blue { background: #eff6ff; color: #2563eb; }
+        .stat-content h4 { font-size: 0.7rem; color: #6b7280; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+        .stat-content .value { font-size: 1.5rem; font-weight: 700; color: #111827; }
 
         /* Tabs */
-        .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0; background: white; border-radius: 16px 16px 0 0; padding: 4px 4px 0; }
-        .tab-btn { padding: 12px 20px; background: transparent; border: none; color: #64748b; font-weight: 600; cursor: pointer; position: relative; transition: all 0.3s ease; border-radius: 10px 10px 0 0; font-size: 0.85rem; }
-        .tab-btn:hover { color: var(--primary-pink); background: rgba(236, 72, 153,0.05); }
-        .tab-btn.active { color: var(--primary-pink); background: rgba(236, 72, 153,0.08); }
-        .tab-btn.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 3px; background: var(--primary-pink); border-radius: 3px 3px 0 0; }
-        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tabs { display: flex; gap: 0; margin-bottom: 24px; background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; padding: 4px; }
+        .tab-btn { padding: 10px 18px; background: transparent; border: none; color: #6b7280; font-weight: 600; cursor: pointer; position: relative; transition: all 0.15s; border-radius: 7px; font-size: 0.8125rem; }
+        .tab-btn:hover { color: #374151; background: #f3f4f6; }
+        .tab-btn.active { color: #fff; background: #6366f1; box-shadow: 0 1px 4px rgba(99,102,241,0.25); }
+        .tab-btn.active::after { display: none; }
+        .tab-content { display: none; animation: fadeIn 0.2s ease; }
         .tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         /* Filters */
-        .filters-bar { display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; align-items: flex-end; background: white; padding: 20px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-label { font-size: 0.75rem; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; }
-        .form-input, .form-select { padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-size: 0.875rem; min-width: 160px; transition: all 0.2s ease; background: #fafbfc; }
-        .form-input:focus, .form-select:focus { outline: none; border-color: var(--primary-pink); box-shadow: 0 0 0 3px rgba(236, 72, 153,0.1); background: white; }
+        .filters-bar { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; align-items: flex-end; background: #fff; padding: 18px 20px; border-radius: 10px; border: 1px solid #e5e7eb; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-label { font-size: 0.7rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.4px; }
+        .form-input, .form-select { padding: 9px 12px; border: 1px solid #d1d5db; border-radius: 7px; font-size: 0.8125rem; min-width: 155px; transition: border-color 0.15s; background: #fff; color: #1f2937; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.12); }
 
         /* Card */
-        .card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-        .card-header { padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(180deg, #ffffff, #fafbfc); }
-        .card-title { font-size: 1rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-        .card-title i { color: var(--primary-pink); }
-        .card-body { padding: 24px; }
+        .card { background: #fff; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; margin-bottom: 20px; }
+        .card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: #fafbfc; }
+        .card-title { font-size: 0.875rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+        .card-title i { color: #6366f1; font-size: 0.9rem; }
+        .card-body { padding: 0; }
 
         /* Table */
         .table-container { overflow-x: auto; }
         .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; }
-        .data-table th { background: linear-gradient(180deg, #f8fafc, #f1f5f9); font-weight: 600; color: #475569; white-space: nowrap; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px; }
-        .data-table tr { transition: background 0.2s ease; }
-        .data-table tr:hover { background: rgba(236, 72, 153,0.03); }
-        .data-table td { vertical-align: middle; color: #334155; }
+        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #f1f5f9; font-size: 0.8125rem; }
+        .data-table th { background: #f9fafb; font-weight: 600; color: #6b7280; white-space: nowrap; text-transform: uppercase; font-size: 0.6875rem; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; }
+        .data-table tr { transition: background 0.1s; }
+        .data-table tr:hover { background: #f9fafb; }
+        .data-table td { vertical-align: middle; color: #374151; }
 
         /* Status badges */
-        .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
-        .status-badge.normal { background: rgba(34,197,94,0.1); color: #16a34a; }
-        .status-badge.atraso { background: rgba(234,179,8,0.1); color: #ca8a04; }
-        .status-badge.falta { background: rgba(239,68,68,0.1); color: #dc2626; }
-        .status-badge.folga { background: rgba(100,116,139,0.1); color: #64748b; }
-        .status-badge.ferias { background: rgba(59,130,246,0.1); color: #2563eb; }
-        .status-badge.pendente { background: rgba(234,179,8,0.1); color: #ca8a04; }
-        .status-badge.aprovado { background: rgba(34,197,94,0.1); color: #16a34a; }
+        .status-badge { padding: 3px 10px; border-radius: 6px; font-size: 0.6875rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; letter-spacing: 0.02em; }
+        .status-badge.normal { background: #ecfdf5; color: #047857; }
+        .status-badge.atraso { background: #fffbeb; color: #b45309; }
+        .status-badge.falta { background: #fef2f2; color: #b91c1c; }
+        .status-badge.folga { background: #f3f4f6; color: #6b7280; }
+        .status-badge.ferias { background: #eff6ff; color: #1d4ed8; }
+        .status-badge.pendente { background: #fffbeb; color: #b45309; }
+        .status-badge.aprovado { background: #ecfdf5; color: #047857; }
 
         /* Employee info */
-        .employee-info { display: flex; align-items: center; gap: 12px; }
-        .employee-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #ec4899, #db2777); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 14px; flex-shrink: 0; }
-        .employee-name { font-weight: 500; color: #1e293b; }
-        .employee-dept { font-size: 0.75rem; color: #64748b; }
+        .employee-info { display: flex; align-items: center; gap: 10px; }
+        .employee-avatar { width: 34px; height: 34px; border-radius: 8px; background: #6366f1; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+        .employee-name { font-weight: 600; color: #111827; font-size: 0.8125rem; }
+        .employee-dept { font-size: 0.7rem; color: #9ca3af; }
 
         /* Action buttons */
-        .action-btns { display: flex; gap: 8px; }
-        .action-btn { width: 32px; height: 32px; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-        .action-btn.edit { background: rgba(59,130,246,0.1); color: #3b82f6; }
-        .action-btn.edit:hover { background: #3b82f6; color: white; }
-        .action-btn.delete { background: rgba(239,68,68,0.1); color: #ef4444; }
-        .action-btn.delete:hover { background: #ef4444; color: white; }
+        .action-btns { display: flex; gap: 6px; }
+        .action-btn { width: 30px; height: 30px; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; background: #fff; font-size: 12px; }
+        .action-btn.edit { color: #6366f1; }
+        .action-btn.edit:hover { background: #6366f1; color: white; border-color: #6366f1; }
+        .action-btn.delete { color: #ef4444; }
+        .action-btn.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
 
-        /* Modal */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-        .modal-overlay.active { display: flex; }
-        .modal { background: white; border-radius: 20px; width: 100%; max-width: 600px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+        /* Modal SAAS Empresarial - Padrão Unificado */
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal.show { display: flex; }
+        .modal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.7); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+        .modal-content { background: #fff; border-radius: 16px; width: 100%; max-width: 600px; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; position: relative; z-index: 1001; box-shadow: 0 20px 50px rgba(0,0,0,0.2); transform: scale(0.95) translateY(10px); opacity: 0; transition: all 0.25s ease-out; }
+        .modal.show .modal-content { transform: scale(1) translateY(0); opacity: 1; }
         body.modal-open { overflow: hidden !important; }
-        .modal-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-        .modal-title { font-size: 1.25rem; font-weight: 600; }
-        .modal-close { width: 36px; height: 36px; border: none; background: #f1f5f9; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .modal-close:hover { background: #e2e8f0; }
-        .modal-body { padding: 24px; }
-        .modal-footer { padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 12px; }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #4338ca 0%, #6366f1 100%); }
+        .modal-header h2, .modal-title { font-size: 18px; font-weight: 600; color: white; margin: 0; display: flex; align-items: center; gap: 12px; }
+        .modal-header h2 i { width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+        .modal-close { width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.15); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; transition: background 0.2s; }
+        .modal-close:hover { background: rgba(255,255,255,0.25); }
+        .modal-body { padding: 24px; overflow-y: auto; background: #f9fafb; }
+        .modal-body::-webkit-scrollbar { width: 6px; }
+        .modal-body::-webkit-scrollbar-track { background: transparent; }
+        .modal-body::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px; background: white; }
 
         /* Empty state */
-        .empty-state { text-align: center; padding: 60px 20px; color: #64748b; }
-        .empty-state i { font-size: 3rem; margin-bottom: 16px; opacity: 0.5; }
-        .empty-state h3 { margin-bottom: 8px; color: #1e293b; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #9ca3af; }
+        .empty-state i { font-size: 2.5rem; margin-bottom: 14px; color: #d1d5db; }
+        .empty-state h3 { margin-bottom: 6px; color: #374151; font-size: 1rem; font-weight: 600; }
+        .empty-state p { font-size: 0.8125rem; }
 
         /* Toast */
-        .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: white; padding: 16px 24px; border-radius: 12px; display: none; align-items: center; gap: 12px; z-index: 2000; animation: slideIn 0.3s ease; }
-        .toast.success { background: var(--success-green); }
-        .toast.error { background: var(--danger-red); }
+        .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: white; padding: 14px 20px; border-radius: 10px; display: none; align-items: center; gap: 10px; z-index: 2000; animation: slideIn 0.2s ease; font-size: 0.8125rem; font-weight: 500; }
+        .toast.success { background: #059669; }
+        .toast.error { background: #dc2626; }
         .toast.show { display: flex; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideIn { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
         /* Sync indicator */
-        .sync-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 10px; font-size: 0.8rem; font-weight: 500; }
-        .sync-status.online { background: rgba(34,197,94,0.1); color: #16a34a; }
-        .sync-status.offline { background: rgba(239,68,68,0.1); color: #dc2626; }
-        .sync-dot { width: 8px; height: 8px; border-radius: 50%; animation: pulse 2s infinite; }
-        .sync-dot.online { background: #22c55e; }
-        .sync-dot.offline { background: #ef4444; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .sync-status { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; }
+        .sync-status.online { background: #ecfdf5; color: #047857; }
+        .sync-status.offline { background: #fef2f2; color: #b91c1c; }
+        .sync-dot { width: 7px; height: 7px; border-radius: 50%; animation: pulse 2s infinite; }
+        .sync-dot.online { background: #059669; }
+        .sync-dot.offline { background: #dc2626; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 
         /* Audit Trail Timeline */
-        .audit-timeline { padding: 0; list-style: none; }
-        .audit-item { display: flex; gap: 16px; padding: 16px 0; border-bottom: 1px solid #f1f5f9; position: relative; }
+        .audit-timeline { padding: 0 20px; list-style: none; }
+        .audit-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #f1f5f9; position: relative; }
         .audit-item:last-child { border-bottom: none; }
-        .audit-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-        .audit-icon.edicao { background: rgba(59,130,246,0.1); color: #3b82f6; }
-        .audit-icon.exclusao { background: rgba(239,68,68,0.1); color: #ef4444; }
-        .audit-icon.criacao { background: rgba(34,197,94,0.1); color: #22c55e; }
+        .audit-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+        .audit-icon.edicao { background: #eff6ff; color: #2563eb; }
+        .audit-icon.exclusao { background: #fef2f2; color: #dc2626; }
+        .audit-icon.criacao { background: #ecfdf5; color: #059669; }
         .audit-body { flex: 1; min-width: 0; }
-        .audit-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
-        .audit-action { font-weight: 600; font-size: 0.875rem; color: #1e293b; }
-        .audit-time { font-size: 0.75rem; color: #94a3b8; white-space: nowrap; }
-        .audit-detail { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
-        .audit-change { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 4px 10px; background: #f8fafc; border-radius: 8px; margin: 4px 4px 0 0; }
-        .audit-change .old { color: #ef4444; text-decoration: line-through; }
-        .audit-change .new { color: #22c55e; font-weight: 600; }
-        .audit-change .arrow { color: #94a3b8; }
-        .audit-motivo { font-size: 0.8rem; color: #8b5cf6; font-style: italic; margin-top: 6px; padding: 6px 12px; background: rgba(236, 72, 153,0.05); border-radius: 8px; border-left: 3px solid #8b5cf6; }
-        .audit-user { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+        .audit-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+        .audit-action { font-weight: 600; font-size: 0.8125rem; color: #111827; }
+        .audit-time { font-size: 0.7rem; color: #9ca3af; white-space: nowrap; }
+        .audit-detail { font-size: 0.75rem; color: #6b7280; margin-bottom: 3px; }
+        .audit-change { display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; padding: 3px 8px; background: #f9fafb; border-radius: 5px; margin: 3px 3px 0 0; border: 1px solid #f1f5f9; }
+        .audit-change .old { color: #dc2626; text-decoration: line-through; }
+        .audit-change .new { color: #059669; font-weight: 600; }
+        .audit-change .arrow { color: #d1d5db; }
+        .audit-motivo { font-size: 0.75rem; color: #6366f1; font-style: italic; margin-top: 6px; padding: 6px 10px; background: #eef2ff; border-radius: 6px; border-left: 3px solid #6366f1; }
+        .audit-user { font-size: 0.7rem; color: #9ca3af; margin-top: 3px; }
 
         /* Motivo required indicator */
-        .required-indicator { color: #ef4444; font-weight: 600; margin-left: 2px; }
-        .motivo-warning { display: none; padding: 10px 14px; background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.3); border-radius: 10px; font-size: 0.8rem; color: #92400e; margin-top: 12px; }
+        .required-indicator { color: #dc2626; font-weight: 600; margin-left: 2px; }
+        .motivo-warning { display: none; padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.75rem; color: #92400e; margin-top: 10px; }
         .motivo-warning.show { display: flex; align-items: center; gap: 8px; }
 
         /* Confirm delete modal */
         .confirm-delete-body { text-align: center; padding: 20px 0; }
-        .confirm-delete-body i { font-size: 3rem; color: #ef4444; margin-bottom: 16px; }
-        .confirm-delete-body h3 { margin-bottom: 8px; }
-        .confirm-delete-body p { color: #64748b; font-size: 0.875rem; }
+        .confirm-delete-body i { font-size: 2.5rem; color: #dc2626; margin-bottom: 14px; }
+        .confirm-delete-body h3 { margin-bottom: 6px; font-size: 1rem; }
+        .confirm-delete-body p { color: #6b7280; font-size: 0.8125rem; }
     </style>
     <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
@@ -222,6 +195,7 @@
                 <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
                 <a href="funcionarios.html" class="sidebar-btn" title="Funcionários"><i class="fas fa-users"></i></a>
                 <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-check-alt"></i></a>
                 <a href="gestao-ponto.html" class="sidebar-btn active" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
                 <a href="ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
@@ -246,7 +220,7 @@
                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">—</span>
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;">•</span>
                         <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Gestão de Ponto</span>
                     </div>
                 </div>
@@ -290,10 +264,6 @@
                         <div class="stat-icon red"><i class="fas fa-times-circle"></i></div>
                         <div class="stat-content"><h4>Faltas no Mês</h4><div class="value" id="stat-faltas">-</div></div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon blue"><i class="fas fa-database"></i></div>
-                        <div class="stat-content"><h4>Total no Banco</h4><div class="value" id="stat-total-banco">-</div></div>
-                    </div>
                 </div>
 
                 <!-- Tabs -->
@@ -323,7 +293,7 @@
 
                     <div class="card" style="position:relative">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-list"></i> Marcações — <span id="data-atual"></span></h3>
+                            <h3 class="card-title"><i class="fas fa-list"></i> Marcações • <span id="data-atual"></span></h3>
                             <div style="display:flex;align-items:center;gap:12px;">
                                 <div id="sync-status" class="sync-status online">
                                     <span id="sync-dot" class="sync-dot online"></span>
@@ -488,21 +458,12 @@
     </div>
 
     <!-- Modal Ajuste Manual -->
-    <div class="modal-overlay" id="modal-ajuste">
-        <div class="modal" style="max-width: 700px; width: 95%; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); display: flex; flex-direction: column;">
-            <div style="background: #ffffff; padding: 28px 32px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 20px;">
-                <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
-                    <div style="width: 52px; height: 52px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(236, 72, 153, 0.35);">
-                        <i class="fas fa-clock" style="color: white; font-size: 22px;"></i>
-                    </div>
-                    <div>
-                        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #111827;" id="modal-ajuste-title">Ajuste Manual de Ponto</h2>
-                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Registre ou corrija uma marcação de ponto</p>
-                    </div>
-                </div>
-                <button onclick="fecharModal('modal-ajuste')" style="width: 44px; height: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                    <i class="fas fa-times" style="color: #6b7280; font-size: 18px;"></i>
-                </button>
+    <div class="modal" id="modal-ajuste">
+        <div class="modal-overlay" onclick="fecharModal('modal-ajuste')"></div>
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2><i class="fas fa-clock"></i> <span id="modal-ajuste-title">Ajuste Manual de Ponto</span></h2>
+                <button class="modal-close" onclick="fecharModal('modal-ajuste')"><i class="fas fa-times"></i></button>
             </div>
             <div style="padding: 32px; background: #f9fafb; overflow-y: auto; flex: 1; min-height: 0;">
                 <input type="hidden" id="ajuste-id" value="">
@@ -510,7 +471,7 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                         <div>
                             <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
-                                <i class="fas fa-user" style="color: #8b5cf6;"></i> Funcionário
+                                <i class="fas fa-user" style="color: #6366f1;"></i> Funcionário
                             </label>
                             <select class="form-select" id="ajuste-funcionario" style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; background: #f9fafb;"></select>
                         </div>
@@ -550,9 +511,9 @@
                     </label>
                     <textarea id="ajuste-observacao" placeholder="Observação sobre a marcação..." style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; min-height: 80px; resize: vertical; background: #f9fafb; box-sizing: border-box; font-family: inherit;"></textarea>
                 </div>
-                <div id="motivo-section" style="display:none; background: #ffffff; border-radius: 16px; border: 2px solid #8b5cf6; padding: 24px; margin-top: 16px;">
+                <div id="motivo-section" style="display:none; background: #ffffff; border-radius: 16px; border: 2px solid #6366f1; padding: 24px; margin-top: 16px;">
                     <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 10px;">
-                        <i class="fas fa-gavel" style="color: #8b5cf6;"></i> Motivo da Alteração <span class="required-indicator">*</span>
+                        <i class="fas fa-gavel" style="color: #6366f1;"></i> Motivo da Alteração <span class="required-indicator">*</span>
                     </label>
                     <textarea id="ajuste-motivo" placeholder="Descreva o motivo da edição (obrigatório para edições)..." style="width: 100%; padding: 14px 16px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 15px; min-height: 60px; resize: vertical; background: #faf5ff; box-sizing: border-box; font-family: inherit;"></textarea>
                     <div class="motivo-warning" id="motivo-warning">
@@ -560,11 +521,11 @@
                     </div>
                 </div>
             </div>
-            <div style="padding: 24px 32px; background: #ffffff; border-top: 1px solid #e5e7eb; display: flex; gap: 16px; justify-content: flex-end;">
-                <button onclick="fecharModal('modal-ajuste')" style="padding: 14px 28px; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 12px; font-size: 15px; font-weight: 500; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+            <div class="modal-footer">
+                <button onclick="fecharModal('modal-ajuste')" class="btn btn-outline">
                     <i class="fas fa-times"></i> Cancelar
                 </button>
-                <button onclick="salvarAjuste()" style="padding: 14px 28px; border: none; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border-radius: 12px; font-size: 15px; font-weight: 600; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(236, 72, 153, 0.4);">
+                <button onclick="salvarAjuste()" class="btn btn-primary">
                     <i class="fas fa-save"></i> Salvar
                 </button>
             </div>
@@ -572,21 +533,12 @@
     </div>
 
     <!-- Modal Confirmar Exclusão -->
-    <div class="modal-overlay" id="modal-excluir">
-        <div class="modal" style="max-width: 520px; width: 95%; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); display: flex; flex-direction: column;">
-            <div style="background: #ffffff; padding: 28px 32px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; gap: 20px;">
-                <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
-                    <div style="width: 52px; height: 52px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);">
-                        <i class="fas fa-trash-alt" style="color: white; font-size: 22px;"></i>
-                    </div>
-                    <div>
-                        <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #111827;">Excluir Marcação</h2>
-                        <p style="margin: 4px 0 0 0; font-size: 14px; color: #6b7280;">Esta ação não pode ser desfeita</p>
-                    </div>
-                </div>
-                <button onclick="fecharModal('modal-excluir')" style="width: 44px; height: 44px; border: none; background: #f3f4f6; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                    <i class="fas fa-times" style="color: #6b7280; font-size: 18px;"></i>
-                </button>
+    <div class="modal" id="modal-excluir">
+        <div class="modal-overlay" onclick="fecharModal('modal-excluir')"></div>
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);">
+                <h2><i class="fas fa-trash-alt"></i> Excluir Marcação</h2>
+                <button class="modal-close" onclick="fecharModal('modal-excluir')"><i class="fas fa-times"></i></button>
             </div>
             <div style="padding: 32px; background: #f9fafb; overflow-y: auto; flex: 1; min-height: 0;">
                 <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: flex-start; gap: 12px;">
@@ -606,11 +558,11 @@
                     </p>
                 </div>
             </div>
-            <div style="padding: 24px 32px; background: #ffffff; border-top: 1px solid #e5e7eb; display: flex; gap: 16px; justify-content: flex-end;">
-                <button onclick="fecharModal('modal-excluir')" style="padding: 14px 28px; border: 1px solid #e5e7eb; background: #ffffff; border-radius: 12px; font-size: 15px; font-weight: 500; color: #6b7280; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+            <div class="modal-footer">
+                <button onclick="fecharModal('modal-excluir')" class="btn btn-outline">
                     <i class="fas fa-times"></i> Cancelar
                 </button>
-                <button onclick="confirmarExclusao()" style="padding: 14px 28px; border: none; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 12px; font-size: 15px; font-weight: 600; color: #ffffff; cursor: pointer; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);">
+                <button onclick="confirmarExclusao()" class="btn btn-primary" style="background:linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
                     <i class="fas fa-trash-alt"></i> Excluir
                 </button>
             </div>
@@ -623,8 +575,8 @@
     <script>
         // ============= AUTH TOKEN =============
         function getToken() {
-            return sessionStorage.getItem('authToken') || sessionStorage.getItem('token') ||
-                   localStorage.getItem('authToken') || localStorage.getItem('token');
+            // httpOnly cookie handles auth
+            return null;
         }
         function getCookie(name) {
             var value = '; ' + document.cookie;
@@ -645,8 +597,6 @@
         }
         function authHeaders() {
             var h = { 'Content-Type': 'application/json' };
-            var token = getToken();
-            if (token) h['Authorization'] = 'Bearer ' + token;
             var csrf = getCookie('csrf_token') || getCookie('_csrf');
             if (csrf) h['X-CSRF-Token'] = csrf;
             return h;
@@ -662,7 +612,6 @@
                 if (csrfToken) options.headers.set('X-CSRF-Token', csrfToken);
             } else {
                 if (csrfToken) options.headers['X-CSRF-Token'] = csrfToken;
-                var token = getToken();
                 if (token && !options.headers['Authorization']) options.headers['Authorization'] = 'Bearer ' + token;
                 if (!options.headers['Content-Type']) options.headers['Content-Type'] = 'application/json';
             }
@@ -697,7 +646,10 @@
         // ============= LOAD USER =============
         async function carregarUsuario() {
             try {
-                var resp = await fetch('/api/me', { headers: authHeaders() });
+                var resp = await fetch('/api/me', {
+                    credentials: 'include',
+                    headers: authHeaders()
+                }));
                 if (!resp.ok) return;
                 var user = await resp.json();
                 var hour = new Date().getHours();
@@ -717,7 +669,10 @@
         // ============= LOAD FUNCIONARIOS =============
         async function carregarFuncionarios() {
             try {
-                var resp = await fetch('/api/rh/funcionarios?status=Ativo&limit=500', { headers: authHeaders() });
+                var resp = await fetch('/api/rh/funcionarios?status=Ativo&limit=500', {
+                    credentials: 'include',
+                    headers: authHeaders()
+                }));
                 if (!resp.ok) throw new Error('Erro ao buscar funcionários');
                 var data = await resp.json();
                 funcionariosList = data.funcionarios || data || [];
@@ -815,7 +770,10 @@
                 var url = '/api/rh/ponto/marcacoes?data_inicio=' + data + '&data_fim=' + data;
                 if (funcFilter) url += '&funcionario_id=' + funcFilter;
 
-                var resp = await fetch(url, { headers: authHeaders() });
+                var resp = await fetch(url, {
+                    credentials: 'include',
+                    headers: authHeaders()
+                }));
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 var result = await resp.json();
                 marcacoesCache = result.marcacoes || [];
@@ -851,15 +809,15 @@
 
             tbody.innerHTML = marcacoes.map(function(m) {
                 var nome = m.funcionario_nome || getFuncName(m.funcionario_id);
-                // Fallback: extrair nome da observação (RHiD importa como "RHiD: NOME")
+                // Fallback: extrair nome da observa��o (RHiD importa como "RHiD: NOME")
                 if (!nome && m.observacao) {
                     var rhidMatch = m.observacao.match(/^RHi?D:\s*(.+)/i);
                     if (rhidMatch) nome = rhidMatch[1].trim();
                 }
-                if (!nome) nome = 'Não identificado';
+                if (!nome) nome = 'N�o identificado';
                 nome = toTitleCase(nome);
                 var dept = m.departamento || m.cargo || getFuncDept(m.funcionario_id);
-                if (!dept && m.observacao && m.observacao.match(/^RHi?D:/i)) dept = 'Pendente de vínculo';
+                if (!dept && m.observacao && m.observacao.match(/^RHi?D:/i)) dept = 'Pendente de v�nculo';
                 var initial = nome.charAt(0).toUpperCase();
                 var foto = getFuncPhoto(m.funcionario_id);
                 var avatarHtml = foto
@@ -885,19 +843,22 @@
             }).join('');
         }
 
-        // ============= LOAD HISTÓRICO =============
+        // ============= LOAD HIST�RICO =============
         async function carregarHistorico() {
             var funcId = document.getElementById('filter-func-hist').value;
             var inicio = document.getElementById('filter-inicio').value;
             var fim = document.getElementById('filter-fim').value;
 
-            if (!inicio || !fim) { showToast('Selecione data início e fim', 'error'); return; }
+            if (!inicio || !fim) { showToast('Selecione data in�cio e fim', 'error'); return; }
 
             try {
                 var url = '/api/rh/ponto/marcacoes?data_inicio=' + inicio + '&data_fim=' + fim;
                 if (funcId) url += '&funcionario_id=' + funcId;
 
-                var resp = await fetch(url, { headers: authHeaders() });
+                var resp = await fetch(url, {
+                    credentials: 'include',
+                    headers: authHeaders()
+                }));
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 var result = await resp.json();
                 var marcacoes = result.marcacoes || [];
@@ -906,8 +867,8 @@
                 showToast(marcacoes.length + ' registros encontrados', 'success');
 
             } catch (e) {
-                console.error('Erro histórico:', e);
-                showToast('Erro ao carregar histórico: ' + e.message, 'error');
+                console.error('Erro hist�rico:', e);
+                showToast('Erro ao carregar hist�rico: ' + e.message, 'error');
             }
         }
 
@@ -917,10 +878,13 @@
             var mes = document.getElementById('filter-mes-resumo').value;
             var ano = document.getElementById('filter-ano-resumo').value;
 
-            if (!funcId) { showToast('Selecione um funcionário', 'error'); return; }
+            if (!funcId) { showToast('Selecione um funcion�rio', 'error'); return; }
 
             try {
-                var resp = await fetch('/api/rh/ponto/resumo?funcionario_id=' + funcId + '&mes=' + mes + '&ano=' + ano, { headers: authHeaders() });
+                var resp = await fetch('/api/rh/ponto/resumo?funcionario_id=' + funcId + '&mes=' + mes + '&ano=' + ano, {
+                    credentials: 'include',
+                    headers: authHeaders()
+                }));
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 var data = await resp.json();
                 var r = data.resumo || {};
@@ -942,7 +906,7 @@
                             '<div style="font-size:1.5rem;font-weight:700;color:#1e293b">' + (r.dias_trabalhados || 0) + '</div>' +
                         '</div>' +
                         '<div style="text-align:center;padding:16px;background:#f8fafc;border-radius:12px">' +
-                            '<div style="font-size:0.8rem;color:#64748b">Total Marcações</div>' +
+                            '<div style="font-size:0.8rem;color:#64748b">Total Marca��es</div>' +
                             '<div style="font-size:1.5rem;font-weight:700;color:#1e293b">' + (r.total_marcacoes || 0) + '</div>' +
                         '</div>' +
                         '<div style="text-align:center;padding:16px;background:#f8fafc;border-radius:12px">' +
@@ -950,12 +914,12 @@
                             '<div style="font-size:1.5rem;font-weight:700;color:#22c55e">' + (r.entradas || 0) + '</div>' +
                         '</div>' +
                         '<div style="text-align:center;padding:16px;background:#f8fafc;border-radius:12px">' +
-                            '<div style="font-size:0.8rem;color:#64748b">Saídas</div>' +
+                            '<div style="font-size:0.8rem;color:#64748b">Sa�das</div>' +
                             '<div style="font-size:1.5rem;font-weight:700;color:#ef4444">' + (r.saidas || 0) + '</div>' +
                         '</div>' +
                     '</div>' +
                     '<div style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:12px">' +
-                        '<div style="font-size:0.8rem;color:#64748b;margin-bottom:8px">Penalidades no Mês</div>' +
+                        '<div style="font-size:0.8rem;color:#64748b;margin-bottom:8px">Penalidades no M�s</div>' +
                         '<div>' + penText + '</div>' +
                     '</div>';
 
@@ -968,14 +932,25 @@
         // ============= LOAD STATS =============
         async function carregarStats() {
             try {
-                var resp = await fetch('/api/rh/ponto/marcacoes?data_inicio=2020-01-01&data_fim=2030-12-31', { headers: authHeaders() });
+                var hoje = new Date();
+                var primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
+                var ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10);
+                var resp = await fetch('/api/rh/ponto/marcacoes?data_inicio=' + primeiroDia + '&data_fim=' + ultimoDia, {
+                    credentials: 'include',
+                    headers: authHeaders()
+                }));
                 if (resp.ok) {
                     var data = await resp.json();
-                    var total = (data.marcacoes || []).length;
-                    document.getElementById('stat-total-banco').textContent = total;
+                    var marcacoes = data.marcacoes || [];
+                    // Contar dias �teis sem marca��o para cada funcion�rio (simplificado)
+                    var diasComMarcacao = new Set();
+                    marcacoes.forEach(function(m) {
+                        if (m.funcionario_id) diasComMarcacao.add(m.funcionario_id + '_' + m.data);
+                    });
+                    document.getElementById('stat-faltas').textContent = '-';
                 }
             } catch (e) {
-                document.getElementById('stat-total-banco').textContent = '?';
+                document.getElementById('stat-faltas').textContent = '-';
             }
         }
 
@@ -992,13 +967,13 @@
             document.getElementById('motivo-section').style.display = 'none';
             document.getElementById('motivo-warning').classList.remove('show');
             document.title = 'Aluforce: Ajuste de Ponto';
-            document.getElementById('modal-ajuste').classList.add('active');
+            document.getElementById('modal-ajuste').classList.add('show');
             document.body.classList.add('modal-open');
         }
 
         function editarMarcacao(id) {
             var m = marcacoesCache.find(function(x) { return x.id === id; });
-            if (!m) { showToast('Marcação não encontrada', 'error'); return; }
+            if (!m) { showToast('Marca��o n�o encontrada', 'error'); return; }
 
             document.getElementById('ajuste-id').value = m.id;
             document.getElementById('ajuste-funcionario').value = m.funcionario_id || '';
@@ -1007,11 +982,11 @@
             document.getElementById('ajuste-tipo').value = m.tipo || 'marcacao';
             document.getElementById('ajuste-observacao').value = m.observacao || '';
             document.getElementById('ajuste-motivo').value = '';
-            document.getElementById('modal-ajuste-title').textContent = 'Editar Marcação #' + m.id;
+            document.getElementById('modal-ajuste-title').textContent = 'Editar Marca��o #' + m.id;
             document.getElementById('motivo-section').style.display = 'block';
             document.getElementById('motivo-warning').classList.remove('show');
-            document.title = 'Aluforce: Editar Marcação';
-            document.getElementById('modal-ajuste').classList.add('active');
+            document.title = 'Aluforce: Editar Marca��o';
+            document.getElementById('modal-ajuste').classList.add('show');
             document.body.classList.add('modal-open');
         }
 
@@ -1025,15 +1000,15 @@
             var motivo = document.getElementById('ajuste-motivo').value.trim();
 
             if (!funcId || !data || !hora) {
-                showToast('Preencha funcionário, data e horário', 'error');
+                showToast('Preencha funcion�rio, data e hor�rio', 'error');
                 return;
             }
 
-            // Motivo obrigatório para edições
+            // Motivo obrigat�rio para edi��es
             if (id && !motivo) {
                 document.getElementById('motivo-warning').classList.add('show');
                 document.getElementById('ajuste-motivo').focus();
-                showToast('Informe o motivo da alteração', 'error');
+                showToast('Informe o motivo da altera��o', 'error');
                 return;
             }
 
@@ -1057,8 +1032,8 @@
 
                 var result = await resp.json();
                 var changeCount = result.alteracoes_registradas || 0;
-                var msg = id ? 'Marcação atualizada!' : 'Marcação registrada!';
-                if (changeCount > 0) msg += ' (' + changeCount + ' alteração(ões) registrada(s))';
+                var msg = id ? 'Marca��o atualizada!' : 'Marca��o registrada!';
+                if (changeCount > 0) msg += ' (' + changeCount + ' altera��o(�es) registrada(s))';
 
                 showToast(msg, 'success');
                 fecharModal('modal-ajuste');
@@ -1073,12 +1048,12 @@
 
         function excluirMarcacao(id) {
             var m = marcacoesCache.find(function(x) { return x.id === id; });
-            var info = m ? (getFuncName(m.funcionario_id) + ' - ' + formatDate(m.data) + ' ' + formatTime(m.hora)) : ('Marcação #' + id);
+            var info = m ? (getFuncName(m.funcionario_id) + ' - ' + formatDate(m.data) + ' ' + formatTime(m.hora)) : ('Marca��o #' + id);
 
             excluirMarcacaoId = id;
             document.getElementById('excluir-info').textContent = info;
             document.getElementById('excluir-motivo').value = '';
-            document.getElementById('modal-excluir').classList.add('active');
+            document.getElementById('modal-excluir').classList.add('show');
             document.body.classList.add('modal-open');
             setTimeout(function() { document.getElementById('excluir-motivo').focus(); }, 150);
         }
@@ -1086,7 +1061,7 @@
         async function confirmarExclusao() {
             var motivo = document.getElementById('excluir-motivo').value.trim();
             if (!motivo) {
-                showToast('Informe o motivo da exclusão', 'error');
+                showToast('Informe o motivo da exclus�o', 'error');
                 document.getElementById('excluir-motivo').focus();
                 document.getElementById('excluir-motivo').style.borderColor = '#ef4444';
                 return;
@@ -1102,7 +1077,7 @@
                     throw new Error(errData.error || 'HTTP ' + resp.status);
                 }
                 fecharModal('modal-excluir');
-                showToast('Marcação excluída! (registrado na auditoria)', 'success');
+                showToast('Marca��o exclu�da! (registrado na auditoria)', 'success');
                 carregarRegistrosDia();
             } catch (e) {
                 console.error('Erro ao excluir:', e);
@@ -1114,7 +1089,7 @@
         function exportarRelatorio() {
             if (marcacoesCache.length === 0) { showToast('Nenhum dado para exportar', 'error'); return; }
 
-            var csv = 'Funcionário;Data;Hora;Tipo;Origem;Observação\n';
+            var csv = 'Funcion�rio;Data;Hora;Tipo;Origem;Observa��o\n';
             marcacoesCache.forEach(function(m) {
                 csv += '"' + (m.funcionario_nome || getFuncName(m.funcionario_id)) + '";"' + formatDate(m.data) + '";"' + formatTime(m.hora) + '";"' + tipoLabel(m.tipo) + '";"' + origemLabel(m.origem) + '";"' + (m.observacao || '') + '"\n';
             });
@@ -1124,7 +1099,7 @@
             link.href = URL.createObjectURL(blob);
             link.download = 'ponto_' + document.getElementById('filter-data').value + '.csv';
             link.click();
-            showToast('Relatório exportado!', 'success');
+            showToast('Relat�rio exportado!', 'success');
         }
 
         // ============= SYNC STATUS =============
@@ -1136,11 +1111,11 @@
             if (online) {
                 statusEl.className = 'sync-status online';
                 dotEl.className = 'sync-dot online';
-                textEl.textContent = count !== undefined ? (count + ' marcações') : 'Conectado';
+                textEl.textContent = count !== undefined ? (count + ' marca��es') : 'Conectado';
             } else {
                 statusEl.className = 'sync-status offline';
                 dotEl.className = 'sync-dot offline';
-                textEl.textContent = 'Erro de conexão';
+                textEl.textContent = 'Erro de conex�o';
             }
         }
 
@@ -1156,9 +1131,9 @@
 
         // ============= MODAL / TOAST / TABS =============
         function fecharModal(id) {
-            document.getElementById(id).classList.remove('active');
+            document.getElementById(id).classList.remove('show');
             document.body.classList.remove('modal-open');
-            document.title = 'Aluforce: Gestão do Ponto';
+            document.title = 'Aluforce: Gest�o do Ponto';
         }
 
         function showToast(msg, type) {
@@ -1170,10 +1145,10 @@
 
         document.querySelectorAll('.tab-btn').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-                document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
-                btn.classList.add('active');
-                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+                document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('show'); });
+                document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('show'); });
+                btn.classList.add('show');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('show');
             });
         });
 
@@ -1210,7 +1185,7 @@
             btn.innerHTML = '<i class="fas fa-cloud-download-alt"></i> Sincronizar RHiD';
         }
 
-        // ============= HISTÓRICO DE ALTERAÇÕES =============
+        // ============= HIST�RICO DE ALTERA��ES =============
         async function carregarAlteracoes() {
             var funcId = document.getElementById('filter-func-alteracoes').value;
             var acao = document.getElementById('filter-acao-alteracoes').value;
@@ -1226,7 +1201,10 @@
                 params.push('limit=100');
 
                 var url = '/api/rh/ponto/alteracoes' + (params.length ? '?' + params.join('&') : '');
-                var resp = await fetch(url, { headers: authHeaders() });
+                var resp = await fetch(url, {
+                    credentials: 'include',
+                    headers: authHeaders()
+                }));
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 var data = await resp.json();
                 var alteracoes = data.alteracoes || [];
@@ -1274,7 +1252,7 @@
                 timeline.innerHTML = items.map(function(item) {
                     var iconClass = item.acao || 'edicao';
                     var iconMap = { criacao: 'fa-plus-circle', edicao: 'fa-edit', exclusao: 'fa-trash-alt' };
-                    var acaoMap = { criacao: 'Criação', edicao: 'Edição', exclusao: 'Exclusão' };
+                    var acaoMap = { criacao: 'Cria��o', edicao: 'Edi��o', exclusao: 'Exclus�o' };
                     var icon = iconMap[iconClass] || 'fa-edit';
                     var funcName = getFuncName(item.funcionario_id);
                     var dtStr = item.criado_em ? new Date(item.criado_em).toLocaleString('pt-BR') : '-';
@@ -1282,24 +1260,24 @@
                     var changesHtml = '';
                     if (item.changes.length > 0) {
                         changesHtml = '<div style="margin-top:6px">' + item.changes.map(function(c) {
-                            var campoLabel = { hora: 'Horário', tipo: 'Tipo', observacao: 'Observação', data: 'Data', funcionario_id: 'Funcionário' };
+                            var campoLabel = { hora: 'Hor�rio', tipo: 'Tipo', observacao: 'Observa��o', data: 'Data', funcionario_id: 'Funcion�rio' };
                             return '<div class="audit-change">' +
                                 '<strong>' + (campoLabel[c.campo] || c.campo) + ':</strong> ' +
                                 '<span class="old">' + (c.anterior || 'vazio') + '</span>' +
-                                '<span class="arrow">→</span>' +
+                                '<span class="arrow">?</span>' +
                                 '<span class="new">' + (c.novo || 'vazio') + '</span>' +
                             '</div>';
                         }).join('') + '</div>';
                     }
 
                     var motivoHtml = item.motivo ? '<div class="audit-motivo"><i class="fas fa-quote-left" style="margin-right:6px;font-size:10px"></i>' + item.motivo + '</div>' : '';
-                    var userHtml = '<div class="audit-user"><i class="fas fa-user-shield" style="margin-right:4px"></i>Usuário #' + (item.usuario_id || '?') + (item.ip_address ? ' — IP: ' + item.ip_address : '') + '</div>';
+                    var userHtml = '<div class="audit-user"><i class="fas fa-user-shield" style="margin-right:4px"></i>Usu�rio #' + (item.usuario_id || '?') + (item.ip_address ? ' � IP: ' + item.ip_address : '') + '</div>';
 
                     return '<div class="audit-item">' +
                         '<div class="audit-icon ' + iconClass + '"><i class="fas ' + icon + '"></i></div>' +
                         '<div class="audit-body">' +
                             '<div class="audit-header">' +
-                                '<span class="audit-action">' + (acaoMap[item.acao] || item.acao) + ' — Marcação #' + item.marcacao_id + ' (' + funcName + ')</span>' +
+                                '<span class="audit-action">' + (acaoMap[item.acao] || item.acao) + ' � Marca��o #' + item.marcacao_id + ' (' + funcName + ')</span>' +
                                 '<span class="audit-time">' + dtStr + '</span>' +
                             '</div>' +
                             changesHtml +
@@ -1309,10 +1287,10 @@
                     '</div>';
                 }).join('');
 
-                showToast(items.length + ' alterações encontradas', 'success');
+                showToast(items.length + ' altera��es encontradas', 'success');
             } catch (e) {
-                console.error('Erro alterações:', e);
-                showToast('Erro ao carregar alterações: ' + e.message, 'error');
+                console.error('Erro altera��es:', e);
+                showToast('Erro ao carregar altera��es: ' + e.message, 'error');
             }
         }
 
@@ -1326,7 +1304,7 @@
             document.getElementById('filter-alteracoes-fim').value = today;
             document.getElementById('filter-ano-resumo').value = new Date().getFullYear();
 
-            var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+            var meses = ['Janeiro','Fevereiro','Mar�o','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
             var mesSelect = document.getElementById('filter-mes-resumo');
             meses.forEach(function(m, i) {
                 var opt = document.createElement('option');
@@ -1347,6 +1325,7 @@
     </script>
     <script src="/js/auth-unified.js?v=20260214" defer></script>
     <script src="/modules/RH/public/js/controle-acesso-rh.js"></script>
+    <script src="/modules/RH/public/js/rh-ui-common.js"></script>
     <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!-- 
     <script src="/chat/widget.js?v=20260218" defer></script> -->
 

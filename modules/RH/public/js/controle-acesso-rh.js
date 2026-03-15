@@ -25,10 +25,6 @@
     
     async function verificarAcessoConsultoria() {
         try {
-            const token = localStorage.getItem('authToken') || 
-                          localStorage.getItem('token') || 
-                          sessionStorage.getItem('authToken') ||
-                          sessionStorage.getItem('token');
             
             if (!token) {
                 console.log('[RH Access] Token não encontrado, permitindo acesso padrão');
@@ -36,10 +32,8 @@
             }
             
             const response = await fetch('/api/me', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
+                credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                 credentials: 'include'
             });
             
@@ -57,7 +51,6 @@
             );
             
             if (!isRestrito) {
-                console.log(`[RH Access] Usuário ${user.nome} - Departamento: ${departamento} - Acesso livre`);
                 return; // Não é departamento restrito, acesso liberado
             }
             
@@ -69,13 +62,11 @@
             );
             
             if (paginaPermitida) {
-                console.log(`[RH Access] ${user.nome} (Consultoria) - Página permitida: ${paginaAtual}`);
                 return; // Página permitida para Consultoria
             }
             
             // Redirecionar para o dashboard
-            console.warn(`[RH Access] ${user.nome} (Consultoria) - Acesso negado a: ${paginaAtual}`);
-            console.log('[RH Access] Redirecionando para dashboard...');
+            console.warn('[RH Access] Acesso negado - redirecionando...');
             
             // Mostrar mensagem amigável antes de redirecionar
             if (typeof mostrarNotificacao === 'function') {

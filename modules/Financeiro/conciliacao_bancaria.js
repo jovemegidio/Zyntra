@@ -91,9 +91,8 @@ async function carregarContas() {
 }
 
 async function buscarContasBancarias() {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     const response = await fetch('/api/financeiro/contas-bancarias', {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
     });
     if (!response.ok) throw new Error('Erro ao buscar contas bancárias');
     return await response.json();
@@ -134,27 +133,24 @@ async function carregarMovimentacoes() {
 }
 
 async function buscarMovimentacoesSistema(contaId, dataInicio, dataFim) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     const response = await fetch(`/api/financeiro/contas-bancarias/${contaId}/movimentacoes?inicio=${dataInicio}&fim=${dataFim}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
     });
     if (!response.ok) throw new Error('Erro ao buscar movimentações');
     return await response.json();
 }
 
 async function buscarExtratoImportado(contaId, dataInicio, dataFim) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     const response = await fetch(`/api/financeiro/conciliacao?conta=${contaId}&inicio=${dataInicio}&fim=${dataFim}&tipo=extrato`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
     });
     if (!response.ok) return [];
     return await response.json();
 }
 
 async function buscarConciliacoes(contaId, dataInicio, dataFim) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     const response = await fetch(`/api/financeiro/conciliacao?conta=${contaId}&inicio=${dataInicio}&fim=${dataFim}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include'
     });
     if (!response.ok) return [];
     return await response.json();
@@ -407,10 +403,9 @@ async function confirmarConciliacao() {
 }
 
 async function salvarConciliacao(dados) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch('/api/financeiro/conciliacao', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    const response = await fetch('/api/financeiro/conciliacao', { credentials: 'include', method: 'POST',
+        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dados)
     });
     if (!response.ok) throw new Error('Erro ao salvar conciliação');
@@ -583,10 +578,9 @@ async function processarXLSX(arquivo) {
 }
 
 async function salvarExtratoImportado(dados) {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const response = await fetch('/api/financeiro/conciliacao/importar-ofx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    const response = await fetch('/api/financeiro/conciliacao/importar-ofx', { credentials: 'include', method: 'POST',
+        credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dados)
     });
     if (!response.ok) throw new Error('Erro ao importar extrato');
@@ -671,7 +665,13 @@ function mostrarMensagem(mensagem, tipo) {
         if (existing) existing.remove();
         const toast = document.createElement('div');
         toast.className = 'toast-conciliacao';
-        toast.innerHTML = `<i class="fas ${icons[tipo] || icons.info}"></i> ${mensagem}`;
+        var icon = document.createElement('i');
+        icon.className = 'fas ' + (icons[tipo] || icons.info);
+        var span = document.createElement('span');
+        span.textContent = mensagem;
+        toast.appendChild(icon);
+        toast.appendChild(document.createTextNode(' '));
+        toast.appendChild(span);
         Object.assign(toast.style, {
             position: 'fixed', bottom: '20px', right: '20px', zIndex: '99999',
             background: colors[tipo] || colors.info, color: '#fff', padding: '14px 22px', borderRadius: '10px',

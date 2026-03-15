@@ -3951,8 +3951,10 @@
                 const method = id ? 'PUT' : 'POST';
 
                 const response = await fetch(url, {
+                    credentials: 'include',
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json'
+                }),
                     credentials: 'include',
                     body: JSON.stringify(dados)
                 });
@@ -3966,13 +3968,9 @@
                         try {
                             const integData = coletarDadosIntegracao();
                             integData.banco_id = bancoIdSalvo;
-                            const token = localStorage.getItem('token');
-                            await fetch('/api/financeiro/integracoes-bancarias', {
-                                method: 'POST',
-                                headers: { 
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${token}`
-                                },
+                            await fetch('/api/financeiro/integracoes-bancarias', { credentials: 'include', method: 'POST',
+                                credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(integData)
                             });
                         } catch (integErr) {
@@ -4015,8 +4013,7 @@
             }
 
             try {
-                const response = await fetch('/api/financeiro/transferencia-bancaria', {
-                    method: 'POST',
+                const response = await fetch('/api/financeiro/transferencia-bancaria', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({
@@ -4057,8 +4054,7 @@
             }
 
             try {
-                const response = await fetch('/api/financeiro/movimentacoes-bancarias', {
-                    method: 'POST',
+                const response = await fetch('/api/financeiro/movimentacoes-bancarias', { credentials: 'include', method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({
@@ -4226,15 +4222,11 @@
             btn.disabled = true;
 
             try {
-                const token = localStorage.getItem('token');
                 const bancoId = document.getElementById('bancoId')?.value || '';
                 
-                const resp = await fetch('/api/financeiro/integracoes-bancarias/testar', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                const resp = await fetch('/api/financeiro/integracoes-bancarias/testar', { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         banco_id: bancoId,
                         provedor,
@@ -4282,9 +4274,8 @@
         async function carregarIntegracaoBancaria(bancoId) {
             if (!bancoId) return;
             try {
-                const token = localStorage.getItem('token');
                 const resp = await fetch(`/api/financeiro/integracoes-bancarias/${bancoId}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    credentials: 'include'
                 });
                 if (!resp.ok) return;
                 const data = await resp.json();
@@ -4463,13 +4454,9 @@
             }
 
             try {
-                const token = localStorage.getItem('token');
-                const resp = await fetch(`/api/financeiro/integracoes-bancarias/${bancoId}/remessa`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                const resp = await fetch(`/api/financeiro/integracoes-bancarias/${bancoId}/remessa`, { credentials: 'include', method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ layout })
                 });
 
@@ -4507,10 +4494,8 @@
             formData.append('banco_id', bancoId);
 
             try {
-                const token = localStorage.getItem('token');
-                const resp = await fetch('/api/financeiro/integracoes-bancarias/retorno', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
+                const resp = await fetch('/api/financeiro/integracoes-bancarias/retorno', { credentials: 'include', method: 'POST',
+                    credentials: 'include',
                     body: formData
                 });
 

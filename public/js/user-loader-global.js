@@ -38,11 +38,8 @@
     async function fetchUserData() {
         try {
             // Obter token
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-            const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
             
-            const response = await fetch('/api/me', {
-                method: 'GET',
+            const response = await fetch('/api/me', { credentials: 'include', method: 'GET',
                 credentials: 'include',
                 headers: {
                     ...headers,

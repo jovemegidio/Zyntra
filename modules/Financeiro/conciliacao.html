@@ -7,13 +7,13 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Aluforce: Conciliação Bancária</title>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    
     <script src="/js/auth-unified.js?v=20260211" defer></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
     <link rel="stylesheet" href="css/fin-components.css?v=20260215">
     <style>
@@ -307,6 +307,7 @@
         @media (max-width: 1100px) { .filters-bar { flex-wrap: wrap; } .filter-group { flex: 1; min-width: 250px; } .filters-bar .btn { width: 100%; justify-content: center; border-radius: 0 0 14px 14px; } }
         @media (max-width: 768px) { .kpi-grid { grid-template-columns: 1fr; } .filter-group { flex-direction: column; align-items: flex-start; min-width: 100%; } }
     </style>
+    <link rel="stylesheet" href="css/fin-counter-standard.css?v=20260313">
     <script src="/js/anti-copy-protection.js"></script>
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
     <link rel="stylesheet" href="/css/modal-fix-global.css?v=20260114-fix4">
@@ -344,12 +345,6 @@
                 </a>
                 <a href="bancos.html" class="sidebar-btn" title="Bancos">
                     <i class="fas fa-university"></i>
-                </a>
-                <a href="boletos.html" class="sidebar-btn" title="Boletos">
-                    <i class="fas fa-barcode"></i>
-                </a>
-                <a href="nfse.html" class="sidebar-btn" title="NFS-e">
-                    <i class="fas fa-file-invoice"></i>
                 </a>
                 <a href="recorrencias.html" class="sidebar-btn" title="Recorrências">
                     <i class="fas fa-redo"></i>
@@ -442,8 +437,8 @@
                 </div>
 
                 <!-- KPIs -->
-                <div class="kpi-grid" style="gap:14px; margin-bottom:16px;">
-                    <div class="kpi-card highlight">
+                <div class="kpi-grid">
+                    <div class="kpi-card highlight accent-green">
                         <div class="kpi-header">
                             <div class="kpi-icon"><i class="fas fa-check-double"></i></div>
                         </div>
@@ -452,7 +447,7 @@
                             <div class="kpi-value" id="totalConciliados">0</div>
                         </div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card accent-orange">
                         <div class="kpi-header">
                             <div class="kpi-icon orange"><i class="fas fa-clock"></i></div>
                         </div>
@@ -461,7 +456,7 @@
                             <div class="kpi-value" id="pendentesSistema">0</div>
                         </div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card accent-blue">
                         <div class="kpi-header">
                             <div class="kpi-icon blue"><i class="fas fa-file-alt"></i></div>
                         </div>
@@ -470,7 +465,7 @@
                             <div class="kpi-value" id="pendentesExtrato">0</div>
                         </div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card accent-red">
                         <div class="kpi-header">
                             <div class="kpi-icon red"><i class="fas fa-exclamation-triangle"></i></div>
                         </div>
@@ -509,7 +504,7 @@
                     <div class="conciliacao-panel">
                         <div class="panel-header">
                             <h3><i class="fas fa-desktop"></i> Lançamentos do Sistema</h3>
-                            <div class="saldo positivo" id="saldoSistema">R$ 85.420,50</div>
+                            <div class="saldo positivo" id="saldoSistema">R$ 0,00</div>
                         </div>
                         <div class="panel-body">
                             <ul class="item-list" id="listaSistema"></ul>
@@ -536,7 +531,7 @@
                     <div class="conciliacao-panel">
                         <div class="panel-header">
                             <h3><i class="fas fa-file-invoice"></i> Extrato Bancário</h3>
-                            <div class="saldo positivo" id="saldoExtrato">R$ 85.420,50</div>
+                            <div class="saldo positivo" id="saldoExtrato">R$ 0,00</div>
                         </div>
                         <div class="panel-body">
                             <ul class="item-list" id="listaExtrato"></ul>
@@ -604,8 +599,8 @@
 
     <script>
         const API = '/api/financeiro';
-        function getToken() { return localStorage.getItem('token') || sessionStorage.getItem('token'); }
-        function hdrs() { return { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' }; }
+        function getToken() { return ''; /* Auth via httpOnly cookie */ }
+        function hdrs() { return { 'Content-Type': 'application/json' }; /* Auth via httpOnly cookie */ }
 
         function mostrarToastFinanceiro(mensagem, tipo) {
             const existing = document.querySelector('.toast-financeiro-inline');
@@ -614,7 +609,13 @@
             const icons = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
             const toast = document.createElement('div');
             toast.className = 'toast-financeiro-inline';
-            toast.innerHTML = `<i class="fas ${icons[tipo]||icons.info}"></i> ${mensagem}`;
+            var icon = document.createElement('i');
+            icon.className = 'fas ' + (icons[tipo] || icons.info);
+            var span = document.createElement('span');
+            span.textContent = mensagem;
+            toast.appendChild(icon);
+            toast.appendChild(document.createTextNode(' '));
+            toast.appendChild(span);
             Object.assign(toast.style, {
                 position: 'fixed', bottom: '24px', right: '24px', zIndex: '999999',
                 background: colors[tipo]||colors.info, color: '#fff', padding: '14px 22px', borderRadius: '12px',
@@ -678,7 +679,7 @@
 
         async function carregarBancos() {
             try {
-                const r = await fetch(`${API}/contas-bancarias`, { headers: hdrs() });
+                const r = await fetch(`${API}/contas-bancarias`, { credentials: 'include', headers: hdrs() }));
                 const data = await r.json();
                 const sel = document.getElementById('filtroBanco');
                 const bancos = data.data || data || [];
@@ -702,8 +703,8 @@
                 const ini = document.getElementById('dataInicio').value;
                 const fim = document.getElementById('dataFim').value;
                 const [rPagar, rReceber] = await Promise.all([
-                    fetch(`${API}/contas-pagar?limit=100&data_inicio=${ini}&data_fim=${fim}`, { headers: hdrs() }),
-                    fetch(`${API}/contas-receber?limit=100&data_inicio=${ini}&data_fim=${fim}`, { headers: hdrs() })
+                    fetch(`${API}/contas-pagar?limit=100&data_inicio=${ini}&data_fim=${fim}`, { credentials: 'include', headers: hdrs() })),
+                    fetch(`${API}/contas-receber?limit=100&data_inicio=${ini}&data_fim=${fim}`, { credentials: 'include', headers: hdrs() }))
                 ]);
                 const pagar = await rPagar.json();
                 const receber = await rReceber.json();
@@ -727,7 +728,7 @@
                 contaBancariaAtual = contaId;
                 let url = `${API}/conciliacao?tipo=extrato`;
                 if (contaId) url += `&conta_id=${contaId}`;
-                const r = await fetch(url, { headers: hdrs() });
+                const r = await fetch(url, { credentials: 'include', headers: hdrs() }));
                 const data = await r.json();
                 lancamentosExtrato = (data.data || []).map(e => ({
                     id: 'e_' + e.id, dbId: e.id,
@@ -744,7 +745,7 @@
                 const contaId = document.getElementById('filtroBanco').value;
                 let url = `${API}/conciliacao?tipo=conciliacoes`;
                 if (contaId) url += `&conta_id=${contaId}`;
-                const r = await fetch(url, { headers: hdrs() });
+                const r = await fetch(url, { credentials: 'include', headers: hdrs() }));
                 const data = await r.json();
                 historico = (data.data || []).map(c => ({
                     id: c.id, data: c.created_at || c.data,
@@ -858,7 +859,7 @@
                     valor: sisItem.valor,
                     tipo_match: 'manual'
                 };
-                const r = await fetch(`${API}/conciliacao`, { method: 'POST', headers: hdrs(), body: JSON.stringify(payload) });
+                const r = await fetch(`${API}/conciliacao`, { credentials: 'include', method: 'POST', headers: hdrs(), body: JSON.stringify(payload) });
                 const data = await r.json();
                 if (data.success) {
                     mostrarToastFinanceiro('Conciliação manual realizada!', 'success');
@@ -878,7 +879,7 @@
                 const contaId = document.getElementById('filtroBanco').value;
                 const payload = {};
                 if (contaId) payload.conta_id = contaId;
-                const r = await fetch(`${API}/conciliacao/automatica`, { method: 'POST', headers: hdrs(), body: JSON.stringify(payload) });
+                const r = await fetch(`${API}/conciliacao/automatica`, { credentials: 'include', method: 'POST', headers: hdrs(), body: JSON.stringify(payload) });
                 const data = await r.json();
                 if (data.success) {
                     const total = data.conciliados || 0;
@@ -894,7 +895,7 @@
                 : confirm('Deseja desfazer esta conciliação?');
             if (!confirmado) return;
             try {
-                const r = await fetch(`${API}/conciliacao/${id}`, { method: 'DELETE', headers: hdrs() });
+                const r = await fetch(`${API}/conciliacao/${id}`, { credentials: 'include', method: 'DELETE', headers: hdrs() });
                 const data = await r.json();
                 if (data.success) { mostrarToastFinanceiro('Conciliação desfeita', 'success'); await carregarTudo(); }
                 else { mostrarToastFinanceiro(data.message || 'Erro', 'error'); }
@@ -921,8 +922,7 @@
                 // Ler arquivo e enviar como texto (OFX/CSV)
                 const texto = await arquivo.text();
                 const payload = { conta_id: contaId || null, conteudo: texto, nome_arquivo: arquivo.name };
-                const r = await fetch(`${API}/conciliacao/importar-ofx`, {
-                    method: 'POST',
+                const r = await fetch(`${API}/conciliacao/importar-ofx`, { credentials: 'include', method: 'POST',
                     headers: hdrs(),
                     body: JSON.stringify(payload)
                 });
@@ -963,8 +963,6 @@
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
 </body>
 </html>
-
-
 
 
 

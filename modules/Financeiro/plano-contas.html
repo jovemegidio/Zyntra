@@ -1,10 +1,10 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#1a1a2e">
@@ -18,7 +18,7 @@
 
     <!-- Fonte Inter -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
 
     <!-- Financeiro Design System -->
     <link rel="stylesheet" href="css/fin-layout.css?v=20260215">
@@ -99,10 +99,12 @@
         .tree-children.expanded { display: block; }
 
         /* MODAL - Design SaaS Empresarial */
+        -webkit-backdrop-filter: blur(8px); }
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); display: none; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(8px); }
         .modal-overlay.active { display: flex !important; }
 
         /* MODAL PADRÍO - Classes com encoding especial */
+        -webkit-backdrop-filter: blur(8px); }
         .modal-overlay-padrão { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.7); display: none; align-items: center; justify-content: center; z-index: 99999; backdrop-filter: blur(8px); }
         .modal-overlay-padrão.active { display: flex !important; }
         .modal-padrão { display: flex !important; flex-direction: column !important; background: white !important; border-radius: 20px !important; width: 100% !important; max-width: 650px !important; max-height: 90vh !important; overflow: hidden !important; box-shadow: 0 25px 80px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15) !important; animation: modalFadeIn 0.25s ease-out !important; position: relative !important; margin: 16px !important; }
@@ -285,6 +287,7 @@
             height: 56px;
             min-width: 56px;
             background: rgba(255,255,255,0.2);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border-radius: 16px;
             display: flex;
@@ -321,6 +324,7 @@
             min-width: 44px;
             border: none;
             background: rgba(255,255,255,0.15);
+            -webkit-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border-radius: 12px;
             cursor: pointer;
@@ -1047,6 +1051,26 @@
         let filtroAtual = 'todos';
 
         // Inicialização
+        // ========================================
+        // AUTH HELPERS
+        // ========================================
+        function getAuthToken() {
+            return ''; /* Auth via httpOnly cookie */
+        }
+
+        function getCookieValue(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function getAuthHeaders(extra = {}) {
+            /* Auth via httpOnly cookie - credentials: 'include' no fetch */
+            const headers = { 'Content-Type': 'application/json', ...extra };
+            return headers;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             await carregarUsuario();
             await carregarPlanoContas();
@@ -1056,7 +1080,7 @@
         // Carregar usuário
         async function carregarUsuario() {
             try {
-                const response = await fetch('/api/me', { credentials: 'include' });
+                const response = await fetch('/api/me', { headers: getAuthHeaders(), credentials: 'include' });
                 if (response.ok) {
                     const user = await response.json();
                     const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
@@ -1090,28 +1114,15 @@
         // Carregar plano de contas
         async function carregarPlanoContas() {
             try {
-                const response = await fetch('/api/financeiro/categorias', { credentials: 'include' });
+                const response = await fetch('/api/financeiro/categorias', { headers: getAuthHeaders(), credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
                     // Garantir que sempre seja um array
                     planoContas = Array.isArray(data) ? data : (data.categorias || data.data || []);
                 } else {
-                    // Dados de exemplo
-                    planoContas = [
-                        { id: 1, nome: 'Receitas Operacionais', tipo: 'receita', cor: '#22c55e', icone: 'fa-chart-line', ativo: 1, pai_id: null },
-                        { id: 2, nome: 'Vendas de Produtos', tipo: 'receita', cor: '#22c55e', icone: 'fa-shopping-cart', ativo: 1, pai_id: 1 },
-                        { id: 3, nome: 'Vendas de Serviços', tipo: 'receita', cor: '#22c55e', icone: 'fa-tools', ativo: 1, pai_id: 1 },
-                        { id: 4, nome: 'Receitas Financeiras', tipo: 'receita', cor: '#3b82f6', icone: 'fa-money-bill', ativo: 1, pai_id: null },
-                        { id: 5, nome: 'Juros Recebidos', tipo: 'receita', cor: '#3b82f6', icone: 'fa-percentage', ativo: 1, pai_id: 4 },
-                        { id: 10, nome: 'Despesas Operacionais', tipo: 'despesa', cor: '#ef4444', icone: 'fa-building', ativo: 1, pai_id: null },
-                        { id: 11, nome: 'Salários e Encargos', tipo: 'despesa', cor: '#ef4444', icone: 'fa-users', ativo: 1, pai_id: 10 },
-                        { id: 12, nome: 'Aluguel', tipo: 'despesa', cor: '#ef4444', icone: 'fa-home', ativo: 1, pai_id: 10 },
-                        { id: 13, nome: 'Energia Elétrica', tipo: 'despesa', cor: '#f59e0b', icone: 'fa-bolt', ativo: 1, pai_id: 10 },
-                        { id: 14, nome: 'Água e Esgoto', tipo: 'despesa', cor: '#3b82f6', icone: 'fa-tint', ativo: 1, pai_id: 10 },
-                        { id: 20, nome: 'Despesas Administrativas', tipo: 'despesa', cor: '#8b5cf6', icone: 'fa-folder', ativo: 1, pai_id: null },
-                        { id: 21, nome: 'Material de Escritório', tipo: 'despesa', cor: '#8b5cf6', icone: 'fa-pen', ativo: 1, pai_id: 20 },
-                        { id: 22, nome: 'Internet e Telefone', tipo: 'despesa', cor: '#8b5cf6', icone: 'fa-wifi', ativo: 1, pai_id: 20 }
-                    ];
+                    console.error('Erro ao carregar categorias: API retornou status', response.status);
+                    planoContas = [];
+                    showToast('Erro ao carregar plano de contas. Tente novamente.', 'error');
                 }
                 renderizarArvore();
                 atualizarContadores();
@@ -1294,7 +1305,7 @@
             document.getElementById('conta-tipo').value = conta.tipo;
             document.getElementById('conta-pai').value = conta.pai_id || '';
             document.getElementById('conta-nome').value = conta.nome;
-            document.getElementById('conta-descrição').value = conta.descrição || '';
+            document.getElementById('conta-descrição').value = conta.descricao || conta.descrição || '';
             document.getElementById('conta-icone').value = conta.icone || 'fa-folder';
             document.getElementById('conta-orcamento').value = conta.orcamento_mensal ? (conta.orcamento_mensal / 1).toFixed(2).replace('.', ',') : '';
             document.getElementById('conta-status').value = conta.ativo ? '1' : '0';
@@ -1325,7 +1336,7 @@
                 return;
             }
 
-            const dados = { nome, tipo, pai_id: pai_id ? parseInt(pai_id) : null, descrição, icone, cor: corSelecionada, orcamento_mensal: orcamento, ativo };
+            const dados = { nome, tipo, pai_id: pai_id ? parseInt(pai_id) : null, descricao: descrição, icone, cor: corSelecionada, orcamento_mensal: orcamento, ativo };
 
             try {
                 const url = editandoId
@@ -1335,7 +1346,7 @@
 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify(dados)
                 });
@@ -1345,18 +1356,8 @@
                     fecharModal();
                     await carregarPlanoContas();
                 } else {
-                    // Fallback local
-                    if (editandoId) {
-                        const idx = planoContas.findIndex(c => c.id === editandoId);
-                        if (idx !== -1) planoContas[idx] = { ...planoContas[idx], ...dados };
-                    } else {
-                        planoContas.push({ id: Date.now(), ...dados });
-                    }
-                    renderizarArvore();
-                    atualizarContadores();
-                    atualizarSelectPai();
-                    showToast(editandoId ? 'Conta atualizada!' : 'Conta criada!', 'success');
-                    fecharModal();
+                    console.error('Erro ao salvar conta: API retornou status', response.status);
+                    showToast('Erro ao salvar conta. Tente novamente.', 'error');
                 }
             } catch (e) {
                 console.error('Erro ao salvar:', e);
@@ -1386,8 +1387,8 @@
             if (!confirmado) return;
 
             try {
-                const response = await fetch(`/api/financeiro/categorias/${id}`, {
-                    method: 'DELETE',
+                const response = await fetch(`/api/financeiro/categorias/${id}`, { credentials: 'include', method: 'DELETE',
+                    headers: getAuthHeaders(),
                     credentials: 'include'
                 });
 
@@ -1412,10 +1413,12 @@
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
-            toast.innerHTML = `
-                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
-                <span>${message}</span>
-            `;
+            var icon = document.createElement('i');
+            icon.className = 'fas fa-' + (type === 'success' ? 'check-circle' : 'exclamation-circle');
+            var span = document.createElement('span');
+            span.textContent = message;
+            toast.appendChild(icon);
+            toast.appendChild(span);
             container.appendChild(toast);
             setTimeout(() => toast.remove(), 4000);
         }

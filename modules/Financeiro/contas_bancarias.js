@@ -15,9 +15,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 // ===== CARREGAR DADOS =====
 async function carregarContasBancarias() {
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const response = await fetch('/api/financeiro/contas-bancarias', {
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'include'
         });
         if (!response.ok) throw new Error('Erro ao carregar contas');
         contasBancarias = await response.json();
@@ -186,12 +185,12 @@ async function salvarConta(event) {
     };
     
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const url = isEdicao ? `/api/financeiro/contas-bancarias/${id}` : '/api/financeiro/contas-bancarias';
         const method = isEdicao ? 'PUT' : 'POST';
         const response = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dados)
         });
         
@@ -255,19 +254,18 @@ async function salvarMovimentacao(event) {
     }
     
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         
         if (tipo === 'TRANSFERENCIA') {
-            const response = await fetch('/api/financeiro/transferencia-bancaria', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            const response = await fetch('/api/financeiro/transferencia-bancaria', { credentials: 'include', method: 'POST',
+                credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ conta_origem_id: contaId, conta_destino_id: contaDestinoId, valor, data, descrição })
             });
             if (!response.ok) throw new Error('Erro ao realizar transferência');
         } else {
-            const response = await fetch('/api/financeiro/movimentacoes-bancarias', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            const response = await fetch('/api/financeiro/movimentacoes-bancarias', { credentials: 'include', method: 'POST',
+                credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ conta_bancaria_id: contaId, tipo, valor, data, descrição })
             });
             if (!response.ok) throw new Error('Erro ao registrar movimentação');

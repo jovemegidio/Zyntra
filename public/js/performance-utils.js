@@ -57,13 +57,9 @@
         delete fetchOpts.forceRefresh;
 
         // Add auth token
-        const token = sessionStorage.getItem('tabAuthToken') ||
-            sessionStorage.getItem('authToken') ||
-            localStorage.getItem('authToken');
         if (token) {
             fetchOpts.headers = {
                 ...(fetchOpts.headers || {}),
-                'Authorization': `Bearer ${token}`
             };
         }
 

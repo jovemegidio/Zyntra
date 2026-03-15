@@ -1321,6 +1321,7 @@
                 <a href="../areaadm.html" class="sidebar-btn" title="Dashboard RH"><i class="fas fa-chart-pie"></i></a>
                 <a href="funcionarios.html" class="sidebar-btn active" title="Funcionários"><i class="fas fa-users"></i></a>
                 <a href="../gestao-holerites.html" class="sidebar-btn" title="Gestão de Holerites"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="folha.html" class="sidebar-btn" title="Folha de Pagamento"><i class="fas fa-money-check-alt"></i></a>
                 <a href="gestao-ponto.html" class="sidebar-btn" title="Gestão do Ponto"><i class="fas fa-clock"></i></a>
                 <a href="importar-ponto.html" class="sidebar-btn" title="Importar Ponto (Control iD)"><i class="fas fa-upload"></i></a>
                 <a href="ferias.html" class="sidebar-btn" title="Gestão de Férias"><i class="fas fa-umbrella-beach"></i></a>
@@ -2671,14 +2672,8 @@
 
         // ==== HELPER: OBTER TOKEN DE AUTENTICAÇÃO ====
         function getAuthToken() {
-            // Busca token em múltiplas fontes: localStorage, sessionStorage, cookie
-            return localStorage.getItem('authToken') ||
-                   localStorage.getItem('token') ||
-                   sessionStorage.getItem('authToken') ||
-                   sessionStorage.getItem('token') ||
-                   getCookie('authToken') ||
-                   getCookie('token') ||
-                   '';
+            // httpOnly cookie handles auth - token not needed in JS
+            return null;
         }
 
         function getCookie(name) {
@@ -2689,9 +2684,7 @@
         }
 
         function getAuthHeaders() {
-            const token = getAuthToken();
             const headers = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
             // CSRF: enviar token do cookie no header para requests de escrita
             const csrfToken = getCookie('csrf_token');
             if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
@@ -2708,8 +2701,10 @@
 
         function formatarData(data) {
             if (!data) return '-';
-            const d = new Date(data);
-            return d.toLocaleDateString('pt-BR');
+            const str = String(data).substring(0, 10);
+            const parts = str.split('-');
+            if (parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+            return str;
         }
 
         // ========== MÁSCARAS DE PONTUAÇÃO ==========
@@ -3320,7 +3315,7 @@
                 }
 
                 container.innerHTML = solicitacoes.map(s => {
-                    const dataCriacao = new Date(s.created_at || s.data_solicitacao).toLocaleDateString('pt-BR');
+                    const _dc = String(s.created_at || s.data_solicitacao || '').substring(0, 10); const _dcp = _dc.split('-'); const dataCriacao = _dcp.length === 3 ? _dcp[2]+'/'+_dcp[1]+'/'+_dcp[0] : _dc;
                     const tipo = (s.tipo || 'outros').toLowerCase();
                     let iconeClass = 'outros';
                     let icone = 'fa-file-alt';
@@ -3417,11 +3412,11 @@
                 }
 
                 container.innerHTML = atestados.map(a => {
-                    const dataEnvio = new Date(a.data_envio || a.data_upload || a.created_at).toLocaleDateString('pt-BR');
+                    const _de = String(a.data_envio || a.data_upload || a.created_at || '').substring(0, 10); const _dep = _de.split('-'); const dataEnvio = _dep.length === 3 ? _dep[2]+'/'+_dep[1]+'/'+_dep[0] : _de;
 
                     // Usar data_atestado como data de início
                     const dataAtestado = a.data_atestado || a.data_inicio;
-                    const dataInicio = dataAtestado ? new Date(dataAtestado).toLocaleDateString('pt-BR') : '-';
+                    const _di = dataAtestado ? String(dataAtestado).substring(0, 10) : ''; const _dip = _di.split('-'); const dataInicio = _di && _dip.length === 3 ? _dip[2]+'/'+_dip[1]+'/'+_dip[0] : '-';
 
                     // Dias de afastamento (compatível com ambos os nomes de campo)
                     const diasAfastamento = a.dias_afastado || a.dias_afastamento || 0;
@@ -3429,11 +3424,12 @@
                     // Calcular data fim baseada na data do atestado + dias
                     let dataFim = '-';
                     if (dataAtestado && diasAfastamento > 0) {
-                        const dataFimCalc = new Date(dataAtestado);
+                        const dataFimCalc = new Date(String(dataAtestado).substring(0, 10) + 'T12:00:00');
                         dataFimCalc.setDate(dataFimCalc.getDate() + diasAfastamento - 1);
-                        dataFim = dataFimCalc.toLocaleDateString('pt-BR');
+                        const df = dataFimCalc.toISOString().substring(0, 10).split('-');
+                        dataFim = df[2]+'/'+df[1]+'/'+df[0];
                     } else if (a.data_fim) {
-                        dataFim = new Date(a.data_fim).toLocaleDateString('pt-BR');
+                        const _df = String(a.data_fim).substring(0, 10).split('-'); dataFim = _df.length === 3 ? _df[2]+'/'+_df[1]+'/'+_df[0] : '-';
                     }
 
                     const statusNorm = (a.status || 'pendente').toLowerCase();
@@ -3525,8 +3521,7 @@
 
         async function executarAprovacaoAtestado(atestadoId) {
             try {
-                const response = await fetch(`/api/rh/atestados/${atestadoId}/aprovar`, {
-                    method: 'PUT',
+                const response = await fetch(`/api/rh/atestados/${atestadoId}/aprovar`, { credentials: 'include', method: 'PUT',
                     credentials: 'include',
                     headers: getAuthHeaders()
                 });
@@ -3589,8 +3584,7 @@
             }
 
             try {
-                const response = await fetch(`/api/rh/atestados/${atestadoId}/recusar`, {
-                    method: 'PUT',
+                const response = await fetch(`/api/rh/atestados/${atestadoId}/recusar`, { credentials: 'include', method: 'PUT',
                     headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ motivo })
@@ -3717,7 +3711,7 @@
             if (!confirm('Deseja realmente remover esta pensão alimentícia?')) return;
             const fid = funcionarioAtual?.id;
             try {
-                await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
+                await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}`, { credentials: 'include', method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
                 showToast('success', 'Removido', 'Pensão removida com sucesso', 3000);
                 carregarPensaoFuncionario(fid);
             } catch (error) { showToast('error', 'Erro', 'Erro ao remover', 3000); }
@@ -3731,9 +3725,7 @@
             try {
                 const token = getAuthToken();
                 const headers = {};
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-                const response = await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}/documento`, {
-                    method: 'POST', credentials: 'include', headers, body: formData
+                const response = await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}/documento`, { credentials: 'include', method: 'POST', credentials: 'include', headers, body: formData
                 });
                 if (response.ok) {
                     showToast('success', 'Anexado', 'Documento anexado com sucesso', 3000);
@@ -3749,7 +3741,7 @@
             if (!confirm('Remover este documento?')) return;
             const fid = funcionarioAtual?.id;
             try {
-                await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}/documento/${docId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
+                await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}/documento/${docId}`, { credentials: 'include', method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
                 carregarPensaoFuncionario(fid);
             } catch (error) { showToast('error', 'Erro', 'Erro ao remover documento', 3000); }
         }
@@ -3820,8 +3812,7 @@
             const nome = document.getElementById('depNome').value;
             if (!nome) { showToast('warning', 'Atenção', 'Informe o nome do dependente', 3000); return; }
             try {
-                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente`, {
-                    method: 'POST', credentials: 'include', headers: getAuthHeaders(),
+                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente`, { credentials: 'include', method: 'POST', credentials: 'include', headers: getAuthHeaders(),
                     body: JSON.stringify({
                         nome,
                         parentesco: document.getElementById('depParentesco').value,
@@ -3843,7 +3834,7 @@
             if (!confirm('Remover este dependente?')) return;
             const fid = funcionarioAtual?.id;
             try {
-                await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente/${depId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
+                await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente/${depId}`, { credentials: 'include', method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
                 showToast('success', 'Removido', 'Dependente removido', 3000);
                 carregarSalarioFamilia(fid);
             } catch (error) { showToast('error', 'Erro', 'Erro ao remover', 3000); }
@@ -3853,8 +3844,7 @@
             const fid = funcionarioAtual?.id;
             if (!fid) return;
             try {
-                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia`, {
-                    method: 'PUT', credentials: 'include', headers: getAuthHeaders(),
+                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia`, { credentials: 'include', method: 'PUT', credentials: 'include', headers: getAuthHeaders(),
                     body: JSON.stringify({
                         recebe: document.getElementById('sfRecebe').checked,
                         quantidade_dependentes: document.querySelectorAll('#listaDependentes > div[style*="border"]').length,
@@ -3982,7 +3972,7 @@
             if (!confirm('Deseja realmente remover esta pensão alimentícia?')) return;
             const fid = funcionarioAtual?.id;
             try {
-                await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
+                await fetch(`/api/rh/funcionarios/${fid}/pensao/${pensaoId}`, { credentials: 'include', method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
                 showToast('success', 'Removido', 'Pensão removida', 3000);
                 carregarPensaoEdit(fid);
             } catch (error) { showToast('error', 'Erro', 'Erro ao remover', 3000); }
@@ -4047,8 +4037,7 @@
             const nome = document.getElementById('editDepNome').value;
             if (!nome) { showToast('warning', 'Atenção', 'Informe o nome do dependente', 3000); return; }
             try {
-                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente`, {
-                    method: 'POST', credentials: 'include', headers: getAuthHeaders(),
+                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente`, { credentials: 'include', method: 'POST', credentials: 'include', headers: getAuthHeaders(),
                     body: JSON.stringify({
                         nome,
                         parentesco: document.getElementById('editDepParentesco').value,
@@ -4070,7 +4059,7 @@
             if (!confirm('Remover este dependente?')) return;
             const fid = funcionarioAtual?.id;
             try {
-                await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente/${depId}`, { method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
+                await fetch(`/api/rh/funcionarios/${fid}/salario-familia/dependente/${depId}`, { credentials: 'include', method: 'DELETE', credentials: 'include', headers: getAuthHeaders() });
                 showToast('success', 'Removido', 'Dependente removido', 3000);
                 carregarSfEdit(fid);
             } catch (error) { showToast('error', 'Erro', 'Erro ao remover', 3000); }
@@ -4080,8 +4069,7 @@
             const fid = funcionarioAtual?.id;
             if (!fid) return;
             try {
-                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia`, {
-                    method: 'PUT', credentials: 'include', headers: getAuthHeaders(),
+                const response = await fetch(`/api/rh/funcionarios/${fid}/salario-familia`, { credentials: 'include', method: 'PUT', credentials: 'include', headers: getAuthHeaders(),
                     body: JSON.stringify({
                         recebe: document.getElementById('editSfRecebe').checked,
                         quantidade_dependentes: document.querySelectorAll('#listaDependentesEdit > div[style*="border"]').length,
@@ -4460,8 +4448,7 @@
                     const uploadHeaders = {};
                     if (token) uploadHeaders['Authorization'] = `Bearer ${token}`;
 
-                    const uploadResponse = await fetch(`/api/rh/funcionarios/${id}/foto`, {
-                        method: 'POST',
+                    const uploadResponse = await fetch(`/api/rh/funcionarios/${id}/foto`, { credentials: 'include', method: 'POST',
                         credentials: 'include',
                         headers: uploadHeaders,
                         body: formData
@@ -4494,8 +4481,7 @@
                 }
 
                 // Salvar dados do funcionário
-                const response = await fetch(`/api/rh/funcionarios/${id}`, {
-                    method: 'PUT',
+                const response = await fetch(`/api/rh/funcionarios/${id}`, { credentials: 'include', method: 'PUT',
                     headers: getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify(dados)
@@ -4565,8 +4551,7 @@
             }
 
             try {
-                const response = await fetch('/api/rh/funcionarios/novo', {
-                    method: 'POST',
+                const response = await fetch('/api/rh/funcionarios/novo', { credentials: 'include', method: 'POST',
                     headers: getAuthHeaders(),
                     credentials: 'include',
                     body: JSON.stringify(dados)
@@ -4598,8 +4583,7 @@
         async function executarExclusaoFuncionario() {
             const id = document.getElementById('excluirId').value;
             try {
-                const response = await fetch(`/api/rh/funcionarios/${id}`, {
-                    method: 'DELETE',
+                const response = await fetch(`/api/rh/funcionarios/${id}`, { credentials: 'include', method: 'DELETE',
                     credentials: 'include',
                     headers: getAuthHeaders()
                 });
@@ -4669,10 +4653,7 @@
                 // Para FormData, não incluir Content-Type (browser define automaticamente com boundary)
                 const token = getAuthToken();
                 const headers = {};
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                const response = await fetch('/api/rh/funcionarios/importar', {
-                    method: 'POST',
+                const response = await fetch('/api/rh/funcionarios/importar', { credentials: 'include', method: 'POST',
                     headers: headers,
                     credentials: 'include',
                     body: formData

@@ -705,10 +705,9 @@ class SistemaParcelamento {
     }
 
     async salvarParcelamento(dados) {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const response = await fetch('/api/financeiro/contas-pagar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        const response = await fetch('/api/financeiro/contas-pagar', { credentials: 'include', method: 'POST',
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dados)
         });
         if (!response.ok) throw new Error('Erro ao salvar parcelamento');
@@ -723,9 +722,8 @@ class SistemaParcelamento {
         const select = document.getElementById('parcelamento-entidade');
         select.innerHTML = '<option value="">Selecione...</option>';
         try {
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
             const response = await fetch('/api/financeiro/clientes-fornecedores', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             if (response.ok) {
                 const entidades = await response.json();
@@ -740,9 +738,8 @@ class SistemaParcelamento {
         const select = document.getElementById('parcelamento-conta-bancaria');
         select.innerHTML = '<option value="">Selecione...</option>';
         try {
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
             const response = await fetch('/api/financeiro/contas-bancarias', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                credentials: 'include'
             });
             if (response.ok) {
                 const contas = await response.json();

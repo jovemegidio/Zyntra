@@ -40,6 +40,20 @@
             }
         };
         console.log('🔒 Storage Isolator v1.0 ativo - localStorage interceptado para isolamento por aba');
+        // SECURITY A4: Limpar tokens legados do localStorage real
+        // Tokens JWT NÃO devem ficar em localStorage (vulnerável a XSS)
+        // A autenticação agora usa httpOnly cookies exclusivamente
+        try {
+            ['token', 'authToken'].forEach(function(k) {
+                var val = _origGet.call(window.localStorage, k);
+                if (val && val !== 'null' && val !== 'undefined') {
+                    window.localStorage.removeItem(k);
+                    console.log('[SECURITY] 🗑️ Token legado removido do localStorage:', k);
+                }
+            });
+        } catch(cleanErr) {
+            // Silently ignore cleanup errors
+        }
     } catch(e) {
         console.warn('⚠️ Storage Isolator falhou:', e);
     }
@@ -48,19 +62,151 @@
 (function() {
     'use strict';
     
-    console.log('🔐 Sistema de Autenticação Unificado ALUFORCE v7.2 (Tab-Isolated + Server Validation)');
+    console.log('🔐 Sistema de Autenticação Unificado ALUFORCE v7.3 (Tab-Isolated + Server Validation + Token Refresh)');
     
     // Configurações
     const AUTH_CONFIG = {
         loginUrl: '/login.html',
         apiMeEndpoint: '/api/me',
+        refreshEndpoint: '/api/auth/refresh',
         dashboardUrl: '/index.html',
         timeout: 5000,
+        refreshBeforeExpiry: 2 * 60 * 1000, // Refresh 2 min antes de expirar
         debug: true
     };
     
     // Flag para evitar múltiplos redirecionamentos
     let isRedirecting = false;
+
+    // =========================================================================
+    // 🔄 TOKEN REFRESH INTERCEPTOR
+    // Intercepta fetch globalmente: quando recebe 401 TOKEN_EXPIRED,
+    // tenta refresh automático e re-executa a request original.
+    // =========================================================================
+    let _isRefreshing = false;
+    let _refreshQueue = []; // Requests aguardando refresh
+    let _refreshTimer = null;
+
+    const _originalFetch = window.fetch.bind(window);
+
+    async function _doRefresh() {
+        if (_isRefreshing) {
+            // Aguardar refresh em andamento
+            return new Promise((resolve, reject) => {
+                _refreshQueue.push({ resolve, reject });
+            });
+        }
+        _isRefreshing = true;
+        try {
+            const refreshController = new AbortController();
+            const refreshTimeout = setTimeout(() => refreshController.abort(), 10000); // 10s timeout
+            const resp = await _originalFetch(AUTH_CONFIG.refreshEndpoint, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                signal: refreshController.signal
+            });
+            clearTimeout(refreshTimeout);
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.user) {
+                    setTabUserData(data.user);
+                }
+                // Reset proactive timer
+                _scheduleProactiveRefresh();
+                // Resolver requests da fila
+                _refreshQueue.forEach(p => p.resolve(true));
+                _refreshQueue = [];
+                debugLog('🔄 Token refresh realizado com sucesso');
+                return true;
+            }
+            _refreshQueue.forEach(p => p.resolve(false));
+            _refreshQueue = [];
+            return false;
+        } catch (err) {
+            _refreshQueue.forEach(p => p.reject(err));
+            _refreshQueue = [];
+            return false;
+        } finally {
+            _isRefreshing = false;
+        }
+    }
+
+    // Proactive refresh: renova antes do access token expirar
+    function _scheduleProactiveRefresh() {
+        if (_refreshTimer) clearTimeout(_refreshTimer);
+        // Access token dura 15 min — renovar aos 13 min (2 min antes)
+        _refreshTimer = setTimeout(async () => {
+            if (isLoginPage() || isRedirecting) return;
+            debugLog('🔄 Refresh proativo (antes de expirar)...');
+            const ok = await _doRefresh();
+            if (!ok) {
+                debugLog('⚠️ Refresh proativo falhou');
+            }
+        }, 13 * 60 * 1000); // 13 minutos
+    }
+
+    // Fetch interceptor: adiciona timeout padrão + detecta 401 TOKEN_EXPIRED e tenta refresh
+    const DEFAULT_FETCH_TIMEOUT = 30000; // 30 segundos
+
+    window.fetch = async function(input, init) {
+        const url = (typeof input === 'string') ? input : (input?.url || '');
+        init = init || {};
+
+        // Nunca interceptar a própria rota de refresh (evita loop infinito)
+        if (url.includes('/api/auth/refresh')) {
+            return _originalFetch(input, init);
+        }
+
+        // P3 SECURITY: Injetar AbortController com timeout se nenhum signal foi fornecido
+        let timeoutId = null;
+        let controller = null;
+        if (!init.signal) {
+            controller = new AbortController();
+            init.signal = controller.signal;
+            timeoutId = setTimeout(() => controller.abort(), DEFAULT_FETCH_TIMEOUT);
+        }
+
+        let response;
+        try {
+            response = await _originalFetch(input, init);
+        } catch (err) {
+            if (timeoutId) clearTimeout(timeoutId);
+            throw err;
+        }
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (response.status === 401) {
+            // Clonar antes de consumir o body
+            const cloned = response.clone();
+            try {
+                const body = await cloned.json();
+                const code = body && body.code;
+
+                // Códigos que indicam sessão irrecuperável — redirect direto
+                if (code === 'AUTH_INACTIVE' || code === 'AUTH_REVOKED' || code === 'AUTH_MISSING' || code === 'AUTH_INVALID') {
+                    debugLog('🔒 Sessão encerrada — ' + (body.message || code));
+                    clearAuthData();
+                    redirectToLogin(body.message || 'Sessão encerrada');
+                } else if (code === 'TOKEN_EXPIRED' || code === 'AUTH_EXPIRED') {
+                    debugLog('🔄 Access token expirado, tentando refresh...');
+                    const refreshed = await _doRefresh();
+                    if (refreshed) {
+                        // Re-executar a request original com novos cookies
+                        return _originalFetch(input, init);
+                    }
+                    // Refresh falhou — redirecionar para login
+                    debugLog('❌ Refresh falhou — redirecionando para login');
+                    clearAuthData();
+                    redirectToLogin('Sessão expirada');
+                }
+            } catch (e) {
+                // Body não era JSON, retornar resposta original
+            }
+        }
+
+        return response;
+    };
     
     // Função para logs de debug
     function debugLog(message, data = null) {
@@ -89,12 +235,13 @@
         return null;
     }
     
-    // Salvar token nesta aba (e no localStorage para futuras abas)
+    // Salvar token nesta aba (sessionStorage only — token NOT stored in localStorage)
+    // SECURITY: JWT is delivered via httpOnly cookie, sessionStorage is kept only for
+    // backward compatibility with code that calls localStorage.getItem('authToken')
+    // via the StorageIsolator interceptor.
     function setTabToken(token) {
         if (token) {
             sessionStorage.setItem('tabAuthToken', token);
-            localStorage.setItem('authToken', token);
-            localStorage.setItem('token', token);
         }
     }
     
@@ -169,7 +316,7 @@
             debugLog('⚠️ Erro ao limpar sessionStorage:', e); 
         }
         
-        const cookieNames = ['authToken','token','connect.sid','rememberToken'];
+        const cookieNames = ['authToken','token','connect.sid','rememberToken','refreshToken'];
         cookieNames.forEach(name => {
             document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
         });
@@ -186,10 +333,10 @@
     // Função para verificar se deve pular verificação
     function shouldSkipAuth() {
         const pathname = window.location.pathname.toLowerCase();
-        const search = window.location.search.toLowerCase();
+        // SECURITY FIX H-01: Removido bypass via query param (no-auth=1/skip-auth=1)
+        // Apenas páginas de login e assets estáticos devem pular autenticação
         
         if (isLoginPage()) return true;
-        if (search.includes('no-auth=1') || search.includes('skip-auth=1')) return true;
         
         if (pathname.endsWith('.css') || pathname.endsWith('.js') || 
             pathname.endsWith('.png') || pathname.endsWith('.jpg') || 
@@ -246,20 +393,13 @@
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), AUTH_CONFIG.timeout);
             
-            // 🔐 v6.0: Usar token DESTA ABA (sessionStorage) como fonte primária
-            const authToken = getTabToken();
+            // SECURITY: Auth via httpOnly cookie only — no Authorization header needed
             const headers = {
                 'Accept': 'application/json',
                 'Cache-Control': 'no-cache'
             };
             
-            if (authToken) {
-                headers['Authorization'] = `Bearer ${authToken}`;
-                debugLog('🔑 Token da aba encontrado, enviando no header');
-            }
-            
-            const response = await fetch(AUTH_CONFIG.apiMeEndpoint, {
-                method: 'GET',
+            const response = await fetch(AUTH_CONFIG.apiMeEndpoint, { credentials: 'include', method: 'GET',
                 credentials: 'include',
                 headers: headers,
                 signal: controller.signal
@@ -273,6 +413,9 @@
                 const userData = await response.json();
                 debugLog('✅ Usuário autenticado:', userData.nome || userData.email);
                 
+                // Ativar refresh proativo (access token dura 15m)
+                _scheduleProactiveRefresh();
+
                 // 🔐 MULTI-DEVICE: Verificar se deviceId corresponde
                 if (userData.deviceId) {
                     const localDeviceId = getDeviceId();
@@ -378,7 +521,6 @@
                 // O servidor confirmou a sessao via cookie, entao o localStorage tem token valido
                 // Precisamos salvar em sessionStorage para que getAuthHeaders() funcione isolado
                 if (!getTabToken()) {
-                    var lsToken = localStorage.getItem('authToken') || localStorage.getItem('token');
                     if (lsToken && lsToken !== 'null') {
                         setTabToken(lsToken);
                         debugLog('Token copiado do localStorage para esta aba (server-cookie validou)');
@@ -413,7 +555,7 @@
             verifyAuth();
         }
         
-        // Verificação periódica a cada 15 minutos
+        // Verificação periódica a cada 5 minutos (access token dura 15m, com refresh proativo aos 13m)
         setInterval(async () => {
             if (!shouldSkipAuth() && !isRedirecting) {
                 debugLog('🔄 Verificação periódica...');
@@ -433,7 +575,7 @@
                     }
                 }
             }
-        }, 15 * 60 * 1000);
+        }, 5 * 60 * 1000);
     }
     
     // Expor funções para os módulos
@@ -443,6 +585,7 @@
         getCookie: getCookie,
         getDeviceId: getDeviceId,
         getTabToken: getTabToken, // 🔐 v6.0: Expor token da aba
+        refreshToken: _doRefresh, // 🔄 v7.3: Refresh manual se necessário
         isAuthenticated: async () => {
             const tabUser = getTabUserData();
             if (tabUser) return true;
@@ -455,7 +598,10 @@
             return await checkAuthentication();
         },
         getLocalUserData: getLocalUserData,
-        logout: () => {
+        logout: async () => {
+            try {
+                await _originalFetch('/api/logout', { method: 'POST', credentials: 'include' });
+            } catch (e) { /* ignore network errors during logout */ }
             clearAuthData();
             window.location.href = AUTH_CONFIG.loginUrl;
         }
@@ -464,6 +610,6 @@
     // Inicializar
     initAuth();
     
-    debugLog('✅ Sistema de autenticação v7.2 (Tab-Isolated + Server Validation) inicializado');
+    debugLog('✅ Sistema de autenticação v7.3 (Tab-Isolated + Server Validation + Token Refresh) inicializado');
     
 })();

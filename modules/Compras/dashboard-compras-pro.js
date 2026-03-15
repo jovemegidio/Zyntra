@@ -26,14 +26,22 @@ class ComprasDashboard {
 
     async carregarDados() {
         try {
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
             const headers = { 'Authorization': `Bearer ${token}` };
 
             // Carregar dados do dashboard
             const [statsRes, pedidosRes, fornecedoresRes] = await Promise.all([
-                fetch('/api/compras/dashboard', { headers }).catch(() => null),
-                fetch('/api/compras/pedidos', { headers }).catch(() => null),
-                fetch('/api/compras/fornecedores', { headers }).catch(() => null)
+                fetch('/api/compras/dashboard', {
+                    credentials: 'include',
+                    headers
+                })).catch(() => null),
+                fetch('/api/compras/pedidos', {
+                    credentials: 'include',
+                    headers
+                })).catch(() => null),
+                fetch('/api/compras/fornecedores', {
+                    credentials: 'include',
+                    headers
+                })).catch(() => null)
             ]);
 
             // Processar estatísticas

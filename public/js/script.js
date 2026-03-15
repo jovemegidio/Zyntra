@@ -25,8 +25,7 @@ async function handleLogin() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
+            const response = await fetch('/api/login', { credentials: 'include', method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
@@ -202,13 +201,14 @@ function initPCPPage() {
         options = options || {};
         // Send cookies for httpOnly JWT auth by default
         const fetchOptions = Object.assign({}, options, { credentials: 'include' });
-        const token = localStorage.getItem('authToken');
         const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
         // Keep supporting Authorization header if a token exists (backwards compatibility)
-        if (token) headers['Authorization'] = 'Bearer ' + token;
         if (options.body instanceof FormData) delete headers['Content-Type'];
         try {
-            const response = await fetch(url, Object.assign({}, fetchOptions, { headers }));
+            const response = await fetch(url, Object.assign({}, fetchOptions, {
+                    credentials: 'include',
+                    headers
+                })));
             if (response.status === 401 || response.status === 403) {
                 // Clear only user-related storage and redirect to login
                 localStorage.removeItem('userData');
@@ -843,7 +843,7 @@ function initDashboardPage() {
             event.preventDefault();
             try {
                 // Ask server to clear the auth cookie
-                await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+                await fetch('/api/logout', { credentials: 'include', method: 'POST', credentials: 'include' });
             } catch (e) {
                 // ignore network errors here
             }

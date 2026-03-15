@@ -156,9 +156,10 @@ async function buscarDadosFuncionarios() {
     try {
         console.log('🔄 Tentando buscar dados reais dos funcionários...');
         
-        const token = localStorage.getItem('authToken');
         const response = await fetch('/api/funcionarios', {
-            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                    credentials: 'include',
+                    headers: token ? { 'Authorization': `Bearer ${token
+                })` } : {}
         });
         if (response.ok) {
             const funcionarios = await response.json();

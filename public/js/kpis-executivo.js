@@ -31,10 +31,7 @@ const adminEmailsKPIs = [
 async function verificarPermissaoKPIs() {
     try {
         const response = await fetch('/api/me', {
-            credentials: 'include',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('authToken') || localStorage.getItem('token') || ''}`
-            }
+            credentials: 'include'
         });
         
         if (!response.ok) return false;
@@ -184,14 +181,11 @@ async function carregarKPIs() {
         if (refreshBtn) refreshBtn.classList.add('loading');
         
         // Obter token de autenticação
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         
         // Buscar dados da API
         const response = await fetch(`/api/dashboard/executivo?periodo=${periodo}`, {
             credentials: 'include',
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : ''
-            }
+            credentials: 'include'
         });
         
         if (!response.ok) {
@@ -469,12 +463,9 @@ async function abrirModalPedidosAprovacao(modulo) {
     
     try {
         // Tentar buscar pedidos da API
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const response = await fetch('/api/vendas/pedidos?status=aguardando_aprovacao', {
             credentials: 'include',
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : ''
-            }
+            credentials: 'include'
         });
         
         if (response.ok) {
@@ -612,14 +603,10 @@ async function aprovarPedido(id) {
     if (!confirm(`Deseja aprovar o pedido #${id}?`)) return;
     
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const response = await fetch(`/api/vendas/pedidos/${id}/aprovar`, {
-            method: 'POST',
+        const response = await fetch(`/api/vendas/pedidos/${id}/aprovar`, { credentials: 'include', method: 'POST',
             credentials: 'include',
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : '',
-                'Content-Type': 'application/json'
-            }
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
         });
         
         if (response.ok) {
@@ -658,14 +645,10 @@ async function rejeitarPedido(id) {
     if (!motivo) return;
     
     try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const response = await fetch(`/api/vendas/pedidos/${id}/rejeitar`, {
-            method: 'POST',
+        const response = await fetch(`/api/vendas/pedidos/${id}/rejeitar`, { credentials: 'include', method: 'POST',
             credentials: 'include',
-            headers: {
-                'Authorization': token ? `Bearer ${token}` : '',
-                'Content-Type': 'application/json'
-            },
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ motivo })
         });
         

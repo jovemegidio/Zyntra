@@ -118,9 +118,7 @@ function ocultarBotoesNaoPermitidos() {
 }
 
 // Token
-function getToken() {
-    return localStorage.getItem('token') || sessionStorage.getItem('token');
-}
+function getToken() { return ''; /* Auth via httpOnly cookie */ }
 
 // Formatar moeda
 function formatarMoeda(valor) {
@@ -176,12 +174,6 @@ function trocarAba(aba, evt) {
 // Carregar dados
 async function carregarDados() {
     try {
-        const token = getToken();
-        if (!token) {
-            window.location.href = '../../public/login.html';
-            return;
-        }
-
         let url = '';
         if (abaAtual === 'pagar') {
             url = `${API_BASE}/contas-pagar`;
@@ -192,10 +184,8 @@ async function carregarDados() {
         }
 
         const response = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' }
         });
 
         if (!response.ok) throw new Error('Erro ao carregar dados');
@@ -521,15 +511,11 @@ async function pagarEmLote() {
     if (!confirm(`Deseja marcar ${itensSelecionados.size} contas como pagas?`)) return;
     
     try {
-        const token = getToken();
         const ids = Array.from(itensSelecionados);
         
-        const response = await fetch(`${API_BASE}/contas-${abaAtual}/lote/pagar`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
+        const response = await fetch(`${API_BASE}/contas-${abaAtual}/lote/pagar`, { credentials: 'include', method: 'POST',
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 ids: ids,
                 data_pagamento: new Date().toISOString().split('T')[0]
@@ -561,13 +547,9 @@ async function marcarPago(id) {
     if (!confirm('Deseja marcar esta conta como paga?')) return;
     
     try {
-        const token = getToken();
-        const response = await fetch(`${API_BASE}/contas-${abaAtual}/${id}/${abaAtual === 'pagar' ? 'pagar' : 'receber'}`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
+        const response = await fetch(`${API_BASE}/contas-${abaAtual}/${id}/${abaAtual === 'pagar' ? 'pagar' : 'receber'}`, { credentials: 'include', method: 'POST',
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 [`data_${abaAtual === 'pagar' ? 'pagamento' : 'recebimento'}`]: new Date().toISOString().split('T')[0]
             })
@@ -602,15 +584,11 @@ async function excluirSelecionados() {
     if (!confirm(`Deseja realmente excluir ${itensSelecionados.size} item(ns) selecionado(s)?`)) return;
     
     try {
-        const token = getToken();
         const ids = Array.from(itensSelecionados);
         
-        const response = await fetch(`${API_BASE}/contas-${abaAtual}/lote/excluir`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
+        const response = await fetch(`${API_BASE}/contas-${abaAtual}/lote/excluir`, { credentials: 'include', method: 'DELETE',
+            credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids })
         });
         
@@ -697,9 +675,8 @@ function mostrarErro(mensagem) {
 // Carregar categorias no filtro
 async function carregarCategorias() {
     try {
-        const token = getToken();
         const response = await fetch(`${API_BASE}/categorias`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            credentials: 'include'
         });
         
         const categorias = await response.json();

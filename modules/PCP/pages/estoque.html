@@ -1,0 +1,2704 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta name="theme-color" content="#1a2744">
+    <title>Aluforce: Estoque</title>
+    <script src="/js/auth-unified.js?v=20260214" defer></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
+    <link rel="stylesheet" href="../css/pcp-layout.css">
+    <link rel="stylesheet" href="../css/pcp-components.css">
+    <script src="../js/pcp-modals.js" defer></script>
+
+    <style>
+        .stat-card.blue .stat-icon { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; }
+        .stat-card.green .stat-icon { background: linear-gradient(135deg, #22c55e, #16a34a); color: white; }
+        .stat-card.orange .stat-icon { background: linear-gradient(135deg, var(--warning-500), #d97706); color: white; }
+        .stat-card.purple .stat-icon { background: linear-gradient(135deg, #9333ea, #7c3aed); color: white; }
+
+        .stat-card .stat-content { flex: 1; }
+        .stat-card .stat-label { font-size: 13px; color: var(--gray-500); margin-bottom: 4px; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; color: var(--gray-900); }
+        .stat-card .stat-trend { font-size: 12px; color: var(--gray-500); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+        .stat-card .stat-trend.up { color: var(--success-500); }
+        .stat-card .stat-trend.down { color: var(--danger-500); }
+
+        .page-header-top { display: flex; justify-content: flex-end; margin-bottom: var(--space-6); }
+        .page-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+        .card-title { display: flex; align-items: center; gap: var(--space-2); font-size: 15px; font-weight: 600; color: var(--gray-800); }
+        .card-title i { color: var(--primary-500); }
+
+        .tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--gray-200); margin-bottom: var(--space-4); flex-wrap: wrap; }
+        .tab-btn { padding: var(--space-3) var(--space-4); border: none; background: transparent; color: var(--gray-500); font-size: 13px; font-weight: 500; cursor: pointer; position: relative; display: flex; align-items: center; gap: 6px; }
+        .tab-btn:hover { color: var(--gray-700); }
+        .tab-btn.active { color: var(--primary-600); }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px; background: var(--primary-500); }
+
+        .search-bar { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); flex-wrap: wrap; align-items: flex-end; }
+        .search-input-wrapper { position: relative; flex: 1; min-width: 200px; }
+        .search-input-wrapper i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--gray-400); }
+        .search-input { width: 100%; padding: 10px 16px 10px 42px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); font-size: 14px; }
+        .filter-select { padding: 10px 16px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); font-size: 14px; min-width: 150px; }
+
+        .card-footer { padding: var(--space-4) var(--space-6); border-top: 1px solid var(--gray-100); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+        .table-container { overflow-x: auto; }
+
+        @media (max-width: 768px) {
+            .search-bar { flex-direction: column; }
+            .filter-select { width: 100%; }
+        }
+    </style>
+
+    <!-- Tooltips Profissionais -->
+    <link rel="stylesheet" href="/css/tooltips-professional.css?v=20260209">
+    <script src="/js/tooltips-professional.js?v=20260209"></script>
+
+    <!-- Global Header & Sidebar -->
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260224">
+
+    <!-- PCP Header & Sidebar  Design Refinado (DEVE SER O ÚLTIMO) -->
+    <link rel="stylesheet" href="../css/pcp-header-sidebar.css?v=20260224">
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <link rel="stylesheet" href="/chat/widget.css?v=20260218"> -->
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="mobile-sidebar">
+            <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel">
+                <i class="fas fa-home"></i>
+            </a>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-btn" title="Dashboard PCP"><i class="fas fa-tachometer-alt"></i></a>
+                <a href="estoque.html" class="sidebar-btn active" title="Estoque"><i class="fas fa-boxes"></i></a>
+                <a href="materiais.html" class="sidebar-btn" title="Materiais"><i class="fas fa-layer-group"></i></a>
+                <a href="ordem-compra.html" class="sidebar-btn" title="Ordem de Compra"><i class="fas fa-shopping-cart"></i></a>
+                <a href="../ordens-producao.html" class="sidebar-btn" title="Ordens de Produção"><i class="fas fa-clipboard-list"></i></a>
+                <a href="gestao-producao.html" class="sidebar-btn" title="Gestão de Produção"><i class="fas fa-industry"></i></a>
+                <a href="faturamento.html" class="sidebar-btn" title="Faturamento"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="../apontamentos.html" class="sidebar-btn" title="Apontamentos"><i class="fas fa-stopwatch"></i></a>
+                <a href="relatorios.html" class="sidebar-btn" title="Central de Relatórios"><i class="fas fa-chart-pie"></i></a>
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="sidebar-btn" title="Configurações" id="btn-config"><i class="fas fa-cog"></i></button>
+            </div>
+        </aside>
+
+        <!-- Overlay para fechar sidebar em mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
+
+        <!-- Main Area -->
+        <main class="main-area">
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" title="Menu"><i class="fas fa-bars"></i></button>
+                    <div class="header-brand" style="display:flex;align-items:center;gap:10px;">
+                        <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.2);font-weight:300;font-size:18px;user-select:none;">|</span>
+                        <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
+                        <span style="color:rgba(255,255,255,0.18);font-weight:200;font-size:16px;user-select:none;margin:0 2px;"></span>
+                        <span class="page-title" style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);letter-spacing:0.3px;">Estoque</span>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-btn" title="Notificações"><i class="fas fa-bell"></i></button>
+                    <div class="user-greeting">
+                        <span id="saudacao">Bom dia,</span>
+                        <strong id="userName">Usuário</strong>
+                    </div>
+                    <div class="user-avatar"><span id="userInitial">U</span></div>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <div class="page-content">
+                    <!-- Ações do Header -->
+                    <div class="page-header-top">
+                        <div class="page-actions">
+                            <button class="btn btn-secondary" onclick="baixarTemplateEstoque()" title="Baixar template Excel para preenchimento">
+                                <i class="fas fa-file-excel"></i> Template
+                            </button>
+                            <button class="btn" style="background: linear-gradient(135deg, #7c3aed, #8b5cf6); color: white; border: none;" onclick="abrirModalImportarPlanilha()" title="Importar planilha de estoque">
+                                <i class="fas fa-file-upload"></i> Importar
+                            </button>
+                            <button class="btn btn-secondary" onclick="exportarProdutos()">
+                                <i class="fas fa-download"></i> Exportar
+                            </button>
+                            <button class="btn btn-success" onclick="abrirNovoProduto()">
+                                <i class="fas fa-plus"></i> Novo Produto
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card blue">
+                            <div class="stat-icon blue"><i class="fas fa-box"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Total de Produtos</div>
+                                <div class="stat-value" id="produtos-total">0</div>
+                                <div class="stat-trend up"><i class="fas fa-check"></i> Cadastrados</div>
+                            </div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Estoque Normal</div>
+                                <div class="stat-value" id="produtos-normal">0</div>
+                                <div class="stat-trend up"><i class="fas fa-thumbs-up"></i> Saudável</div>
+                            </div>
+                        </div>
+                        <div class="stat-card orange">
+                            <div class="stat-icon orange"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Estoque Baixo</div>
+                                <div class="stat-value" id="produtos-baixo">0</div>
+                                <div class="stat-trend down"><i class="fas fa-arrow-down"></i> Atenção</div>
+                            </div>
+                        </div>
+                        <div class="stat-card purple" style="cursor: pointer;" onclick="location.href='materiais.html'">
+                            <div class="stat-icon purple"><i class="fas fa-cogs"></i></div>
+                            <div class="stat-content">
+                                <div class="stat-label">Total de Materiais</div>
+                                <div class="stat-value" id="materiais-total">0</div>
+                                <div class="stat-trend up"><i class="fas fa-layer-group"></i> Cadastrados</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="todos"><i class="fas fa-list"></i> Todos os Produtos</button>
+                        <button class="tab-btn" data-tab="estoque-baixo"><i class="fas fa-exclamation-triangle"></i> Estoque Baixo</button>
+                        <button class="tab-btn" data-tab="movimentacoes"><i class="fas fa-exchange-alt"></i> Movimentações</button>
+                        <button class="tab-btn" data-tab="categorias"><i class="fas fa-tags"></i> Categorias</button>
+                    </div>
+
+                    <!-- Ações Rápidas -->
+                    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+                        <button class="btn btn-success" onclick="abrirEntradaRapida()"><i class="fas fa-arrow-up"></i> Entrada Rápida</button>
+                        <button class="btn btn-danger" onclick="abrirSaidaRapida()"><i class="fas fa-arrow-down"></i> Saída Rápida</button>
+                        <button class="btn btn-warning" onclick="abrirAjusteInventario()"><i class="fas fa-sliders-h"></i> Ajuste de Inventário</button>
+                        <button class="btn btn-secondary" onclick="verHistorico()"><i class="fas fa-history"></i> Histórico</button>
+                    </div>
+
+                    <!-- Barra de Busca + Tabela (switchable content) -->
+                    <div id="main-produtos-content">
+                    <div class="search-bar">
+                        <div class="search-input-wrapper">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="search-input" id="search-produtos" placeholder="Buscar por código, nome, SKU ou GTIN...">
+                        </div>
+                        <select class="filter-select" id="filter-categoria">
+                            <option value="">Todas as Categorias</option>
+                            <option value="duplex">Duplex</option>
+                            <option value="triplex">Triplex</option>
+                            <option value="quadriplex">Quadriplex</option>
+                            <option value="singelo">Singelo</option>
+                            <option value="protegido">Protegido</option>
+                            <option value="potencia">Potencia</option>
+                        </select>
+                        <select class="filter-select" id="filter-estoque">
+                            <option value="">Todos os Status</option>
+                            <option value="normal">Estoque Normal</option>
+                            <option value="baixo">Estoque Baixo</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="buscarProdutos()"><i class="fas fa-search"></i> Buscar</button>
+                    </div>
+
+                    <!-- Tabela -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-table"></i> Catálogo de Produtos</h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Código</th>
+                                            <th>Nome / Descrição</th>
+                                            <th>SKU</th>
+                                            <th>Categoria</th>
+                                            <th>Estoque</th>
+                                            <th>Cancelado</th>
+                                            <th>Mínimo</th>
+                                            <th>Preço</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="produtos-table-body">
+                                        <tr>
+                                            <td colspan="9" style="text-align: center; padding: 60px;">
+                                                <div class="loading-spinner" style="margin: 0 auto;"></div>
+                                                <p style="margin-top: 16px; color: var(--gray-500);">Carregando produtos...</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <span style="font-size: 14px; color: var(--gray-500);">
+                                Mostrando <strong id="produtos-showing">0</strong> de <strong id="produtos-total-count">0</strong> produtos
+                            </span>
+                            <div class="pagination" id="produtos-pagination"></div>
+                        </div>
+                    </div>
+                    </div><!-- /main-produtos-content -->
+
+                    <!-- Painel Movimentações (hidden by default) -->
+                    <div id="tab-movimentacoes-panel" style="display: none;">
+                        <div class="card">
+                            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                                <h3 class="card-title"><i class="fas fa-exchange-alt"></i> Histórico de Movimentações</h3>
+                                <button class="btn btn-sm btn-secondary" onclick="movimentacoesCarregadas=false;carregarMovimentacoesGlobal()" title="Atualizar"><i class="fas fa-sync-alt"></i> Atualizar</button>
+                            </div>
+                            <div class="card-body" style="padding: 0;">
+                                <div id="tab-movimentacoes-content">
+                                    <div style="text-align:center;padding:60px;color:#94a3b8;">
+                                        <i class="fas fa-exchange-alt" style="font-size:40px;margin-bottom:12px;display:block;"></i>
+                                        Clique na aba para carregar as movimentações
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+    <!-- Modal Importar Planilha -->
+    <div id="modal-importar-pcp" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10001;align-items:center;justify-content:center;-webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);padding:20px;" onclick="if(event.target===this)fecharModalImportar()">
+        <div style="background:white;border-radius:20px;max-width:620px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,0.3);animation:modalSlideIn 0.3s ease;">
+            <div style="background:linear-gradient(135deg,#7c3aed,#8b5cf6);padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-radius:20px 20px 0 0;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:44px;height:44px;background:rgba(255,255,255,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-file-upload" style="color:white;font-size:20px;"></i></div>
+                    <div><h2 style="color:white;margin:0;font-size:18px;font-weight:600;">Importar Planilha</h2><span style="color:rgba(255,255,255,0.8);font-size:13px;">Atualizar estoque via Excel</span></div>
+                </div>
+                <button onclick="fecharModalImportar()" style="background:rgba(255,255,255,0.2);border:none;width:36px;height:36px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;"><i class="fas fa-times" style="color:white;font-size:16px;"></i></button>
+            </div>
+            <div style="padding:24px;">
+                <div id="import-dropzone-pcp" onclick="document.getElementById('import-file-input-pcp').click()" style="border:2px dashed #cbd5e1;border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all 0.3s;background:#fafbfc;" onmouseover="this.style.borderColor='#8b5cf6';this.style.background='#f5f3ff'" onmouseout="this.style.borderColor='#cbd5e1';this.style.background='#fafbfc'">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:40px;color:#94a3b8;margin-bottom:12px;"></i>
+                    <p style="color:#64748b;font-size:14px;margin:0;"><strong>Clique ou arraste</strong> o arquivo Excel aqui</p>
+                    <p style="font-size:12px;color:#94a3b8;margin-top:8px;">.xlsx (máx. 10MB) — Use o template para garantir o formato correto</p>
+                    <div id="import-file-info-pcp" style="display:none;margin-top:12px;padding:10px;background:#dbeafe;border-radius:8px;color:#1e40af;font-weight:600;font-size:13px;"><i class="fas fa-file-excel"></i> <span id="import-file-name-pcp">arquivo.xlsx</span></div>
+                </div>
+                <input type="file" id="import-file-input-pcp" accept=".xlsx,.xls" style="display:none" onchange="selecionarArquivoImport(this)">
+                <div id="import-preview-pcp" style="display:none;margin-top:16px;">
+                    <h4 style="margin:0 0 8px;font-size:14px;color:#334155;"><i class="fas fa-table"></i> Arquivo selecionado</h4>
+                    <div style="max-height:200px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f8fafc;"><th style="padding:8px 10px;text-align:left;font-weight:600;color:#334155;">Arquivo</th></tr></thead><tbody id="import-preview-tbody-pcp"></tbody></table></div>
+                </div>
+                <div id="import-resultado-pcp" style="display:none;"></div>
+            </div>
+            <div style="padding:16px 24px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:12px;">
+                <button onclick="fecharModalImportar()" style="padding:12px 24px;background:#f1f5f9;border:none;border-radius:10px;font-weight:600;color:#64748b;cursor:pointer;">Cancelar</button>
+                <button id="btn-confirmar-import-pcp" onclick="executarImportacao()" style="display:none;padding:12px 28px;background:linear-gradient(135deg,#7c3aed,#8b5cf6);border:none;border-radius:10px;font-weight:600;color:white;cursor:pointer;box-shadow:0 4px 14px rgba(124,58,237,0.3);align-items:center;gap:6px;"><i class="fas fa-upload"></i> Importar Dados</button>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- ============================================
+         MODAL DE VISUALIZAÇÃO - Ficha do Produto (Estilo Omie)
+         ============================================ -->
+    <div class="modal-view-overlay" id="modal-visualizar-produto">
+        <div style="background: white; max-width: 1100px; width: 98%; height: 92vh; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin: auto; animation: slideUp 0.3s ease;">
+
+            <!-- Header Limpo Omie -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #e5e5e5; background: white; flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <h2 style="color: #333; font-size: 18px; font-weight: 500; margin: 0;">Ficha do Produto</h2>
+                    <span id="view-produto-status-badge" style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; background: #dcfce7; color: #16a34a;">
+                        <i class="fas fa-circle" style="font-size: 6px; margin-right: 4px;"></i> Em Estoque
+                    </span>
+                </div>
+                <button onclick="fecharModalVisualizacao()" style="color: #666; background: none; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    Fechar <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Container Principal -->
+            <div style="display: flex; flex: 1; overflow: hidden;">
+                <!-- Área Principal com scroll -->
+                <div style="flex: 1; padding: 24px 32px; overflow-y: auto; background: white;">
+
+                    <!-- Seção Superior: Imagem + Dados Básicos -->
+                    <div style="display: flex; gap: 24px; margin-bottom: 24px;">
+                        <!-- Imagem do Produto -->
+                        <div style="flex-shrink: 0; text-align: center;">
+                            <div id="view-produto-imagem-container" style="width: 80px; height: 80px; border: 1px solid #ddd; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: #f5f5f5;">
+                                <i class="fas fa-box-open" style="font-size: 28px; color: #ccc;"></i>
+                            </div>
+                        </div>
+
+                        <!-- Campos Principais (somente leitura) -->
+                        <div style="flex: 1;">
+                            <!-- Nome/Descrição -->
+                            <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0 0 12px 0;">
+                                <legend style="font-size: 11px; color: #999; padding: 0 4px;">Descrição do Produto</legend>
+                                <div id="view-produto-nome" style="font-size: 14px; color: #333; font-weight: 500; padding: 4px 0;">-</div>
+                            </fieldset>
+
+                            <!-- Linha: Código, SKU, Unidade, Preço -->
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Código</legend>
+                                    <div id="view-produto-codigo" style="font-size: 13px; color: #333; font-weight: 600; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">SKU</legend>
+                                    <div id="view-produto-sku" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Unidade</legend>
+                                    <div id="view-unidade" style="font-size: 13px; color: #333; padding: 4px 0;">UN</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Preço Unitário</legend>
+                                    <div id="view-preco" style="font-size: 13px; color: #059669; font-weight: 700; padding: 4px 0;">R$ 0,00</div>
+                                </fieldset>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Abas de Conteúdo (Estilo Omie) -->
+                    <div style="border-bottom: 1px solid #e5e5e5; display: flex; gap: 0; margin-bottom: 0; overflow-x: auto;">
+                        <button class="view-tab active" onclick="mudarAbaView('resumo', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #333; border-bottom: 2px solid #333; font-weight: 500; white-space: nowrap;">Resumo</button>
+                        <button class="view-tab" onclick="mudarAbaView('estoque', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Estoque</button>
+                        <button class="view-tab" onclick="mudarAbaView('custos', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Custos</button>
+                        <button class="view-tab" onclick="mudarAbaView('info', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Informações</button>
+                        <button class="view-tab" onclick="mudarAbaView('historico', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Movimentações</button>
+                        <button class="view-tab" onclick="mudarAbaView('obs', this)" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-size: 13px; color: #666; border-bottom: 2px solid transparent; white-space: nowrap;">Observações</button>
+                    </div>
+
+                    <!-- Conteúdo das Abas -->
+                    <div style="padding-top: 20px;">
+
+                        <!-- Aba Resumo -->
+                        <div id="view-tab-resumo" class="view-tab-panel">
+                            <!-- Cards de Estoque -->
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+                                <div style="background: #f8fafc; border: 1px solid #e5e5e5; border-radius: 4px; padding: 16px; text-align: center;">
+                                    <div style="font-size: 11px; color: #999; text-transform: uppercase; margin-bottom: 6px;">Estoque Atual</div>
+                                    <div id="view-estoque-atual" style="font-size: 28px; font-weight: 700; color: #333;">0</div>
+                                </div>
+                                <div style="background: #f8fafc; border: 1px solid #e5e5e5; border-radius: 4px; padding: 16px; text-align: center;">
+                                    <div style="font-size: 11px; color: #999; text-transform: uppercase; margin-bottom: 6px;">Mínimo</div>
+                                    <div id="view-estoque-minimo" style="font-size: 28px; font-weight: 700; color: #333;">0</div>
+                                </div>
+                                <div style="background: #f8fafc; border: 1px solid #e5e5e5; border-radius: 4px; padding: 16px; text-align: center;">
+                                    <div style="font-size: 11px; color: #999; text-transform: uppercase; margin-bottom: 6px;">Máximo</div>
+                                    <div id="view-estoque-maximo" style="font-size: 28px; font-weight: 700; color: #333;">0</div>
+                                </div>
+                                <div style="background: #f8fafc; border: 1px solid #e5e5e5; border-radius: 4px; padding: 16px; text-align: center;">
+                                    <div style="font-size: 11px; color: #999; text-transform: uppercase; margin-bottom: 6px;">Reservado</div>
+                                    <div id="view-estoque-reservado" style="font-size: 28px; font-weight: 700; color: #333;">0</div>
+                                </div>
+                            </div>
+
+                            <!-- Info Gerais em fieldsets -->
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Categoria</legend>
+                                    <div id="view-categoria" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">NCM</legend>
+                                    <div id="view-ncm" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Peso</legend>
+                                    <div id="view-peso" style="font-size: 13px; color: #333; padding: 4px 0;">0 kg</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Marca</legend>
+                                    <div id="view-marca" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                            </div>
+
+                            <!-- Localização -->
+                            <h4 style="font-size: 13px; color: #333; font-weight: 600; margin: 20px 0 10px 0;"><i class="fas fa-map-marker-alt" style="color: #f97316; margin-right: 6px;"></i>Localização no Estoque</h4>
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;">
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Almoxarifado</legend>
+                                    <div id="view-almoxarifado" style="font-size: 13px; color: #333; padding: 4px 0;">Principal</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Corredor</legend>
+                                    <div id="view-corredor" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Prateleira</legend>
+                                    <div id="view-prateleira" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Posição</legend>
+                                    <div id="view-posicao" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                            </div>
+
+                            <!-- Datas -->
+                            <div style="display: flex; gap: 24px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f0f0;">
+                                <span style="font-size: 12px; color: #999;"><i class="fas fa-calendar-plus" style="margin-right: 4px;"></i> Criado: <span id="view-criado-em" style="color: #666;">-</span></span>
+                                <span style="font-size: 12px; color: #999;"><i class="fas fa-calendar-check" style="margin-right: 4px;"></i> Atualizado: <span id="view-atualizado-em" style="color: #666;">-</span></span>
+                            </div>
+                        </div>
+
+                        <!-- Aba Estoque -->
+                        <div id="view-tab-estoque" class="view-tab-panel" style="display: none;">
+                            <h4 style="font-size: 14px; color: #333; margin: 0 0 4px 0; font-weight: 600;">Posições de Estoque</h4>
+                            <p style="font-size: 12px; color: #999; margin: 0 0 16px 0;">Resumo das informações de estoque deste produto.</p>
+                            <div style="border: 1px solid #e5e5e5;">
+                                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                    <thead>
+                                        <tr style="background: #fafafa; border-bottom: 1px solid #e5e5e5;">
+                                            <th style="padding: 10px 12px; text-align: left; font-weight: 500; color: #333;">Local de Estoque</th>
+                                            <th style="padding: 10px 12px; text-align: right; font-weight: 500; color: #333;">Disponível</th>
+                                            <th style="padding: 10px 12px; text-align: right; font-weight: 500; color: #333;">Reservado</th>
+                                            <th style="padding: 10px 12px; text-align: right; font-weight: 500; color: #333;">Mínimo</th>
+                                            <th style="padding: 10px 12px; text-align: right; font-weight: 500; color: #333;">Máximo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="view-estoque-tbody">
+                                        <tr style="border-bottom: 1px solid #f0f0f0;">
+                                            <td style="padding: 10px 12px; color: #333; font-weight: 500;">PADRÃO - Local de Estoque Padrão</td>
+                                            <td id="view-est-disponivel" style="padding: 10px 12px; text-align: right; color: #333;">0</td>
+                                            <td id="view-est-reservado" style="padding: 10px 12px; text-align: right; color: #333;">0</td>
+                                            <td id="view-est-minimo" style="padding: 10px 12px; text-align: right; color: #333;">0</td>
+                                            <td id="view-est-maximo" style="padding: 10px 12px; text-align: right; color: #333;">0</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Aba Custos -->
+                        <div id="view-tab-custos" class="view-tab-panel" style="display: none;">
+                            <h4 style="font-size: 14px; color: #333; margin: 0 0 16px 0; font-weight: 600;">Custos e Preços</h4>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Preço de Venda (R$)</legend>
+                                    <div id="view-preco-venda" style="font-size: 14px; color: #059669; font-weight: 700; padding: 4px 0;">R$ 0,00</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Custo Médio (R$)</legend>
+                                    <div id="view-custo-medio" style="font-size: 14px; color: #333; font-weight: 600; padding: 4px 0;">R$ 0,00</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Margem (%)</legend>
+                                    <div id="view-margem" style="font-size: 14px; color: #f97316; font-weight: 700; padding: 4px 0;">0%</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0; background: #f0fdf4;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Valor em Estoque (R$)</legend>
+                                    <div id="view-valor-estoque" style="font-size: 14px; color: #059669; font-weight: 700; padding: 4px 0;">R$ 0,00</div>
+                                </fieldset>
+                            </div>
+                        </div>
+
+                        <!-- Aba Informações -->
+                        <div id="view-tab-info" class="view-tab-panel" style="display: none;">
+                            <h4 style="font-size: 14px; color: #333; margin: 0 0 16px 0; font-weight: 600;">Informações Adicionais</h4>
+                            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">EAN / GTIN</legend>
+                                    <div id="view-gtin" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Cor</legend>
+                                    <div id="view-cor" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Peso Bruto (kg)</legend>
+                                    <div id="view-peso-bruto" style="font-size: 13px; color: #333; padding: 4px 0;">0,000</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Peso Líquido (kg)</legend>
+                                    <div id="view-peso-liquido" style="font-size: 13px; color: #333; padding: 4px 0;">0,000</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">CEST</legend>
+                                    <div id="view-cest" style="font-size: 13px; color: #333; padding: 4px 0;">-</div>
+                                </fieldset>
+                                <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 0 12px 8px 12px; margin: 0;">
+                                    <legend style="font-size: 11px; color: #999; padding: 0 4px;">Origem</legend>
+                                    <div id="view-origem" style="font-size: 13px; color: #333; padding: 4px 0;">0 - Nacional</div>
+                                </fieldset>
+                            </div>
+                        </div>
+
+                        <!-- Aba Movimentações -->
+                        <div id="view-tab-historico" class="view-tab-panel" style="display: none;">
+                            <h4 style="font-size: 14px; color: #333; margin: 0 0 4px 0; font-weight: 600;">Histórico de Movimentações</h4>
+                            <p style="font-size: 12px; color: #999; margin: 0 0 16px 0;">Últimas entradas, saídas e ajustes deste produto.</p>
+                            <div id="history-loading" style="text-align: center; padding: 40px; color: #999;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 24px; margin-bottom: 12px; display: block; color: #ddd;"></i>
+                                <span>Carregando histórico...</span>
+                            </div>
+                            <div id="view-historico-lista" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                            <div id="history-empty" style="display: none; text-align: center; padding: 40px; color: #999;">
+                                <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 12px; display: block; color: #ddd;"></i>
+                                <span>Nenhuma movimentação registrada</span>
+                            </div>
+                        </div>
+
+                        <!-- Aba Observações -->
+                        <div id="view-tab-obs" class="view-tab-panel" style="display: none;">
+                            <h4 style="font-size: 14px; color: #333; margin: 0 0 16px 0; font-weight: 600;">Observações</h4>
+                            <fieldset style="border: 1px solid #e5e5e5; border-radius: 4px; padding: 12px; margin: 0;">
+                                <legend style="font-size: 11px; color: #999; padding: 0 4px;">Observações do Produto</legend>
+                                <p id="view-observacoes" style="font-size: 13px; color: #333; line-height: 1.6; margin: 0; min-height: 60px;">Nenhuma observação registrada.</p>
+                            </fieldset>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar Direita - Ações com Tooltip -->
+                <div style="width: 60px; background: white; border-left: 1px solid #e5e5e5; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+                    <button class="sidebar-action-btn" onclick="abrirEdicaoProduto()" data-tooltip="Editar" style="color: #3b82f6;">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="sidebar-action-btn" onclick="registrarEntradaView()" data-tooltip="Entrada" style="color: #16a34a;">
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                    <button class="sidebar-action-btn" onclick="registrarSaidaView()" data-tooltip="Saída" style="color: #dc2626;">
+                        <i class="fas fa-arrow-down"></i>
+                    </button>
+                    <button class="sidebar-action-btn" onclick="imprimirEtiquetaView()" data-tooltip="Etiqueta" style="color: #666;">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Edição agora usa o modal Omie de pcp-modals.html (carregado via fetch) -->
+
+    <style>
+        /* ========================================
+           MODAL VISUALIZAÇÃO - Ficha do Produto (Omie Style)
+           ======================================== */
+
+        .modal-view-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-view-overlay.active { display: flex; }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Sidebar Action Buttons com Tooltip */
+        .sidebar-action-btn {
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            width: 40px; height: 40px;
+            background: none; border: none; cursor: pointer;
+            border-radius: 6px; transition: background 0.2s;
+            font-size: 16px;
+            overflow: visible;
+        }
+        .sidebar-action-btn:hover { background: #f5f5f5; }
+        .sidebar-action-btn::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            left: 50%; transform: translateX(-50%);
+            top: calc(100% + 6px);
+            background: #333; color: #fff;
+            font-size: 11px; font-weight: 500;
+            padding: 4px 8px; border-radius: 3px;
+            white-space: nowrap;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.15s ease;
+            z-index: 99999;
+        }
+        .sidebar-action-btn::before {
+            content: '';
+            position: absolute;
+            left: 50%; transform: translateX(-50%);
+            top: calc(100% + 2px);
+            border: 4px solid transparent;
+            border-bottom-color: #333;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.15s ease;
+            z-index: 99999;
+        }
+        .sidebar-action-btn:hover::after,
+        .sidebar-action-btn:hover::before { opacity: 1; }
+            transition: opacity 0.15s ease;
+            z-index: 10;
+        }
+        .sidebar-action-btn:hover::after,
+        .sidebar-action-btn:hover::before { opacity: 1; }
+
+        /* Abas Omie */
+        .view-tab.active { color: #333 !important; border-bottom-color: #333 !important; font-weight: 500 !important; }
+        .view-tab:hover { color: #333 !important; background: #f5f5f5; }
+
+        /* Histórico de Movimentações - itens */
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border: 1px solid #e5e5e5;
+            border-radius: 4px;
+            background: white;
+            font-size: 13px;
+        }
+
+        .history-icon {
+            width: 32px; height: 32px; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center; font-size: 14px;
+        }
+        .history-icon.entrada { background: #dcfce7; color: #16a34a; }
+        .history-icon.saida { background: #fee2e2; color: #dc2626; }
+        .history-icon.ajuste { background: #dbeafe; color: #2563eb; }
+
+        .history-info { flex: 1; }
+        .history-title { font-weight: 600; font-size: 13px; color: #333; }
+        .history-desc { font-size: 12px; color: #999; }
+        .history-meta { text-align: right; }
+        .history-qty { font-size: 14px; font-weight: 700; }
+        .history-qty.positive { color: #16a34a; }
+        .history-qty.negative { color: #dc2626; }
+        .history-qty.neutral { color: #2563eb; }
+        .history-date { font-size: 11px; color: #999; }
+
+        /* ========================================
+           MODAL EDIÇÃO - Movido para pcp-modals.html (Omie style)
+           ======================================== */
+    </style>
+
+    <style>
+        /* Modal SaaS Styles */
+        .modal-overlay-saas {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.95) 100%);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-overlay-saas.active {
+            display: flex;
+        }
+
+        .modal-saas {
+            background: #ffffff;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 1200px;
+            max-height: 92vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow:
+                0 32px 64px -12px rgba(0, 0, 0, 0.25),
+                0 0 0 1px rgba(0, 0, 0, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            animation: modalSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes modalSlideIn {
+            from { opacity: 0; transform: scale(0.95) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        /* Header */
+        .modal-header-saas {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 28px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .modal-header-saas::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+
+        .header-left-saas {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header-icon-saas {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .header-info-saas h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+
+        .header-subtitle-saas {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .status-badge-saas {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #34d399;
+        }
+
+        .status-badge-saas i {
+            font-size: 8px;
+        }
+
+        .close-btn-saas {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            color: #e2e8f0;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            z-index: 1;
+        }
+
+        .close-btn-saas:hover {
+            background: rgba(239, 68, 68, 0.9);
+            border-color: #ef4444;
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+
+        /* Container Principal */
+        .modal-container-saas {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+
+        .modal-main-saas {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
+        }
+
+        .modal-main-saas::-webkit-scrollbar { width: 8px; }
+        .modal-main-saas::-webkit-scrollbar-track { background: #f1f5f9; }
+        .modal-main-saas::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        /* Tabs */
+        .tabs-saas {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            padding: 6px;
+            background: #ffffff;
+            border-radius: 14px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .tab-btn-saas {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn-saas:hover {
+            background: #f1f5f9;
+            color: #334155;
+        }
+
+        .tab-btn-saas.active {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .tab-btn-saas.active i {
+            color: white;
+        }
+
+        .tab-btn-saas i {
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .tab-content-saas {
+            display: none;
+        }
+
+        .tab-content-saas.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Cards */
+        .card-saas {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            margin-bottom: 20px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .card-header-saas {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .card-header-saas i {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3b82f6;
+            font-size: 14px;
+        }
+
+        .card-header-saas h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .card-body-saas {
+            padding: 20px;
+        }
+
+        .card-body-saas.no-padding {
+            padding: 0;
+        }
+
+        /* Form Elements */
+        .form-grid-saas {
+            display: grid;
+            gap: 16px;
+        }
+
+        .form-grid-saas.cols-3 { grid-template-columns: repeat(3, 1fr); }
+        .form-grid-saas.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+        .form-group-saas {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group-saas.full-width {
+            grid-column: 1 / -1;
+            margin-top: 16px;
+        }
+
+        .label-saas {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-saas,
+        .select-saas {
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1e293b;
+            background: #ffffff;
+            transition: all 0.2s ease;
+        }
+
+        .input-saas:focus,
+        .select-saas:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+        }
+
+        .input-saas:disabled,
+        .select-saas:disabled {
+            background: #f8fafc;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
+        .input-saas.readonly {
+            background: #f1f5f9;
+            font-family: 'SF Mono', 'Consolas', monospace;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .textarea-saas {
+            padding: 14px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #ffffff;
+            resize: vertical;
+            min-height: 100px;
+            transition: all 0.2s ease;
+        }
+
+        .textarea-saas:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+        }
+
+        .textarea-saas:disabled {
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        .input-prefix-saas,
+        .input-suffix-saas {
+            display: flex;
+            align-items: center;
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .input-prefix-saas:focus-within,
+        .input-suffix-saas:focus-within {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+        }
+
+        .input-prefix-saas span,
+        .input-suffix-saas span {
+            padding: 12px 14px;
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .input-prefix-saas input,
+        .input-suffix-saas input {
+            flex: 1;
+            padding: 12px 14px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: #1e293b;
+        }
+
+        .input-prefix-saas input:focus,
+        .input-suffix-saas input:focus {
+            outline: none;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid-saas {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric-card-saas {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            border-radius: 16px;
+            color: white;
+        }
+
+        .metric-card-saas.blue { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); }
+        .metric-card-saas.orange { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .metric-card-saas.green { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .metric-card-saas.purple { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); }
+
+        .metric-icon-saas {
+            width: 48px;
+            height: 48px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .metric-info-saas {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metric-value-saas {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .metric-label-saas {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        /* Location Grid */
+        .location-grid-saas {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .location-item-saas {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .location-item-saas i {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3b82f6;
+            font-size: 16px;
+        }
+
+        .location-label-saas {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .location-value-saas {
+            display: block;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        /* Actions Row */
+        .actions-row-saas {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 24px;
+        }
+
+        .btn-action-saas {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .btn-action-saas.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-action-saas.success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-action-saas.danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-action-saas.danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-action-saas.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-action-saas.warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(245, 158, 11, 0.4);
+        }
+
+        .btn-action-saas.secondary {
+            background: #ffffff;
+            color: #475569;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-action-saas.secondary:hover {
+            background: #f8fafc;
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        /* Costs Grid */
+        .costs-grid-saas {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .cost-item-saas {
+            text-align: center;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .cost-label-saas {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .cost-value-saas {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .cost-value-saas.highlight {
+            color: #3b82f6;
+        }
+
+        .cost-value-saas.green {
+            color: #10b981;
+        }
+
+        /* Timeline / History */
+        .timeline-container-saas {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .loading-saas {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .loading-saas i {
+            font-size: 32px;
+            color: #3b82f6;
+        }
+
+        .timeline-item-saas {
+            display: flex;
+            gap: 16px;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.2s;
+        }
+
+        .timeline-item-saas:hover {
+            background: #f8fafc;
+        }
+
+        .timeline-icon-saas {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .timeline-icon-saas.entrada { background: #dcfce7; color: #16a34a; }
+        .timeline-icon-saas.saida { background: #fee2e2; color: #dc2626; }
+        .timeline-icon-saas.ajuste { background: #fef3c7; color: #d97706; }
+
+        .timeline-content-saas {
+            flex: 1;
+        }
+
+        .timeline-title-saas {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .timeline-desc-saas {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .timeline-date-saas {
+            font-size: 12px;
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+
+        /* Sidebar */
+        .modal-sidebar-saas {
+            width: 180px;
+            background: #ffffff;
+            border-left: 1px solid #e2e8f0;
+            padding: 20px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .sidebar-btn-saas {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: transparent;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            width: 100%;
+        }
+
+        .sidebar-btn-saas:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+            transform: translateX(2px);
+        }
+
+        .sidebar-btn-saas i {
+            width: 18px;
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .sidebar-btn-saas:hover i {
+            color: #3b82f6;
+        }
+
+        .sidebar-btn-saas.primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+        }
+
+        .sidebar-btn-saas.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.45);
+        }
+
+        .sidebar-btn-saas.primary i {
+            color: white;
+        }
+
+        .sidebar-btn-saas.danger {
+            color: #64748b;
+        }
+
+        .sidebar-btn-saas.danger:hover {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .sidebar-btn-saas.danger:hover i {
+            color: #dc2626;
+        }
+
+        .sidebar-divider-saas {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 8px 0;
+        }
+
+        /* Footer */
+        .modal-footer-saas {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 28px;
+            background: #ffffff;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .footer-info-saas {
+            display: flex;
+            gap: 24px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .footer-info-saas i {
+            margin-right: 6px;
+            color: #94a3b8;
+        }
+
+        .btn-close-saas {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-close-saas:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .form-grid-saas.cols-3,
+            .form-grid-saas.cols-4 { grid-template-columns: repeat(2, 1fr); }
+            .metrics-grid-saas { grid-template-columns: repeat(2, 1fr); }
+            .location-grid-saas { grid-template-columns: repeat(2, 1fr); }
+            .costs-grid-saas { grid-template-columns: repeat(2, 1fr); }
+            .modal-sidebar-saas { display: none; }
+        }
+
+        @media (max-width: 768px) {
+            .form-grid-saas.cols-3,
+            .form-grid-saas.cols-4 { grid-template-columns: 1fr; }
+            .metrics-grid-saas { grid-template-columns: 1fr; }
+            .location-grid-saas { grid-template-columns: 1fr; }
+            .costs-grid-saas { grid-template-columns: 1fr; }
+            .header-left-saas { flex-wrap: wrap; }
+            .actions-row-saas { flex-direction: column; }
+            .btn-action-saas { width: 100%; justify-content: center; }
+        }
+    </style>
+
+    <script src="../js/pcp-common.js"></script>
+    <script>
+        window.produtosData = [];
+        let produtosData = window.produtosData;
+        let paginaAtual = 1;
+        const itensPorPagina = 20;
+        let produtoAtual = null;
+        let modoEdicao = false;
+
+        async function carregarProdutos() {
+            try {
+                const API_BASE = getAPIBase();
+
+                // Preparar headers - usar credentials: 'include' para sessão via cookie
+                const headers = { 'Content-Type': 'application/json' };
+                if (token && token !== 'unified-session-active') {
+                }
+
+                console.log('?? Carregando produtos do estoque...');
+                // Buscar produtos que têm entrada registrada (os 17 produtos com movimentações)
+                const response = await fetch(`${API_BASE}/api/pcp/produtos/com-entrada?limit=1000`, {
+                    credentials: 'include',
+                    headers: headers
+                });
+
+                // Se 401, aguardar redirecionamento
+                if (response.status === 401) {
+                    console.log('Não autenticado, aguardando redirecionamento...');
+                    return;
+                }
+                if (response.ok) {
+                    const data = await response.json();
+                    // API retorna { rows, produtos, total, page, limit, stats }
+                    let produtos = Array.isArray(data) ? data : (data.rows || data.produtos || []);
+
+                    // Se /com-entrada retornou 0 produtos, fazer fallback para rota normal
+                    if (produtos.length === 0) {
+                        console.log('⚠️ /com-entrada retornou 0 produtos, usando fallback /api/pcp/produtos');
+                        const fallbackResponse = await fetch(`${API_BASE}/api/pcp/produtos?limit=1000`, {
+                            credentials: 'include',
+                            headers: headers
+                        });
+                        if (fallbackResponse.ok) {
+                            const fbData = await fallbackResponse.json();
+                            produtos = Array.isArray(fbData) ? fbData : (fbData.rows || fbData.produtos || []);
+                        }
+                    }
+
+                    // Normalizar campos
+                    produtos = produtos.map(p => ({
+                        ...p,
+                        estoque: p.estoque_atual ?? p.quantidade_estoque ?? p.quantidade ?? p.estoque ?? 0,
+                        estoque_minimo: p.estoque_minimo ?? 10,
+                        nome: p.nome || p.descricao || '',
+                        preco: Number(p.preco_venda || p.preco || p.preco_custo || 0)
+                    }));
+                    // Usar todos os produtos retornados (sem filtrar por estoque > 0)
+                    // PCP precisa ver todos os produtos ativos para poder dar baixa/ajustar estoque
+                    produtosData = produtos;
+                    window.produtosData = produtos;
+                    atualizarEstatisticas();
+                    renderizarProdutos();
+                } else {
+                    // Fallback para rota normal de produtos
+                    const fallbackResponse = await fetch(`${API_BASE}/api/pcp/produtos?limit=1000`, {
+                        credentials: 'include',
+                        headers: headers
+                    });
+                    if (fallbackResponse.ok) {
+                        const data = await fallbackResponse.json();
+                        let produtos = Array.isArray(data) ? data : (data.rows || []);
+                        produtos = produtos.map(p => ({
+                            ...p,
+                            estoque: p.estoque_atual ?? p.quantidade_estoque ?? p.quantidade ?? p.estoque ?? 0,
+                            estoque_minimo: p.estoque_minimo ?? 10,
+                            nome: p.nome || p.descricao || '',
+                            preco: Number(p.preco_venda || p.preco || p.preco_custo || 0)
+                        }));
+                        // Usar todos os produtos (PCP precisa ver todos para dar baixa)
+                        produtosData = produtos;
+                        window.produtosData = produtos;
+                        atualizarEstatisticas();
+                        renderizarProdutos();
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao carregar produtos:', error);
+                showToast('Erro ao carregar produtos', 'error');
+            }
+        }
+
+        function atualizarEstatisticas() {
+            const total = produtosData.length;
+            // API pode retornar estoque_atual ou estoque
+            const baixo = produtosData.filter(p => {
+                const estoque = p.estoque_atual ?? p.estoque ?? 0;
+                const minimo = p.estoque_minimo ?? 10;
+                return estoque <= minimo;
+            }).length;
+            const normal = total - baixo;
+
+            document.getElementById('produtos-total').textContent = total;
+            document.getElementById('produtos-normal').textContent = normal;
+            document.getElementById('produtos-baixo').textContent = baixo;
+        }
+
+        function renderizarProdutos() {
+            const tbody = document.getElementById('produtos-table-body');
+            const searchTerm = document.getElementById('search-produtos').value.toLowerCase();
+            const categoria = document.getElementById('filter-categoria').value;
+            const statusEstoque = document.getElementById('filter-estoque').value;
+
+            let filtrados = produtosData.filter(p => {
+                const estoque = p.estoque_atual ?? p.estoque ?? 0;
+                const minimo = p.estoque_minimo ?? 10;
+                const matchSearch = !searchTerm ||
+                    (p.codigo && p.codigo.toLowerCase().includes(searchTerm)) ||
+                    (p.nome && p.nome.toLowerCase().includes(searchTerm)) ||
+                    (p.descricao && p.descricao.toLowerCase().includes(searchTerm)) ||
+                    (p.sku && p.sku.toLowerCase().includes(searchTerm));
+                const matchCategoria = !categoria || p.categoria === categoria;
+                const matchStatus = !statusEstoque ||
+                    (statusEstoque === 'baixo' && estoque <= minimo) ||
+                    (statusEstoque === 'normal' && estoque > minimo);
+                return matchSearch && matchCategoria && matchStatus;
+            });
+
+            document.getElementById('produtos-showing').textContent = filtrados.length;
+            document.getElementById('produtos-total-count').textContent = produtosData.length;
+
+            if (filtrados.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="10" style="text-align: center; padding: 60px;">
+                        <i class="fas fa-box-open" style="font-size: 48px; color: var(--gray-300); margin-bottom: 16px;"></i>
+                        <p style="color: var(--gray-500);">Nenhum produto encontrado</p>
+                    </td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtrados.map(p => {
+                const estoque = p.estoque_atual ?? p.estoque ?? 0;
+                const cancelado = Number(p.estoque_cancelado || 0);
+                const minimo = p.estoque_minimo ?? 10;
+                return `
+                <tr>
+                    <td><strong>${p.codigo || '-'}</strong></td>
+                    <td>${p.nome || p.descricao || '-'}</td>
+                    <td>${p.sku || '-'}</td>
+                    <td><span class="badge badge-gray">${p.categoria || '-'}</span></td>
+                    <td>${estoque}</td>
+                    <td>${cancelado > 0 ? `<span class="badge" style="background: #ff9800; color: #fff; padding: 2px 8px; border-radius: 4px;" title="Estoque de pedidos cancelados">${cancelado}</span>` : '<span style="color: var(--gray-400);">-</span>'}</td>
+                    <td>${minimo}</td>
+                    <td>${formatarMoeda(p.preco_venda || p.preco)}</td>
+                    <td>
+                        <span class="status-badge ${estoque <= minimo ? 'pendente' : 'concluido'}">
+                            ${estoque <= minimo ? 'Baixo' : 'Normal'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary" onclick="editarProduto(${p.id})" title="Editar"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-secondary" onclick="verProduto(${p.id})" title="Ver detalhes"><i class="fas fa-eye"></i></button>
+                        <button class="btn btn-sm" style="color:#059669;background:none;border:none;padding:4px 6px;" onclick="abrirModalMovProduto(${p.id}, 'entrada')" title="Dar entrada"><i class="fas fa-arrow-up"></i></button>
+                        <button class="btn btn-sm" style="color:#dc2626;background:none;border:none;padding:4px 6px;" onclick="abrirModalMovProduto(${p.id}, 'saida')" title="Dar saída"><i class="fas fa-arrow-down"></i></button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        function buscarProdutos() { renderizarProdutos(); }
+        function exportarProdutos() { exportarParaExcel(produtosData, 'produtos_estoque'); }
+        function abrirEntradaRapida() { abrirModalMovimentacao('entrada'); }
+        function abrirSaidaRapida() { abrirModalMovimentacao('saida'); }
+        function abrirAjusteInventario() { abrirModalMovimentacao('ajuste'); }
+        function verHistorico() {
+            // Toggle na seção de histórico se o modal estiver aberto
+            if (produtoAtual) {
+                toggleHistorico();
+            }
+        }
+
+        // ===== FUNÇÕES DO MODAL DE VISUALIZAÇÃO =====
+
+        function verProduto(id) {
+            const produto = produtosData.find(p => p.id === id);
+            if (!produto) {
+                showToast('Produto não encontrado', 'error');
+                return;
+            }
+            produtoAtual = produto;
+            preencherModalVisualizacao(produto);
+            document.getElementById('modal-visualizar-produto').classList.add('active');
+
+            // Carregar histórico de movimentações
+            carregarHistoricoProduto(produto.id);
+        }
+
+        function preencherModalVisualizacao(p) {
+            // Header
+            document.getElementById('view-produto-nome').textContent = p.nome || p.descricao || 'Produto';
+            document.getElementById('view-produto-codigo').textContent = p.codigo || '-';
+            document.getElementById('view-produto-sku').textContent = p.sku || '-';
+
+            // Status badge (novo estilo Omie)
+            const estoque = p.estoque_atual ?? p.estoque ?? 0;
+            const minimo = p.estoque_minimo || 10;
+            const statusBadge = document.getElementById('view-produto-status-badge');
+            if (estoque <= 0) {
+                statusBadge.innerHTML = '<i class="fas fa-circle" style="font-size: 6px; margin-right: 4px;"></i> Sem Estoque';
+                statusBadge.style.background = '#fee2e2';
+                statusBadge.style.color = '#dc2626';
+            } else if (estoque < minimo) {
+                statusBadge.innerHTML = '<i class="fas fa-circle" style="font-size: 6px; margin-right: 4px;"></i> Estoque Baixo';
+                statusBadge.style.background = '#fef3c7';
+                statusBadge.style.color = '#d97706';
+            } else {
+                statusBadge.innerHTML = '<i class="fas fa-circle" style="font-size: 6px; margin-right: 4px;"></i> Em Estoque';
+                statusBadge.style.background = '#dcfce7';
+                statusBadge.style.color = '#16a34a';
+            }
+
+            // Estoque (aba Resumo cards + aba Estoque tabela)
+            const unidadeAbrev = (p.unidade || 'UN').toLowerCase();
+            const unidadeLabel = unidadeAbrev === 'un' ? 'un' : unidadeAbrev === 'm' ? 'm' : unidadeAbrev === 'kg' ? 'kg' : unidadeAbrev === 'pç' || unidadeAbrev === 'pc' ? 'pç' : unidadeAbrev;
+            document.getElementById('view-estoque-atual').innerHTML = estoque.toLocaleString('pt-BR') + ' <span style="font-size:14px;font-weight:400;color:#999;">(' + unidadeLabel + ')</span>';
+            document.getElementById('view-estoque-minimo').innerHTML = minimo.toLocaleString('pt-BR') + ' <span style="font-size:14px;font-weight:400;color:#999;">(' + unidadeLabel + ')</span>';
+            document.getElementById('view-estoque-maximo').innerHTML = (p.estoque_maximo || 1000).toLocaleString('pt-BR') + ' <span style="font-size:14px;font-weight:400;color:#999;">(' + unidadeLabel + ')</span>';
+            document.getElementById('view-estoque-reservado').innerHTML = (p.estoque_reservado || 0).toLocaleString('pt-BR') + ' <span style="font-size:14px;font-weight:400;color:#999;">(' + unidadeLabel + ')</span>';
+
+            // Tabela de estoque (aba Estoque)
+            const elDisp = document.getElementById('view-est-disponivel');
+            const elRes = document.getElementById('view-est-reservado');
+            const elMin = document.getElementById('view-est-minimo');
+            const elMax = document.getElementById('view-est-maximo');
+            if (elDisp) elDisp.textContent = estoque.toLocaleString('pt-BR');
+            if (elRes) elRes.textContent = (p.estoque_reservado || 0).toLocaleString('pt-BR');
+            if (elMin) elMin.textContent = minimo.toLocaleString('pt-BR');
+            if (elMax) elMax.textContent = (p.estoque_maximo || 1000).toLocaleString('pt-BR');
+
+            // Informações (aba Resumo)
+            document.getElementById('view-categoria').textContent = p.categoria || '-';
+            document.getElementById('view-unidade').textContent = p.unidade || 'UN';
+            document.getElementById('view-peso').textContent = (p.peso || 0) + ' kg';
+            document.getElementById('view-ncm').textContent = p.ncm || '-';
+
+            // Marca
+            const elMarca = document.getElementById('view-marca');
+            if (elMarca) elMarca.textContent = p.marca || '-';
+
+            // Localização
+            document.getElementById('view-almoxarifado').textContent = p.almoxarifado || 'Principal';
+            document.getElementById('view-corredor').textContent = p.corredor || '-';
+            document.getElementById('view-prateleira').textContent = p.prateleira || '-';
+            document.getElementById('view-posicao').textContent = p.posicao || '-';
+
+            // Preços e Custos (header + aba Custos)
+            const custoMedio = p.custo_medio || p.preco * 0.7 || 0;
+            const valorEstoque = custoMedio * estoque;
+            const margem = p.preco > 0 ? ((p.preco - custoMedio) / p.preco * 100) : 0;
+
+            document.getElementById('view-preco').textContent = (p.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            document.getElementById('view-custo-medio').textContent = custoMedio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            document.getElementById('view-margem').textContent = margem.toFixed(1) + '%';
+            document.getElementById('view-valor-estoque').textContent = valorEstoque.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            // Preço de venda duplicado na aba Custos
+            const elPrecoVenda = document.getElementById('view-preco-venda');
+            if (elPrecoVenda) elPrecoVenda.textContent = (p.preco || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+            // Informações Adicionais (aba Info)
+            const elGtin = document.getElementById('view-gtin');
+            if (elGtin) elGtin.textContent = p.gtin || p.ean || '-';
+            const elCor = document.getElementById('view-cor');
+            if (elCor) elCor.textContent = p.cor || '-';
+            const elPesoBruto = document.getElementById('view-peso-bruto');
+            if (elPesoBruto) elPesoBruto.textContent = (p.peso_bruto || p.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 });
+            const elPesoLiquido = document.getElementById('view-peso-liquido');
+            if (elPesoLiquido) elPesoLiquido.textContent = (p.peso_liquido || p.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 });
+            const elCest = document.getElementById('view-cest');
+            if (elCest) elCest.textContent = p.cest || '-';
+            const elOrigem = document.getElementById('view-origem');
+            if (elOrigem) elOrigem.textContent = p.origem || '0 - Nacional';
+
+            // Observações (aba Obs)
+            const elObs = document.getElementById('view-observacoes');
+            if (elObs) {
+                elObs.textContent = (p.observacoes && p.observacoes.trim()) ? p.observacoes : 'Nenhuma observação registrada.';
+            }
+
+            // Datas (rodapé da aba Resumo)
+            document.getElementById('view-criado-em').textContent = p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '-';
+            document.getElementById('view-atualizado-em').textContent = p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR') : '-';
+
+            // Resetar para aba Resumo ao abrir
+            mudarAbaView('resumo', document.querySelector('.view-tab.active') || document.querySelector('.view-tab'));
+        }
+
+        // Troca de abas no modal de visualização (estilo Omie)
+        function mudarAbaView(aba, btnClicado) {
+            // Esconder todas as abas
+            document.querySelectorAll('.view-tab-panel').forEach(panel => panel.style.display = 'none');
+            // Mostrar a aba selecionada
+            const panel = document.getElementById('view-tab-' + aba);
+            if (panel) panel.style.display = 'block';
+            // Atualizar botões
+            document.querySelectorAll('.view-tab').forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.color = '#666';
+                btn.style.borderBottomColor = 'transparent';
+            });
+            if (btnClicado) {
+                btnClicado.classList.add('active');
+                btnClicado.style.color = '#333';
+                btnClicado.style.borderBottomColor = '#333';
+            }
+        }
+
+        function fecharModalVisualizacao() {
+            document.getElementById('modal-visualizar-produto').classList.remove('active');
+        }
+
+        // ===== FUNÇÕES DO HISTÓRICO =====
+
+        async function carregarHistoricoProduto(produtoId) {
+            const container = document.getElementById('view-historico-lista');
+            const loading = document.getElementById('history-loading');
+            const empty = document.getElementById('history-empty');
+
+            loading.style.display = 'flex';
+            empty.style.display = 'none';
+            container.innerHTML = '';
+
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/estoque/movimentacoes?produto_id=${produtoId}&limit=20`, {
+                    credentials: 'include'
+                });
+
+                loading.style.display = 'none';
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const movs = data.rows || data.movimentacoes || data || [];
+
+                    if (movs.length === 0) {
+                        empty.style.display = 'flex';
+                        return;
+                    }
+
+                    container.innerHTML = movs.map(m => {
+                        const tipo = (m.tipo || 'ajuste').toLowerCase();
+                        const isEntrada = tipo === 'entrada';
+                        const isSaida = tipo === 'saida';
+                        const icone = isEntrada ? 'arrow-up' : isSaida ? 'arrow-down' : 'sliders-h';
+                        const tipoClass = isEntrada ? 'entrada' : isSaida ? 'saida' : 'ajuste';
+                        const qtyClass = isEntrada ? 'positive' : isSaida ? 'negative' : 'neutral';
+                        const qtyPrefix = isEntrada ? '+' : isSaida ? '-' : '';
+                        const data = m.data_movimentacao || m.created_at || m.criado_em;
+                        const dataFormatada = data ? new Date(data).toLocaleDateString('pt-BR', {
+                            day: '2-digit', month: '2-digit', year: '2-digit',
+                            hour: '2-digit', minute: '2-digit'
+                        }) : '-';
+
+                        return `
+                            <div class="history-item">
+                                <div class="history-icon ${tipoClass}">
+                                    <i class="fas fa-${icone}"></i>
+                                </div>
+                                <div class="history-info">
+                                    <div class="history-title">${tipo.charAt(0).toUpperCase() + tipo.slice(1)}</div>
+                                    <div class="history-desc">${m.observacao || m.motivo || m.referencia || 'Movimentação registrada'}</div>
+                                </div>
+                                <div class="history-meta">
+                                    <div class="history-qty ${qtyClass}">${qtyPrefix}${m.quantidade || 0}</div>
+                                    <div class="history-date">${dataFormatada}</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    empty.style.display = 'flex';
+                    empty.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Erro ao carregar histórico</span>';
+                }
+            } catch (error) {
+                console.error('Erro ao carregar histórico:', error);
+                loading.style.display = 'none';
+                empty.style.display = 'flex';
+                empty.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Erro ao carregar histórico</span>';
+            }
+        }
+
+        // Ações do Modal de Visualização
+        function abrirEdicaoProduto() {
+            fecharModalVisualizacao();
+            if (produtoAtual) {
+                editarProduto(produtoAtual.id);
+            }
+        }
+
+        function registrarEntradaView() {
+            fecharModalVisualizacao();
+            if (produtoAtual && typeof abrirModalMovimentacao === 'function') {
+                abrirModalMovimentacao('entrada', produtoAtual);
+            }
+        }
+
+        function registrarSaidaView() {
+            fecharModalVisualizacao();
+            if (produtoAtual && typeof abrirModalMovimentacao === 'function') {
+                abrirModalMovimentacao('saida', produtoAtual);
+            }
+        }
+
+        function imprimirEtiquetaView() {
+            if (!produtoAtual) {
+                showToast('Nenhum produto selecionado', 'error');
+                return;
+            }
+            abrirModalEtiquetas([produtoAtual]);
+        }
+
+        // ====== SISTEMA DE IMPRESSÃO DE ETIQUETAS (10 por folha A4) ======
+
+        function abrirModalEtiquetas(produtos) {
+            // Quantidade padrão por produto
+            const listaProdutos = produtos.map(p => ({
+                ...p,
+                qtdEtiquetas: 1
+            }));
+
+            // Criar overlay modal
+            const overlay = document.createElement('div');
+            overlay.id = 'modal-etiquetas-overlay';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+            overlay.innerHTML = `
+                <div style="background:white;max-width:680px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 4px 20px rgba(0,0,0,0.15);animation:slideUp .3s ease;">
+                    <!-- Header -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #e5e5e5;">
+                        <h2 style="color:#333;font-size:18px;font-weight:500;margin:0;"><i class="fas fa-tags" style="color:#f97316;margin-right:8px;"></i>Imprimir Etiquetas</h2>
+                        <button onclick="document.getElementById('modal-etiquetas-overlay').remove()" style="color:#666;background:none;border:none;font-size:14px;cursor:pointer;">Fechar <i class="fas fa-times"></i></button>
+                    </div>
+
+                    <!-- Body -->
+                    <div style="padding:24px;overflow-y:auto;flex:1;">
+                        <!-- Configurações -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+                            <fieldset style="border:1px solid #e5e5e5;border-radius:4px;padding:0 12px 8px;margin:0;">
+                                <legend style="font-size:11px;color:#999;padding:0 4px;">Modelo</legend>
+                                <select id="etq-modelo" style="width:100%;border:none;font-size:13px;color:#333;padding:4px 0;outline:none;background:transparent;">
+                                    <option value="10">10 por folha (2×5)</option>
+                                    <option value="8">8 por folha (2×4)</option>
+                                </select>
+                            </fieldset>
+                            <fieldset style="border:1px solid #e5e5e5;border-radius:4px;padding:0 12px 8px;margin:0;">
+                                <legend style="font-size:11px;color:#999;padding:0 4px;">Mostrar Preço</legend>
+                                <select id="etq-preco" style="width:100%;border:none;font-size:13px;color:#333;padding:4px 0;outline:none;background:transparent;">
+                                    <option value="sim">Sim</option>
+                                    <option value="nao">Não</option>
+                                </select>
+                            </fieldset>
+                            <fieldset style="border:1px solid #e5e5e5;border-radius:4px;padding:0 12px 8px;margin:0;">
+                                <legend style="font-size:11px;color:#999;padding:0 4px;">Mostrar SKU</legend>
+                                <select id="etq-sku" style="width:100%;border:none;font-size:13px;color:#333;padding:4px 0;outline:none;background:transparent;">
+                                    <option value="sim">Sim</option>
+                                    <option value="nao">Não</option>
+                                </select>
+                            </fieldset>
+                        </div>
+
+                        <!-- Lista de produtos -->
+                        <h4 style="font-size:13px;color:#333;font-weight:600;margin:0 0 10px 0;">Produtos (${listaProdutos.length})</h4>
+                        <div style="border:1px solid #e5e5e5;border-radius:4px;overflow:hidden;">
+                            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                                <thead>
+                                    <tr style="background:#fafafa;border-bottom:1px solid #e5e5e5;">
+                                        <th style="padding:8px 12px;text-align:left;font-weight:500;">Produto</th>
+                                        <th style="padding:8px 12px;text-align:left;font-weight:500;width:80px;">Código</th>
+                                        <th style="padding:8px 12px;text-align:center;font-weight:500;width:100px;">Qtd Etiquetas</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${listaProdutos.map((p, i) => `
+                                        <tr style="border-bottom:1px solid #f0f0f0;">
+                                            <td style="padding:8px 12px;color:#333;">${p.nome || p.descricao || '-'}</td>
+                                            <td style="padding:8px 12px;color:#666;">${p.codigo || '-'}</td>
+                                            <td style="padding:8px 12px;text-align:center;">
+                                                <input type="number" min="1" max="100" value="1" id="etq-qty-${i}"
+                                                    style="width:60px;text-align:center;border:1px solid #e5e5e5;border-radius:4px;padding:4px;font-size:13px;">
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Preview resumo -->
+                        <div style="margin-top:16px;padding:12px;background:#f8fafc;border:1px solid #e5e5e5;border-radius:4px;display:flex;align-items:center;gap:8px;">
+                            <i class="fas fa-info-circle" style="color:#3b82f6;"></i>
+                            <span style="font-size:12px;color:#666;">As etiquetas serão geradas no formato A4. Confira a pré-visualização antes de imprimir.</span>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="padding:16px 24px;border-top:1px solid #e5e5e5;display:flex;justify-content:flex-end;gap:10px;">
+                        <button onclick="document.getElementById('modal-etiquetas-overlay').remove()" style="padding:8px 20px;border:1px solid #e5e5e5;border-radius:4px;background:white;color:#666;font-size:13px;cursor:pointer;">Cancelar</button>
+                        <button onclick="gerarEtiquetasImpressao()" style="padding:8px 20px;border:none;border-radius:4px;background:#f97316;color:white;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                            <i class="fas fa-print"></i> Imprimir
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Salvar referência dos produtos no overlay
+            overlay._produtos = listaProdutos;
+            document.body.appendChild(overlay);
+
+            // Fechar com ESC
+            overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        }
+
+        function gerarEtiquetasImpressao() {
+            const overlay = document.getElementById('modal-etiquetas-overlay');
+            if (!overlay) return;
+
+            const produtos = overlay._produtos;
+            const modelo = document.getElementById('etq-modelo').value;
+            const mostrarPreco = document.getElementById('etq-preco').value === 'sim';
+            const mostrarSku = document.getElementById('etq-sku').value === 'sim';
+
+            const porFolha = parseInt(modelo);
+            const colunas = 2;
+            const linhas = porFolha / colunas;
+
+            // Mapa de cores de cabos para gerar etiquetas por cor
+            const CORES_CABOS = {
+                'PT': { nome: 'Preto', hex: '#1f2937', textColor: '#fff' },
+                'BR': { nome: 'Branco', hex: '#f8fafc', textColor: '#333' },
+                'CZ': { nome: 'Cinza', hex: '#9ca3af', textColor: '#fff' },
+                'AZ': { nome: 'Azul', hex: '#2563eb', textColor: '#fff' },
+                'VM': { nome: 'Vermelho', hex: '#dc2626', textColor: '#fff' },
+                'VD': { nome: 'Verde', hex: '#16a34a', textColor: '#fff' },
+                'AM': { nome: 'Amarelo', hex: '#eab308', textColor: '#333' },
+                'LJ': { nome: 'Laranja', hex: '#ea580c', textColor: '#fff' },
+                'MR': { nome: 'Marrom', hex: '#78350f', textColor: '#fff' },
+                'RX': { nome: 'Rosa', hex: '#ec4899', textColor: '#fff' }
+            };
+
+            // Gerar array de etiquetas repetindo conforme quantidade
+            // Se produto tem codigo_cores, gerar uma etiqueta por cor
+            let etiquetas = [];
+            produtos.forEach((p, i) => {
+                const qty = parseInt(document.getElementById('etq-qty-' + i)?.value || 1);
+                const codigoCores = p.codigo_cores || p.cor || '';
+
+                // Verificar se tem múltiplas cores (ex: "PT/CZ/AZ" ou "PT, CZ, AZ")
+                const coresArr = codigoCores ? codigoCores.split(/[\/,;\s]+/).map(c => c.trim().toUpperCase()).filter(c => c) : [];
+
+                if (coresArr.length > 1) {
+                    // Gerar uma etiqueta por cor disponível
+                    coresArr.forEach(corCodigo => {
+                        const corInfo = CORES_CABOS[corCodigo] || { nome: corCodigo, hex: '#64748b', textColor: '#fff' };
+                        for (let q = 0; q < qty; q++) {
+                            etiquetas.push({ ...p, _corAtual: corCodigo, _corInfo: corInfo });
+                        }
+                    });
+                } else {
+                    // Sem variação de cor ou cor única
+                    const corInfo = coresArr.length === 1 ? (CORES_CABOS[coresArr[0]] || { nome: coresArr[0], hex: '#64748b', textColor: '#fff' }) : null;
+                    for (let q = 0; q < qty; q++) {
+                        etiquetas.push({ ...p, _corAtual: coresArr[0] || null, _corInfo: corInfo });
+                    }
+                }
+            });
+
+            if (etiquetas.length === 0) {
+                showToast('Informe pelo menos 1 etiqueta', 'error');
+                return;
+            }
+
+            // Altura da etiqueta com base no modelo
+            const etqHeight = porFolha === 10 ? '55.4mm' : '68mm';
+            const gap = '2mm';
+
+            // Montar HTML de impressão — Design Profissional Industrial ALUFORCE
+            let html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Etiquetas - ALUFORCE</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"><\/script>
+<style>
+    @page {
+        size: A4;
+        margin: 7mm 5mm;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Segoe UI', 'Arial', sans-serif;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        color: #1a1a1a;
+    }
+    .folha {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: ${gap};
+        page-break-after: always;
+    }
+    .folha:last-child { page-break-after: auto; }
+    .etiqueta {
+        border: 1.5px solid #c7c7c7;
+        border-radius: 6px;
+        padding: 0;
+        height: ${etqHeight};
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+        background: #fff;
+    }
+    .etq-top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #1e293b;
+        color: #fff;
+        padding: 2mm 3.5mm;
+        min-height: 9mm;
+    }
+    .etq-top-bar .etq-logo-area {
+        display: flex;
+        align-items: center;
+        gap: 2mm;
+    }
+    .etq-top-bar .etq-logo {
+        height: 5.5mm;
+        object-fit: contain;
+    }
+    .etq-top-bar .etq-brand {
+        font-size: 9pt;
+        font-weight: 800;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+    }
+    .etq-top-bar .etq-codigo-pill {
+        background: rgba(255,255,255,0.18);
+        padding: 1mm 3mm;
+        border-radius: 3px;
+        font-size: 7.5pt;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        display: flex;
+        align-items: center;
+        gap: 1.5mm;
+    }
+    .etq-cor-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(255,255,255,0.5);
+        display: inline-block;
+    }
+    .etq-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 2.5mm 3.5mm 2mm 3.5mm;
+    }
+    .etq-nome {
+        font-size: 8.5pt;
+        font-weight: 700;
+        color: #111;
+        line-height: 1.3;
+        max-height: ${porFolha === 10 ? '8mm' : '12mm'};
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: ${porFolha === 10 ? '2' : '3'};
+        -webkit-box-orient: vertical;
+    }
+    .etq-meta-row {
+        display: flex;
+        gap: 2mm;
+        align-items: center;
+        margin-top: 1.5mm;
+        flex-wrap: wrap;
+    }
+    .etq-chip {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        padding: 0.6mm 2.5mm;
+        border-radius: 3px;
+        font-size: 6.5pt;
+        font-weight: 600;
+        color: #334155;
+        white-space: nowrap;
+    }
+    .etq-chip.etq-chip-color {
+        color: #fff;
+        border: none;
+        font-weight: 700;
+    }
+    .etq-separator {
+        border: none;
+        border-top: 1px dashed #dde1e6;
+        margin: 1.5mm 0;
+    }
+    .etq-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+    }
+    .etq-qr-area {
+        display: flex;
+        align-items: flex-end;
+        gap: 2.5mm;
+    }
+    .etq-qr-box {
+        width: 14mm;
+        height: 14mm;
+        border: 1px solid #e5e7eb;
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    .etq-qr-box img { width: 13mm; height: 13mm; }
+    .etq-loc-info {
+        font-size: 6pt;
+        color: #64748b;
+        line-height: 1.5;
+    }
+    .etq-loc-info strong {
+        color: #334155;
+        font-weight: 700;
+    }
+    .etq-price-block {
+        text-align: right;
+        min-width: 26mm;
+    }
+    .etq-price-label {
+        font-size: 5.5pt;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .etq-price-value {
+        font-size: 14pt;
+        font-weight: 900;
+        color: #1e293b;
+        letter-spacing: -0.3px;
+        line-height: 1.1;
+    }
+    .etq-price-unit {
+        font-size: 6pt;
+        color: #64748b;
+        margin-top: 0.3mm;
+    }
+    .etq-unit-block {
+        text-align: right;
+    }
+    .etq-unit-label {
+        font-size: 5.5pt;
+        color: #94a3b8;
+        text-transform: uppercase;
+    }
+    .etq-unit-value {
+        font-size: 12pt;
+        font-weight: 800;
+        color: #1e293b;
+    }
+    @media print {
+        .etiqueta { border-color: #bbb; }
+        .no-print { display: none !important; }
+    }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="padding:12px 20px;background:linear-gradient(135deg,#1e293b,#334155);color:white;display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-weight:600;font-size:14px;">🏷️ ${etiquetas.length} etiqueta(s) — ${Math.ceil(etiquetas.length / porFolha)} folha(s)</span>
+    <button onclick="window.print()" style="padding:8px 24px;background:#f97316;color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;">🖨️ Imprimir</button>
+</div>
+`;
+
+            // Gerar folhas
+            for (let f = 0; f < etiquetas.length; f += porFolha) {
+                html += '<div class="folha">';
+                for (let i = 0; i < porFolha; i++) {
+                    const idx = f + i;
+                    if (idx < etiquetas.length) {
+                        const p = etiquetas[idx];
+                        const codigo = p.codigo || '-';
+                        const nome = p.nome || p.descricao || 'Produto';
+                        const precoNum = parseFloat(p.preco_venda || p.preco || 0);
+                        const preco = precoNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                        const sku = p.sku || '';
+                        const unidade = (p.unidade_medida || p.unidade || 'UN').toUpperCase();
+                        const ean = p.gtin || p.ean || '';
+                        const marca = p.marca || 'Aluforce';
+                        const estoqueAtual = parseFloat(p.estoque_atual || p.quantidade_estoque || 0);
+                        const categoria = p.categoria || '';
+                        const ncm = p.ncm || '';
+                        const corAtual = p._corAtual || '';
+                        const corInfo = p._corInfo;
+                        const almoxarifado = p.almoxarifado || p.localizacao_almoxarifado || 'Principal';
+                        const corredor = p.corredor || p.localizacao_corredor || '-';
+                        const prateleira = p.prateleira || p.localizacao_prateleira || '-';
+                        const posicao = p.posicao || p.localizacao_posicao || '-';
+
+                        // QR Code data: código do produto + localização
+                        const qrData = JSON.stringify({
+                            cod: codigo,
+                            loc: { alm: almoxarifado, cor: corredor, prt: prateleira, pos: posicao },
+                            nome: nome.substring(0, 50),
+                            un: unidade
+                        });
+                        const qrId = 'qr-' + idx;
+                        const corLabel = corInfo ? corInfo.nome : '';
+                        const unidadeExtenso = unidade.toUpperCase() === 'M' ? 'metro' : unidade.toUpperCase() === 'KG' ? 'quilo' : unidade.toUpperCase() === 'UN' ? 'unidade' : unidade.toUpperCase() === 'PC' || unidade.toUpperCase() === 'PÇ' ? 'peça' : unidade;
+
+                        html += `
+                <div class="etiqueta">
+                    <div class="etq-top-bar">
+                        <div class="etq-logo-area">
+                            <img class="etq-logo" src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" onerror="this.outerHTML='<span style=\'font-size:8pt;font-weight:800;letter-spacing:1.5px\'>ALUFORCE</span>'">
+                        </div>
+                        <span class="etq-codigo-pill">
+                            ${corInfo ? '<span class="etq-cor-dot" style="background:' + corInfo.hex + ';"></span>' : ''}
+                            ${codigo}${corLabel ? ' · ' + corLabel : ''}
+                        </span>
+                    </div>
+                    <div class="etq-body">
+                        <div>
+                            <div class="etq-nome">${nome}</div>
+                            <div class="etq-meta-row">
+                                <span class="etq-chip" style="background:#dbeafe;border-color:#93c5fd;color:#1d4ed8;">${unidade}</span>
+                                ${ean ? '<span class="etq-chip">EAN ' + ean + '</span>' : ''}
+                                ${mostrarSku && sku ? '<span class="etq-chip">SKU ' + sku + '</span>' : ''}
+                                ${ncm ? '<span class="etq-chip">NCM ' + ncm + '</span>' : ''}
+                                <span class="etq-chip">${marca}</span>
+                                ${categoria ? '<span class="etq-chip">' + categoria + '</span>' : ''}
+                                ${corInfo ? '<span class="etq-chip etq-chip-color" style="background:' + corInfo.hex + ';">' + corInfo.nome + '</span>' : ''}
+                                <span class="etq-chip">Est: ${estoqueAtual.toLocaleString('pt-BR')} ${unidade.toLowerCase()}</span>
+                            </div>
+                        </div>
+                        <hr class="etq-separator">
+                        <div class="etq-footer">
+                            <div class="etq-qr-area">
+                                <div class="etq-qr-box"><div id="${qrId}"></div></div>
+                                <div class="etq-loc-info">
+                                    <div><strong>${almoxarifado}</strong></div>
+                                    ${corredor !== '-' ? '<div>Corredor <strong>' + corredor + '</strong></div>' : ''}
+                                    ${prateleira !== '-' ? '<div>Prat. <strong>' + prateleira + '</strong></div>' : ''}
+                                    ${posicao !== '-' ? '<div>Pos. <strong>' + posicao + '</strong></div>' : ''}
+                                </div>
+                            </div>
+                            ${mostrarPreco ? `
+                            <div class="etq-price-block">
+                                <div class="etq-price-label">Preço / ${unidadeExtenso}</div>
+                                <div class="etq-price-value">${preco}</div>
+                                <div class="etq-price-unit">por ${unidadeExtenso}</div>
+                            </div>` : `
+                            <div class="etq-unit-block">
+                                <div class="etq-unit-label">Unidade</div>
+                                <div class="etq-unit-value">${unidade}</div>
+                            </div>`}
+                        </div>
+                    </div>
+                </div>`;
+                    } else {
+                        html += '<div class="etiqueta" style="border-color:transparent;"></div>';
+                    }
+                }
+                html += '</div>';
+            }
+
+            // Script para gerar QR Codes após carregar
+            html += `
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const qrElements = document.querySelectorAll('[id^="qr-"]');
+    qrElements.forEach(function(el) {
+        const idx = parseInt(el.id.split('-')[1]);
+        const data = qrDataMap[idx];
+        if (data && typeof qrcode !== 'undefined') {
+            try {
+                var qr = qrcode(0, 'M');
+                qr.addData(data);
+                qr.make();
+                el.innerHTML = qr.createImgTag(2, 0);
+                var img = el.querySelector('img');
+                if (img) { img.style.width = '14mm'; img.style.height = '14mm'; }
+            } catch(e) {
+                el.innerHTML = '<div style="width:14mm;height:14mm;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:6pt;color:#94a3b8;border-radius:2px;">QR</div>';
+            }
+        }
+    });
+});
+var qrDataMap = {`;
+
+            // Add QR data for each etiqueta
+            etiquetas.forEach((p, idx) => {
+                const codigo = p.codigo || '-';
+                const nome = (p.nome || p.descricao || 'Produto').substring(0, 50);
+                const unidade = p.unidade_medida || p.unidade || 'm';
+                const almoxarifado = p.almoxarifado || p.localizacao_almoxarifado || 'Principal';
+                const corredor = p.corredor || p.localizacao_corredor || '-';
+                const prateleira = p.prateleira || p.localizacao_prateleira || '-';
+                const posicao = p.posicao || p.localizacao_posicao || '-';
+                const corAtual = p._corAtual || '';
+                const qrStr = codigo + '|' + almoxarifado + '|C' + corredor + '|P' + prateleira + '|' + posicao + (corAtual ? '|' + corAtual : '');
+                html += `${idx}: '${qrStr.replace(/'/g, "\\'")}',`;
+            });
+
+            html += `};
+<\/script>
+
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/socket.io/socket.io.js"><\/script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer><\/script>
+<\/body></html>`;
+
+            // Abrir janela de impressão
+            const printWin = window.open('', '_blank', 'width=800,height=600');
+            printWin.document.write(html);
+            printWin.document.close();
+
+            // Fechar modal de configuração
+            overlay.remove();
+            showToast(`${etiquetas.length} etiqueta(s) gerada(s)`, 'success');
+        }
+
+        // ===== FUNÇÕES DO MODAL DE EDIÇÃO =====
+
+        function editarProduto(id) {
+            // Usa o modal Omie do pcp-modals.js/pcp-modals.html
+            if (typeof editarProdutoForm === 'function') {
+                editarProdutoForm(id);
+            } else {
+                showToast('Modal de edição não carregado', 'error');
+            }
+        }
+
+        function preencherModalEdicao(p) {
+            // Legado - redirecionando para modal Omie
+            if (p && p.id) editarProduto(p.id);
+        }
+
+        function fecharModalEdicao() {
+            // Compatibilidade - fecha modal antigo se existir E o novo
+            const old = document.getElementById('modal-editar-produto');
+            if (old) old.classList.remove('active');
+            if (typeof fecharModalProdutoPCP === 'function') fecharModalProdutoPCP();
+        }
+
+        async function salvarEdicaoProduto() {
+            // Legado - agora salva via modal Omie (salvarProdutoPCP)
+            if (typeof salvarProdutoPCP === 'function') {
+                salvarProdutoPCP();
+            }
+        }
+
+        // Funções legadas (manter compatibilidade)
+        function fecharModalProduto() {
+            fecharModalVisualizacao();
+            fecharModalEdicao();
+        }
+
+        function registrarEntradaProduto() { registrarEntradaView(); }
+        function registrarSaidaProduto() { registrarSaidaView(); }
+        function ajustarEstoqueProduto() {
+            if (produtoAtual && typeof abrirModalMovimentacao === 'function') {
+                abrirModalMovimentacao('ajuste', produtoAtual);
+            }
+        }
+        function transferirEstoque() { showToast('Transferência em desenvolvimento', 'info'); }
+        function imprimirEtiqueta() { imprimirEtiquetaView(); }
+        function duplicarProduto() { showToast('Duplicar em desenvolvimento', 'info'); }
+        function verOrdensCompra() { showToast('Ordens de compra em desenvolvimento', 'info'); }
+        function verOrdensProducao() { showToast('Ordens de produção em desenvolvimento', 'info'); }
+        function inativarProduto() {
+            if (confirm('Inativar este produto?')) {
+                showToast('Produto inativado', 'warning');
+                fecharModalProduto();
+            }
+        }
+
+        function abrirNovoProduto() {
+            showToast('Redirecionando para cadastro...', 'info');
+            window.location.href = '../index.html?acao=novo-produto';
+        }
+
+        // Per-row movement shortcut
+        function abrirModalMovProduto(produtoId, tipo) {
+            const produto = produtosData.find(p => p.id === produtoId);
+            if (!produto) return;
+            abrirModalMovimentacao(tipo, produto);
+        }
+
+        // Download Template de Estoque
+        function baixarTemplateEstoque() {
+            const link = document.createElement('a');
+            link.href = '/api/estoque/template/download';
+            link.download = 'Template_Estoque_Bobinas_Aluforce.xlsx';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // ============================================================
+        // IMPORTAÇÃO DE PLANILHA EXCEL
+        // ============================================================
+        let arquivoImportacao = null;
+
+        function abrirModalImportarPlanilha() {
+            arquivoImportacao = null;
+            const overlay = document.getElementById('modal-importar-pcp');
+            if (!overlay) return;
+            document.getElementById('import-file-input-pcp').value = '';
+            document.getElementById('import-file-info-pcp').style.display = 'none';
+            document.getElementById('import-preview-pcp').style.display = 'none';
+            document.getElementById('import-resultado-pcp').style.display = 'none';
+            document.getElementById('btn-confirmar-import-pcp').style.display = 'none';
+            const dropzone = document.getElementById('import-dropzone-pcp');
+            dropzone.style.display = 'block';
+            dropzone.querySelector('i').className = 'fas fa-cloud-upload-alt';
+            dropzone.querySelector('p').innerHTML = '<strong>Clique ou arraste</strong> o arquivo Excel aqui';
+            overlay.style.display = 'flex';
+        }
+
+        function fecharModalImportar() {
+            document.getElementById('modal-importar-pcp').style.display = 'none';
+        }
+
+        function selecionarArquivoImport(input) {
+            const file = input.files[0];
+            if (!file) return;
+            if (!file.name.match(/\.xlsx?$/i)) { showToast('Formato inválido. Use .xlsx', 'warning'); return; }
+            arquivoImportacao = file;
+            document.getElementById('import-file-name-pcp').textContent = file.name;
+            document.getElementById('import-file-info-pcp').style.display = 'block';
+            const fileSize = (file.size / 1024).toFixed(1);
+            document.getElementById('import-preview-tbody-pcp').innerHTML = `
+                <tr><td colspan="5" style="text-align:center;padding:20px;color:#64748b;">
+                    <i class="fas fa-file-excel" style="font-size:24px;color:#22c55e;margin-bottom:8px;display:block;"></i>
+                    <strong>${file.name}</strong><br>
+                    <span style="font-size:11px;">${fileSize} KB — pronto para importar</span>
+                </td></tr>`;
+            document.getElementById('import-preview-pcp').style.display = 'block';
+            document.getElementById('btn-confirmar-import-pcp').style.display = 'inline-flex';
+        }
+
+        async function executarImportacao() {
+            if (!arquivoImportacao) { showToast('Selecione um arquivo primeiro', 'warning'); return; }
+            const btn = document.getElementById('btn-confirmar-import-pcp');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...';
+            try {
+                const formData = new FormData();
+                formData.append('arquivo', arquivoImportacao);
+                const response = await fetch('/api/estoque/template/importar', { credentials: 'include', method: 'POST', credentials: 'include', body: formData
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Erro na importação');
+                const resultado = document.getElementById('import-resultado-pcp');
+                resultado.style.display = 'block';
+                resultado.innerHTML = `
+                    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px;text-align:center;">
+                        <i class="fas fa-check-circle" style="font-size:40px;color:#22c55e;margin-bottom:12px;display:block;"></i>
+                        <h4 style="color:#166534;margin:0 0 12px;font-size:16px;">Importação Concluída!</h4>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+                            <div style="background:white;padding:10px;border-radius:8px;">
+                                <div style="font-size:20px;font-weight:700;color:#1e293b;">${data.resumo?.linhas_processadas||0}</div>
+                                <div style="font-size:11px;color:#64748b;">Linhas</div>
+                            </div>
+                            <div style="background:white;padding:10px;border-radius:8px;">
+                                <div style="font-size:20px;font-weight:700;color:#1e293b;">${data.resumo?.produtos_processados||0}</div>
+                                <div style="font-size:11px;color:#64748b;">Produtos</div>
+                            </div>
+                            <div style="background:white;padding:10px;border-radius:8px;">
+                                <div style="font-size:20px;font-weight:700;color:#1e293b;">${data.resumo?.bobinas_inseridas||0}</div>
+                                <div style="font-size:11px;color:#64748b;">Bobinas</div>
+                            </div>
+                        </div>
+                    </div>`;
+                document.getElementById('import-dropzone-pcp').style.display = 'none';
+                document.getElementById('import-preview-pcp').style.display = 'none';
+                btn.style.display = 'none';
+                carregarProdutos();
+                showToast('✅ Importação concluída!', 'success');
+            } catch (err) {
+                showToast('Erro na importação: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-upload"></i> Importar Dados';
+            }
+        }
+
+        // ============================================================
+        // ABA MOVIMENTAÇÕES (histórico global)
+        // ============================================================
+        let movimentacoesCarregadas = false;
+
+        async function carregarMovimentacoesGlobal() {
+            if (movimentacoesCarregadas) return;
+            const container = document.getElementById('tab-movimentacoes-content');
+            if (!container) return;
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fas fa-spinner fa-spin" style="font-size:24px;"></i><p>Carregando movimentações...</p></div>';
+            try {
+                const API_BASE = getAPIBase();
+                const response = await fetch(`${API_BASE}/api/pcp/estoque/movimentacoes?limit=50`, { credentials: 'include' });
+                if (!response.ok) throw new Error('Erro ao carregar');
+                const data = await response.json();
+                const movs = data.rows || data.movimentacoes || data || [];
+                if (movs.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:60px;color:#94a3b8;"><i class="fas fa-inbox" style="font-size:40px;margin-bottom:12px;display:block;"></i>Nenhuma movimentação registrada</div>';
+                    return;
+                }
+                container.innerHTML = `
+                    <div class="table-container"><table class="data-table">
+                        <thead><tr>
+                            <th>Data</th><th>Tipo</th><th>Produto</th><th>Quantidade</th><th>Anterior</th><th>Atual</th><th>Local</th><th>Observação</th><th>Documento</th>
+                        </tr></thead>
+                        <tbody>${movs.map(m => {
+                            const tipo = (m.tipo || 'ajuste').toUpperCase();
+                            const data = m.data_movimentacao || m.created_at || m.criado_em;
+                            const dataFmt = data ? new Date(data).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-';
+                            const cor = tipo === 'ENTRADA' ? '#059669' : tipo === 'SAIDA' ? '#dc2626' : '#d97706';
+                            const icone = tipo === 'ENTRADA' ? 'arrow-up' : tipo === 'SAIDA' ? 'arrow-down' : 'sliders-h';
+                            const nomeProduto = m.produto_nome || m.material_nome || m.nome || `#${m.produto_id || m.material_id || '-'}`;
+                            return `<tr>
+                                <td style="white-space:nowrap;">${dataFmt}</td>
+                                <td><span style="color:${cor};font-weight:600;display:flex;align-items:center;gap:4px;"><i class="fas fa-${icone}"></i> ${tipo}</span></td>
+                                <td>${nomeProduto}</td>
+                                <td style="font-weight:700;color:${cor};">${tipo==='ENTRADA'?'+':''}${m.quantidade||0}</td>
+                                <td>${parseFloat(m.quantidade_anterior||0).toFixed(2)}</td>
+                                <td style="font-weight:600;">${parseFloat(m.quantidade_atual||0).toFixed(2)}</td>
+                                <td>${m.local||'PRINCIPAL'}</td>
+                                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(m.observacoes||m.observacao||m.motivo||'').replace(/"/g,'&quot;')}">${m.observacoes||m.observacao||m.motivo||'-'}</td>
+                                <td>${m.documento||'-'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table></div>`;
+                movimentacoesCarregadas = true;
+            } catch (err) {
+                container.innerHTML = `<div style="text-align:center;padding:40px;color:#dc2626;"><i class="fas fa-exclamation-triangle" style="font-size:24px;margin-bottom:8px;display:block;"></i>Erro ao carregar: ${err.message}</div>`;
+            }
+        }
+
+        // Tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const tab = this.dataset.tab;
+
+                // Show/hide tab-specific content
+                const movPanel = document.getElementById('tab-movimentacoes-panel');
+                const mainContent = document.getElementById('main-produtos-content');
+
+                if (tab === 'movimentacoes') {
+                    if (mainContent) mainContent.style.display = 'none';
+                    if (movPanel) movPanel.style.display = 'block';
+                    carregarMovimentacoesGlobal();
+                } else {
+                    if (mainContent) mainContent.style.display = 'block';
+                    if (movPanel) movPanel.style.display = 'none';
+                    // Filter based on tab
+                    if (tab === 'estoque-baixo') {
+                        document.getElementById('filter-estoque').value = 'baixo';
+                    } else {
+                        document.getElementById('filter-estoque').value = '';
+                    }
+                    renderizarProdutos();
+                }
+            });
+        });
+
+        // Enter na busca
+        document.getElementById('search-produtos').addEventListener('keypress', e => {
+            if (e.key === 'Enter') buscarProdutos();
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            atualizarSaudacao();
+            carregarProdutos();
+
+            // Carregar modais via fetch
+            fetch('../templates/pcp-modals.html')
+                .then(res => res.text())
+                .then(html => {
+                    const container = document.createElement('div');
+                    container.innerHTML = html;
+                    document.body.appendChild(container);
+                })
+                .catch(err => console.warn('Modais não carregados:', err));
+        });
+    </script>
+    <script src="/modules/_shared/connection-monitor.js?v=20260205c"></script>
+
+<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
+    <!-- Chat Widget BOB AI --><!-- Chat Widget REMOVIDO --><!--
+    <script src="/chat/widget.js?v=20260218" defer></script> -->
+
+    <!-- Sidebar Click Animation -->
+    <script src="/js/sidebar-click-animation.js?v=20260224"></script>
+    <script src="/_shared/accessibility-widget.js?v=20260226"></script>
+
+    <!-- Chat Corporativo (Teams) -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
+</body>
+</html>
