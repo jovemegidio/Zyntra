@@ -8,7 +8,7 @@ router.get('/', async (req, res) => {
         const db = getDatabase();
         const { status, departamento, urgente, limit = 50, offset = 0 } = req.query;
         
-        let sql = 'SELECT * FROM requisicoes WHERE 1=1';
+        let sql = 'SELECT * FROM requisicoes_compras WHERE 1=1';
         const params = [];
         
         if (status) {
@@ -21,26 +21,21 @@ router.get('/', async (req, res) => {
             params.push(departamento);
         }
         
-        if (urgente !== undefined) {
-            sql += ' AND urgente = ?';
-            params.push(urgente === 'true' ? 1 : 0);
-        }
-        
-        sql += ' ORDER BY urgente DESC, data_solicitacao DESC LIMIT ? OFFSET ?';
+        sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
         params.push(parseInt(limit), parseInt(offset));
         
         const [requisicoes] = await db.execute(sql, params);
         
         // Buscar itens de cada requisição
-        for (let req of requisicoes) {
+        for (let r of requisicoes) {
             const [itens] = await db.execute(
-                'SELECT * FROM requisicoes_itens WHERE requisicao_id = ?',
-                [req.id]
+                'SELECT * FROM itens_requisicao WHERE requisicao_id = ?',
+                [r.id]
             );
-            req.itens = itens;
+            r.itens = itens;
         }
         
-        const countSql = 'SELECT COUNT(*) as total FROM requisicoes WHERE 1=1' +
+        const countSql = 'SELECT COUNT(*) as total FROM requisicoes_compras WHERE 1=1' +
             (status ? ' AND status = ?' : '') +
             (departamento ? ' AND departamento = ?' : '');
         const countParams = [];
@@ -67,7 +62,7 @@ router.get('/:id', async (req, res) => {
     try {
         const db = getDatabase();
         const [requisicoes] = await db.execute(
-            'SELECT * FROM requisicoes WHERE id = ?',
+            'SELECT * FROM requisicoes_compras WHERE id = ?',
             [req.params.id]
         );
         
@@ -79,7 +74,7 @@ router.get('/:id', async (req, res) => {
         
         // Buscar itens
         const [itens] = await db.execute(
-            'SELECT * FROM requisicoes_itens WHERE requisicao_id = ?',
+            'SELECT * FROM itens_requisicao WHERE requisicao_id = ?',
             [requisicao.id]
         );
         requisicao.itens = itens;
@@ -100,11 +95,13 @@ router.post('/', async (req, res) => {
         await connection.beginTransaction();
         
         const {
+            numero,
             solicitante,
             departamento,
+            prioridade,
             data_necessidade,
             justificativa,
-            urgente = false,
+            observacoes,
             itens
         } = req.body;
         
@@ -113,18 +110,31 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'Solicitante, departamento e itens são obrigatórios' });
         }
         
+        // Gerar número da requisição se não informado
+        let numeroRequisicao = numero;
+        if (!numeroRequisicao) {
+            const ano = new Date().getFullYear();
+            const [maxRows] = await connection.execute(
+                `SELECT MAX(CAST(SUBSTRING_INDEX(numero, '-', -1) AS UNSIGNED)) as max_num 
+                 FROM requisicoes_compras WHERE numero LIKE ?`,
+                [`REQ-${ano}-%`]
+            );
+            const maxNum = maxRows[0]?.max_num || 0;
+            numeroRequisicao = `REQ-${ano}-${String(maxNum + 1).padStart(4, '0')}`;
+        }
+        
         // Inserir requisição
         const [result] = await connection.execute(
-            `INSERT INTO requisicoes (
-                solicitante, departamento, data_solicitacao, data_necessidade,
-                justificativa, urgente, status
-            ) VALUES (?, ?, NOW(), ?, ?, ?, 'pendente')`,
+            `INSERT INTO requisicoes_compras (
+                numero, solicitante, departamento, data_requisicao,
+                prioridade, observacoes, status
+            ) VALUES (?, ?, ?, CURDATE(), ?, ?, 'pendente')`,
             [
+                numeroRequisicao,
                 solicitante,
                 departamento,
-                data_necessidade,
-                justificativa,
-                urgente ? 1 : 0
+                prioridade || 'media',
+                observacoes || justificativa || null
             ]
         );
         
@@ -133,17 +143,16 @@ router.post('/', async (req, res) => {
         // Inserir itens
         for (const item of itens) {
             await connection.execute(
-                `INSERT INTO requisicoes_itens (
-                    requisicao_id, material_id, descricao, quantidade, 
-                    unidade, observacoes
-                ) VALUES (?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO itens_requisicao (
+                    requisicao_id, descricao, quantidade, 
+                    unidade, observacao
+                ) VALUES (?, ?, ?, ?, ?)`,
                 [
                     requisicao_id,
-                    item.material_id || null,
                     item.descricao,
                     item.quantidade,
                     item.unidade || 'UN',
-                    item.observacoes
+                    item.observacoes || item.observacao || null
                 ]
             );
         }
@@ -153,7 +162,8 @@ router.post('/', async (req, res) => {
         res.status(201).json({
             success: true,
             message: 'Requisição criada com sucesso',
-            requisicao_id
+            id: requisicao_id,
+            numero: numeroRequisicao
         });
     } catch (error) {
         await connection.rollback();
@@ -181,7 +191,7 @@ router.put('/:id', async (req, res) => {
         
         // Verificar se requisição existe e está pendente
         const [requisicoes] = await connection.execute(
-            'SELECT status FROM requisicoes WHERE id = ?',
+            'SELECT status FROM requisicoes_compras WHERE id = ?',
             [req.params.id]
         );
         
@@ -197,15 +207,13 @@ router.put('/:id', async (req, res) => {
         
         // Atualizar requisição
         await connection.execute(
-            `UPDATE requisicoes SET 
-                data_necessidade = COALESCE(?, data_necessidade),
-                justificativa = COALESCE(?, justificativa),
-                urgente = COALESCE(?, urgente)
+            `UPDATE requisicoes_compras SET 
+                prioridade = COALESCE(?, prioridade),
+                observacoes = COALESCE(?, observacoes)
             WHERE id = ?`,
             [
-                data_necessidade,
-                justificativa,
-                urgente !== undefined ? (urgente ? 1 : 0) : null,
+                req.body.prioridade || null,
+                req.body.observacoes || req.body.justificativa || null,
                 req.params.id
             ]
         );
@@ -213,24 +221,23 @@ router.put('/:id', async (req, res) => {
         if (itens && itens.length > 0) {
             // Deletar itens antigos
             await connection.execute(
-                'DELETE FROM requisicoes_itens WHERE requisicao_id = ?',
+                'DELETE FROM itens_requisicao WHERE requisicao_id = ?',
                 [req.params.id]
             );
             
             // Inserir novos itens
             for (const item of itens) {
                 await connection.execute(
-                    `INSERT INTO requisicoes_itens (
-                        requisicao_id, material_id, descricao, quantidade, 
-                        unidade, observacoes
-                    ) VALUES (?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO itens_requisicao (
+                        requisicao_id, descricao, quantidade, 
+                        unidade, observacao
+                    ) VALUES (?, ?, ?, ?, ?)`,
                     [
                         req.params.id,
-                        item.material_id || null,
                         item.descricao,
                         item.quantidade,
                         item.unidade || 'UN',
-                        item.observacoes
+                        item.observacoes || item.observacao || null
                     ]
                 );
             }
@@ -258,13 +265,10 @@ router.put('/:id/aprovar', async (req, res) => {
         const { aprovador, observacoes_aprovacao } = req.body;
         
         await db.execute(
-            `UPDATE requisicoes SET 
-                status = 'aprovada',
-                aprovador = ?,
-                data_aprovacao = NOW(),
-                observacoes_aprovacao = ?
+            `UPDATE requisicoes_compras SET 
+                status = 'aprovada'
             WHERE id = ?`,
-            [aprovador, observacoes_aprovacao, req.params.id]
+            [req.params.id]
         );
         
         res.json({
@@ -288,13 +292,10 @@ router.put('/:id/reprovar', async (req, res) => {
         }
         
         await db.execute(
-            `UPDATE requisicoes SET 
-                status = 'reprovada',
-                aprovador = ?,
-                data_aprovacao = NOW(),
-                observacoes_aprovacao = ?
+            `UPDATE requisicoes_compras SET 
+                status = 'rejeitada'
             WHERE id = ?`,
-            [aprovador, motivo_reprovacao, req.params.id]
+            [req.params.id]
         );
         
         res.json({
@@ -313,7 +314,7 @@ router.delete('/:id', async (req, res) => {
         const db = getDatabase();
         
         await db.execute(
-            "UPDATE requisicoes SET status = 'cancelada' WHERE id = ?",
+            "UPDATE requisicoes_compras SET status = 'rejeitada' WHERE id = ?",
             [req.params.id]
         );
         

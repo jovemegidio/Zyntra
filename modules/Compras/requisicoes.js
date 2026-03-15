@@ -22,10 +22,12 @@ function getAuthHeaders() {
 // Mostrar toast de notificação
 function mostrarToast(mensagem, tipo = 'info') {
     const toast = document.createElement('div');
-    toast.innerHTML = `
-        <i class="fas fa-${tipo === 'success' ? 'check-circle' : tipo === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-        <span>${mensagem}</span>
-    `;
+    var icon = document.createElement('i');
+    icon.className = 'fas fa-' + (tipo === 'success' ? 'check-circle' : tipo === 'error' ? 'exclamation-circle' : 'info-circle');
+    var span = document.createElement('span');
+    span.textContent = mensagem;
+    toast.appendChild(icon);
+    toast.appendChild(span);
     toast.style.cssText = `
         position: fixed; top: 20px; right: 20px; z-index: 10000;
         background: ${tipo === 'success' ? '#22c55e' : tipo === 'error' ? '#ef4444' : '#3b82f6'};
@@ -425,7 +427,8 @@ async function salvarRequisicao(status) {
         
         if (response.ok) {
             const result = await response.json();
-            requisicao.id = result.id || requisicao.id;
+            requisicao.id = result.id || result.requisicao_id || requisicao.id;
+            if (result.numero) requisicao.numero = result.numero;
             
             if (requisicaoId) {
                 const index = requisicoes.findIndex(r => r.id === requisicaoId);
@@ -436,7 +439,8 @@ async function salvarRequisicao(status) {
             
             mostrarToast(status === 'rascunho' ? 'Requisição salva!' : 'Requisição enviada para aprovação!', 'success');
         } else {
-            throw new Error('Erro na API');
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || 'Erro na API');
         }
     } catch (error) {
         console.log('Salvando localmente...', error);
