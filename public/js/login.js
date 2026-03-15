@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'andreia': 'Andreia.webp', 'douglas': 'Douglas.webp',
     'marcia': 'Marcia.jpg', 'fabiano': 'Fabiano.jpg', 'fabiola': 'Fabiola.jpg',
     'renata': 'Renata.jpg', 'augusto': 'Augusto.webp', 'thiago.scarcella': 'Thiago.webp',
-    'eldir': null, 'hellen': null,
+    'adm': null, 'eldir': null, 'hellen': null,
     'guilherme': 'Guilherme.webp', 'thiago': 'Thiago.webp',
     'clemerson': 'Clemerson.webp', 'clemerson.silva': 'Clemerson.webp', 'clemerson.leandro': 'Clemerson.webp', 'pcp': 'Clemerson.webp',
     'rh': 'Rh.webp', 'recursos humanos': 'Rh.webp', 'recursoshumanos': 'Rh.webp',
@@ -167,13 +167,13 @@ document.addEventListener('DOMContentLoaded', () => {
     'ana': '#2E7D32', 'bruno': '#1565C0', 'christian': '#00838F',
     'clayton': '#00695C', 'leonardo': '#558B2F', 'ramon': '#4527A0',
     'robson': '#0277BD', 'ronaldo': '#1976D2', 'willian': '#303F9F',
-    'eldir': '#EF6C00', 'hellen': '#F57C00',
+    'adm': '#EF6C00', 'eldir': '#EF6C00', 'hellen': '#F57C00',
     'default': '#1A2A4B'
   };
 
   async function fetchUserPhotoFromAPI(email) {
     try {
-      const response = await fetch(`/api/usuarios/foto/${encodeURIComponent(email)}`);
+      const response = await fetch(`/api/public/usuarios/foto/${encodeURIComponent(email)}`);
       if (!response.ok) return null;
       const data = await response.json();
       if (data.success && data.foto) return { foto: data.foto, nome: data.nome || null, apelido: data.apelido || null };
@@ -726,11 +726,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setLoading(true);
 
+    // Detect login method (email or CPF)
+    const cpfInput = document.getElementById('cpf');
+    const cpfGroup = document.getElementById('cpf-group');
+    const isCpfMode = cpfGroup && cpfGroup.style.display !== 'none';
+    const cpfValue = cpfInput ? cpfInput.value.trim() : '';
     const username = emailInput ? emailInput.value.trim() : '';
     const password = passwordInput ? passwordInput.value : '';
 
-    if (!username || !password) {
-      if (!username) {
+    if (isCpfMode ? !cpfValue : !username || !password) {
+      if (isCpfMode && !cpfValue) {
+        const cpfError = document.getElementById('cpf-error');
+        if (cpfError) { cpfError.querySelector('span').textContent = 'CPF é obrigatório'; cpfError.style.display = 'flex'; }
+        cpfInput?.classList.add('has-error');
+        cpfInput?.focus();
+      }
+      if (!isCpfMode && !username) {
         const emailError = document.getElementById('email-error');
         if (emailError) { emailError.querySelector('span').textContent = 'Email é obrigatório'; emailError.style.display = 'flex'; }
         emailInput?.classList.add('has-error');
@@ -780,11 +791,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       } catch (e) {}
       // API LOGIN CALL
+      const loginPayload = { password, trustedDeviceToken: savedTrustedToken };
+      if (isCpfMode) {
+        loginPayload.cpf = cpfValue.replace(/\D/g, ''); // Send only digits
+      } else {
+        loginPayload.email = username;
+      }
       const response = await apiFetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: username, password, trustedDeviceToken: savedTrustedToken })
+        body: JSON.stringify(loginPayload)
       });
 
       console.log('[LOGIN] 📡 Resposta recebida:', response.status);
@@ -819,7 +836,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data && data.forcePasswordChange) {
         console.log('[LOGIN] 🔑 Senha temporária detectada - exibindo modal de troca...');
         setLoading(false);
-        showForceChangePasswordModal(data.token, data.user, data.deviceId, data.redirectTo);
+        showForceChangePasswordModal(data.user, data.deviceId, data.redirectTo);
         return; // Para aqui - o modal de troca continua o fluxo
       }
 
@@ -833,11 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.clear();
       } catch (e) {}
 
-      if (data.token) {
-        localStorage.setItem('authToken', data.token);
-        localStorage.setItem('token', data.token);
-        sessionStorage.setItem('tabAuthToken', data.token);
-      }
+      // SECURITY: Token is delivered via httpOnly cookie only — NOT stored in JS-accessible storage
 
       if (data.deviceId) {
         sessionStorage.setItem('deviceId', data.deviceId);
@@ -847,9 +860,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const userDataJson = JSON.stringify(data.user);
         localStorage.setItem('userData', userDataJson);
         sessionStorage.setItem('tabUserData', userDataJson);
-        localStorage.setItem('userEmail', data.user.email || '');
-        localStorage.setItem('userRole', data.user.role || '');
-        localStorage.setItem('userName', data.user.nome || data.user.name || '');
+        // P5 SECURITY: PII individual keys (userEmail, userRole, userName) removidos do localStorage
+        // Todos os dados estão disponíveis via userData JSON, reduzindo superfície de ataque PII
       }
 
       // Show success state
@@ -886,8 +898,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
           const meResp = await apiFetch('/api/me', {
-            credentials: 'include',
-            headers: { 'Authorization': 'Bearer ' + data.token }
+            credentials: 'include'
           });
           if (meResp.ok) {
             const userData = await meResp.json();
@@ -926,8 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       try {
         const meResp = await apiFetch('/api/me', {
-          credentials: 'include',
-          headers: { 'Authorization': 'Bearer ' + data.token }
+          credentials: 'include'
         });
         if (meResp.ok) {
           const userData = await meResp.json();
@@ -1181,11 +1191,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.clear();
       } catch (e) {}
 
-      if (data.token) {
-        localStorage.setItem('authToken', data.token);
-        localStorage.setItem('token', data.token);
-        sessionStorage.setItem('tabAuthToken', data.token);
-      }
+      // SECURITY: Token is delivered via httpOnly cookie only — NOT stored in JS-accessible storage
       if (data.deviceId) {
         sessionStorage.setItem('deviceId', data.deviceId);
       }
@@ -1193,9 +1199,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const userDataJson = JSON.stringify(data.user);
         localStorage.setItem('userData', userDataJson);
         sessionStorage.setItem('tabUserData', userDataJson);
-        localStorage.setItem('userEmail', data.user.email || '');
-        localStorage.setItem('userRole', data.user.role || '');
-        localStorage.setItem('userName', data.user.nome || data.user.name || '');
       }
 
       // Handle redirect
@@ -1220,8 +1223,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Fetch /api/me for fresh data
         apiFetch('/api/me', {
-          credentials: 'include',
-          headers: { 'Authorization': 'Bearer ' + data.token }
+          credentials: 'include'
         }).then(r => r.ok ? r.json() : Promise.reject()).then(userData => {
           const freshJson = JSON.stringify(userData);
           localStorage.setItem('userData', freshJson);
@@ -1334,7 +1336,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ════════════════════════════════════════════════════════════════════
   // 🔑 MODAL DE TROCA OBRIGATÓRIA DE SENHA TEMPORÁRIA
   // ════════════════════════════════════════════════════════════════════
-  function showForceChangePasswordModal(authToken, userData, deviceId, redirectTo) {
+  function showForceChangePasswordModal(userData, deviceId, redirectTo) {
     const modal = document.getElementById('modal-force-password');
     if (!modal) { console.error('[FORCE-PW] Modal não encontrado'); return; }
 
@@ -1455,7 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ token: authToken, newPassword })
+            body: JSON.stringify({ newPassword })
           });
 
           const result = await response.json();
@@ -1477,11 +1479,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessionStorage.clear();
               } catch (e) {}
 
-              if (authToken) {
-                localStorage.setItem('authToken', authToken);
-                localStorage.setItem('token', authToken);
-                sessionStorage.setItem('tabAuthToken', authToken);
-              }
+              // SECURITY: Token is delivered via httpOnly cookie — NOT stored in JS-accessible storage
               if (deviceId) {
                 sessionStorage.setItem('deviceId', deviceId);
               }
@@ -1489,9 +1487,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userDataJson = JSON.stringify(userData);
                 localStorage.setItem('userData', userDataJson);
                 sessionStorage.setItem('tabUserData', userDataJson);
-                localStorage.setItem('userEmail', userData.email || '');
-                localStorage.setItem('userRole', userData.role || '');
-                localStorage.setItem('userName', userData.nome || userData.name || '');
               }
 
               // Redirecionar

@@ -1596,6 +1596,53 @@ const initCronJobs = () => {
 };
 
 // =================================================================
+// ENDPOINT PÚBLICO DE FOTO/AVATAR - Usado na tela de login (sem auth)
+// Retorna apenas foto, nome e apelido — dados não sensíveis
+// =================================================================
+app.get('/api/public/usuarios/foto/:email', async (req, res) => {
+    try {
+        const email = decodeURIComponent(req.params.email).toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            return res.status(400).json({ success: false, message: 'Email inválido' });
+        }
+        let nome = null, apelido = null, foto = null;
+        try {
+            const [usuarios] = await pool.query(
+                'SELECT foto, avatar, nome, apelido FROM usuarios WHERE LOWER(email) = ?', [email]
+            );
+            if (usuarios.length > 0) {
+                nome = usuarios[0].nome;
+                apelido = usuarios[0].apelido;
+                let fotoUsuario = usuarios[0].foto || null;
+                if (!fotoUsuario || fotoUsuario.endsWith('.svg')) {
+                    fotoUsuario = usuarios[0].avatar || null;
+                }
+                if (fotoUsuario && !fotoUsuario.endsWith('.svg')) {
+                    foto = fotoUsuario;
+                }
+            }
+        } catch (e) { /* silencioso */ }
+        if (!foto) {
+            try {
+                const [funcionarios] = await pool.query(
+                    'SELECT foto_perfil_url, foto_thumb_url, nome_completo FROM funcionarios WHERE LOWER(email) = ? LIMIT 1', [email]
+                );
+                if (funcionarios.length > 0) {
+                    foto = funcionarios[0].foto_perfil_url || funcionarios[0].foto_thumb_url || null;
+                    if (!nome) nome = funcionarios[0].nome_completo;
+                }
+            } catch (e) { /* silencioso */ }
+        }
+        if (nome || foto) {
+            return res.json({ success: true, foto, nome, apelido: apelido || null });
+        }
+        return res.json({ success: false, message: 'Usuário não encontrado' });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: 'Erro interno' });
+    }
+});
+
+// =================================================================
 // ENDPOINT DE FOTO DO USUÁRIO - Busca foto pelo email (autenticado)
 // [REFACTORED 10/03/2026] Extraído de dentro do authorizeACL para evitar side-effect
 // =================================================================
