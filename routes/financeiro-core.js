@@ -110,9 +110,14 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
                         permissoes = userData.permissoes_financeiro;
                     }
                 } else {
-                    return res.status(403).json({
-                        message: 'Você não tem permissão para acessar o módulo Financeiro'
-                    });
+                    // Se permissoes_financeiro não está setado mas o usuário já passou
+                    // pelo authorizeArea('financeiro') no router, conceder acesso padrão
+                    console.log(`[FINANCEIRO] Usuário ${user.email} sem permissoes_financeiro no DB, concedendo acesso padrão (authorizeArea já validou)`);
+                    permissoes = {
+                        contas_receber: true, contas_pagar: true,
+                        fluxo_caixa: true, relatorios: true,
+                        visualizar: true, criar: true, editar: true, excluir: true
+                    };
                 }
 
                 // Suporta tanto formato array ["contas_pagar"] quanto objeto {contas_pagar: true}
@@ -187,7 +192,18 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
 
             let permissoes = {};
             if (userData?.permissoes_financeiro) {
-                try { permissoes = JSON.parse(userData.permissoes_financeiro); } catch (e) { permissoes = {}; }
+                try {
+                    permissoes = typeof userData.permissoes_financeiro === 'string'
+                        ? JSON.parse(userData.permissoes_financeiro)
+                        : userData.permissoes_financeiro;
+                } catch (e) { permissoes = {}; }
+            } else {
+                // Sem permissões granulares no DB — se chegou até aqui, authorizeArea já validou
+                permissoes = {
+                    contas_receber: true, contas_pagar: true,
+                    fluxo_caixa: true, bancos: true, relatorios: true,
+                    visualizar: true, criar: true, editar: true, excluir: true
+                };
             }
 
             res.json({
