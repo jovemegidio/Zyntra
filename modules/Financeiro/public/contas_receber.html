@@ -1,42 +1,33 @@
 ﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/jpeg" href="/images/favicon-zyntra.jpg">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Aluforce: Contas a Receber</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>Zyntra: Contas a Receber</title>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha384-t1nt8BQoYMLFN5p42tRAtuAAFQaCQODekUVeKKZrEnEyp4H2R0RHFz0KWpmj7i8g" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- Design System Institucional Financeiro -->
     <link rel="stylesheet" href="css/fin-layout.css?v=20260216">
     <link rel="stylesheet" href="css/fin-components.css?v=20260216">
     <link rel="stylesheet" href="css/fin-header-sidebar.css?v=20260216">
+    <link rel="stylesheet" href="css/fin-counter-standard.css?v=20260314">
+    <link rel="stylesheet" href="/css/global-header-sidebar.css?v=20260216">
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="js/importar-xlsx.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin="anonymous"></script>
     <script src="/js/anti-copy-protection.js"></script>
     <link rel="stylesheet" href="/css/popup-confirmacao.css">
-    <script src="/js/modal-title.js?v=20260210"></script>
 
     <style>
         /* ===== CONTAS A RECEBER — ESTILOS ESPECÍFICOS ===== */
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-        .summary-card {
-            background: white;
-            border-radius: 12px;
-            padding: 18px 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            border: 1px solid var(--gray-100);
-        }
-        .summary-value { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
-        .summary-label { font-size: 12px; color: var(--gray-500); font-weight: 500; }
+        .kpi-grid .kpi-card { animation: slideInUp 0.5s ease-out backwards; }
+        .kpi-grid .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+        .kpi-grid .kpi-card:nth-child(2) { animation-delay: 0.1s; }
+        .kpi-grid .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+        .kpi-grid .kpi-card:nth-child(4) { animation-delay: 0.2s; }
+        @keyframes slideInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
 
         .search-bar-global { margin-bottom: 16px; }
         .search-input-wrapper { position: relative; display: flex; align-items: center; }
@@ -75,10 +66,11 @@
         .table-actions { display: flex; gap: 8px; }
         table { width: 100%; border-collapse: collapse; }
         th {
-            text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 700; color: var(--gray-500);
+            text-align: left; padding: 10px 12px; font-size: 10px; font-weight: 700; color: var(--gray-500);
             text-transform: uppercase; letter-spacing: 0.5px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200);
+            white-space: nowrap;
         }
-        td { padding: 12px 16px; font-size: 13px; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); }
+        td { padding: 10px 12px; font-size: 12px; color: var(--gray-700); border-bottom: 1px solid var(--gray-100); white-space: nowrap; }
         tr:hover td { background: var(--gray-50); }
 
         .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
@@ -88,8 +80,8 @@
         .badge-partial { background: #dbeafe; color: #1e40af; }
 
         .action-btn {
-            width: 30px; height: 30px; border: none; border-radius: 6px; cursor: pointer;
-            display: inline-flex; align-items: center; justify-content: center; font-size: 12px; transition: all 0.2s; margin-right: 2px;
+            width: 28px; height: 28px; border: none; border-radius: 6px; cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; font-size: 11px; transition: all 0.2s; margin-right: 2px;
         }
         .action-btn.view { background: #dbeafe; color: #1e40af; }
         .action-btn.view:hover { background: #bfdbfe; }
@@ -99,20 +91,16 @@
         .action-btn.edit:hover { background: #fde68a; }
         .action-btn.danger { background: #fee2e2; color: #991b1b; }
         .action-btn.danger:hover { background: #fecaca; }
-        .action-btn.info { background: #e0e7ff; color: #3730a3; }
-        .action-btn.info:hover { background: #c7d2fe; }
 
         .btn-success, .btn-primary, .btn-secondary-outline {
             padding: 8px 16px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
             display: inline-flex; align-items: center; gap: 6px;
         }
-        /* .btn-success, .btn-primary — cores definidas em fin-components.css */
         .btn-secondary-outline { background: white; border: 1px solid var(--gray-200); color: var(--gray-600); }
         .btn-secondary-outline:hover { background: var(--gray-50); }
 
         .highlight { background: #fef9c3; padding: 0 2px; border-radius: 2px; }
 
-        /* ===== TOAST ===== */
         .toast-container { position: fixed; top: 60px; right: 20px; z-index: 100000; display: flex; flex-direction: column; gap: 8px; }
         .toast {
             display: flex; align-items: center; gap: 10px; padding: 12px 18px;
@@ -125,7 +113,6 @@
         .toast.error { border-color: #ef4444; }
         .toast.warning { border-color: #f59e0b; }
 
-        /* ===== MODAIS ===== */
         .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; }
         .modal.active { display: flex; }
         .modal-content { background: white; border-radius: 16px; width: 95%; max-height: 90vh; overflow-y: auto; }
@@ -174,7 +161,7 @@
         .btn-save:hover { opacity: 0.9; }
 
         /* Modal Visualizar */
-        .modal-visualizar { max-width: 600px; }
+        .modal-visualizar { max-width: 800px; }
         .view-header { padding: 20px 24px; background: linear-gradient(135deg, #1e40af, #3b82f6); border-radius: 16px 16px 0 0; color: white; }
         .view-header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
         .view-id { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 20px; }
@@ -186,11 +173,14 @@
         .view-badge.overdue { background: rgba(239,68,68,0.3); color: white; }
         .view-badge.partial { background: rgba(59,130,246,0.3); color: white; }
         .view-body { padding: 20px 24px; }
-        .view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .view-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
         .view-item.full { grid-column: 1 / -1; }
+        .view-item.span2 { grid-column: span 2; }
         .view-label { font-size: 11px; font-weight: 600; color: var(--gray-500); margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
-        .view-value { font-size: 14px; font-weight: 600; color: var(--gray-800); }
+        .view-value { font-size: 13px; font-weight: 600; color: var(--gray-800); }
         .view-value.destaque { font-size: 20px; font-weight: 800; color: #1e40af; }
+        .view-section-title { grid-column: 1/-1; font-size: 13px; font-weight: 700; color: var(--gray-700); padding: 8px 0 4px; border-bottom: 1px solid var(--gray-100); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+        .view-section-title i { color: var(--info-500); }
         .view-recebimento-info { margin-top: 16px; padding: 16px; background: #dcfce7; border-radius: 10px; }
         .view-recebimento-info h4 { font-size: 13px; font-weight: 700; color: #166534; margin: 0 0 10px; display: flex; align-items: center; gap: 6px; }
         .view-recebimento-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -214,36 +204,51 @@
         .modal-receber-body { padding: 20px 24px; }
         .modal-receber-footer { padding: 16px 24px; border-top: 1px solid var(--gray-100); display: flex; gap: 10px; justify-content: flex-end; }
 
-        @media (max-width: 1024px) { .summary-cards { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 640px) { .summary-cards { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } .filters-bar { flex-direction: column; } }
+        .table-toggle-bar { display: flex; gap: 5px; margin-bottom: 16px; flex-wrap: wrap; padding: 6px; background: var(--gray-50); border-radius: 12px; border: 1px solid var(--gray-200); }
+        .table-toggle-btn {
+            padding: 6px 14px; font-size: 11px; font-weight: 700; border: 1px solid transparent;
+            border-radius: 8px; cursor: pointer; background: transparent; color: var(--gray-500); transition: all 0.2s;
+            letter-spacing: 0.3px; text-transform: uppercase; white-space: nowrap;
+        }
+        .table-toggle-btn:hover { background: white; color: var(--gray-700); border-color: var(--gray-200); }
+        .table-toggle-btn.active { background: #1e40af; color: white; border-color: #1e40af; box-shadow: 0 2px 8px rgba(30,64,175,0.3); }
+
+        /* Resumo Panel */
+        .resumo-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+        .resumo-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid var(--gray-100); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        .resumo-card-title { font-size: 12px; font-weight: 700; color: var(--gray-500); text-transform: uppercase; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+        .resumo-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--gray-50); font-size: 13px; }
+        .resumo-row:last-child { border-bottom: none; }
+        .resumo-label { color: var(--gray-600); }
+        .resumo-value { font-weight: 700; color: var(--gray-800); }
+        .resumo-value.danger { color: #dc2626; }
+        .resumo-value.success { color: #059669; }
+        .resumo-value.warning { color: #d97706; }
+        @media (max-width: 1024px) { .resumo-panel { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 640px) { .resumo-panel { grid-template-columns: 1fr; } }
+
+        @media (max-width: 1024px) { .view-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } .filters-bar { flex-direction: column; } .view-grid { grid-template-columns: 1fr; } }
     </style>
-    <!-- Chat Widget BOB AI -->
-    <link rel="stylesheet" href="/chat/widget.css?v=20260218">
 </head>
 <body>
-    <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
-
     <div class="app-container">
         <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
-
-        <!-- Sidebar -->
         <aside class="sidebar" id="mobile-sidebar">
             <a href="/dashboard" class="sidebar-logo" title="Voltar ao Painel"><i class="fas fa-home"></i></a>
             <nav class="sidebar-nav">
                 <a href="index.html" class="sidebar-btn" title="Dashboard"><i class="fas fa-chart-pie"></i></a>
-                <a href="contas_pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
-                <a href="contas_receber.html" class="sidebar-btn active" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
-                <a href="contas_bancarias.html" class="sidebar-btn" title="Contas Bancárias"><i class="fas fa-university"></i></a>
-                <a href="fluxo_caixa.html" class="sidebar-btn" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
+                <a href="contas-pagar.html" class="sidebar-btn" title="Contas a Pagar"><i class="fas fa-file-invoice-dollar"></i></a>
+                <a href="contas-receber.html" class="sidebar-btn active" title="Contas a Receber"><i class="fas fa-hand-holding-usd"></i></a>
+                <a href="bancos.html" class="sidebar-btn" title="Bancos"><i class="fas fa-university"></i></a>
+                <a href="fluxo-caixa.html" class="sidebar-btn" title="Fluxo de Caixa"><i class="fas fa-money-bill-wave"></i></a>
                 <a href="relatorios.html" class="sidebar-btn" title="Relatórios"><i class="fas fa-chart-bar"></i></a>
             </nav>
             <div class="sidebar-bottom">
                 <a href="/dashboard" class="sidebar-btn" title="Configurações"><i class="fas fa-cog"></i></a>
             </div>
         </aside>
-
-        <!-- Main -->
         <main class="main-area" data-page-name="Contas a Receber">
             <header class="header" id="financeiro-header">
                 <div class="header-left">
@@ -252,7 +257,7 @@
                         <img src="/images/Logo Monocromatico - Branco - Aluforce.png" alt="ALUFORCE" style="height:22px;object-fit:contain;">
                         <span class="header-separator">|</span>
                         <img src="/images/zyntra-branco.png" alt="Zyntra" style="height:22px;object-fit:contain;">
-                        <span class="header-dash">—</span>
+                        <span class="header-dash">&#8212;</span>
                         <span class="page-title">Contas a Receber</span>
                     </div>
                 </div>
@@ -260,39 +265,70 @@
                     <button class="header-btn" title="Nova Receita" onclick="abrirModal()"><i class="fas fa-plus"></i></button>
                     <button class="header-btn" title="Atualizar" onclick="location.reload()"><i class="fas fa-sync-alt"></i></button>
                     <div class="notification-container">
-                        <button class="header-btn notification-btn" title="Notificações" onclick="toggleNotificacoes()">
+                        <button class="header-btn notification-btn" title="Notificacoes" onclick="toggleNotificacoes()">
                             <i class="fas fa-bell"></i>
                             <span class="notification-badge" id="notification-count" style="display:none;">0</span>
                         </button>
                     </div>
                     <div class="user-greeting">
-                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuário</strong></span>
+                        <span><span id="greeting-text">Bom dia</span>, <strong id="user-name">Usuario</strong></span>
                         <div class="user-avatar" id="user-avatar">
-                            <img src="" alt="Foto do usuário" id="user-photo" style="display:none;">
+                            <img src="" alt="Foto do usuario" id="user-photo" style="display:none;">
                             <span id="user-initials">U</span>
                         </div>
                     </div>
                 </div>
             </header>
-
             <div class="content-area">
-                <!-- Resumo -->
-                <div class="summary-cards">
-                    <div class="summary-card">
-                        <div class="summary-value" style="color:#2563eb;" id="total-receber">R$ 0,00</div>
-                        <div class="summary-label">Total a Receber</div>
+                <div class="page-header">
+                    <div class="page-title">
+                        <h1><i class="fas fa-hand-holding-usd"></i> Contas a Receber</h1>
+                        <p>Gerencie receitas, cobranças e recebimentos</p>
                     </div>
-                    <div class="summary-card">
-                        <div class="summary-value" style="color:#f59e0b;" id="total-vencendo">R$ 0,00</div>
-                        <div class="summary-label">Vencendo (7 dias)</div>
+                    <div class="page-actions">
+                        <button class="btn btn-success" onclick="abrirModalImportar()"><i class="fas fa-file-excel"></i> Importar XLSX</button>
+                        <button class="btn btn-secondary" onclick="exportarExcel()"><i class="fas fa-download"></i> Exportar</button>
+                        <button class="btn btn-primary" onclick="abrirModal()"><i class="fas fa-plus"></i> Nova Receita</button>
                     </div>
-                    <div class="summary-card">
-                        <div class="summary-value" style="color:#dc2626;" id="total-vencidas">R$ 0,00</div>
-                        <div class="summary-label">Inadimplentes</div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card accent-blue">
+                        <div class="stat-header">
+                            <div class="stat-icon blue"><i class="fas fa-hand-holding-usd"></i></div>
+                            <span class="stat-trend">&mdash;</span>
+                        </div>
+                        <div class="stat-value" id="stat-total">R$ 0,00</div>
+                        <div class="stat-label">Total a Receber</div>
+                        <div class="stat-footer"><a href="relatorios.html">Ver relatorios <i class="fas fa-arrow-right"></i></a></div>
                     </div>
-                    <div class="summary-card">
-                        <div class="summary-value" style="color:#16a34a;" id="total-recebidas">R$ 0,00</div>
-                        <div class="summary-label">Recebidas este Mês</div>
+                    <div class="stat-card accent-orange">
+                        <div class="stat-header">
+                            <div class="stat-icon amber"><i class="fas fa-calendar-day"></i></div>
+                            <span class="stat-trend">&mdash;</span>
+                        </div>
+                        <div class="stat-value" id="stat-vencendo">R$ 0,00</div>
+                        <div class="stat-label">Vencendo (7 dias)</div>
+                        <div class="stat-footer"><a href="fluxo-caixa.html">Ver fluxo <i class="fas fa-arrow-right"></i></a></div>
+                    </div>
+                    <div class="stat-card accent-red">
+                        <div class="stat-header">
+                            <div class="stat-icon red"><i class="fas fa-triangle-exclamation"></i></div>
+                            <span class="stat-trend">&mdash;</span>
+                        </div>
+                        <div class="stat-value" id="stat-vencidas">R$ 0,00</div>
+                        <div class="stat-label">Inadimplentes</div>
+                        <div class="stat-footer"><a href="relatorios.html">Ver detalhes <i class="fas fa-arrow-right"></i></a></div>
+                    </div>
+                    <div class="stat-card accent-green">
+                        <div class="stat-header">
+                            <div class="stat-icon green"><i class="fas fa-circle-check"></i></div>
+                            <span class="stat-trend">&mdash;</span>
+                        </div>
+                        <div class="stat-value" id="stat-recebidas">R$ 0,00</div>
+                        <div class="stat-label">Recebidas este Mes</div>
+                        <div class="stat-footer"><a href="relatorios.html">Ver pagamentos <i class="fas fa-arrow-right"></i></a></div>
                     </div>
                 </div>
 
@@ -300,7 +336,7 @@
                 <div class="search-bar-global">
                     <div class="search-input-wrapper">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="pesquisa-global" class="search-input-global" placeholder="Pesquisar por descrição, cliente, valor, documento..." oninput="pesquisarGlobal()">
+                        <input type="text" id="pesquisa-global" class="search-input-global" placeholder="Pesquisar por descricao, cliente, valor, documento..." oninput="pesquisarGlobal()">
                         <button class="btn-clear-search" onclick="limparPesquisa()" title="Limpar"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
@@ -308,12 +344,12 @@
                 <!-- Filtros -->
                 <div class="filters-bar">
                     <div class="filter-group">
-                        <label><i class="fas fa-calendar"></i> Período</label>
+                        <label><i class="fas fa-calendar"></i> Periodo</label>
                         <select class="filter-input" id="filtro-periodo" onchange="filtrarContas()">
                             <option value="todas">Todas</option>
-                            <option value="mes">Este Mês</option>
-                            <option value="proximos7">Próximos 7 dias</option>
-                            <option value="proximos30">Próximos 30 dias</option>
+                            <option value="mes">Este Mes</option>
+                            <option value="proximos7">Proximos 7 dias</option>
+                            <option value="proximos30">Proximos 30 dias</option>
                             <option value="vencidas">Vencidas</option>
                         </select>
                     </div>
@@ -321,10 +357,27 @@
                         <label><i class="fas fa-tag"></i> Status</label>
                         <select class="filter-input" id="filtro-status" onchange="filtrarContas()">
                             <option value="">Todos</option>
+                            <option value="a vencer">A Vencer</option>
+                            <option value="vencido">Vencido</option>
+                            <option value="liquidado">Liquidado</option>
                             <option value="pendente">Pendente</option>
                             <option value="recebido">Recebido</option>
                             <option value="parcial">Parcial</option>
-                            <option value="vencido">Vencido</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-university"></i> Portador</label>
+                        <select class="filter-input" id="filtro-portador" onchange="filtrarContas()">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-map-marker-alt"></i> Situacao</label>
+                        <select class="filter-input" id="filtro-situacao" onchange="filtrarContas()">
+                            <option value="">Todas</option>
+                            <option value="OPERADO">Operado</option>
+                            <option value="CARTEIRA">Carteira</option>
+                            <option value="A VISTA">A Vista</option>
                         </select>
                     </div>
                     <div class="filter-group">
@@ -338,64 +391,136 @@
                     </div>
                 </div>
 
+                <!-- Table Toggle — abas da planilha -->
+                <div class="table-toggle-bar">
+                    <button class="table-toggle-btn active" onclick="setTableView('resumo')" title="Resumo executivo">RESUMO</button>
+                    <button class="table-toggle-btn" onclick="setTableView('base')" title="Dados base / lista completa">BASE</button>
+                    <button class="table-toggle-btn" onclick="setTableView('faturamento')" title="Notas fiscais e faturamento">FATURAMENTO</button>
+                    <button class="table-toggle-btn" onclick="setTableView('disponivel')" title="Valores recebidos e disponíveis">DISPONÍVEL</button>
+                    <button class="table-toggle-btn" onclick="setTableView('a_receber')" title="Contas pendentes a receber">A RECEBER</button>
+                    <button class="table-toggle-btn" onclick="setTableView('diario')" title="Visão por data / vencimento">DIÁRIO</button>
+                    <button class="table-toggle-btn" onclick="setTableView('fundos')" title="Por portador / banco">FUNDOS</button>
+                    <button class="table-toggle-btn" onclick="setTableView('impostos')" title="Impostos retidos por lançamento">IMPOSTOS</button>
+                </div>
+
+                <!-- Painel de Resumo Analítico (visível na aba RESUMO) -->
+                <div id="resumo-panel-container" style="display:none;">
+                    <div class="resumo-panel">
+                        <div class="resumo-card">
+                            <div class="resumo-card-title"><i class="fas fa-chart-bar" style="color:#1e40af;"></i> Visão Geral</div>
+                            <div class="resumo-row"><span class="resumo-label">Total Lançamentos</span><span class="resumo-value" id="res-total-count">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Valor Bruto Total</span><span class="resumo-value" id="res-total-valor">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Valor Líquido Total</span><span class="resumo-value" id="res-total-liquido">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Total Recebido</span><span class="resumo-value success" id="res-total-recebido">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Saldo a Receber</span><span class="resumo-value warning" id="res-saldo-receber">-</span></div>
+                        </div>
+                        <div class="resumo-card">
+                            <div class="resumo-card-title"><i class="fas fa-exclamation-triangle" style="color:#d97706;"></i> Inadimplência</div>
+                            <div class="resumo-row"><span class="resumo-label">Qtd. Vencidas</span><span class="resumo-value danger" id="res-qtd-vencidas">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Valor Vencido</span><span class="resumo-value danger" id="res-valor-vencidas">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Qtd. A Vencer (7d)</span><span class="resumo-value warning" id="res-qtd-7d">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Valor A Vencer (7d)</span><span class="resumo-value warning" id="res-valor-7d">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Taxa Inadimplência</span><span class="resumo-value danger" id="res-taxa-inad">-</span></div>
+                        </div>
+                        <div class="resumo-card">
+                            <div class="resumo-card-title"><i class="fas fa-calculator" style="color:#7c3aed;"></i> Impostos Retidos</div>
+                            <div class="resumo-row"><span class="resumo-label">Total PIS</span><span class="resumo-value" id="res-pis">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Total COFINS</span><span class="resumo-value" id="res-cofins">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Total CSLL</span><span class="resumo-value" id="res-csll">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Total IR</span><span class="resumo-value" id="res-ir">-</span></div>
+                            <div class="resumo-row"><span class="resumo-label">Total ISS + INSS</span><span class="resumo-value" id="res-iss-inss">-</span></div>
+                        </div>
+                        <div class="resumo-card">
+                            <div class="resumo-card-title"><i class="fas fa-university" style="color:#059669;"></i> Por Portador (Top 5)</div>
+                            <div id="res-por-portador"><div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px;">Carregando...</div></div>
+                        </div>
+                        <div class="resumo-card">
+                            <div class="resumo-card-title"><i class="fas fa-building" style="color:#e11d48;"></i> Por Empresa</div>
+                            <div id="res-por-empresa"><div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px;">Carregando...</div></div>
+                        </div>
+                        <div class="resumo-card">
+                            <div class="resumo-card-title"><i class="fas fa-tag" style="color:#0891b2;"></i> Por Status</div>
+                            <div id="res-por-status"><div style="text-align:center;padding:20px;color:var(--gray-400);font-size:12px;">Carregando...</div></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tabela -->
                 <div class="table-container">
                     <div class="table-header">
-                        <h3 class="table-title">Listagem de Contas a Receber</h3>
+                        <h3 class="table-title">Listagem de Contas a Receber <span id="contagem-total" style="font-weight:400;color:var(--gray-400);font-size:12px;"></span></h3>
                         <div class="table-actions">
-                            <button class="btn-primary" onclick="enviarCobrancas()" title="Enviar cobranças em lote"><i class="fas fa-paper-plane"></i> Cobranças</button>
+                            <button class="btn-secondary-outline" onclick="abrirModalImportar()" title="Importar planilha Excel"><i class="fas fa-file-upload"></i> Importar Excel</button>
+                            <button class="btn-primary" onclick="enviarCobrancas()" title="Enviar cobrancas em lote"><i class="fas fa-paper-plane"></i> Cobrancas</button>
                             <button class="btn-success" onclick="exportarExcel()"><i class="fas fa-file-excel"></i> Exportar</button>
                         </div>
                     </div>
+                    <div style="overflow-x:auto;">
                     <table>
-                        <thead>
+                        <thead id="tabela-header">
                             <tr>
-                                <th>ID</th>
-                                <th>Descrição</th>
-                                <th>Cliente</th>
-                                <th>Vencimento</th>
-                                <th>Valor</th>
-                                <th>Status</th>
-                                <th>Ações</th>
+                                <th>Empresa</th><th>NFe</th><th>Parcela</th><th>Cliente</th><th>CNPJ</th>
+                                <th>Valor</th><th>Vencimento</th><th>Situacao</th><th>Portador</th>
+                                <th>Status</th><th>Dias</th><th>Acoes</th>
                             </tr>
                         </thead>
                         <tbody id="tabela-contas">
-                            <tr>
-                                <td colspan="7" style="text-align:center;padding:60px;color:var(--gray-400);">
-                                    <i class="fas fa-spinner fa-spin" style="font-size:48px;margin-bottom:16px;display:block;"></i>
-                                    Carregando contas...
-                                </td>
-                            </tr>
+                            <tr><td colspan="12" style="text-align:center;padding:60px;color:var(--gray-400);"><i class="fas fa-spinner fa-spin" style="font-size:48px;margin-bottom:16px;display:block;"></i>Carregando contas...</td></tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
         </main>
     </div>
-
     <!-- Modal Visualizar -->
     <div id="modal-visualizar" class="modal">
         <div class="modal-content modal-visualizar">
             <div class="view-header">
                 <div class="view-header-top">
                     <span class="view-id" id="view-id">#000</span>
-                    <button class="close-view" onclick="fecharModalVisualizar()">×</button>
+                    <button class="close-view" onclick="fecharModalVisualizar()">&times;</button>
                 </div>
-                <h3 class="view-title" id="view-descrição">Descrição</h3>
+                <h3 class="view-title" id="view-descricao">Descricao</h3>
                 <div><span id="view-status-badge" class="view-badge pending"><i class="fas fa-clock"></i> Pendente</span></div>
             </div>
             <div class="view-body">
                 <div class="view-grid">
-                    <div class="view-item"><div class="view-label"><i class="fas fa-dollar-sign"></i> Valor</div><div class="view-value destaque" id="view-valor">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-building"></i> Empresa</div><div class="view-value" id="view-empresa">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-file-invoice"></i> NFe</div><div class="view-value" id="view-nfe">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-layer-group"></i> Parcela</div><div class="view-value" id="view-parcela">-</div></div>
+                    <div class="view-item span2"><div class="view-label"><i class="fas fa-user"></i> Cliente</div><div class="view-value" id="view-cliente">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-id-card"></i> CNPJ/CPF</div><div class="view-value" id="view-cnpj">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-dollar-sign"></i> Valor da Conta</div><div class="view-value destaque" id="view-valor">R$ 0,00</div></div>
                     <div class="view-item"><div class="view-label"><i class="fas fa-calendar"></i> Vencimento</div><div class="view-value" id="view-vencimento">-</div></div>
-                    <div class="view-item"><div class="view-label"><i class="fas fa-user"></i> Cliente</div><div class="view-value" id="view-cliente">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-calendar-check"></i> Emissao</div><div class="view-value" id="view-emissao">-</div></div>
+                    <div class="view-section-title"><i class="fas fa-clipboard-list"></i> Detalhes</div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-exchange-alt"></i> Situacao</div><div class="view-value" id="view-situacao">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-university"></i> Portador</div><div class="view-value" id="view-portador">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-calendar-check"></i> Data Operacao</div><div class="view-value" id="view-data-op">-</div></div>
                     <div class="view-item"><div class="view-label"><i class="fas fa-tags"></i> Categoria</div><div class="view-value" id="view-categoria">-</div></div>
-                    <div class="view-item"><div class="view-label"><i class="fas fa-credit-card"></i> Forma de Recebimento</div><div class="view-value" id="view-forma">-</div></div>
-                    <div class="view-item"><div class="view-label"><i class="fas fa-file-alt"></i> Nº Documento</div><div class="view-value" id="view-documento">-</div></div>
-                    <div class="view-item full"><div class="view-label"><i class="fas fa-comment"></i> Observações</div><div class="view-value" id="view-observacoes" style="font-weight:normal;font-size:14px;">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-wallet"></i> Conta Corrente</div><div class="view-value" id="view-conta-corrente">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-file-alt"></i> Nr Documento</div><div class="view-value" id="view-documento">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-barcode"></i> Boleto</div><div class="view-value" id="view-boleto">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-user-tie"></i> Vendedor</div><div class="view-value" id="view-vendedor">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-project-diagram"></i> Projeto</div><div class="view-value" id="view-projeto">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-hourglass-half"></i> Dias</div><div class="view-value" id="view-dias">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-credit-card"></i> Forma</div><div class="view-value" id="view-forma">-</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-map-pin"></i> Posicao</div><div class="view-value" id="view-posicao">-</div></div>
+                    <div class="view-section-title"><i class="fas fa-calculator"></i> Impostos e Valores</div>
+                    <div class="view-item"><div class="view-label">PIS</div><div class="view-value" id="view-pis">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label">COFINS</div><div class="view-value" id="view-cofins">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label">CSLL</div><div class="view-value" id="view-csll">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label">IR</div><div class="view-value" id="view-ir">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label">ISS</div><div class="view-value" id="view-iss">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label">INSS</div><div class="view-value" id="view-inss">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-coins"></i> Valor Liquido</div><div class="view-value destaque" id="view-liquido" style="color:#059669;">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-check-circle"></i> Recebido</div><div class="view-value" id="view-recebido-val" style="color:#059669;">R$ 0,00</div></div>
+                    <div class="view-item"><div class="view-label"><i class="fas fa-hand-holding-usd"></i> A Receber</div><div class="view-value destaque" id="view-a-receber">R$ 0,00</div></div>
+                    <div class="view-item full"><div class="view-label"><i class="fas fa-comment"></i> Observacoes</div><div class="view-value" id="view-observacoes" style="font-weight:normal;font-size:13px;">-</div></div>
                 </div>
                 <div class="view-recebimento-info" id="view-recebimento-info" style="display:none;">
-                    <h4><i class="fas fa-check-circle"></i> Informações do Recebimento</h4>
+                    <h4><i class="fas fa-check-circle"></i> Informacoes do Recebimento</h4>
                     <div class="view-recebimento-grid">
                         <div><div class="view-label">Data Recebimento</div><div class="view-value" id="view-data-recebimento">-</div></div>
                         <div><div class="view-label">Valor Recebido</div><div class="view-value" id="view-valor-recebido">-</div></div>
@@ -409,6 +534,45 @@
         </div>
     </div>
 
+    <!-- Modal Importar Excel -->
+    <div id="modal-importar" class="modal">
+        <div class="modal-content modal-institucional" style="max-width:520px;">
+            <div class="modal-header-institucional" style="background:linear-gradient(135deg,#059669,#10b981);">
+                <div class="modal-header-icon"><i class="fas fa-file-excel"></i></div>
+                <div class="modal-header-info">
+                    <h3 class="modal-title">Importar Excel</h3>
+                    <p class="modal-subtitle">Importe contas a receber de uma planilha</p>
+                </div>
+                <button class="close-modal-inst" onclick="fecharModalImportar()">&times;</button>
+            </div>
+            <div style="padding:24px;">
+                <div class="form-group">
+                    <label><i class="fas fa-file-upload"></i> Arquivo Excel (.xlsx)</label>
+                    <input type="file" class="form-input" id="arquivo-excel" accept=".xlsx,.xls" style="padding:8px;">
+                    <span class="input-hint">Selecione o arquivo - todas as colunas serao importadas automaticamente</span>
+                </div>
+                <div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;padding:12px;margin-top:12px;">
+                    <p style="font-size:12px;color:#1e40af;margin:0;"><i class="fas fa-info-circle"></i> <strong>Colunas importadas:</strong> Empresa, CNPJ, Razao Social, Emissao, Vencimento, Categoria, Conta Corrente, NFe, Parcela, Documento, Vendedor, Projeto, Valor, PIS, COFINS, CSLL, IR, ISS, INSS, Valor Liquido, Recebido, A Receber</p>
+                </div>
+                <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-top:12px;">
+                    <p style="font-size:12px;color:#92400e;margin:0;"><i class="fas fa-exclamation-triangle"></i> <strong>Atencao:</strong> A importacao substituira todos os registros importados anteriormente.</p>
+                </div>
+                <div id="importar-progresso" style="display:none;margin-top:16px;text-align:center;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:24px;color:#059669;"></i>
+                    <p style="font-size:13px;color:var(--gray-600);margin-top:8px;">Processando arquivo...</p>
+                </div>
+                <div id="importar-resultado" style="display:none;margin-top:16px;"></div>
+            </div>
+            <div class="modal-footer-institucional">
+                <div class="footer-info"><i class="fas fa-info-circle"></i><span>Formatos aceitos: .xlsx, .xls</span></div>
+                <div class="footer-actions">
+                    <button type="button" class="btn-cancel" onclick="fecharModalImportar()"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="button" class="btn-save" id="btn-importar" onclick="executarImportacao()" style="background:linear-gradient(135deg,#059669,#10b981);"><i class="fas fa-upload"></i> Importar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Nova/Editar Conta -->
     <div id="modal-conta" class="modal">
         <div class="modal-content modal-institucional">
@@ -418,27 +582,20 @@
                     <h3 class="modal-title" id="modal-titulo">Nova Receita</h3>
                     <p class="modal-subtitle">Preencha os dados da conta a receber</p>
                 </div>
-                <button class="close-modal-inst" onclick="fecharModal()">×</button>
+                <button class="close-modal-inst" onclick="fecharModal()">&times;</button>
             </div>
             <form id="form-conta" onsubmit="salvarConta(event)">
                 <input type="hidden" id="conta-id">
                 <div class="form-section">
-                    <div class="section-header"><i class="fas fa-info-circle"></i><h4>Informações Principais</h4></div>
+                    <div class="section-header"><i class="fas fa-info-circle"></i><h4>Informacoes Principais</h4></div>
                     <div class="section-content">
                         <div class="form-group full">
-                            <label><i class="fas fa-align-left"></i> Descrição *</label>
-                            <input type="text" class="form-input" id="descrição" required placeholder="Ex: Venda de produtos, Serviço prestado...">
-                            <span class="input-hint">Descreva brevemente o motivo da receita</span>
+                            <label><i class="fas fa-align-left"></i> Descricao *</label>
+                            <input type="text" class="form-input" id="descricao" required placeholder="Ex: Venda de produtos, Servico prestado...">
                         </div>
                         <div class="form-row">
-                            <div class="form-group">
-                                <label><i class="fas fa-user"></i> Cliente *</label>
-                                <select class="form-input" id="cliente-id" required><option value="">Selecione o cliente...</option></select>
-                            </div>
-                            <div class="form-group">
-                                <label><i class="fas fa-tags"></i> Categoria *</label>
-                                <select class="form-input" id="categoria-id" required><option value="">Selecione a categoria...</option></select>
-                            </div>
+                            <div class="form-group"><label><i class="fas fa-user"></i> Cliente *</label><select class="form-input" id="cliente-id" required><option value="">Selecione o cliente...</option></select></div>
+                            <div class="form-group"><label><i class="fas fa-tags"></i> Categoria *</label><select class="form-input" id="categoria-id" required><option value="">Selecione a categoria...</option></select></div>
                         </div>
                     </div>
                 </div>
@@ -446,50 +603,48 @@
                     <div class="section-header"><i class="fas fa-dollar-sign"></i><h4>Valores e Datas</h4></div>
                     <div class="section-content">
                         <div class="form-row">
-                            <div class="form-group">
-                                <label><i class="fas fa-money-bill-wave"></i> Valor Total *</label>
-                                <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0.01" class="form-input with-prefix" id="conta-valor" required placeholder="0,00"></div>
-                            </div>
-                            <div class="form-group">
-                                <label><i class="fas fa-calendar-alt"></i> Vencimento *</label>
-                                <input type="date" class="form-input" id="conta-vencimento" required>
-                            </div>
+                            <div class="form-group"><label><i class="fas fa-money-bill-wave"></i> Valor Total *</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0.01" class="form-input with-prefix" id="conta-valor" required placeholder="0,00"></div></div>
+                            <div class="form-group"><label><i class="fas fa-calendar-alt"></i> Vencimento *</label><input type="date" class="form-input" id="conta-vencimento" required></div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group">
-                                <label><i class="fas fa-credit-card"></i> Forma de Recebimento</label>
-                                <select class="form-input" id="forma-pagamento">
-                                    <option value="pix">PIX</option>
-                                    <option value="transferencia">Transferência Bancária</option>
-                                    <option value="boleto">Boleto</option>
-                                    <option value="cartao">Cartão</option>
-                                    <option value="dinheiro">Dinheiro</option>
-                                    <option value="cheque">Cheque</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label><i class="fas fa-layer-group"></i> Parcelas</label>
-                                <input type="number" min="1" max="48" value="1" class="form-input" id="num-parcelas">
-                            </div>
+                            <div class="form-group"><label><i class="fas fa-credit-card"></i> Forma de Recebimento</label><select class="form-input" id="forma-pagamento"><option value="pix">PIX</option><option value="transferencia">Transferencia</option><option value="boleto">Boleto</option><option value="cartao">Cartao</option><option value="dinheiro">Dinheiro</option><option value="cheque">Cheque</option></select></div>
+                            <div class="form-group"><label><i class="fas fa-layer-group"></i> Parcelas</label><input type="number" min="1" max="48" value="1" class="form-input" id="num-parcelas"></div>
                         </div>
                     </div>
                 </div>
                 <div class="form-section">
-                    <div class="section-header"><i class="fas fa-clipboard-list"></i><h4>Informações Adicionais</h4></div>
+                    <div class="section-header"><i class="fas fa-clipboard-list"></i><h4>Informacoes Adicionais</h4></div>
                     <div class="section-content">
                         <div class="form-row">
-                            <div class="form-group"><label><i class="fas fa-file-alt"></i> Nº Documento</label><input type="text" class="form-input" id="numero-documento" placeholder="NF, Boleto, etc..."></div>
+                            <div class="form-group"><label><i class="fas fa-file-alt"></i> Nr Documento</label><input type="text" class="form-input" id="numero-documento" placeholder="NF, Boleto, etc..."></div>
                             <div class="form-group"><label><i class="fas fa-building"></i> Centro de Custo</label><select class="form-input" id="centro-custo"><option value="">Selecione (opcional)</option></select></div>
                         </div>
-                        <div class="form-group full"><label><i class="fas fa-comment"></i> Observações</label><textarea class="form-input" id="observacoes" rows="3" placeholder="Informações adicionais..."></textarea></div>
+                        <div class="form-group full"><label><i class="fas fa-comment"></i> Observacoes</label><textarea class="form-input" id="observacoes" rows="3" placeholder="Informacoes adicionais..."></textarea></div>
                         <div class="form-options">
-                            <label class="checkbox-option"><input type="checkbox" id="enviar-notificacao"> <span><i class="fas fa-bell"></i> Enviar Notificação ao Cliente</span></label>
+                            <label class="checkbox-option"><input type="checkbox" id="enviar-notificacao"> <span><i class="fas fa-bell"></i> Enviar Notificacao ao Cliente</span></label>
                             <label class="checkbox-option"><input type="checkbox" id="gerar-boleto"> <span><i class="fas fa-barcode"></i> Gerar Boleto</span></label>
                         </div>
                     </div>
                 </div>
+                <div class="form-section">
+                    <div class="section-header"><i class="fas fa-calculator"></i><h4>Impostos Retidos</h4></div>
+                    <div class="section-content">
+                        <div class="form-row">
+                            <div class="form-group"><label>PIS</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0" class="form-input with-prefix" id="valor-pis" placeholder="0,00"></div></div>
+                            <div class="form-group"><label>COFINS</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0" class="form-input with-prefix" id="valor-cofins" placeholder="0,00"></div></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>CSLL</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0" class="form-input with-prefix" id="valor-csll" placeholder="0,00"></div></div>
+                            <div class="form-group"><label>IR</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0" class="form-input with-prefix" id="valor-ir" placeholder="0,00"></div></div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group"><label>ISS</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0" class="form-input with-prefix" id="valor-iss" placeholder="0,00"></div></div>
+                            <div class="form-group"><label>INSS</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" min="0" class="form-input with-prefix" id="valor-inss" placeholder="0,00"></div></div>
+                        </div>
+                    </div>
+                </div>
                 <div class="modal-footer-institucional">
-                    <div class="footer-info"><i class="fas fa-info-circle"></i><span>Campos com * são obrigatórios</span></div>
+                    <div class="footer-info"><i class="fas fa-info-circle"></i><span>Campos com * sao obrigatorios</span></div>
                     <div class="footer-actions">
                         <button type="button" class="btn-cancel" onclick="fecharModal()"><i class="fas fa-times"></i> Cancelar</button>
                         <button type="submit" class="btn-save"><i class="fas fa-save"></i> Salvar Receita</button>
@@ -505,33 +660,18 @@
             <div class="modal-receber-header">
                 <div class="icon"><i class="fas fa-check-double"></i></div>
                 <div class="info"><h3>Confirmar Recebimento</h3><p>Registre os dados do recebimento</p></div>
-                <button onclick="fecharModalReceber()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;opacity:0.8;">×</button>
+                <button onclick="fecharModalReceber()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;opacity:0.8;">&times;</button>
             </div>
             <form id="form-receber" onsubmit="confirmarRecebimento(event)">
                 <input type="hidden" id="receber-conta-id">
                 <div class="modal-receber-body">
-                    <div class="form-group">
-                        <label><i class="fas fa-money-bill-wave"></i> Valor Original</label>
-                        <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" class="form-input with-prefix" id="receber-valor-original" readonly></div>
-                    </div>
-                    <div class="form-group">
-                        <label><i class="fas fa-money-bill-wave"></i> Valor Recebido *</label>
-                        <div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" class="form-input with-prefix" id="receber-valor" required></div>
-                    </div>
+                    <div class="form-group"><label><i class="fas fa-money-bill-wave"></i> Valor Original</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" class="form-input with-prefix" id="receber-valor-original" readonly></div></div>
+                    <div class="form-group"><label><i class="fas fa-money-bill-wave"></i> Valor Recebido *</label><div class="input-with-prefix"><span class="input-prefix">R$</span><input type="number" step="0.01" class="form-input with-prefix" id="receber-valor" required></div></div>
                     <div class="form-row">
                         <div class="form-group"><label><i class="fas fa-calendar"></i> Data do Recebimento *</label><input type="date" class="form-input" id="receber-data" required></div>
-                        <div class="form-group">
-                            <label><i class="fas fa-credit-card"></i> Forma</label>
-                            <select class="form-input" id="receber-forma">
-                                <option value="pix">PIX</option>
-                                <option value="transferencia">Transferência</option>
-                                <option value="boleto">Boleto</option>
-                                <option value="cartao">Cartão</option>
-                                <option value="dinheiro">Dinheiro</option>
-                            </select>
-                        </div>
+                        <div class="form-group"><label><i class="fas fa-credit-card"></i> Forma</label><select class="form-input" id="receber-forma"><option value="pix">PIX</option><option value="transferencia">Transferencia</option><option value="boleto">Boleto</option><option value="cartao">Cartao</option><option value="dinheiro">Dinheiro</option></select></div>
                     </div>
-                    <div class="form-group"><label><i class="fas fa-comment"></i> Observações</label><textarea class="form-input" id="receber-obs" rows="2" placeholder="Observações sobre o recebimento..."></textarea></div>
+                    <div class="form-group"><label><i class="fas fa-comment"></i> Observacoes</label><textarea class="form-input" id="receber-obs" rows="2" placeholder="Observacoes sobre o recebimento..."></textarea></div>
                 </div>
                 <div class="modal-receber-footer">
                     <button type="button" class="btn-cancel" onclick="fecharModalReceber()"><i class="fas fa-times"></i> Cancelar</button>
@@ -540,126 +680,257 @@
             </form>
         </div>
     </div>
-
     <script>
-        function toggleMobileSidebar() {
-            document.getElementById('mobile-sidebar')?.classList.toggle('mobile-open');
-            document.getElementById('sidebar-overlay')?.classList.toggle('active');
-        }
+        function toggleMobileSidebar() { document.getElementById('mobile-sidebar').classList.toggle('mobile-open'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
         function toggleNotificacoes() { if (typeof window.NotificationsManager !== 'undefined') window.NotificationsManager.togglePanel(); }
-
         let contas = [];
         let clientesList = [];
+        let currentView = 'resumo';
+        const fmtMoeda = (v) => 'R$ ' + (parseFloat(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+        const fmtData = (d) => { if(!d) return '-'; const dt=new Date(d); return isNaN(dt.getTime())?'-':dt.toLocaleDateString('pt-BR'); };
 
-        // ===== TOAST =====
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle' };
-            toast.innerHTML = `<i class="fas ${icons[type] || icons.success}"></i><span>${message}</span>`;
+        function showToast(message, type) {
+            type = type || 'success';
+            var container = document.getElementById('toast-container');
+            var toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            var icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle' };
+            toast.innerHTML = '<i class="fas ' + (icons[type]||icons.success) + '"></i>';
+            var span = document.createElement('span');
+            span.textContent = message;
+            toast.appendChild(span);
             container.appendChild(toast);
-            requestAnimationFrame(() => toast.classList.add('show'));
-            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 4000);
+            requestAnimationFrame(function(){ toast.classList.add('show'); });
+            setTimeout(function(){ toast.classList.remove('show'); setTimeout(function(){ toast.remove(); }, 300); }, 4000);
         }
 
-        // ===== CARREGAR USUÁRIO =====
         async function carregarUsuarioLogado() {
             try {
-                const response = await fetch('/api/me', { credentials: 'include' });
+                var response = await fetch('/api/me', { credentials: 'include' });
                 if (response.ok) {
-                    const user = await response.json();
-                    const primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuário');
-                    const greetingTextEl = document.getElementById('greeting-text');
-                    if (greetingTextEl) { const h = new Date().getHours(); greetingTextEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia'; }
+                    var user = await response.json();
+                    var primeiroNome = user.apelido || (user.nome ? user.nome.split(' ')[0] : 'Usuario');
+                    var greetingTextEl = document.getElementById('greeting-text');
+                    if (greetingTextEl) { var h = new Date().getHours(); greetingTextEl.textContent = h >= 18 || h < 5 ? 'Boa noite' : h >= 12 ? 'Boa tarde' : 'Bom dia'; }
                     document.getElementById('user-name').textContent = primeiroNome;
-
-                    const avatarNameMap = {'clemerson':'/avatars/Clemerson.webp','isabela':'/avatars/Isabela.webp','thaina':'/avatars/Thaina.webp','thiago':'/avatars/Thiago.webp','nicolas':'/avatars/NicolasDaniel.webp','nicolasdaniel':'/avatars/NicolasDaniel.webp','rh':'/avatars/Rh.webp','admin':'/avatars/admin.webp','ti':'/avatars/TI.webp','tialuforce':'/avatars/TI.webp','antonio':'/avatars/Antonio.webp','antônio':'/avatars/Antonio.webp','andreia':'/avatars/Andreia.webp','guilherme':'/avatars/Guilherme.webp','marcelo':'/avatars/Marcelo.webp','financeiro':'/avatars/Financeiro.webp','douglas':'/avatars/Douglas.webp','hellen':'/avatars/Hellen.webp','helen':'/avatars/Hellen.webp'};
-                    let avatarUrl = null;
+                    var avatarNameMap = {'clemerson':'/avatars/Clemerson.webp','isabela':'/avatars/Isabela.webp','thaina':'/avatars/Thaina.webp','thiago':'/avatars/Thiago.webp','nicolas':'/avatars/NicolasDaniel.webp','nicolasdaniel':'/avatars/NicolasDaniel.webp','rh':'/avatars/Rh.webp','admin':'/avatars/admin.webp','ti':'/avatars/TI.webp','tialuforce':'/avatars/TI.webp','antonio':'/avatars/Antonio.webp','andreia':'/avatars/Andreia.webp','guilherme':'/avatars/Guilherme.webp','marcelo':'/avatars/Marcelo.webp','financeiro':'/avatars/Financeiro.webp','douglas':'/avatars/Douglas.webp','hellen':'/avatars/Hellen.webp','helen':'/avatars/Hellen.webp'};
+                    var avatarUrl = null;
                     if (user.avatar && user.avatar !== '/avatars/default.webp') avatarUrl = user.avatar;
                     else if (user.foto && user.foto !== '/avatars/default.webp') avatarUrl = user.foto;
-                    else if (user.email) { const u = user.email.split('@')[0].split('.')[0].toLowerCase(); avatarUrl = avatarNameMap[u]; }
+                    else if (user.email) { var u = user.email.split('@')[0].split('.')[0].toLowerCase(); avatarUrl = avatarNameMap[u]; }
                     if (!avatarUrl && user.nome) avatarUrl = avatarNameMap[user.nome.split(' ')[0].toLowerCase()];
-                    const userPhotoEl = document.getElementById('user-photo'), userInitialEl = document.getElementById('user-initials');
+                    var userPhotoEl = document.getElementById('user-photo'), userInitialEl = document.getElementById('user-initials');
                     if (avatarUrl && userPhotoEl) { userPhotoEl.src = avatarUrl; userPhotoEl.style.display = 'block'; userPhotoEl.onerror = function() { this.style.display='none'; if(userInitialEl){userInitialEl.textContent=primeiroNome.charAt(0).toUpperCase();userInitialEl.style.display='flex';}}; if(userInitialEl) userInitialEl.style.display='none'; }
                     else if (userInitialEl) { userInitialEl.textContent = primeiroNome.charAt(0).toUpperCase(); userInitialEl.style.display='flex'; if(userPhotoEl) userPhotoEl.style.display='none'; }
                 }
-            } catch (error) { console.error('Erro ao carregar usuário:', error); }
+            } catch (error) { console.error('Erro ao carregar usuario:', error); }
         }
 
-        async function init() {
-            await Promise.all([carregarUsuarioLogado(), carregarResumo(), carregarContas(), carregarClientes(), carregarCategorias()]);
-        }
+        async function init() { await Promise.all([carregarUsuarioLogado(), carregarResumo(), carregarContas(), carregarClientes(), carregarCategorias()]); }
 
         async function carregarResumo() {
             try {
-                const response = await fetch('/api/financeiro/contas-receber/estatisticas', { credentials: 'include' });
+                var response = await fetch('/api/financeiro/contas-receber/estatisticas', { credentials: 'include' });
                 if (response.ok) {
-                    const d = await response.json();
-                    document.getElementById('total-receber').textContent = `R$ ${(d.total_receber||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
-                    document.getElementById('total-vencendo').textContent = `R$ ${(d.vencendo||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
-                    document.getElementById('total-vencidas').textContent = `R$ ${(d.vencidas||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
-                    document.getElementById('total-recebidas').textContent = `R$ ${(d.recebidas_mes||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+                    var d = await response.json();
+                    document.getElementById('stat-total').textContent = fmtMoeda(d.total_receber);
+                    document.getElementById('stat-vencendo').textContent = fmtMoeda(d.vencendo);
+                    document.getElementById('stat-vencidas').textContent = fmtMoeda(d.vencidas);
+                    document.getElementById('stat-recebidas').textContent = fmtMoeda(d.recebidas_mes);
                 }
             } catch(e) { console.error('Erro resumo:', e); }
         }
 
         async function carregarContas() {
             try {
-                const response = await fetch('/api/financeiro/contas-receber', { credentials: 'include' });
-                if (response.ok) { const r = await response.json(); const raw = r.data || r || []; contas = Array.isArray(raw) ? raw : []; renderizarTabela(contas); }
-            } catch(e) { console.error('Erro contas:', e); document.getElementById('tabela-contas').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;padding:40px;"><i class="fas fa-exclamation-triangle" style="font-size:48px;margin-bottom:16px;display:block;"></i>Erro ao carregar</td></tr>'; }
+                var response = await fetch('/api/financeiro/contas-receber', { credentials: 'include' });
+                if (response.ok) {
+                    var r = await response.json();
+                    var raw = r.data || r || [];
+                    contas = Array.isArray(raw) ? raw : [];
+                    if (currentView === 'resumo') {
+                        document.getElementById('resumo-panel-container').style.display = 'block';
+                        document.querySelector('.table-container').style.display = 'none';
+                        renderizarResumoPanel(contas);
+                    } else {
+                        renderizarTabela(contas);
+                    }
+                    popularFiltrosDinamicos();
+                    document.getElementById('contagem-total').textContent = '(' + contas.length + ' registros)';
+                }
+            } catch(e) { console.error('Erro contas:', e); document.getElementById('tabela-contas').innerHTML = '<tr><td colspan="12" style="text-align:center;color:#ef4444;padding:40px;"><i class="fas fa-exclamation-triangle" style="font-size:48px;margin-bottom:16px;display:block;"></i>Erro ao carregar</td></tr>'; }
         }
 
-        function formatarDataSegura(data) { if (!data) return 'Sem data'; const d = new Date(data); if (isNaN(d.getTime())) return 'Data inválida'; return d.toLocaleDateString('pt-BR'); }
+        function popularFiltrosDinamicos() {
+            var portadores = []; contas.forEach(function(c){ if(c.portador && portadores.indexOf(c.portador)===-1) portadores.push(c.portador); }); portadores.sort();
+            var selPort = document.getElementById('filtro-portador');
+            if (selPort) { selPort.innerHTML = '<option value="">Todos</option>' + portadores.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join(''); }
+            var clientes = []; contas.forEach(function(c){ if(c.cliente_nome && clientes.indexOf(c.cliente_nome)===-1) clientes.push(c.cliente_nome); }); clientes.sort();
+            var selCli = document.getElementById('filtro-cliente-select');
+            if (selCli) { selCli.innerHTML = '<option value="">Todos</option>' + clientes.map(function(c){ return '<option value="'+c+'">'+c+'</option>'; }).join(''); }
+        }
+        function setTableView(view) {
+            currentView = view;
+            document.querySelectorAll('.table-toggle-btn').forEach(function(b){ b.classList.remove('active'); });
+            var btns = document.querySelectorAll('.table-toggle-btn');
+            for(var i=0;i<btns.length;i++){if(btns[i].getAttribute('onclick').indexOf("'"+view+"'")>-1)btns[i].classList.add('active');}
+            var resumoPanel = document.getElementById('resumo-panel-container');
+            var tableContainer = document.querySelector('.table-container');
+            if (view === 'resumo') {
+                resumoPanel.style.display = 'block';
+                tableContainer.style.display = 'none';
+                renderizarResumoPanel(contas);
+            } else {
+                resumoPanel.style.display = 'none';
+                tableContainer.style.display = 'block';
+                renderizarTabela(getFilteredContas());
+            }
+        }
 
-        function renderizarTabela(dados, pesquisa = '') {
-            const tbody = document.getElementById('tabela-contas');
-            if (dados.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:60px;color:#9ca3af;"><i class="fas fa-inbox" style="font-size:48px;margin-bottom:16px;display:block;"></i>Nenhuma conta encontrada</td></tr>'; return; }
-            tbody.innerHTML = dados.map(c => {
-                const st = c.status || 'pendente';
-                const badges = { 'pendente':'<span class="badge badge-pending">Pendente</span>', 'recebido':'<span class="badge badge-paid">Recebido</span>', 'pago':'<span class="badge badge-paid">Recebido</span>', 'vencido':'<span class="badge badge-overdue">Vencido</span>', 'parcial':'<span class="badge badge-partial">Parcial</span>' };
-                const hl = (t) => { if(!pesquisa||!t) return t||'-'; try{const e=pesquisa.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(new RegExp(`(${e})`,'gi'),'<span class="highlight">$1</span>');}catch(e){return String(t);} };
-                return `<tr>
-                    <td>#${c.id}</td>
-                    <td><strong>${hl(c.descrição||'Sem Descrição')}</strong></td>
-                    <td>${hl(c.cliente_nome||'-')}</td>
-                    <td>${formatarDataSegura(c.data_vencimento||c.vencimento)}</td>
-                    <td><strong>R$ ${(parseFloat(c.valor_total||c.valor)||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</strong></td>
-                    <td>${badges[st]||badges.pendente}</td>
-                    <td>
-                        <button class="action-btn view" onclick="visualizarConta(${c.id})" title="Visualizar"><i class="fas fa-eye"></i></button>
-                        ${st!=='recebido'&&st!=='pago'?`<button class="action-btn success" onclick="abrirModalReceber(${c.id},${parseFloat(c.valor_total||c.valor)||0})" title="Receber"><i class="fas fa-check-circle"></i></button>`:''}
-                        ${st!=='recebido'&&st!=='pago'?`<button class="action-btn info" onclick="enviarCobranca(${c.id})" title="Cobrar"><i class="fas fa-paper-plane"></i></button>`:''}
-                        <button class="action-btn edit" onclick="editarConta(${c.id})" title="Editar"><i class="fas fa-edit"></i></button>
-                        <button class="action-btn danger" onclick="excluirConta(${c.id})" title="Excluir"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>`;
+        function renderizarResumoPanel(dados) {
+            var hoje = new Date(); hoje.setHours(0,0,0,0);
+            var em7dias = new Date(hoje.getTime() + 7*86400000);
+            var totalValor=0, totalLiquido=0, totalRecebido=0, totalAReceber=0;
+            var totalPis=0, totalCofins=0, totalCsll=0, totalIr=0, totalIss=0, totalInss=0;
+            var vencidas=0, valorVencidas=0, qtd7d=0, valor7d=0;
+            var porPortador={}, porEmpresa={}, porStatus={};
+            dados.forEach(function(c){
+                var v = parseFloat(c.valor_total||c.valor)||0;
+                var l = parseFloat(c.valor_liquido)||v;
+                var r = parseFloat(c.valor_recebido)||0;
+                var a = parseFloat(c.a_receber)||(v-r);
+                totalValor+=v; totalLiquido+=l; totalRecebido+=r; totalAReceber+=a;
+                totalPis+=parseFloat(c.valor_pis)||0;
+                totalCofins+=parseFloat(c.valor_cofins)||0;
+                totalCsll+=parseFloat(c.valor_csll)||0;
+                totalIr+=parseFloat(c.valor_ir)||0;
+                totalIss+=parseFloat(c.valor_iss)||0;
+                totalInss+=parseFloat(c.valor_inss)||0;
+                var venc = new Date(c.data_vencimento||c.vencimento); venc.setHours(0,0,0,0);
+                var st=(c.status||'').toLowerCase();
+                if(st!=='recebido'&&st!=='pago'&&st!=='liquidado') {
+                    if(venc<hoje){vencidas++;valorVencidas+=v;}
+                    else if(venc<=em7dias){qtd7d++;valor7d+=v;}
+                }
+                var port=c.portador||'Sem portador'; porPortador[port]=(porPortador[port]||0)+v;
+                var emp=c.empresa||'Sem empresa'; porEmpresa[emp]=(porEmpresa[emp]||0)+v;
+                var stLabel=c.status||'pendente'; porStatus[stLabel]=(porStatus[stLabel]||0)+1;
+            });
+            document.getElementById('res-total-count').textContent = dados.length.toLocaleString('pt-BR');
+            document.getElementById('res-total-valor').textContent = fmtMoeda(totalValor);
+            document.getElementById('res-total-liquido').textContent = fmtMoeda(totalLiquido);
+            document.getElementById('res-total-recebido').textContent = fmtMoeda(totalRecebido);
+            document.getElementById('res-saldo-receber').textContent = fmtMoeda(totalAReceber);
+            document.getElementById('res-qtd-vencidas').textContent = vencidas.toLocaleString('pt-BR');
+            document.getElementById('res-valor-vencidas').textContent = fmtMoeda(valorVencidas);
+            document.getElementById('res-qtd-7d').textContent = qtd7d.toLocaleString('pt-BR');
+            document.getElementById('res-valor-7d').textContent = fmtMoeda(valor7d);
+            var taxaInad = totalValor>0 ? (valorVencidas/totalValor*100).toFixed(1)+'%' : '0%';
+            document.getElementById('res-taxa-inad').textContent = taxaInad;
+            document.getElementById('res-pis').textContent = fmtMoeda(totalPis);
+            document.getElementById('res-cofins').textContent = fmtMoeda(totalCofins);
+            document.getElementById('res-csll').textContent = fmtMoeda(totalCsll);
+            document.getElementById('res-ir').textContent = fmtMoeda(totalIr);
+            document.getElementById('res-iss-inss').textContent = fmtMoeda(totalIss+totalInss);
+            // Top 5 portadores
+            var portArr=Object.entries(porPortador).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+            document.getElementById('res-por-portador').innerHTML = portArr.length===0?'<div style="color:var(--gray-400);font-size:12px;padding:10px;text-align:center;">Sem dados</div>':portArr.map(function(p){return '<div class="resumo-row"><span class="resumo-label" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+p[0]+'">'+p[0]+'</span><span class="resumo-value">'+fmtMoeda(p[1])+'</span></div>';}).join('');
+            // Por empresa
+            var empArr=Object.entries(porEmpresa).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+            document.getElementById('res-por-empresa').innerHTML = empArr.length===0?'<div style="color:var(--gray-400);font-size:12px;padding:10px;text-align:center;">Sem dados</div>':empArr.map(function(e){return '<div class="resumo-row"><span class="resumo-label" style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+e[0]+'">'+e[0]+'</span><span class="resumo-value">'+fmtMoeda(e[1])+'</span></div>';}).join('');
+            // Por status
+            var stColors={'liquidado':'success','recebido':'success','pago':'success','pendente':'warning','a vencer':'warning','vencido':'danger'};
+            var stArr=Object.entries(porStatus).sort(function(a,b){return b[1]-a[1];});
+            document.getElementById('res-por-status').innerHTML = stArr.length===0?'<div style="color:var(--gray-400);font-size:12px;padding:10px;text-align:center;">Sem dados</div>':stArr.map(function(s){var cls=stColors[s[0].toLowerCase()]||'';return '<div class="resumo-row"><span class="resumo-label">'+s[0]+'</span><span class="resumo-value '+cls+'">'+s[1].toLocaleString('pt-BR')+' lançamentos</span></div>';}).join('');
+        }
+
+        function getTableHeaders() {
+            switch(currentView) {
+                case 'base':    return ['Empresa','CNPJ Emp.','NFe','Parcela','Cliente','CNPJ/CPF','Emissão','Vencimento','Categoria','Ct.Corrente','Documento','Boleto','Vendedor','Projeto','Valor','Vl.Líquido','Recebido','A Receber','Situação','Portador','Status','Dias','Ações'];
+                case 'faturamento': return ['Empresa','NFe','Parcela','Cliente','CNPJ/CPF','Emissão','Categoria','Ct.Corrente','Documento','Valor','Vl.Líquido','Situação','Portador','Status','Ações'];
+                case 'disponivel':  return ['Cliente','NFe','Parcela','Valor','Recebido','A Receber','Data Receb.','Status','Portador','Ações'];
+                case 'a_receber':   return ['Empresa','Cliente','NFe','Parcela','Vencimento','Dias','Valor','A Receber','Situação','Portador','Status','Ações'];
+                case 'diario':      return ['Vencimento','Empresa','Cliente','NFe','Parcela','Valor','A Receber','Status','Portador','Ações'];
+                case 'fundos':      return ['Portador','Cliente','NFe','Vencimento','Valor','Recebido','A Receber','Status','Ações'];
+                case 'impostos':    return ['Cliente','NFe','Parcela','Valor','PIS','COFINS','CSLL','IR','ISS','INSS','Vl.Líquido','Recebido','A Receber','Ações'];
+                default:            return ['Empresa','NFe','Parcela','Cliente','CNPJ','Valor','Vencimento','Situação','Portador','Status','Dias','Ações'];
+            }
+        }
+
+        function getFilteredForView(dados) {
+            switch(currentView) {
+                case 'disponivel': return dados.filter(function(c){ var s=(c.status||'').toLowerCase(); return s==='recebido'||s==='pago'||s==='liquidado'; });
+                case 'a_receber':  return dados.filter(function(c){ var s=(c.status||'').toLowerCase(); return s!=='recebido'&&s!=='pago'&&s!=='liquidado'; });
+                case 'diario':     return dados.slice().sort(function(a,b){ return new Date(a.data_vencimento||a.vencimento)-new Date(b.data_vencimento||b.vencimento); });
+                case 'fundos':     return dados.slice().sort(function(a,b){ return (a.portador||'').localeCompare(b.portador||''); });
+                default:           return dados;
+            }
+        }
+
+        function renderizarTabela(dados, pesquisa) {
+            pesquisa = pesquisa || '';
+            var viewDados = getFilteredForView(dados);
+            var headers = getTableHeaders();
+            var thead = document.getElementById('tabela-header');
+            thead.innerHTML = '<tr>' + headers.map(function(h){ return '<th>'+h+'</th>'; }).join('') + '</tr>';
+            var tbody = document.getElementById('tabela-contas');
+            var colspan = headers.length;
+            if (viewDados.length === 0) { tbody.innerHTML = '<tr><td colspan="'+colspan+'" style="text-align:center;padding:60px;color:#9ca3af;"><i class="fas fa-inbox" style="font-size:48px;margin-bottom:16px;display:block;"></i>Nenhuma conta encontrada</td></tr>'; return; }
+            tbody.innerHTML = viewDados.map(function(c) {
+                var st = (c.status || 'pendente').toLowerCase();
+                var badges = { 'pendente':'<span class="badge badge-pending">Pendente</span>', 'a vencer':'<span class="badge badge-pending"><i class="fas fa-clock"></i> A Vencer</span>', 'recebido':'<span class="badge badge-paid">Recebido</span>', 'pago':'<span class="badge badge-paid">Recebido</span>', 'liquidado':'<span class="badge badge-paid"><i class="fas fa-check"></i> Liquidado</span>', 'vencido':'<span class="badge badge-overdue"><i class="fas fa-exclamation-circle"></i> Vencido</span>', 'parcial':'<span class="badge badge-partial">Parcial</span>' };
+                var hl = function(t) { if(!pesquisa||!t) return String(t||'-'); try{var e=pesquisa.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(new RegExp('('+e+')','gi'),'<span class="highlight">$1</span>');}catch(ex){return String(t||'-');} };
+                var dias = parseInt(c.dias_vencido) || 0;
+                var diasStyle = dias > 0 ? 'color:#dc2626;font-weight:700;' : '';
+                var acoes = '<td style="white-space:nowrap;"><button class="action-btn view" onclick="visualizarConta('+c.id+')" title="Visualizar"><i class="fas fa-eye"></i></button>';
+                if(st!=='recebido'&&st!=='pago'&&st!=='liquidado') acoes += '<button class="action-btn success" onclick="abrirModalReceber('+c.id+','+(parseFloat(c.valor_total||c.valor)||0)+')" title="Receber"><i class="fas fa-check-circle"></i></button>';
+                acoes += '<button class="action-btn edit" onclick="editarConta('+c.id+')" title="Editar"><i class="fas fa-edit"></i></button>';
+                acoes += '<button class="action-btn danger" onclick="excluirConta('+c.id+')" title="Excluir"><i class="fas fa-trash"></i></button></td>';
+
+                switch(currentView) {
+                    case 'base':
+                        return '<tr><td>'+hl(c.empresa)+'</td><td style="font-size:10px;">'+hl(c.cnpj_empresa||c.cnpj_cpf)+'</td><td>'+hl(c.nota_fiscal)+'</td><td>'+(c.parcela_info||'-')+'</td><td><strong>'+hl(c.cliente_nome)+'</strong></td><td style="font-size:10px;">'+hl(c.cnpj_cpf||c.cnpj_cliente)+'</td><td>'+fmtData(c.data_emissao)+'</td><td>'+fmtData(c.data_vencimento||c.vencimento)+'</td><td>'+(c.categoria||'-')+'</td><td>'+(c.centro_receita||'-')+'</td><td>'+(c.numero_documento||'-')+'</td><td>'+(c.numero_boleto||'-')+'</td><td>'+(c.vendedor||'-')+'</td><td>'+(c.projeto||'-')+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td>'+fmtMoeda(c.valor_liquido)+'</td><td style="color:#059669;">'+fmtMoeda(c.valor_recebido)+'</td><td><strong>'+fmtMoeda(c.a_receber)+'</strong></td><td><span style="font-size:11px;font-weight:600;">'+(c.situacao||'-')+'</span></td><td><span style="font-size:11px;">'+(c.portador||'-')+'</span></td><td>'+(badges[st]||badges.pendente)+'</td><td style="'+diasStyle+'">'+(dias||'-')+'</td>'+acoes+'</tr>';
+                    case 'faturamento':
+                        return '<tr><td>'+hl(c.empresa)+'</td><td>'+hl(c.nota_fiscal)+'</td><td>'+(c.parcela_info||'-')+'</td><td><strong>'+hl(c.cliente_nome)+'</strong></td><td style="font-size:10px;">'+hl(c.cnpj_cpf||c.cnpj_cliente)+'</td><td>'+fmtData(c.data_emissao)+'</td><td>'+(c.categoria||'-')+'</td><td>'+(c.centro_receita||'-')+'</td><td>'+(c.numero_documento||'-')+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td>'+fmtMoeda(c.valor_liquido)+'</td><td><span style="font-size:11px;font-weight:600;">'+(c.situacao||'-')+'</span></td><td><span style="font-size:11px;">'+(c.portador||'-')+'</span></td><td>'+(badges[st]||badges.pendente)+'</td>'+acoes+'</tr>';
+                    case 'disponivel':
+                        return '<tr><td><strong>'+hl(c.cliente_nome)+'</strong></td><td>'+hl(c.nota_fiscal)+'</td><td>'+(c.parcela_info||'-')+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td style="color:#059669;font-weight:600;">'+fmtMoeda(c.valor_recebido)+'</td><td>'+fmtMoeda(c.a_receber)+'</td><td>'+fmtData(c.data_recebimento)+'</td><td>'+(badges[st]||badges.pendente)+'</td><td><span style="font-size:11px;">'+(c.portador||'-')+'</span></td>'+acoes+'</tr>';
+                    case 'a_receber':
+                        return '<tr><td>'+hl(c.empresa)+'</td><td><strong>'+hl(c.cliente_nome)+'</strong></td><td>'+hl(c.nota_fiscal)+'</td><td>'+(c.parcela_info||'-')+'</td><td>'+fmtData(c.data_vencimento||c.vencimento)+'</td><td style="'+diasStyle+'">'+(dias||'-')+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td style="color:#dc2626;font-weight:700;">'+fmtMoeda(c.a_receber)+'</td><td><span style="font-size:11px;font-weight:600;">'+(c.situacao||'-')+'</span></td><td><span style="font-size:11px;">'+(c.portador||'-')+'</span></td><td>'+(badges[st]||badges.pendente)+'</td>'+acoes+'</tr>';
+                    case 'diario':
+                        return '<tr><td><strong>'+fmtData(c.data_vencimento||c.vencimento)+'</strong></td><td>'+hl(c.empresa)+'</td><td><strong>'+hl(c.cliente_nome)+'</strong></td><td>'+hl(c.nota_fiscal)+'</td><td>'+(c.parcela_info||'-')+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td style="color:#dc2626;font-weight:600;">'+fmtMoeda(c.a_receber)+'</td><td>'+(badges[st]||badges.pendente)+'</td><td><span style="font-size:11px;">'+(c.portador||'-')+'</span></td>'+acoes+'</tr>';
+                    case 'fundos':
+                        return '<tr><td><strong>'+(c.portador||'Sem portador')+'</strong></td><td>'+hl(c.cliente_nome)+'</td><td>'+hl(c.nota_fiscal)+'</td><td>'+fmtData(c.data_vencimento||c.vencimento)+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td style="color:#059669;">'+fmtMoeda(c.valor_recebido)+'</td><td style="color:#dc2626;font-weight:700;">'+fmtMoeda(c.a_receber)+'</td><td>'+(badges[st]||badges.pendente)+'</td>'+acoes+'</tr>';
+                    case 'impostos':
+                        return '<tr><td><strong>'+hl(c.cliente_nome)+'</strong></td><td>'+hl(c.nota_fiscal)+'</td><td>'+(c.parcela_info||'-')+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td>'+fmtMoeda(c.valor_pis)+'</td><td>'+fmtMoeda(c.valor_cofins)+'</td><td>'+fmtMoeda(c.valor_csll)+'</td><td>'+fmtMoeda(c.valor_ir)+'</td><td>'+fmtMoeda(c.valor_iss)+'</td><td>'+fmtMoeda(c.valor_inss)+'</td><td><strong>'+fmtMoeda(c.valor_liquido)+'</strong></td><td style="color:#059669;">'+fmtMoeda(c.valor_recebido)+'</td><td><strong>'+fmtMoeda(c.a_receber)+'</strong></td>'+acoes+'</tr>';
+                    default: // 'resumo_lista' — view padrão compacta
+                        return '<tr><td>'+hl(c.empresa)+'</td><td>'+hl(c.nota_fiscal)+'</td><td>'+(c.parcela_info||'-')+'</td><td><strong>'+hl(c.cliente_nome)+'</strong></td><td style="font-size:11px;">'+hl(c.cnpj_cpf||c.cnpj_cliente)+'</td><td><strong>'+fmtMoeda(c.valor_total||c.valor)+'</strong></td><td>'+fmtData(c.data_vencimento||c.vencimento)+'</td><td><span style="font-size:11px;font-weight:600;">'+(c.situacao||'-')+'</span></td><td><span style="font-size:11px;">'+(c.portador||'-')+'</span></td><td>'+(badges[st]||badges.pendente)+'</td><td style="'+diasStyle+'">'+(dias||'-')+'</td>'+acoes+'</tr>';
+                }
             }).join('');
         }
 
         async function carregarClientes() {
             try {
-                const response = await fetch('/api/clientes', { credentials: 'include' });
+                var response = await fetch('/api/clientes', { credentials: 'include' });
                 if (response.ok) {
-                    const rawClientes = await response.json();
-                    clientesList = Array.isArray(rawClientes) ? rawClientes : (Array.isArray(rawClientes?.data) ? rawClientes.data : []);
-                    const opts = clientesList.map(c => `<option value="${c.id}">${c.razao_social||c.nome}</option>`).join('');
+                    var rawClientes = await response.json();
+                    clientesList = Array.isArray(rawClientes) ? rawClientes : (Array.isArray(rawClientes && rawClientes.data) ? rawClientes.data : []);
+                    var opts = clientesList.map(function(c){ return '<option value="'+c.id+'">'+(c.razao_social||c.nome)+'</option>'; }).join('');
                     document.getElementById('cliente-id').innerHTML = '<option value="">Selecione o cliente...</option>' + opts;
-                    document.getElementById('filtro-cliente-select').innerHTML = '<option value="">Todos</option>' + opts;
                 }
             } catch(e) { console.error('Erro clientes:', e); }
         }
 
         async function carregarCategorias() {
             try {
-                const response = await fetch('/api/financeiro/categorias', { credentials: 'include' });
-                if (response.ok) { const rawCats = await response.json(); const cats = Array.isArray(rawCats) ? rawCats : (Array.isArray(rawCats?.data) ? rawCats.data : []); document.getElementById('categoria-id').innerHTML = '<option value="">Selecione...</option>' + cats.filter(c=>c.tipo==='receita').map(c=>`<option value="${c.id}">${c.nome}</option>`).join(''); }
+                var response = await fetch('/api/financeiro/categorias', { credentials: 'include' });
+                if (response.ok) {
+                    var rawCats = await response.json();
+                    var cats = Array.isArray(rawCats) ? rawCats : (Array.isArray(rawCats && rawCats.data) ? rawCats.data : []);
+                    document.getElementById('categoria-id').innerHTML = '<option value="">Selecione...</option>' + cats.filter(function(c){return c.tipo==='receita';}).map(function(c){return '<option value="'+c.id+'">'+c.nome+'</option>';}).join('');
+                }
             } catch(e) { console.error('Erro categorias:', e); }
         }
-
-        // ===== MODAIS =====
-        function abrirModal(id = null) {
+        function abrirModal(id) {
             document.getElementById('modal-conta').classList.add('active');
             document.getElementById('form-conta').reset();
             document.getElementById('conta-id').value = '';
@@ -667,18 +938,24 @@
             document.querySelector('#modal-conta .modal-subtitle').textContent = 'Preencha os dados da conta a receber';
             document.getElementById('conta-vencimento').value = new Date().toISOString().split('T')[0];
             if (id) {
-                const c = contas.find(x => x.id === id); if (!c) return;
+                var c = contas.find(function(x){return x.id===id;}); if (!c) return;
                 document.getElementById('modal-titulo').textContent = 'Editar Receita';
                 document.querySelector('#modal-conta .modal-subtitle').textContent = 'Altere os dados da conta a receber';
                 document.getElementById('conta-id').value = c.id;
-                document.getElementById('descrição').value = c.descrição;
+                document.getElementById('descricao').value = c.descricao || '';
                 document.getElementById('cliente-id').value = c.cliente_id;
                 document.getElementById('categoria-id').value = c.categoria_id;
-                document.getElementById('conta-valor').value = c.valor;
-                document.getElementById('conta-vencimento').value = c.data_vencimento?.split('T')[0];
-                document.getElementById('forma-pagamento').value = c.forma_pagamento || 'pix';
+                document.getElementById('conta-valor').value = c.valor_total || c.valor;
+                document.getElementById('conta-vencimento').value = (c.data_vencimento||c.vencimento||'').split('T')[0];
+                document.getElementById('forma-pagamento').value = c.forma_recebimento || c.forma_pagamento || 'pix';
                 document.getElementById('observacoes').value = c.observacoes || '';
                 document.getElementById('numero-documento').value = c.numero_documento || '';
+                document.getElementById('valor-pis').value = parseFloat(c.valor_pis) || '';
+                document.getElementById('valor-cofins').value = parseFloat(c.valor_cofins) || '';
+                document.getElementById('valor-csll').value = parseFloat(c.valor_csll) || '';
+                document.getElementById('valor-ir').value = parseFloat(c.valor_ir) || '';
+                document.getElementById('valor-iss').value = parseFloat(c.valor_iss) || '';
+                document.getElementById('valor-inss').value = parseFloat(c.valor_inss) || '';
             }
         }
         function fecharModal() { document.getElementById('modal-conta').classList.remove('active'); }
@@ -696,21 +973,38 @@
 
         async function confirmarRecebimento(event) {
             event.preventDefault();
-            const id = document.getElementById('receber-conta-id').value;
-            const dados = { valor_recebido: parseFloat(document.getElementById('receber-valor').value), data_recebimento: document.getElementById('receber-data').value, forma_pagamento: document.getElementById('receber-forma').value, observacoes: document.getElementById('receber-obs').value };
+            var id = document.getElementById('receber-conta-id').value;
+            var dados = { valor_recebido: parseFloat(document.getElementById('receber-valor').value), data_recebimento: document.getElementById('receber-data').value, forma_pagamento: document.getElementById('receber-forma').value, observacoes: document.getElementById('receber-obs').value };
             try {
-                const r = await fetch(`/api/financeiro/contas-receber/${id}/receber`, { method: 'POST', headers:{'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(dados) });
+                var r = await fetch('/api/financeiro/contas-receber/'+id+'/receber', { method: 'POST', headers:{'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify(dados) });
                 if (r.ok) { showToast('Recebimento confirmado com sucesso!'); fecharModalReceber(); await init(); } else { showToast('Erro ao confirmar recebimento', 'error'); }
             } catch(e) { console.error(e); showToast('Erro ao confirmar recebimento', 'error'); }
         }
 
         async function salvarConta(event) {
             event.preventDefault();
-            const id = document.getElementById('conta-id').value;
-            const dados = { descrição: document.getElementById('descrição').value, cliente_id: document.getElementById('cliente-id').value, categoria_id: document.getElementById('categoria-id').value, valor: parseFloat(document.getElementById('conta-valor').value), data_vencimento: document.getElementById('conta-vencimento').value, forma_pagamento: document.getElementById('forma-pagamento').value, observacoes: document.getElementById('observacoes').value, numero_documento: document.getElementById('numero-documento').value, num_parcelas: parseInt(document.getElementById('num-parcelas').value) || 1 };
+            var id = document.getElementById('conta-id').value;
+            var dados = {
+                descricao: document.getElementById('descricao').value,
+                cliente_id: document.getElementById('cliente-id').value,
+                categoria_id: document.getElementById('categoria-id').value,
+                valor: parseFloat(document.getElementById('conta-valor').value),
+                data_vencimento: document.getElementById('conta-vencimento').value,
+                vencimento: document.getElementById('conta-vencimento').value,
+                forma_recebimento: document.getElementById('forma-pagamento').value,
+                observacoes: document.getElementById('observacoes').value,
+                numero_documento: document.getElementById('numero-documento').value,
+                num_parcelas: parseInt(document.getElementById('num-parcelas').value) || 1,
+                valor_pis: parseFloat(document.getElementById('valor-pis').value) || 0,
+                valor_cofins: parseFloat(document.getElementById('valor-cofins').value) || 0,
+                valor_csll: parseFloat(document.getElementById('valor-csll').value) || 0,
+                valor_ir: parseFloat(document.getElementById('valor-ir').value) || 0,
+                valor_iss: parseFloat(document.getElementById('valor-iss').value) || 0,
+                valor_inss: parseFloat(document.getElementById('valor-inss').value) || 0
+            };
             try {
-                const url = id ? `/api/financeiro/contas-receber/${id}` : '/api/financeiro/contas-receber';
-                const r = await fetch(url, { method: id?'PUT':'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(dados) });
+                var url = id ? '/api/financeiro/contas-receber/'+id : '/api/financeiro/contas-receber';
+                var r = await fetch(url, { method: id?'PUT':'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(dados) });
                 if (r.ok) { showToast('Conta salva com sucesso!'); fecharModal(); await init(); } else { showToast('Erro ao salvar conta', 'error'); }
             } catch(e) { console.error(e); showToast('Erro ao salvar conta', 'error'); }
         }
@@ -718,111 +1012,180 @@
         async function excluirConta(id) {
             if (!confirm('Tem certeza que deseja excluir esta conta?')) return;
             try {
-                const r = await fetch(`/api/financeiro/contas-receber/${id}`, { method:'DELETE', credentials:'include' });
-                if (r.ok) { showToast('Conta excluída com sucesso!'); await init(); } else { showToast('Erro ao excluir', 'error'); }
+                var r = await fetch('/api/financeiro/contas-receber/'+id, { method:'DELETE', credentials:'include' });
+                if (r.ok) { showToast('Conta excluida com sucesso!'); await init(); } else { showToast('Erro ao excluir', 'error'); }
             } catch(e) { console.error(e); showToast('Erro ao excluir', 'error'); }
         }
 
-        async function enviarCobranca(id) {
-            if (!confirm('Enviar cobrança para este cliente?')) return;
-            try {
-                const r = await fetch(`/api/financeiro/contas-receber/${id}/cobrar`, { method:'POST', credentials:'include' });
-                if (r.ok) { showToast('Cobrança enviada com sucesso!'); } else { showToast('Erro ao enviar cobrança', 'error'); }
-            } catch(e) { showToast('Erro ao enviar cobrança', 'error'); }
-        }
-
         async function enviarCobrancas() {
-            const pendentes = contas.filter(c => c.status === 'pendente' || c.status === 'vencido');
-            if (pendentes.length === 0) { showToast('Não há contas pendentes para cobrança', 'warning'); return; }
-            if (!confirm(`Enviar cobrança para ${pendentes.length} conta(s)?`)) return;
+            var pendentes = contas.filter(function(c){ return c.status === 'pendente' || c.status === 'vencido'; });
+            if (pendentes.length === 0) { showToast('Nao ha contas pendentes para cobranca', 'warning'); return; }
+            if (!confirm('Enviar cobranca para '+pendentes.length+' conta(s)?')) return;
             try {
-                const ids = pendentes.map(c => c.id);
-                const r = await fetch('/api/financeiro/enviar-cobranca-lote', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ ids }) });
-                if (r.ok) { showToast(`Cobranças enviadas para ${pendentes.length} conta(s)!`); } else { showToast('Erro ao enviar cobranças em lote', 'error'); }
-            } catch(e) { showToast('Erro ao enviar cobranças', 'error'); }
+                var ids = pendentes.map(function(c){return c.id;});
+                var r = await fetch('/api/financeiro/enviar-cobranca-lote', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({ ids: ids }) });
+                if (r.ok) { showToast('Cobrancas enviadas para '+pendentes.length+' conta(s)!'); } else { showToast('Erro ao enviar cobrancas em lote', 'error'); }
+            } catch(e) { showToast('Erro ao enviar cobrancas', 'error'); }
         }
-
-        // ===== FILTROS =====
-        function filtrarContas() {
-            const periodo = document.getElementById('filtro-periodo').value;
-            const status = document.getElementById('filtro-status').value;
-            const clienteId = document.getElementById('filtro-cliente-select').value;
-            const pesquisa = document.getElementById('pesquisa-global').value.toLowerCase();
-            let filtradas = [...contas];
-            const hoje = new Date(); hoje.setHours(0,0,0,0);
+        function getFilteredContas() {
+            var periodo = document.getElementById('filtro-periodo').value;
+            var status = document.getElementById('filtro-status').value;
+            var portador = document.getElementById('filtro-portador') ? document.getElementById('filtro-portador').value : '';
+            var situacao = document.getElementById('filtro-situacao') ? document.getElementById('filtro-situacao').value : '';
+            var clienteNome = document.getElementById('filtro-cliente-select').value;
+            var pesquisa = document.getElementById('pesquisa-global').value.toLowerCase();
+            var filtradas = contas.slice();
+            var hoje = new Date(); hoje.setHours(0,0,0,0);
             if (periodo && periodo !== 'todas') {
-                filtradas = filtradas.filter(c => { const v = new Date(c.data_vencimento); v.setHours(0,0,0,0); switch(periodo){ case 'mes':return v.getMonth()===hoje.getMonth()&&v.getFullYear()===hoje.getFullYear(); case 'proximos7':return v>=hoje&&v<=new Date(hoje.getTime()+7*86400000); case 'proximos30':return v>=hoje&&v<=new Date(hoje.getTime()+30*86400000); case 'vencidas':return v<hoje&&c.status!=='recebido'&&c.status!=='pago'; default:return true; } });
+                filtradas = filtradas.filter(function(c){ var v = new Date(c.data_vencimento); v.setHours(0,0,0,0); switch(periodo){ case 'mes':return v.getMonth()===hoje.getMonth()&&v.getFullYear()===hoje.getFullYear(); case 'proximos7':return v>=hoje&&v<=new Date(hoje.getTime()+7*86400000); case 'proximos30':return v>=hoje&&v<=new Date(hoje.getTime()+30*86400000); case 'vencidas':return v<hoje&&c.status!=='recebido'&&c.status!=='pago'&&c.status!=='liquidado'; default:return true; } });
             }
-            if (status) filtradas = filtradas.filter(c => c.status === status);
-            if (clienteId) filtradas = filtradas.filter(c => c.cliente_id == clienteId);
-            if (pesquisa) filtradas = filtradas.filter(c => (c.descrição||'').toLowerCase().includes(pesquisa)||(c.cliente_nome||'').toLowerCase().includes(pesquisa)||(c.valor?.toString()||'').includes(pesquisa)||(c.numero_documento||'').toLowerCase().includes(pesquisa));
-            renderizarTabela(filtradas, pesquisa);
+            if (status) filtradas = filtradas.filter(function(c){ return (c.status||'').toLowerCase() === status.toLowerCase(); });
+            if (portador) filtradas = filtradas.filter(function(c){ return c.portador === portador; });
+            if (situacao) filtradas = filtradas.filter(function(c){ return (c.situacao||'').toUpperCase() === situacao.toUpperCase(); });
+            if (clienteNome) filtradas = filtradas.filter(function(c){ return c.cliente_nome === clienteNome; });
+            if (pesquisa) filtradas = filtradas.filter(function(c){ return (c.descricao||'').toLowerCase().indexOf(pesquisa)>-1||(c.cliente_nome||'').toLowerCase().indexOf(pesquisa)>-1||(c.valor+'').indexOf(pesquisa)>-1||(c.numero_documento||'').toLowerCase().indexOf(pesquisa)>-1||(c.nota_fiscal||'').toLowerCase().indexOf(pesquisa)>-1||(c.portador||'').toLowerCase().indexOf(pesquisa)>-1||(c.cnpj_cpf||c.cnpj_cliente||'').indexOf(pesquisa)>-1||(c.vendedor||'').toLowerCase().indexOf(pesquisa)>-1; });
+            return filtradas;
         }
-        let pesquisaTimeout;
-        function pesquisarGlobal() { clearTimeout(pesquisaTimeout); const i=document.getElementById('pesquisa-global'); i.parentElement.querySelector('.btn-clear-search').style.display=i.value?'flex':'none'; pesquisaTimeout=setTimeout(()=>filtrarContas(),300); }
+        function filtrarContas() { renderizarTabela(getFilteredContas(), document.getElementById('pesquisa-global').value.toLowerCase()); }
+        var pesquisaTimeout;
+        function pesquisarGlobal() { clearTimeout(pesquisaTimeout); var i=document.getElementById('pesquisa-global'); i.parentElement.querySelector('.btn-clear-search').style.display=i.value?'flex':'none'; pesquisaTimeout=setTimeout(function(){filtrarContas();},300); }
         function limparPesquisa() { document.getElementById('pesquisa-global').value=''; document.querySelector('.btn-clear-search').style.display='none'; filtrarContas(); }
-        function limparFiltros() { document.getElementById('pesquisa-global').value=''; document.getElementById('filtro-periodo').value='todas'; document.getElementById('filtro-status').value=''; document.getElementById('filtro-cliente-select').value=''; document.querySelector('.btn-clear-search').style.display='none'; renderizarTabela(contas); }
+        function limparFiltros() { document.getElementById('pesquisa-global').value=''; document.getElementById('filtro-periodo').value='todas'; document.getElementById('filtro-status').value=''; document.getElementById('filtro-cliente-select').value=''; if(document.getElementById('filtro-portador'))document.getElementById('filtro-portador').value=''; if(document.getElementById('filtro-situacao'))document.getElementById('filtro-situacao').value=''; document.querySelector('.btn-clear-search').style.display='none'; renderizarTabela(contas); }
 
-        // ===== VISUALIZAR =====
-        let contaVisualizando = null;
+        var contaVisualizando = null;
         function visualizarConta(id) {
-            const c = contas.find(x => x.id === id); if (!c) return;
+            var c = contas.find(function(x){return x.id===id;}); if (!c) return;
             contaVisualizando = c;
             document.getElementById('view-id').textContent = '#'+c.id;
-            document.getElementById('view-descrição').textContent = c.descrição || '-';
+            document.getElementById('view-descricao').textContent = c.descricao || c.cliente_nome || '-';
             document.getElementById('view-cliente').textContent = c.cliente_nome || '-';
-            document.getElementById('view-categoria').textContent = c.categoria_nome || '-';
-            document.getElementById('view-valor').textContent = `R$ ${(c.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
-            document.getElementById('view-vencimento').textContent = new Date(c.data_vencimento).toLocaleDateString('pt-BR');
-            document.getElementById('view-forma').textContent = formatarForma(c.forma_pagamento);
+            document.getElementById('view-empresa').textContent = c.empresa || '-';
+            document.getElementById('view-nfe').textContent = c.nota_fiscal ? ((c.tipo_documento_fiscal||'')+' '+c.nota_fiscal).trim() : '-';
+            document.getElementById('view-cnpj').textContent = c.cnpj_cpf || c.cnpj_cliente || '-';
+            document.getElementById('view-parcela').textContent = c.parcela_info || '-';
+            document.getElementById('view-situacao').textContent = c.situacao || '-';
+            document.getElementById('view-portador').textContent = c.portador || '-';
+            document.getElementById('view-data-op').textContent = c.data_operacao ? fmtData(c.data_operacao) : '-';
+            document.getElementById('view-emissao').textContent = c.data_emissao ? fmtData(c.data_emissao) : '-';
+            document.getElementById('view-dias').textContent = c.dias_vencido || '-';
+            document.getElementById('view-categoria').textContent = c.categoria || c.categoria_nome || '-';
+            document.getElementById('view-conta-corrente').textContent = c.centro_receita || '-';
             document.getElementById('view-documento').textContent = c.numero_documento || '-';
-            document.getElementById('view-observacoes').textContent = c.observacoes || 'Nenhuma observação';
-            const badges = {'pendente':{c:'pending',t:'Pendente',i:'fa-clock'},'recebido':{c:'paid',t:'Recebido',i:'fa-check-circle'},'pago':{c:'paid',t:'Recebido',i:'fa-check-circle'},'vencido':{c:'overdue',t:'Vencido',i:'fa-exclamation-circle'},'parcial':{c:'partial',t:'Parcial',i:'fa-adjust'}};
-            const si = badges[c.status] || badges.pendente;
-            const badge = document.getElementById('view-status-badge'); badge.className = 'view-badge '+si.c; badge.innerHTML = `<i class="fas ${si.i}"></i> ${si.t}`;
-            const recInfo = document.getElementById('view-recebimento-info');
-            const btnReceber = document.getElementById('btn-receber-view');
-            if (c.status === 'recebido' || c.status === 'pago') {
+            document.getElementById('view-boleto').textContent = c.numero_boleto || '-';
+            document.getElementById('view-vendedor').textContent = c.vendedor || '-';
+            document.getElementById('view-projeto').textContent = c.projeto || '-';
+            document.getElementById('view-posicao').textContent = c.posicao || '-';
+            document.getElementById('view-valor').textContent = fmtMoeda(c.valor_total||c.valor);
+            document.getElementById('view-vencimento').textContent = fmtData(c.data_vencimento||c.vencimento);
+            document.getElementById('view-forma').textContent = formatarForma(c.forma_recebimento||c.forma_pagamento);
+            document.getElementById('view-pis').textContent = fmtMoeda(c.valor_pis);
+            document.getElementById('view-cofins').textContent = fmtMoeda(c.valor_cofins);
+            document.getElementById('view-csll').textContent = fmtMoeda(c.valor_csll);
+            document.getElementById('view-ir').textContent = fmtMoeda(c.valor_ir);
+            document.getElementById('view-iss').textContent = fmtMoeda(c.valor_iss);
+            document.getElementById('view-inss').textContent = fmtMoeda(c.valor_inss);
+            document.getElementById('view-liquido').textContent = fmtMoeda(c.valor_liquido);
+            document.getElementById('view-recebido-val').textContent = fmtMoeda(c.valor_recebido);
+            document.getElementById('view-a-receber').textContent = fmtMoeda(c.a_receber);
+            document.getElementById('view-observacoes').textContent = c.observacoes || 'Nenhuma observacao';
+            var st = (c.status||'pendente').toLowerCase();
+            var badges = {'pendente':{c:'pending',t:'Pendente',i:'fa-clock'},'a vencer':{c:'pending',t:'A Vencer',i:'fa-clock'},'recebido':{c:'paid',t:'Recebido',i:'fa-check-circle'},'pago':{c:'paid',t:'Recebido',i:'fa-check-circle'},'liquidado':{c:'paid',t:'Liquidado',i:'fa-check-circle'},'vencido':{c:'overdue',t:'Vencido',i:'fa-exclamation-circle'},'parcial':{c:'partial',t:'Parcial',i:'fa-adjust'}};
+            var si = badges[st] || badges.pendente;
+            var badge = document.getElementById('view-status-badge'); badge.className = 'view-badge '+si.c; badge.innerHTML = '<i class="fas '+si.i+'"></i> '+si.t;
+            var recInfo = document.getElementById('view-recebimento-info');
+            var btnReceber = document.getElementById('btn-receber-view');
+            if (st === 'recebido' || st === 'pago' || st === 'liquidado') {
                 recInfo.style.display = 'block';
-                document.getElementById('view-data-recebimento').textContent = c.data_recebimento ? new Date(c.data_recebimento).toLocaleDateString('pt-BR') : '-';
-                document.getElementById('view-valor-recebido').textContent = c.valor_recebido ? `R$ ${c.valor_recebido.toLocaleString('pt-BR',{minimumFractionDigits:2})}` : document.getElementById('view-valor').textContent;
+                document.getElementById('view-data-recebimento').textContent = c.data_recebimento ? fmtData(c.data_recebimento) : (c.data_operacao ? fmtData(c.data_operacao) : '-');
+                document.getElementById('view-valor-recebido').textContent = c.valor_recebido ? fmtMoeda(c.valor_recebido) : document.getElementById('view-valor').textContent;
                 btnReceber.style.display = 'none';
             } else { recInfo.style.display = 'none'; btnReceber.style.display = 'inline-flex'; }
             document.getElementById('modal-visualizar').classList.add('active');
         }
-        function formatarForma(f) { const m={'dinheiro':'Dinheiro','pix':'PIX','transferencia':'Transferência Bancária','cartao':'Cartão','boleto':'Boleto','cheque':'Cheque'}; return m[f]||f||'-'; }
+        function formatarForma(f) { var m={'dinheiro':'Dinheiro','pix':'PIX','transferencia':'Transferencia','cartao':'Cartao','boleto':'Boleto','cheque':'Cheque'}; return m[f]||f||'-'; }
         function fecharModalVisualizar() { document.getElementById('modal-visualizar').classList.remove('active'); contaVisualizando=null; }
         function editarContaFromView() { if(contaVisualizando){fecharModalVisualizar();editarConta(contaVisualizando.id);}}
         function receberContaFromView() { if(contaVisualizando){fecharModalVisualizar();abrirModalReceber(contaVisualizando.id,contaVisualizando.valor);}}
-
-        // ===== EXPORTAR =====
         function exportarExcel() {
-            if(contas.length===0){showToast('Não há dados para exportar','warning');return;}
-            const csvSafe=(s)=>{if(typeof s!=='string')return String(s??'');let v=s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'');if(/^[=+\-@\t\r]/.test(v))v="'"+v;return v;};
-            const headers=['ID','Descrição','Cliente','Vencimento','Valor','Status','Forma','Nº Documento'];
-            const linhas=contas.map(c=>[c.id,`"${csvSafe(c.descrição||'').replace(/"/g,'""')}"`,`"${csvSafe(c.cliente_nome||'').replace(/"/g,'""')}"`,new Date(c.data_vencimento).toLocaleDateString('pt-BR'),(parseFloat(c.valor)||0).toFixed(2).replace('.',','),csvSafe(c.status||'pendente'),csvSafe(formatarForma(c.forma_pagamento)),csvSafe(c.numero_documento||'')]);
-            const csv=[headers.join(';'),...linhas.map(l=>l.join(';'))].join('\n');
-            const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
-            const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`contas_receber_${new Date().toISOString().split('T')[0]}.csv`;link.click();
-            setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+            if(contas.length===0){showToast('Nao ha dados para exportar','warning');return;}
+            var csvSafe=function(s){if(typeof s!=='string')return String(s==null?'':s);var v=s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'');if(/^[=+\-@\t\r]/.test(v))v="'"+v;return v;};
+            var headers=['Empresa','NFe','Parcela','Cliente','CNPJ','Emissao','Vencimento','Categoria','Conta Corrente','Documento','Boleto','Vendedor','Projeto','Valor','PIS','COFINS','CSLL','IR','ISS','INSS','Valor Liquido','Recebido','A Receber','Situacao','Portador','Status','Dias','Observacoes'];
+            var linhas=contas.map(function(c){return [
+                '"'+csvSafe(c.empresa||'')+'"','"'+csvSafe(c.nota_fiscal||'')+'"','"'+csvSafe(c.parcela_info||'')+'"',
+                '"'+csvSafe(c.cliente_nome||'').replace(/"/g,'""')+'"','"'+csvSafe(c.cnpj_cpf||c.cnpj_cliente||'')+'"',
+                fmtData(c.data_emissao),fmtData(c.data_vencimento||c.vencimento),
+                csvSafe(c.categoria||''),csvSafe(c.centro_receita||''),csvSafe(c.numero_documento||''),csvSafe(c.numero_boleto||''),
+                csvSafe(c.vendedor||''),csvSafe(c.projeto||''),
+                '"'+(parseFloat(c.valor_total||c.valor)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_pis)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_cofins)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_csll)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_ir)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_iss)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_inss)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_liquido)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.valor_recebido)||0).toFixed(2).replace('.',',')+'"',
+                '"'+(parseFloat(c.a_receber)||0).toFixed(2).replace('.',',')+'"',
+                csvSafe(c.situacao||''),csvSafe(c.portador||''),csvSafe(c.status||'pendente'),c.dias_vencido||'',
+                '"'+csvSafe(c.observacoes||'').replace(/"/g,'""')+'"'
+            ];});
+            var csv=[headers.join(';')].concat(linhas.map(function(l){return l.join(';');})).join('\n');
+            var blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+            var link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='contas_receber_'+new Date().toISOString().split('T')[0]+'.csv';link.click();
+            setTimeout(function(){URL.revokeObjectURL(link.href);},1000);
         }
 
-        document.addEventListener('DOMContentLoaded', () => { init().catch(e => console.error(e)); });
+        function abrirModalImportar() {
+            document.getElementById('arquivo-excel').value = '';
+            document.getElementById('importar-progresso').style.display = 'none';
+            document.getElementById('importar-resultado').style.display = 'none';
+            document.getElementById('btn-importar').disabled = false;
+            document.getElementById('modal-importar').classList.add('active');
+        }
+        function fecharModalImportar() { document.getElementById('modal-importar').classList.remove('active'); }
+
+        async function executarImportacao() {
+            var fileInput = document.getElementById('arquivo-excel');
+            if (!fileInput.files || !fileInput.files[0]) { showToast('Selecione um arquivo Excel', 'warning'); return; }
+            var formData = new FormData();
+            formData.append('arquivo', fileInput.files[0]);
+            document.getElementById('importar-progresso').style.display = 'block';
+            document.getElementById('importar-resultado').style.display = 'none';
+            document.getElementById('btn-importar').disabled = true;
+            try {
+                var r = await fetch('/api/financeiro/contas-receber/importar-excel', { method: 'POST', credentials: 'include', body: formData });
+                var data = await r.json();
+                document.getElementById('importar-progresso').style.display = 'none';
+                if (r.ok && data.success) {
+                    document.getElementById('importar-resultado').style.display = 'block';
+                    document.getElementById('importar-resultado').innerHTML = '<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:14px;text-align:center;"><i class="fas fa-check-circle" style="font-size:28px;color:#16a34a;"></i><p style="font-size:14px;font-weight:700;color:#166534;margin:8px 0 4px;">Importacao Concluida!</p><p style="font-size:13px;color:#166534;margin:0;"><strong>'+data.importados+'</strong> registro(s) importado(s)'+(data.erros>0?', <span style="color:#dc2626;">'+data.erros+' erro(s)</span>':'')+'</p><p style="font-size:11px;color:#166534;margin-top:4px;">Aba: '+data.sheet+'</p></div>';
+                    showToast(data.importados+' registros importados com sucesso!');
+                    await init();
+                } else {
+                    document.getElementById('importar-resultado').style.display = 'block';
+                    document.getElementById('importar-resultado').innerHTML = '<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:14px;text-align:center;"><i class="fas fa-exclamation-circle" style="font-size:28px;color:#dc2626;"></i><p style="font-size:13px;color:#991b1b;margin:8px 0 0;">'+(data.error||'Erro na importacao')+'</p></div>';
+                    showToast(data.error || 'Erro na importacao', 'error');
+                    document.getElementById('btn-importar').disabled = false;
+                }
+            } catch(e) {
+                console.error('Erro importacao:', e);
+                document.getElementById('importar-progresso').style.display = 'none';
+                showToast('Erro ao importar arquivo', 'error');
+                document.getElementById('btn-importar').disabled = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){ init().catch(function(e){ console.error(e); }); });
     </script>
 
     <script src="/js/chat-suporte-widgets.js?v=20260103"></script>
-    <script src="../../_shared/connection-monitor.js?v=20251223"></script>
+    <script src="/_shared/connection-monitor.js?v=20251223"></script>
     <script src="/js/popup-confirmacao.js"></script>
     <script src="/js/auth-unified.js?v=20260131"></script>
     <script src="/js/mobile-auto-enhance.js?v=20260202" defer></script>
-    <script src="../js/financeiro-sidebar.js?v=20260210"></script>
-
-<!-- ALUFORCE: Confirm Dialog Profissional v2.0 --><script src="/_shared/confirm-dialog.js?v=20260217"></script>
-    <!-- Chat Widget BOB AI -->
-    <script src="/chat/widget.js?v=20260218" defer></script>
+    <script src="js/financeiro-sidebar.js?v=20260210"></script>
+    <script src="/_shared/confirm-dialog.js?v=20260217"></script>
     <script src="/_shared/accessibility-widget.js?v=20260226"></script>
-
-    <!-- Chat Corporativo (Teams) -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat-teams/chat-widget.js?v=20260615" defer></script>
 </body>

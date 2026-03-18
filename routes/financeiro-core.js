@@ -1,17 +1,28 @@
 /**
  * FINANCEIRO CORE ROUTES — Extracted from server.js
- * 
+ *
  * Contains: checkFinanceiroPermission middleware + financeiro permission endpoint
  * + contas-pagar/receber CRUD + categorias + contas-bancarias + transações
- * 
+ *
  * Factory pattern: module.exports = function(deps) { ... return router; }
  */
 
 const express = require('express');
+const { auditTrail } = require('../middleware/audit-trail');
+const { idempotency } = require('../middleware/idempotency');
+const { safeAdd, safeSub, gte } = require('../services/financial-math');
 
 module.exports = function createFinanceiroCoreRoutes(deps) {
-    const { pool, jwt, JWT_SECRET, authenticateToken, authorizeArea, writeAuditLog, cacheMiddleware, CACHE_CONFIG } = deps;
+    const { pool, jwt, JWT_SECRET, authenticateToken, authorizeArea, writeAuditLog, cacheMiddleware, CACHE_CONFIG, writeGuard } = deps;
     const router = express.Router();
+    // AUDIT-FIX: Ensure all financeiro-core routes are protected
+    router.use(authenticateToken);
+    router.use(authorizeArea('financeiro'));
+    router.use(writeGuard || ((req, res, next) => next()));
+    // Audit trail for all mutation operations in financeiro
+    router.use(auditTrail('financeiro'));
+    // Idempotency protection for POST requests
+    router.use(idempotency());
 
     // ============================================================
     // MIDDLEWARE: Verificar permissões financeiras (SINGLE definition)
@@ -295,12 +306,80 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
 
     router.post('/contas-pagar', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         try {
-            const { descricao, valor, vencimento, fornecedor_id, categoria_id, observacoes } = req.body;
-            if (!descricao || !valor || !vencimento) return res.status(400).json({ message: 'Campos obrigatórios: descricao, valor, vencimento' });
-            const [result] = await pool.query(
-                'INSERT INTO contas_pagar (descricao, valor, vencimento, fornecedor_id, categoria_id, observacoes, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [descricao, valor, vencimento, fornecedor_id || null, categoria_id || null, observacoes || '', 'pendente']
-            );
+            const {
+                descricao,
+                valor,
+                valor_total,
+                vencimento,
+                data_vencimento,
+                data_vencimento_original,
+                fornecedor_id,
+                fornecedor_nome,
+                fornecedor,
+                categoria,
+                categoria_id,
+                numero_documento,
+                nota_fiscal,
+                data_emissao,
+                data_registro,
+                projeto,
+                banco_id,
+                conta_bancaria_id,
+                observacoes,
+                tipo_documento,
+                numero_pedido,
+                chave_nfe,
+                codigo_barras,
+                status
+            } = req.body;
+
+            const valorConta = valor || valor_total;
+            const dataVenc = data_vencimento || vencimento || data_vencimento_original;
+            const descricaoConta = descricao || fornecedor_nome || fornecedor || 'Conta a pagar';
+
+            if (!descricaoConta || !valorConta || !dataVenc) {
+                return res.status(400).json({ message: 'Campos obrigatórios: descricao, valor, vencimento' });
+            }
+
+            let result;
+            try {
+                [result] = await pool.query(
+                    `INSERT INTO contas_pagar (
+                        descricao, valor, vencimento, data_vencimento, data_vencimento_original,
+                        fornecedor_id, fornecedor_nome, categoria_id,
+                        numero_documento, nota_fiscal, data_emissao, projeto,
+                        banco_id, observacoes,
+                        tipo_documento, numero_pedido, chave_nfe, codigo_barras_boleto, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        descricaoConta,
+                        valorConta,
+                        dataVenc,
+                        dataVenc,
+                        data_vencimento_original || dataVenc,
+                        fornecedor_id || null,
+                        fornecedor_nome || fornecedor || null,
+                        categoria_id || null,
+                        numero_documento || nota_fiscal || null,
+                        nota_fiscal || numero_documento || null,
+                        data_emissao || null,
+                        projeto || null,
+                        banco_id || conta_bancaria_id || null,
+                        observacoes || null,
+                        tipo_documento || null,
+                        numero_pedido || null,
+                        chave_nfe || null,
+                        codigo_barras || null,
+                        status || 'pendente'
+                    ]
+                );
+            } catch (insertErr) {
+                if (insertErr?.code !== 'ER_BAD_FIELD_ERROR') throw insertErr;
+                [result] = await pool.query(
+                    'INSERT INTO contas_pagar (descricao, valor, vencimento, fornecedor_id, categoria_id, observacoes, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [descricaoConta, valorConta, dataVenc, fornecedor_id || null, categoria_id || null, observacoes || '', status || 'pendente']
+                );
+            }
             res.status(201).json({ success: true, id: result.insertId });
         } catch (err) {
             console.error('[FINANCEIRO] Erro:', err);
@@ -310,11 +389,76 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
 
     router.put('/contas-pagar/:id', checkFinanceiroPermission('contas_pagar'), async (req, res) => {
         try {
-            const { descricao, valor, vencimento, fornecedor_id, categoria_id, observacoes, status } = req.body;
-            await pool.query(
-                'UPDATE contas_pagar SET descricao = ?, valor = ?, vencimento = ?, fornecedor_id = ?, categoria_id = ?, observacoes = ?, status = ? WHERE id = ?',
-                [descricao, valor, vencimento, fornecedor_id, categoria_id, observacoes, status, req.params.id]
-            );
+            const {
+                descricao,
+                valor,
+                valor_total,
+                vencimento,
+                data_vencimento,
+                data_vencimento_original,
+                fornecedor_id,
+                fornecedor_nome,
+                fornecedor,
+                categoria,
+                categoria_id,
+                numero_documento,
+                nota_fiscal,
+                data_emissao,
+                data_registro,
+                projeto,
+                banco_id,
+                conta_bancaria_id,
+                observacoes,
+                tipo_documento,
+                numero_pedido,
+                chave_nfe,
+                codigo_barras,
+                status
+            } = req.body;
+
+            const valorConta = valor || valor_total;
+            const dataVenc = data_vencimento || vencimento || data_vencimento_original;
+            const descricaoConta = descricao || fornecedor_nome || fornecedor || 'Conta a pagar';
+
+            try {
+                await pool.query(
+                    `UPDATE contas_pagar SET
+                        descricao = ?, valor = ?, vencimento = ?, data_vencimento = ?, data_vencimento_original = ?,
+                        fornecedor_id = ?, fornecedor_nome = ?, categoria_id = ?,
+                        numero_documento = ?, nota_fiscal = ?, data_emissao = ?, projeto = ?,
+                        banco_id = ?, observacoes = ?,
+                        tipo_documento = ?, numero_pedido = ?, chave_nfe = ?, codigo_barras_boleto = ?, status = ?
+                     WHERE id = ?`,
+                    [
+                        descricaoConta,
+                        valorConta,
+                        dataVenc,
+                        dataVenc,
+                        data_vencimento_original || dataVenc,
+                        fornecedor_id || null,
+                        fornecedor_nome || fornecedor || null,
+                        categoria_id || null,
+                        numero_documento || nota_fiscal || null,
+                        nota_fiscal || numero_documento || null,
+                        data_emissao || null,
+                        projeto || null,
+                        banco_id || conta_bancaria_id || null,
+                        observacoes || null,
+                        tipo_documento || null,
+                        numero_pedido || null,
+                        chave_nfe || null,
+                        codigo_barras || null,
+                        status || 'pendente',
+                        req.params.id
+                    ]
+                );
+            } catch (updateErr) {
+                if (updateErr?.code !== 'ER_BAD_FIELD_ERROR') throw updateErr;
+                await pool.query(
+                    'UPDATE contas_pagar SET descricao = ?, valor = ?, vencimento = ?, fornecedor_id = ?, categoria_id = ?, observacoes = ?, status = ? WHERE id = ?',
+                    [descricaoConta, valorConta, dataVenc, fornecedor_id || null, categoria_id || null, observacoes || null, status || 'pendente', req.params.id]
+                );
+            }
             res.json({ success: true, message: 'Conta atualizada' });
         } catch (err) {
             console.error('[FINANCEIRO] Erro:', err);
@@ -377,12 +521,104 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
 
     router.post('/contas-receber', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         try {
-            const { descricao, valor, vencimento, cliente_id, categoria_id, observacoes } = req.body;
-            if (!descricao || !valor || !vencimento) return res.status(400).json({ message: 'Campos obrigatórios: descricao, valor, vencimento' });
-            const [result] = await pool.query(
-                'INSERT INTO contas_receber (descricao, valor, vencimento, cliente_id, categoria_id, observacoes, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [descricao, valor, vencimento, cliente_id || null, categoria_id || null, observacoes || '', 'pendente']
-            );
+            const {
+                descricao,
+                valor,
+                valor_total,
+                vencimento,
+                data_vencimento,
+                cliente_id,
+                cliente_nome,
+                cliente,
+                categoria,
+                categoria_id,
+                observacoes,
+                numero_documento,
+                nota_fiscal,
+                data_emissao,
+                data_registro,
+                projeto,
+                banco_id,
+                conta_bancaria_id,
+                tipo_documento,
+                numero_pedido,
+                chave_nfe,
+                codigo_barras,
+                vendedor,
+                vendedor_id,
+                status,
+                valor_pis, reter_pis,
+                valor_cofins, reter_cofins,
+                valor_csll, reter_csll,
+                valor_ir, reter_ir,
+                valor_iss, reter_iss,
+                valor_inss, reter_inss
+            } = req.body;
+
+            const dataVenc = vencimento || data_vencimento;
+            const valorConta = valor || valor_total;
+            const descricaoConta = descricao || cliente_nome || cliente || 'Conta a receber';
+
+            if (!descricaoConta || !valorConta || !dataVenc) {
+                return res.status(400).json({ message: 'Campos obrigatórios: descricao, valor, vencimento' });
+            }
+
+            let result;
+            try {
+                [result] = await pool.query(
+                    `INSERT INTO contas_receber (
+                        descricao, valor, vencimento, data_vencimento,
+                        cliente_id, cliente_nome, categoria_id,
+                        observacoes, numero_documento, nota_fiscal,
+                        data_emissao, projeto,
+                        banco_id,
+                        tipo_documento, numero_pedido, chave_nfe, codigo_barras,
+                        vendedor, status,
+                        valor_pis, reter_pis, valor_cofins, reter_cofins,
+                        valor_csll, reter_csll, valor_ir, reter_ir,
+                        valor_iss, reter_iss, valor_inss, reter_inss
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [
+                        descricaoConta,
+                        valorConta,
+                        dataVenc,
+                        dataVenc,
+                        cliente_id || null,
+                        cliente_nome || cliente || null,
+                        categoria_id || null,
+                        observacoes || null,
+                        numero_documento || nota_fiscal || null,
+                        nota_fiscal || numero_documento || null,
+                        data_emissao || null,
+                        projeto || null,
+                        banco_id || conta_bancaria_id || null,
+                        tipo_documento || null,
+                        numero_pedido || null,
+                        chave_nfe || null,
+                        codigo_barras || null,
+                        vendedor || null,
+                        status || 'pendente',
+                        parseFloat(valor_pis) || 0,
+                        reter_pis ? 1 : 0,
+                        parseFloat(valor_cofins) || 0,
+                        reter_cofins ? 1 : 0,
+                        parseFloat(valor_csll) || 0,
+                        reter_csll ? 1 : 0,
+                        parseFloat(valor_ir) || 0,
+                        reter_ir ? 1 : 0,
+                        parseFloat(valor_iss) || 0,
+                        reter_iss ? 1 : 0,
+                        parseFloat(valor_inss) || 0,
+                        reter_inss ? 1 : 0
+                    ]
+                );
+            } catch (insertErr) {
+                if (insertErr?.code !== 'ER_BAD_FIELD_ERROR') throw insertErr;
+                [result] = await pool.query(
+                    'INSERT INTO contas_receber (descricao, valor, vencimento, cliente_id, categoria_id, observacoes, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [descricaoConta, valorConta, dataVenc, cliente_id || null, categoria_id || null, observacoes || '', status || 'pendente']
+                );
+            }
             res.status(201).json({ success: true, id: result.insertId });
         } catch (err) {
             console.error('[FINANCEIRO] Erro:', err);
@@ -392,11 +628,100 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
 
     router.put('/contas-receber/:id', checkFinanceiroPermission('contas_receber'), async (req, res) => {
         try {
-            const { descricao, valor, vencimento, cliente_id, categoria_id, observacoes, status } = req.body;
-            await pool.query(
-                'UPDATE contas_receber SET descricao = ?, valor = ?, vencimento = ?, cliente_id = ?, categoria_id = ?, observacoes = ?, status = ? WHERE id = ?',
-                [descricao, valor, vencimento, cliente_id, categoria_id, observacoes, status, req.params.id]
-            );
+            const {
+                descricao,
+                valor,
+                valor_total,
+                vencimento,
+                data_vencimento,
+                cliente_id,
+                cliente_nome,
+                cliente,
+                categoria,
+                categoria_id,
+                observacoes,
+                numero_documento,
+                nota_fiscal,
+                data_emissao,
+                data_registro,
+                projeto,
+                banco_id,
+                conta_bancaria_id,
+                tipo_documento,
+                numero_pedido,
+                chave_nfe,
+                codigo_barras,
+                vendedor,
+                vendedor_id,
+                status,
+                valor_pis, reter_pis,
+                valor_cofins, reter_cofins,
+                valor_csll, reter_csll,
+                valor_ir, reter_ir,
+                valor_iss, reter_iss,
+                valor_inss, reter_inss
+            } = req.body;
+
+            const dataVenc = vencimento || data_vencimento;
+            const valorConta = valor || valor_total;
+            const descricaoConta = descricao || cliente_nome || cliente || 'Conta a receber';
+
+            try {
+                await pool.query(
+                    `UPDATE contas_receber SET
+                        descricao = ?, valor = ?, vencimento = ?, data_vencimento = ?,
+                        cliente_id = ?, cliente_nome = ?, categoria_id = ?,
+                        observacoes = ?, numero_documento = ?, nota_fiscal = ?,
+                        data_emissao = ?, projeto = ?,
+                        banco_id = ?,
+                        tipo_documento = ?, numero_pedido = ?, chave_nfe = ?, codigo_barras = ?,
+                        vendedor = ?, status = ?,
+                        valor_pis = ?, reter_pis = ?, valor_cofins = ?, reter_cofins = ?,
+                        valor_csll = ?, reter_csll = ?, valor_ir = ?, reter_ir = ?,
+                        valor_iss = ?, reter_iss = ?, valor_inss = ?, reter_inss = ?
+                     WHERE id = ?`,
+                    [
+                        descricaoConta,
+                        valorConta,
+                        dataVenc,
+                        dataVenc,
+                        cliente_id || null,
+                        cliente_nome || cliente || null,
+                        categoria_id || null,
+                        observacoes || null,
+                        numero_documento || nota_fiscal || null,
+                        nota_fiscal || numero_documento || null,
+                        data_emissao || null,
+                        projeto || null,
+                        banco_id || conta_bancaria_id || null,
+                        tipo_documento || null,
+                        numero_pedido || null,
+                        chave_nfe || null,
+                        codigo_barras || null,
+                        vendedor || null,
+                        status || 'pendente',
+                        parseFloat(valor_pis) || 0,
+                        reter_pis ? 1 : 0,
+                        parseFloat(valor_cofins) || 0,
+                        reter_cofins ? 1 : 0,
+                        parseFloat(valor_csll) || 0,
+                        reter_csll ? 1 : 0,
+                        parseFloat(valor_ir) || 0,
+                        reter_ir ? 1 : 0,
+                        parseFloat(valor_iss) || 0,
+                        reter_iss ? 1 : 0,
+                        parseFloat(valor_inss) || 0,
+                        reter_inss ? 1 : 0,
+                        req.params.id
+                    ]
+                );
+            } catch (updateErr) {
+                if (updateErr?.code !== 'ER_BAD_FIELD_ERROR') throw updateErr;
+                await pool.query(
+                    'UPDATE contas_receber SET descricao = ?, valor = ?, vencimento = ?, cliente_id = ?, categoria_id = ?, observacoes = ?, status = ? WHERE id = ?',
+                    [descricaoConta, valorConta, dataVenc, cliente_id || null, categoria_id || null, observacoes || null, status || 'pendente', req.params.id]
+                );
+            }
             res.json({ success: true, message: 'Conta atualizada' });
         } catch (err) {
             console.error('[FINANCEIRO] Erro:', err);
@@ -423,27 +748,36 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
     router.post('/contas-pagar/:id/pagar', checkFinanceiroPermission('contas_pagar'), async (req, res, next) => {
         // Guard: pular para rota de pagamento em lote
         if (req.params.id === 'lote') return next();
+        const connection = await pool.getConnection();
         try {
+            await connection.beginTransaction();
             const { id } = req.params;
             const { valor_pago, data_pagamento, banco_id, forma_pagamento, observacoes } = req.body;
-            const [conta] = await pool.query('SELECT * FROM contas_pagar WHERE id = ?', [id]);
-            if (!conta || conta.length === 0) return res.status(404).json({ message: 'Conta não encontrada' });
-            const valorTotal = conta[0].valor + (conta[0].valor_juros || 0) + (conta[0].valor_multa || 0) - (conta[0].valor_desconto || 0);
-            const status = valor_pago >= valorTotal ? 'pago' : 'pendente';
-            await pool.query(
+            const [conta] = await connection.query('SELECT * FROM contas_pagar WHERE id = ? FOR UPDATE', [id]);
+            if (!conta || conta.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ message: 'Conta não encontrada' });
+            }
+            const valorTotal = safeSub(safeAdd(conta[0].valor, conta[0].valor_juros || 0, conta[0].valor_multa || 0), conta[0].valor_desconto || 0);
+            const status = gte(valor_pago, valorTotal) ? 'pago' : 'pendente';
+            await connection.query(
                 `UPDATE contas_pagar SET status = ?, valor_pago = ?, data_pagamento = ?, banco_id = ?, forma_pagamento = ?, observacoes = ? WHERE id = ?`,
                 [status, valor_pago, data_pagamento || new Date().toISOString().split('T')[0], banco_id, forma_pagamento, observacoes, id]
             );
             if (banco_id && status === 'pago') {
-                await pool.query(
+                await connection.query(
                     `INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data, observacoes) VALUES (?, 'saida', ?, ?, ?, ?)`,
                     [banco_id, valor_pago, conta[0].descricao || 'Pagamento conta a pagar', data_pagamento || new Date().toISOString().split('T')[0], observacoes || '']
                 );
             }
+            await connection.commit();
             res.json({ success: true, message: 'Pagamento registrado com sucesso' });
         } catch (err) {
+            try { await connection.rollback(); } catch (_) {}
             console.error('[FINANCEIRO] Erro ao marcar como pago:', err);
             res.status(500).json({ message: 'Erro ao registrar pagamento' });
+        } finally {
+            connection.release();
         }
     });
 
@@ -501,7 +835,7 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
                         `UPDATE contas_pagar SET status = 'pago', valor_pago = valor, data_pagamento = ?, banco_id = ?, forma_pagamento = ? WHERE id = ?`,
                         [dataPgto, banco_id, forma_pagamento, contaId]
                     );
-                    totalPago += conta[0].valor;
+                    totalPago = safeAdd(totalPago, conta[0].valor);
                     if (banco_id) {
                         await connection.query(
                             `INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data, observacoes) VALUES (?, 'saida', ?, 'Pagamento em lote', ?, '')`,
@@ -525,26 +859,35 @@ module.exports = function createFinanceiroCoreRoutes(deps) {
     // CONTAS A RECEBER — AVANÇADO
     // ============================================================
     router.post('/contas-receber/:id/receber', checkFinanceiroPermission('contas_receber'), async (req, res) => {
+        const connection = await pool.getConnection();
         try {
+            await connection.beginTransaction();
             const { id } = req.params;
             const { valor_recebido, data_recebimento, banco_id, forma_recebimento, observacoes } = req.body;
-            const [conta] = await pool.query('SELECT * FROM contas_receber WHERE id = ?', [id]);
-            if (!conta || conta.length === 0) return res.status(404).json({ message: 'Conta não encontrada' });
-            const status = valor_recebido >= conta[0].valor ? 'recebido' : 'parcial';
-            await pool.query(
+            const [conta] = await connection.query('SELECT * FROM contas_receber WHERE id = ? FOR UPDATE', [id]);
+            if (!conta || conta.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({ message: 'Conta não encontrada' });
+            }
+            const status = gte(valor_recebido, conta[0].valor) ? 'recebido' : 'parcial';
+            await connection.query(
                 `UPDATE contas_receber SET status = ?, valor_recebido = ?, data_recebimento = ?, banco_id = ?, forma_recebimento = ?, observacoes = ? WHERE id = ?`,
                 [status, valor_recebido, data_recebimento || new Date().toISOString().split('T')[0], banco_id, forma_recebimento, observacoes, id]
             );
             if (banco_id) {
-                await pool.query(
+                await connection.query(
                     `INSERT INTO movimentacoes_bancarias (banco_id, tipo, valor, cliente_fornecedor, data, observacoes) VALUES (?, 'entrada', ?, ?, ?, ?)`,
                     [banco_id, valor_recebido, conta[0].descricao || 'Recebimento conta a receber', data_recebimento || new Date().toISOString().split('T')[0], observacoes || '']
                 );
             }
+            await connection.commit();
             res.json({ success: true, message: 'Recebimento registrado com sucesso' });
         } catch (err) {
+            try { await connection.rollback(); } catch (_) {}
             console.error('[FINANCEIRO] Erro:', err);
             res.status(500).json({ message: 'Erro ao registrar recebimento' });
+        } finally {
+            connection.release();
         }
     });
 
