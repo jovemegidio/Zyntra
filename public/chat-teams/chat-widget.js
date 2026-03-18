@@ -97,9 +97,10 @@
     function isAudioUrl(url) { return /\.(mp3|wav|ogg|webm)(\?|$)/i.test(url); }
 
     function getAuthToken() {
-        const cookies = document.cookie.split(';');
-        for (const c of cookies) { const [key, val] = c.trim().split('='); if (key === 'authToken' || key === 'token') return val; }
-        return localStorage.getItem('token') || localStorage.getItem('authToken') || sessionStorage.getItem('token') || null;
+        // Priorizar sessionStorage (isolamento por aba)
+        const sessionToken = sessionStorage.getItem('tabAuthToken');
+        if (sessionToken && sessionToken !== 'null' && sessionToken !== 'undefined') return sessionToken;
+        return localStorage.getItem('authToken') || localStorage.getItem('token') || sessionStorage.getItem('token') || null;
     }
 
     async function apiFetch(url, opts = {}) {
@@ -1276,19 +1277,50 @@
     // UNREAD CHECK
     // ═══════════════════════════════════════════════════════
 
+    let unreadPollingHandle = null;
+    let unreadPollingEnabled = true;
     async function checkUnread() {
-        try { const data = await apiFetch('/api/chat/nao-lidas'); unreadCount = data.naoLidas || 0; updateFabBadge(); } catch (err) {}
+        if (!unreadPollingEnabled) return;
+        try {
+            const data = await apiFetch('/api/chat/nao-lidas');
+            unreadCount = data.naoLidas || 0;
+            updateFabBadge();
+        } catch (err) {
+            if (String(err && err.message || '').includes('401')) {
+                unreadPollingEnabled = false;
+                if (unreadPollingHandle) {
+                    clearInterval(unreadPollingHandle);
+                    unreadPollingHandle = null;
+                }
+            }
+        }
     }
-    setInterval(() => { if (!isOpen) checkUnread(); }, 30000);
+    unreadPollingHandle = setInterval(() => { if (!isOpen) checkUnread(); }, 30000);
 
     // ═══════════════════════════════════════════════════════
     // INIT
     // ═══════════════════════════════════════════════════════
 
-    function init() {
-        if (!getAuthToken()) { setTimeout(init, 2000); return; }
-        buildWidget();
-        setTimeout(checkUnread, 3000);
+    let initRetries = 0;
+
+    async function init() {
+        // Se tem token no JS, iniciar direto
+        if (getAuthToken()) {
+            buildWidget();
+            setTimeout(checkUnread, 3000);
+            return;
+        }
+        // Sem token JS: verificar se há sessão válida via cookie httpOnly
+        try {
+            const res = await fetch('/api/me', { credentials: 'include', headers: { 'Accept': 'application/json' } });
+            if (res.ok) {
+                buildWidget();
+                setTimeout(checkUnread, 3000);
+                return;
+            }
+        } catch (e) { /* servidor indisponível */ }
+        // Retry até 5 vezes (10s total)
+        if (initRetries < 5) { initRetries++; setTimeout(init, 2000); }
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
